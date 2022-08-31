@@ -1,0 +1,171 @@
+-->begin<
+// Copyright (c) 2020 Tomsk, Marat Shaimardanov
+// Protocol buffer Generator for Delphi
+
+unit -->unitname<;
+
+interface
+
+uses
+  System.Classes, System.SysUtils, System.Character, System.IOUtils, System.Math,
+  Oz.Cocor.Utils, Oz.Cocor.Lib, Oz.Pb.Scanner, Oz.Pb.Options, Oz.Pb.Tab, Oz.Pb.Gen;
+
+type
+
+{$Region '-->parser<'}
+
+  -->parser<= class(TBaseParser)
+  const
+    ErrorMessages: array [1..8] of string = (
+      {1} 'multiple declaration',
+      {2} 'undefined ident',
+      {3} 'not found this module',
+      {4} 'message type not found',
+      {5} 'message type expected',
+      {6} 'type expected',
+      {7} 'Map fields cannot be repeated',
+      {8} 'Duplicate tag'
+      );-->declarations<
+-->constants<  private
+-->headers<  protected
+    function Starts(s, kind: Integer): Boolean; override;
+    procedure Get; override;
+  public
+    options: TOptions;
+    tab: TpbTable;
+    listing: TStrings;
+    gen: TGen;
+    constructor Create(tab: TpbTable; scanner: TBaseScanner; listing: TStrings);
+    destructor Destroy; override;
+    procedure SemError(n: Integer);
+    function ErrorMsg(nr: Integer): string; override;
+    procedure Parse; override;
+    procedure ParseImport(const id: string; var obj: PObj);
+  end;
+
+{$EndRegion}
+
+{$Region 'TCocoPartHelper'}
+
+  TCocoPartHelper = class helper for TCocoPart
+  private
+    function GetParser: -->parser<;
+    function GetScanner: -->scanner<;
+    function GetOptions: TOptions;
+    function GetTab: TpbTable;
+    function GetErrors: TErrors;
+    function GetGen: TGen;
+  public
+    property parser: -->parser< read GetParser;
+    property scanner: -->scanner< read GetScanner;
+    property options: TOptions read GetOptions;
+    property tab: TpbTable read GetTab;
+    property errors: TErrors read GetErrors;
+    property gen: TGen read GetGen;
+ end;
+
+{$EndRegion}
+
+implementation
+
+{$Region '-->parser<'}
+
+constructor -->parser<.Create(tab: TpbTable; scanner: TBaseScanner; listing: TStrings);
+begin
+  inherited Create(scanner, listing);
+  Self.tab := tab;
+  options := GetOptions;
+  gen := TGen.Create(Self);
+end;
+
+destructor -->parser<.Destroy;
+begin
+  inherited;
+end;
+
+procedure -->parser<.SemError(n: Integer);
+begin
+  SemErr(ErrorMessages[n]);
+end;
+
+procedure -->parser<.Get;
+begin
+  repeat
+    t := la;
+    la := scanner.Scan;
+    if la.kind <= scanner.MaxToken then
+    begin
+      Inc(errDist);
+      break;
+    end;
+-->pragmas<
+    la := t;
+  until False;
+end;
+-->productions<
+procedure -->parser<.Parse;
+begin
+  la := scanner.NewToken;
+  la.val := '';
+  Get;
+-->parseRoot<
+end;
+
+procedure -->parser<.ParseImport(const id: string; var obj: PObj);
+begin
+  _Module(id, obj);
+end;
+
+function -->parser<.Starts(s, kind: Integer): Boolean;
+-->initialization<
+begin
+  Result := sets[s, kind];
+end;
+
+function -->parser<.ErrorMsg(nr: Integer): string;
+-->errors<
+begin
+  if nr <= MaxErr then
+    Result := Errors[nr]
+  else
+    Result := 'error ' + IntToStr(nr);
+end;
+
+{$EndRegion}
+
+{$Region 'TCocoPartHelper'}
+
+function TCocoPartHelper.GetParser: -->parser<;
+begin
+  Result := FParser as -->parser<;
+end;
+
+function TCocoPartHelper.GetScanner: -->scanner<;
+begin
+  Result := parser.scanner as -->scanner<;
+end;
+
+function TCocoPartHelper.GetOptions: TOptions;
+begin
+  Result := parser.options;
+end;
+
+function TCocoPartHelper.GetTab: TpbTable;
+begin
+  Result := parser.tab;
+end;
+
+function TCocoPartHelper.GetErrors: TErrors;
+begin
+  Result := parser.errors;
+end;
+
+function TCocoPartHelper.GetGen: TGen;
+begin
+  Result := parser.gen;
+end;
+
+{$EndRegion}
+
+end.
+
