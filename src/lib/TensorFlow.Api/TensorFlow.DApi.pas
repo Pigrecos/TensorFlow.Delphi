@@ -23,19 +23,34 @@ interface
 uses
   System.SysUtils, System.Classes, System.Types, Generics.Collections,
   System.AnsiStrings, System.Rtti, Spring,spring.Collections.Base,
-  TensorFlow.LowLevelAPI, TensorFlow.DApiBase, TensorFlow._Helpers,
+  TensorFlow.LowLevelAPI, TensorFlow.DApiEager, TensorFlow.DApiBase, TensorFlow._Helpers,
 
   ProtoGen.opDef,
   ProtoGen.nodeDef;
 
 type
-TFGraph      = class;
-TFOperation  = class;
-TFSession    = class;
-TFMMEnv      = class;
-TFShape      = class;
-TFTensor     = class;
+TFGraph         = class;
+TFOperation     = class;
+TFSession       = class;
+TFMMEnv         = class;
+TFTensor        = class;
 TFOperationDesc = class;
+
+PTFShape = ^TFShape;
+TFShape = record
+ private
+   FHandle : Pointer;
+   FaDims  : TArray<TF_int64_t>;
+   FSize   : Int64;
+   Fndim   : Integer;
+ public
+   class operator Initialize (out Dest: TFShape);
+   class operator Finalize   (var Dest: TFShape);
+   //class operator Implicit(a: TFShape): PTFShape;
+   class operator Implicit(a: PTFShape): TFShape;
+
+   property Dims: TArray<TF_int64_t> read FaDims write FaDims;
+end;
 
 TParameter = record
   sNome : string;
@@ -47,20 +62,16 @@ end;
   /// is Tensor or Operation
   /// </summary>
   ITensorOrOperation = class(TFDisposable)
-    private
+    public
        FDevice : string;
        FOp     : TFOperation;
        FName   : string;
        FDtype  : TF_DataType;
        FOutputs: TArray<TFTensor>;
-       function GetType: TF_DataType; virtual; abstract;
+
        //function numpy:TNDArray; virtual ; abstract;
     public
-       property Device : string            read FDevice;
-       property Op     : TFOperation       read FOp;
-       property Name   : string            read FName;
-       property Dtype  : TF_DataType       read GetType;
-       property Outputs: TArray<TFTensor>  read FOutputs;
+       
   end;
 
 
@@ -118,7 +129,7 @@ end;
 /// </remarks>
 TFTensor = class(ITensorOrOperation)
  private
-   m_eagerTensorHandle   : PTF_Tensor;
+   m_eagerTensorHandle   : PTFE_TensorHandle;
    m_lDeallocator_called : Boolean;
    m_isCreatedInGraphMode: Boolean;
    m_IsList              : Boolean;
@@ -166,7 +177,8 @@ TFTensor = class(ITensorOrOperation)
    function GetShape: TFShape;
    procedure Setshape(const Value: TFShape);
    function GetName: string;
-   function GetType: TF_DataType; override;
+   function GetType: TF_DataType;
+
  protected
    procedure NativeDispose(hnd: Pointer); override;
  public
@@ -266,6 +278,7 @@ TFTensor = class(ITensorOrOperation)
    property  id            : Int64          read m_id;
    property  graph         : TFGraph        read m_graph;
    property  Shape         : TFShape        read GetShape write Setshape;
+   property  Device        : string         read FDevice;
    /// <summary>
    /// number of dimensions <br></br>
    /// -1 Unknown  <br></br>
@@ -276,13 +289,15 @@ TFTensor = class(ITensorOrOperation)
    /// n	n-Tensor (you get the idea)
    /// </summary>
    /// <remarks>https://www.tensorflow.org/api_docs/python/tf/rank</remarks>
-   property  isList           :    Boolean  read m_isList write m_isList;
-   property  rank             :    Integer  read GetRank;
-   property  DeallocatorCalled:    Boolean  read m_lDeallocator_called;
-   property  isCreatedInGraphMode: Boolean  read m_isCreatedInGraphMode;
-   property  Value: TValue                  read GetValue;
-   property  EagerTensorHandle: PTF_Tensor  read m_eagerTensorHandle write m_eagerTensorHandle;
-   property  name: string                   read GetName;
+   property  isList           :    Boolean         read m_isList write m_isList;
+   property  rank             :    Integer         read GetRank;
+   property  DeallocatorCalled:    Boolean         read m_lDeallocator_called;
+   property  isCreatedInGraphMode: Boolean         read m_isCreatedInGraphMode;
+   property  Value: TValue                         read GetValue;
+   property  EagerTensorHandle: PTFE_TensorHandle  read m_eagerTensorHandle write m_eagerTensorHandle;
+   property  name: string                          read GetName;
+
+   property Dtype  : TF_DataType       read GetType;
 end;
 
 TFTensors = class (TEnumerableBase<TFTensor>)
@@ -438,25 +453,24 @@ end;
 /// var batch = new TFShape (-1, 4)
 /// </para>
 /// </remarks>
-TFShape = class
+TFShapeHelper = record Helper for TFShape
  private
-   m_aDims: TArray<TF_int64_t>;
-   m_Size : Int64;
-   m_ndim : Integer;
-
-   function GetSize: Int64;
-   function GetnDim: Integer;
+   function  GetSize: Int64;
+   function  GetnDim: Integer;
  public
-   constructor Create; overload;
    constructor Create(dims: TArray<TF_int64_t>); overload;
-   constructor Scalar;
-   destructor  Destroy; override;
+   class function Scalar: TFShape; static;
 
-   function ToString: string; override;
+   class operator Implicit(a : TFShape): TFTensor;
+   class operator Implicit(a : TFShape): TArray<Integer>;
+   
+   function ToString: string;
    function is_compatible_with(shape2:TFShape):Boolean;
    function IsScalar: Boolean;
+   function IsNull: Boolean;
+   function IsNil: Boolean;
+   function Equals(target: TValue): Boolean; reintroduce;
    //
-   property Dims: TArray<TF_int64_t> read m_aDims write m_aDims;
    property ndim: Integer read GetnDim;
    /// <summary>
    ///     Returns the size this shape represents.
@@ -545,6 +559,7 @@ TFOperation = class(ITensorOrOperation)
     function Getname: string;
     function OutputType(index: Integer): TF_DataType;
     function GeNumOutputs: Integer;
+    function GetDevice: string;
  protected
    procedure NativeDispose(hnd: Pointer); override;
  public
@@ -562,9 +577,12 @@ TFOperation = class(ITensorOrOperation)
    function MMLck(): TFOperation;
    //
    property Graph     : TFGraph  read m_oGraph;
+   property Device    : string   read GetDevice;
    property name      : string   read Getname;
    property NumOutputs: Integer  read GeNumOutputs;
    property id_value: Integer  read m_id_value write m_id_value;
+   // Inherithed fom ITensorOrOperation
+   property Outputs: TArray<TensorFlow.DApi.TFTensor>  read FOutputs;
 
 end;
 /// <summary>
@@ -1173,6 +1191,7 @@ begin
                       @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(value: Integer);
 var
@@ -1190,6 +1209,7 @@ begin
                       @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(value: Int16);
 var
@@ -1206,6 +1226,7 @@ begin
                       @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(value: Int64);
 var
@@ -1222,6 +1243,7 @@ begin
                       @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(value: Byte);
 var
@@ -1238,6 +1260,7 @@ begin
                       @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(value: Single);
 var
@@ -1254,6 +1277,7 @@ begin
                       @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(value: Double);
 var
@@ -1270,6 +1294,7 @@ begin
                       @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor  TFTensor.Create(const value: TFString);
 var
@@ -1289,6 +1314,7 @@ begin
                       @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(values: TArray<Byte>);
 var
@@ -1305,6 +1331,7 @@ begin
                         @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(values: TArray<TArray<Byte>>);
 var
@@ -1322,6 +1349,7 @@ begin
                         @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(values: TArray<Boolean>);
 var
@@ -1338,6 +1366,7 @@ begin
                         @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(values: TArray<TArray<Boolean>>);
 var
@@ -1355,6 +1384,7 @@ begin
                         @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(values: TArray<Integer>);
 var
@@ -1371,6 +1401,7 @@ begin
                         @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(values: TArray<TArray<Integer>>);
 var
@@ -1388,6 +1419,7 @@ begin
                         @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(values: TArray<Int16>);
 var
@@ -1404,6 +1436,7 @@ begin
                         @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(values: TArray<TArray<Int16>>);
 var
@@ -1421,6 +1454,7 @@ begin
                         @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(values: TArray<Int64>);
 var
@@ -1437,6 +1471,7 @@ begin
                         @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(values: TArray<TArray<Int64>>);
 var
@@ -1454,6 +1489,7 @@ begin
                         @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(values: TArray<Single>);
 var
@@ -1470,6 +1506,7 @@ begin
                         @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(values: TArray<TArray<Single>>);
 var
@@ -1487,6 +1524,7 @@ begin
                         @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(values: TArray<Double>);
 var
@@ -1503,6 +1541,7 @@ begin
                         @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
 end;
 constructor TFTensor.Create(values: TArray<TArray<Double>>);
 var
@@ -1520,6 +1559,116 @@ begin
                         @m_lDeallocator_called);
  self.MMLck();
  m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
+end;
+
+constructor TFTensor.Create(values: TArray<TFString>);
+var
+ l_iDim, l_iByteSize: TF_int64_t;
+ l_pData: Pointer;
+ l_aDims: array[0..0] of TF_int64_t;
+ l_aEncodeValues: TArray<TFString>;
+begin
+ inherited Create(Nil);
+ if _EncodeStrings(values, l_aEncodeValues) then begin
+   l_pData := _AllocMem(l_aEncodeValues, l_iDim, l_iByteSize);
+   l_aDims[0] := l_iDim;
+   Handle := TF_NewTensor(Int32(TF_STRING), PTF_int64_t(@l_aDims[0]), 1,
+                          l_pData, l_iByteSize, Deallocator_For_TensorDatas,
+                          @m_lDeallocator_called);
+ end;
+ m_isCreatedInGraphMode := not tf.executing_eagerly;
+ self.MMLck();
+end;
+constructor TFTensor.Create(values: TArray<TArray<TFString>>);
+var
+ l_iDim1, l_iDim2, l_iByteSize: TF_int64_t;
+ l_pData: Pointer;
+ l_aDims: array[0..1] of TF_int64_t;
+ l_aEncodeValues: TArray<TArray<TFString>>;
+begin
+ inherited Create(Nil);
+ if _EncodeStrings(values, l_aEncodeValues) then begin
+   l_pData := _AllocMem(l_aEncodeValues, l_iDim1, l_iDim2, l_iByteSize);
+   l_aDims[0] := l_iDim1;
+   l_aDims[1] := l_iDim2;
+   Handle := TF_NewTensor(Int32(TF_STRING), PTF_int64_t(@l_aDims[0]), 2,
+                          l_pData, l_iByteSize, Deallocator_For_TensorDatas,
+                          @m_lDeallocator_called);
+ end;
+ m_isCreatedInGraphMode := not tf.executing_eagerly;
+ m_eagerTensorHandle    := nil;
+ self.MMLck();
+end;
+
+constructor TFTensor.Create(shape: TFShape; dtype: TF_DataType);
+begin
+    Self.Create(shape,dtype,nil);
+end;
+
+constructor TFTensor.Create(op: TFOperation; value_index: Integer; dtype: TF_DataType);
+begin
+     m_op    := op;
+     m_graph := m_op.Graph;
+
+     m_value_index := value_index;
+     m_override_dtype := dtype;
+     m_id := TOps.uid;
+     m_isCreatedInGraphMode := not tf.executing_eagerly;
+     m_eagerTensorHandle    := nil;
+end;
+
+constructor TFTensor.Create(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType);
+begin
+    Create( InitTensor<Byte>(bytes,shape,dtype) );
+    m_isCreatedInGraphMode := not tf.executing_eagerly;
+    m_eagerTensorHandle    := nil;
+end;
+
+constructor TFTensor.Create(shape: TFShape; dtype: TF_DataType; data: Pointer);
+var
+ i           : Integer;
+ l_iNumValues: TF_int64_t;
+ l_pTensor   : PTF_Tensor;
+ l_pData     : Pointer;
+begin
+     inherited Create(Nil);
+     l_iNumValues := 1;
+     var num_dims := Length(shape.Dims);
+     var dims     := shape.Dims;
+     var dTypeSize:= get_datatype_size(dtype);
+
+     for i := 0 to num_dims-1 do
+       l_iNumValues := l_iNumValues * dims[i];
+
+     var _length : TF_size_t := l_iNumValues * dTypeSize;
+
+     l_pTensor := TF_AllocateTensor(Integer(dtype), PTF_int64_t(@dims[0]), num_dims, _length);
+     l_pData   := TF_TensorData(l_pTensor);
+     if l_pData = nil then
+        raise Exception.Create('AllocateTensor failed.');
+
+     if Assigned(data)  then
+       Move(data^, l_pData^, _length);
+
+     Handle := l_pTensor;
+
+     m_isCreatedInGraphMode := not tf.executing_eagerly;
+     m_eagerTensorHandle    := nil;
+     self.MMLck();
+end;
+
+destructor  TFTensor.Destroy;
+begin
+ if m_lDeallocator_called then
+   Handle := Nil;
+ inherited Destroy;
+end;
+
+procedure TFTensor.NativeDispose(hnd: Pointer);
+begin
+ if Assigned(hnd) then
+   TF_DeleteTensor(hnd);
 end;
 
 class function TFTensor.StringTensor(srcArray: TArray<TArray<byte>>; shape: TFShape):TFTensor;
@@ -1567,7 +1716,7 @@ var
   l_iFullByteSize : Integer;
   res             : TArray<T>;
 begin
-    if TUtils.as_tf_dtype( TypeInfo(T) ) <> Dtype then
+    if Tdtypes.as_tf_dtype( TypeInfo(T) ) <> Dtype then
       raise Exception.Create('Required dtype {dtype} mismatch with {typeof(T).as_tf_dtype()}.');
 
     l_pData := TF_TensorData(Handle);
@@ -1596,7 +1745,7 @@ end;
 
 function TFTensor.ToString: string;
 begin
-    Result := Format('tf.Tensor "%s" shape=%s dtype=%s',[name,Shape.ToString,TUtils.as_numpy_name(TensorDataType)]);
+    Result := Format('tf.Tensor "%s" shape=%s dtype=%s',[name,Shape.ToString,Tdtypes.as_numpy_name(TensorDataType)]);
 end;
 
 function TFTensor._as_tf_output: TF_Output;
@@ -1609,116 +1758,9 @@ begin
     Result := m_tf_output;
 end;
 
-constructor TFTensor.Create(values: TArray<TFString>);
-var
- l_iDim, l_iByteSize: TF_int64_t;
- l_pData: Pointer;
- l_aDims: array[0..0] of TF_int64_t;
- l_aEncodeValues: TArray<TFString>;
-begin
- inherited Create(Nil);
- if _EncodeStrings(values, l_aEncodeValues) then begin
-   l_pData := _AllocMem(l_aEncodeValues, l_iDim, l_iByteSize);
-   l_aDims[0] := l_iDim;
-   Handle := TF_NewTensor(Int32(TF_STRING), PTF_int64_t(@l_aDims[0]), 1,
-                          l_pData, l_iByteSize, Deallocator_For_TensorDatas,
-                          @m_lDeallocator_called);
- end;
- m_isCreatedInGraphMode := not tf.executing_eagerly;
- self.MMLck();
-end;
-constructor TFTensor.Create(values: TArray<TArray<TFString>>);
-var
- l_iDim1, l_iDim2, l_iByteSize: TF_int64_t;
- l_pData: Pointer;
- l_aDims: array[0..1] of TF_int64_t;
- l_aEncodeValues: TArray<TArray<TFString>>;
-begin
- inherited Create(Nil);
- if _EncodeStrings(values, l_aEncodeValues) then begin
-   l_pData := _AllocMem(l_aEncodeValues, l_iDim1, l_iDim2, l_iByteSize);
-   l_aDims[0] := l_iDim1;
-   l_aDims[1] := l_iDim2;
-   Handle := TF_NewTensor(Int32(TF_STRING), PTF_int64_t(@l_aDims[0]), 2,
-                          l_pData, l_iByteSize, Deallocator_For_TensorDatas,
-                          @m_lDeallocator_called);
- end;
- m_isCreatedInGraphMode := not tf.executing_eagerly;
- self.MMLck();
-end;
-
-constructor TFTensor.Create(shape: TFShape; dtype: TF_DataType);
-begin
-    Self.Create(shape,dtype,nil);
-end;
-
-constructor TFTensor.Create(op: TFOperation; value_index: Integer; dtype: TF_DataType);
-begin
-     m_op    := op;
-     m_graph := m_op.Graph;
-
-     m_value_index := value_index;
-     m_override_dtype := dtype;
-     m_id := TOps.uid;
-     m_isCreatedInGraphMode := not tf.executing_eagerly;
-end;
-
-constructor TFTensor.Create(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType);
-begin
-    Create( InitTensor<Byte>(bytes,shape,dtype) );
-    m_isCreatedInGraphMode := not tf.executing_eagerly;
-end;
-
-constructor TFTensor.Create(shape: TFShape; dtype: TF_DataType; data: Pointer);
-var
- i           : Integer;
- l_iNumValues: TF_int64_t;
- l_pTensor   : PTF_Tensor;
- l_pData     : Pointer;
-begin
-     inherited Create(Nil);
-     l_iNumValues := 1;
-     var num_dims := Length(shape.Dims);
-     var dims     := shape.Dims;
-     var dTypeSize:= get_datatype_size(dtype);
-
-     for i := 0 to num_dims-1 do
-       l_iNumValues := l_iNumValues * dims[i];
-
-     var _length : TF_size_t := l_iNumValues * dTypeSize;
-
-     l_pTensor := TF_AllocateTensor(Integer(dtype), PTF_int64_t(@dims[0]), num_dims, _length);
-     l_pData   := TF_TensorData(l_pTensor);
-     if l_pData = nil then
-        raise Exception.Create('AllocateTensor failed.');
-
-     if Assigned(data)  then
-       Move(data^, l_pData^, _length);
-
-     Handle := l_pTensor;
-
-     m_isCreatedInGraphMode := not tf.executing_eagerly;
-
-     self.MMLck();
-end;
-
-destructor  TFTensor.Destroy;
-begin
- if m_lDeallocator_called then
-   Handle := Nil;
- inherited Destroy;
-end;
-
-procedure TFTensor.NativeDispose(hnd: Pointer);
-begin
- if Assigned(hnd) then
-   TF_DeleteTensor(hnd);
-end;
-
 function TFTensor.BufferToArray: TArray<Byte>;
 var
   l_pData,l_pVal  : Pointer ;
-  l_iFullByteSize : Integer;
   res             : TArray<Byte>;
 begin
     SetLength(res,bytesize);
@@ -1861,7 +1903,7 @@ end;
 
 function TFTensor.GetShape: TFShape;
 begin
-    m_shape := TFShape.Create;;
+    m_shape := default(TFShape);
 
     if rank < 0 then
         Exit(m_shape);
@@ -1887,7 +1929,7 @@ begin
       if not Shape.is_compatible_with(Value) then
          raise Exception.Create('Tensor''s shape is not compatible.');
 
-    if value = nil then
+    if value.IsNil then
       TF_GraphSetTensorShape(graph.Handle, _as_tf_output, nil, -1, tf.Status.Handle)
     else
       TF_GraphSetTensorShape(graph.Handle, _as_tf_output, @value.dims, value.ndim, tf.Status.Handle);
@@ -2473,7 +2515,7 @@ begin
    ObjectDisposedException ();
  if Length(attrName) = 0 then
    raise TFException.Create('TFOperationDesc.SetAttrShape: Argument Null Exception - attrName');
- if not Assigned(shape) or not Assigned(shape.Dims) then
+ if (shape.IsNil) or not Assigned(shape.Dims) then
    TF_SetAttrShape(Handle, _PTFChar(attrName), Nil, -1)
  else
    TF_SetAttrShape(Handle, _PTFChar(attrName), @(shape.Dims[0]), Length(shape.Dims));
@@ -2725,6 +2767,15 @@ begin
 
 end;
 
+function TFOperation.GetDevice: string;
+begin
+    FDevice := '';
+    if Assigned(Handle) then
+      FDevice := string( AnsiString(TF_OperationDevice(Handle)) ) ;
+
+    Result := FDevice;
+end;
+
 function TFOperation.Getname: string;
 begin
     m_name := '';
@@ -2750,35 +2801,148 @@ end;
 //------------------------------------------------------------------------------
 //----------------------------- TFShape ----------------------------------------
 //------------------------------------------------------------------------------
-constructor TFShape.Create;
+(*class operator TFShape.Implicit(a: TFShape): PTFShape;
 begin
- inherited Create;
- m_aDims := Nil;
-end;
-constructor TFShape.Create(dims: TArray<TF_int64_t>);
-begin
- inherited Create;
- m_aDims := dims;
-end;
-destructor  TFShape.Destroy;
-begin
- SetLength(m_aDims,0);
- m_aDims := nil;
- inherited Destroy;
-end;
-function TFShape.GetnDim: Integer;
-begin
-    //if Length(m_aDims) < 1 then Exit(-1);
+    Result := PTFShape(Intptr(@a));
+end; *)
 
-    Result := Length(m_aDims);
+class operator TFShape.Implicit(a: PTFShape): TFShape;
+begin
+    if Assigned(a) then
+       Result := a^;
 end;
 
-function TFShape.GetSize: Int64;
+class operator TFShape.Initialize(out Dest: TFShape);
+begin
+    //Dest := Default(TFShape);
+    //Dest.FHandle := nil;
+    //Dest.FaDims := Nil;
+end;
+
+class operator TFShape.Finalize(var Dest: TFShape);
+begin
+    //Dest := Default(TFShape);
+    //SetLength(Dest.FaDims,0);
+    //Dest.FHandle := nil;
+    //Dest.FaDims  := nil;
+end;
+
+{ TFShapeHelper }
+
+class operator TFShapeHelper.Implicit(a: TFShape): TFTensor;
+begin
+   var v : TValue := TValue.From<TFShape>(a);
+
+    Result := TConstant_op.constant(@v)
+end;
+
+class operator TFShapeHelper.Implicit(a: TFShape): TArray<Integer>;
+var
+  i : Integer;
+begin
+    Result := [];
+    for i := 0 to Length(a.FaDims) - 1 do
+     Result := Result + [ a.FaDims[i] ] ;
+end;
+
+function TFShapeHelper.IsNil: Boolean;
+begin
+    Result := Self.FHandle = nil;
+end;
+
+function TFShapeHelper.IsNull: Boolean;
+begin
+    Result := FaDims = nil;
+end;
+
+constructor TFShapeHelper.Create(dims: TArray<TF_int64_t>);
+begin
+    Self := Default(TFShape);
+
+    Self.FSize   := 0;
+    Self.Fndim   := 0;
+    Self.FHandle := Pointer($10000000);
+    Self.FaDims := dims;
+end;
+
+class function TFShapeHelper.Scalar: TFShape;
+begin
+    var v : TFShape;
+
+    v.FaDims := nil;
+    v.FSize   := 0;
+    v.Fndim   := 0;
+    v.FHandle := Pointer($10000000);
+    Result := v ;
+
+end;
+
+function TFShapeHelper.Equals(target: TValue): Boolean;
+begin
+    if target.IsType<TFShape> then
+    begin
+        var vval := target.AsType<TFShape>;
+        if (ndim = -1) and (vval.ndim = -1) then Exit(false)
+        else if ndim <> vval.ndim then           Exit(false);
+        var vVector : Vector<TF_int64_t> := self.Dims;
+        Result := vVector.Equals(vval.Dims)
+    end
+    else if target.IsType< TArray<Int64> > then
+    begin
+        var vval := target.AsType< TArray<Int64> >;
+        if ndim <> Length(vval) then Exit(False);
+
+        var vVector : Vector<TF_int64_t> := self.Dims;
+        Result := vVector.Equals(vval)
+    end
+    else if target.IsType< TArray<Integer> > then
+    begin
+        var vval := target.AsType< TArray<Integer> >;
+        if ndim <> Length(vval) then Exit(False);
+
+        var vval2 : Vector<Integer>;
+        for var i := 0 to Length(self.Dims) - 1 do
+           vval2 := vval2 + [ self.Dims[i] ];
+
+        Result := vval2.Equals(vval) ;
+    end
+    else if target.IsType< TList<Integer> > then
+    begin
+        var vval := target.AsType< TList<Integer> >;
+        if ndim <> vval.Count then Exit(False);
+
+        var vval2 : Vector<Integer>;
+        for var i := 0 to Length(self.Dims) - 1 do
+           vval2 := vval2 + [ self.Dims[i] ];
+
+        Result := vval2.Equals(vval.ToArray) ;
+    end
+    else if target.IsType< TList<Int64> > then
+    begin
+        var vval := target.AsType<  TList<Int64> >;
+        if ndim <> vval.Count then Exit(False);
+
+        var vval2 : Vector<Int64> := self.Dims;
+        Result := vval2.Equals(vval.ToArray) ;
+    end else
+    begin
+        Result := False;
+    end;
+end;
+
+function TFShapeHelper.GetnDim: Integer;
+begin
+    //if FaDims = nil then Exit(-1);
+
+    Result := Length(FaDims);
+end;
+
+function TFShapeHelper.GetSize: Int64;
 begin
     // scalar
-    m_Size := 1;
+    FSize := 1;
 
-    if ndim = 0 then Exit(m_Size);
+    if ndim = 0 then Exit(FSize);
     var computed : Int64 := 1;
     for var i := 0 to ndim - 1 do
     begin
@@ -2789,16 +2953,16 @@ begin
             continue;
         computed := computed * val;
     end;
-    m_Size := computed;
-    Result := m_Size;
+    FSize := computed;
+    Result := FSize;
 end;
 
-function TFShape.IsScalar: Boolean;
+function TFShapeHelper.IsScalar: Boolean;
 begin
      Result := ndim = 0;
 end;
 
-function TFShape.is_compatible_with(shape2: TFShape): Boolean;
+function TFShapeHelper.is_compatible_with(shape2: TFShape): Boolean;
 begin
     if (TArray.IndexOf<Int64>(dims,-1)> -1) or (TArray.IndexOf<Int64>(shape2.dims,-1) > -1) then
         Exit(true);
@@ -2807,22 +2971,16 @@ begin
     Result := true;
 end;
 
-constructor TFShape.Scalar;
+function TFShapeHelper.ToString: string;
 begin
-    inherited Create;
-    m_aDims := [];
-end;
-
-function TFShape.ToString: string;
-begin
-    case m_ndim of
+    case Fndim of
       -1 : Result := '<unknown>';
       0  : Result := '()';
-      1  : Result := '(' + IntToStr(m_aDims[0]).Replace('-1','None') +')';
+      1  : Result := '(' + IntToStr(FaDims[0]).Replace('-1','None') +')';
     else
       var sStrings : TArray<String>;
-      for var i := 0 to Length(m_aDims) - 1 do
-           sStrings := sStrings + [ IntToStr(m_aDims[i]).Replace('-1','None') ];
+      for var i := 0 to Length(FaDims) - 1 do
+           sStrings := sStrings + [ IntToStr(FaDims[i]).Replace('-1','None') ];
       Result.Join(',', sStrings);
     end;
 end;
@@ -2946,15 +3104,15 @@ function TFGraph.name_scope(name: TFString): TFString;
 begin
     var new_stack : TFString := '';
 
-    if string.IsNullOrEmpty(name) then
+    if string.IsNullOrEmpty(string(name)) then
         new_stack := ''
     else if string(name).EndsWith('/') then
-        new_stack := TOps.name_from_scope_name(name)
+        new_stack := TOps.name_from_scope_name(string(name))
     else
         new_stack := MakeUnique(name);
     _name_stack := new_stack;
-    if String.IsNullOrEmpty(new_stack) then Result := ''
-    else                                    Result := new_stack + '/';
+    if String.IsNullOrEmpty(string(new_stack)) then Result := ''
+    else                                            Result := new_stack + '/';
 end;
 
 function TFGraph.MakeUnique(const name: TFString): TFString;
@@ -3499,10 +3657,8 @@ function TFSession.Run(inputs: TArray<TF_Output>; inputValues: TArray<PTF_Tensor
                 runMetadata: PTF_Buffer = Nil; runOptions: PTF_Buffer = Nil;
                 status: PTF_Status = Nil): Boolean;
 var
- i, l_iInputsCnt, l_iOutputsCnt, l_iTargetsCnt: Integer;
- l_pInputs, l_pOutputs: PTF_Output;
- l_pInputValues, l_pOutputValues: PTF_Tensor;
- l_pTargets: PTF_Operation;
+ l_iInputsCnt, l_iOutputsCnt: Integer;
+
 begin
  if not Assigned(Handle) then
    ObjectDisposedException ();
@@ -3784,7 +3940,6 @@ function TFTensors.GetEnumerator: IEnumerator<TFTensor>;
 begin
     inherited GetEnumerator;
 end;
-
 
 Initialization
 begin

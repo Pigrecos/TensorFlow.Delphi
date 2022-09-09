@@ -220,7 +220,7 @@ var
  l_iStrLng, l_iOffset: UInt64;
  l_iFullByteSize: TF_int64_t;
  l_pOffset: PUInt64;
- l_pData, l_pBase, l_pSrc, l_pDataStart, l_pLimit:  PTFChar;
+ l_pData, l_pBase, l_pSrc, l_pDataStart:  PTFChar;
 begin
  dim := Length(values);
  if dim > 0 then begin
@@ -228,10 +228,8 @@ begin
    for i := 0 to dim-1 do
      l_iFullByteSize := l_iFullByteSize + sizeof(UInt64) + sizeof(TFChar) * (Length(values[i])+1);   // <- Mit \0 am Schluss
    GetMem(l_pBase, l_iFullByteSize);
-   l_pData      := l_pBase;
    l_pOffset    := PUInt64(l_pBase);
    l_pDataStart := l_pBase + sizeof(UInt64) * dim;
-   l_pLimit     := l_pBase + l_iFullByteSize;
    l_iOffset    := 0;
    for i := 0 to dim-1 do begin
      l_iStrLng   := UInt64(Length(values[i])+1);
@@ -260,7 +258,7 @@ var
  l_iStrLng, l_iOffset: UInt64;
  l_iFullByteSize: TF_int64_t;
  l_pOffset: PUInt64;
- l_pData, l_pBase, l_pSrc, l_pDataStart, l_pLimit:  PTFChar;
+ l_pData, l_pBase, l_pSrc, l_pDataStart:  PTFChar;
 begin
  dim1 := Length(values);
  if dim1 > 0 then begin
@@ -272,10 +270,8 @@ begin
      end;
    end;
    GetMem(l_pBase, l_iFullByteSize);
-   l_pData      := l_pBase;
    l_pOffset    := PUInt64(l_pBase);
    l_pDataStart := l_pBase + sizeof(UInt64) * dim1;
-   l_pLimit     := l_pBase + l_iFullByteSize;
    l_iOffset    := 0;
    for i := 0 to dim1-1 do begin
      for j := 0 to dim2-1 do begin
@@ -380,8 +376,6 @@ function _GetArray(data: Pointer; const dim, total_byte_size: TF_int64_t;
 var
  i, l_iByteSize: Integer;
  l_iStrLng, l_iOffset, l_iNextOffset, l_iLimitOffset: UInt64;
- l_iFullByteSize: TF_int64_t;
- l_pLng: PUInt64;
  l_pOffset: PUInt64;
  l_pData, l_pBase, l_pDst, l_pDataStart, l_pLimit:  PTFChar;
 begin
@@ -420,8 +414,6 @@ function _GetArray(data: Pointer; const dim1, dim2, total_byte_size: TF_int64_t;
 var
  i, j, l_iByteSize: Integer;
  l_iStrLng, l_iOffset, l_iNextOffset, l_iLimitOffset: UInt64;
- l_iFullByteSize: TF_int64_t;
- l_pLng: PUInt64;
  l_pOffset: PUInt64;
  l_pData, l_pBase, l_pDst, l_pDataStart, l_pLimit:  PTFChar;
 begin
@@ -924,7 +916,6 @@ function _GetPTFCharArray(values: TArray<TFString>;
                           var parray: TArray<PTFChar>): Boolean;
 var
  i, n, l: Integer;
- l_pVal: PTFChar;
 begin
  Result := False;
  n := Length(values);
@@ -966,7 +957,7 @@ begin
 
    //l_iSize    := TF_StringEncode(l_pStr, l_iLen, l_pEncodeStr, l_iEncodeLen, l_pStatus);
    if TF_GetCode(l_pStatus) = TF_Code.TF_OK then begin
-     (l_pEncodeStr+l_iSize)^ := #0;
+     (l_pEncodeStr+l_iLen)^ := #0;
      Result := l_pEncodeStr;
    end;
    TF_DeleteStatus(l_pStatus);

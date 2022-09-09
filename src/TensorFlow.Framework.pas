@@ -33,7 +33,7 @@ end;
 class function op_def_registry.get_registered_ops: TDictionary<string, TOpDef>;
 var
   Loader: TpbLoader;
-  loaderpb : TpbInput;
+
 begin
     if not Assigned(registered_ops)  then
        registered_ops := TDictionary<string, TOpDef>.Create;

@@ -57,6 +57,7 @@ type
  TF_data_deallocator = procedure (data: Pointer; length: TF_size_t);  cdecl;
  TFEX_ProtCallback   = procedure (prot_buf: PTFChar; prot_buf_len: TF_size_t); cdecl;
 
+ PTF_DataType = ^TF_DataType;
  /// <summary>Represents the type of the elements in a Tensor.</summary>
  TF_DataType = (
   TF_DATATYPE_UNKNOWN = 0,
@@ -119,7 +120,7 @@ type
   TF_UINT32_REF = 122,
   TF_UINT64_REF = 123
  );
- PTF_DataType = ^TF_DataType;
+
 TF_Code = (
   TF_OK = 0,
   TF_CANCELLED = 1,
@@ -139,7 +140,6 @@ TF_Code = (
   TF_UNAVAILABLE = 14,
   TF_DATA_LOSS = 15
  );
-
 
 /// <summary>TF_AttrType describes the type of the value of an attribute on an operation.</summary>
 TF_AttrType = (
@@ -1589,13 +1589,14 @@ var
  l_sStrBuf: TFString;
  l_pStrBuf, l_pName: PTFChar;
 begin
- SetLength(l_sStrBuf,255);
+SetLength(l_sStrBuf,255);
  l_pStrBuf := @(l_sStrBuf[1]);
  l_pName   := @(name[1]);
  l_iIdx := TFEX_ParseTensorName(l_pName, l_pStrBuf, @l_iStrLng);
  SetLength(l_sStrBuf,l_iStrLng);
  first := l_sStrBuf;
  Result := l_iIdx;
+
 end;
 
 procedure ProtCallback(prot_buf: PTFChar; prot_buf_len: TF_size_t);
@@ -1608,6 +1609,7 @@ begin
 
  SetLength(l_sProtText,prot_buf_len);
  System.AnsiStrings.StrPCopy(PTFChar(l_sProtText),prot_buf);
+
 end;
 
 

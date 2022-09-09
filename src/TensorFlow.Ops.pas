@@ -1,12 +1,13 @@
 unit TensorFlow.Ops;
 
 interface
-     uses System.SysUtils, System.SyncObjs, Winapi.Windows,
+     uses System.SysUtils, System.SyncObjs, Winapi.Windows, System.Rtti,
           Spring,
           Spring.Collections, spring.Collections.MultiMaps, Spring.Collections.Enumerable, Spring.Collections.Extensions,
           system.Generics.Collections,
           TensorFlow.LowLevelAPI,
           NDArray,
+          TensorFlow.Context,
           Tensorflow.Graph,
           TensorFlow.Variable,
           TensorFlow.DApi,
@@ -40,7 +41,7 @@ type
       _skip_on_eager : boolean;
 
       constructor Create(name: TFString; default_name : TFString = ''; values : PValue = nil; skip_on_eager : Boolean = True);
-      function ToString: TFString;
+      function ToString: TFString; reintroduce;
       procedure _Enter_;
       procedure _Exit_;
   end;
@@ -95,7 +96,7 @@ type
       /// <param name="dtype"></param>
       /// <param name="name"></param>
       /// <returns></returns>
-      class function convert_to_tensor(value: TObject; dtype : TF_DataType = TF_DATATYPE_UNKNOWN; name: string= ''; as_ref: Boolean = False; preferred_dtype : TF_DataType = TF_DATATYPE_UNKNOWN; ctx: TContext= nil): TFTensor;
+      class function convert_to_tensor(value: TValue; dtype : TF_DataType = TF_DATATYPE_UNKNOWN; name: string= ''; as_ref: Boolean = False; preferred_dtype : TF_DataType = TF_DATATYPE_UNKNOWN; ctx: TContext= nil): TFTensor;
       function convert_to_tensor_or_composite(value: TFTensor; dtype: TF_DataType = TF_DATATYPE_UNKNOWN; name: string = ''): TFTensor;
       function internal_convert_to_tensor_or_composite(value: TFTensor; dtype: TF_DataType = TF_DATATYPE_UNKNOWN; name: string = ''; as_ref: Boolean = false): TFTensor;
       /// <summary>
@@ -179,7 +180,7 @@ type
       function  convert_to_tensor_or_indexed_slices(value: TFTensor; dtype: TF_DataType = TF_DATATYPE_UNKNOWN; name: string = ''): TFTensor;
       function  internal_convert_to_tensor_or_indexed_slices(value: TFTensor; dtype: TF_DataType = TF_DATATYPE_UNKNOWN; name: string = ''; as_ref : Boolean = false): TFTensor;
       function  internal_convert_n_to_tensor_or_indexed_slices(values: TArray<TFTensor>; dtype: TF_DataType = TF_DATATYPE_UNKNOWN; name : string= ''; as_ref : Boolean= false): TArray<TFTensor>;
-      class function  internal_convert_n_to_tensor(values: TArray<TObject>; dtype: TF_DataType = TF_DATATYPE_UNKNOWN; name: string = ''; preferred_dtype : TF_DataType = TF_DATATYPE_UNKNOWN; as_ref: Boolean = false):TArray<TFTensor>;
+      class function  internal_convert_n_to_tensor(values: TArray<TValue>; dtype: TF_DataType = TF_DATATYPE_UNKNOWN; name: string = ''; preferred_dtype : TF_DataType = TF_DATATYPE_UNKNOWN; as_ref: Boolean = false):TArray<TFTensor>;
       function  strip_name_scope(name: string; export_scope: string = ''): string;
       function  get_name_scope: string;
       function  executing_eagerly_outside_functions: Boolean;
@@ -250,11 +251,11 @@ type
   end;
 
   TGen_Math_Ops = record
-     class function cast(x: TFTensor; DstT: TF_DataType; Truncate : Boolean = false; name: string = ''): TFTensor;static;
+     class function cast(x: TFTensor; DstT: TF_DataType; name: string = '';Truncate : Boolean = false): TFTensor;static;
   end;
 
    T_Math_Ops = record
-     class function cast(x: TFTensor; DstT: TF_DataType = TF_DATATYPE_UNKNOWN; name: string = ''): TFTensor;static;
+     class function cast(x: TFTensor; dtype: TF_DataType = TF_DATATYPE_UNKNOWN; name: string = ''): TFTensor;static;
   end;
 
 implementation
@@ -318,7 +319,7 @@ begin
     var graph : TFGraph := nil;
     for var op_input in op_input_list do
     begin
-        if string.LowerCase(op_input.TypeInfo^.Name) = 'tftensor' then
+        if string.LowerCase(string(op_input.TypeInfo^.Name)) = 'tftensor' then
         begin
             if graph = nil then
                graph := op_input.AsType<TFTensor>.graph
@@ -347,31 +348,31 @@ begin
     Result := get_default_graph;
 end;
 
-class function TOps.convert_to_tensor(value: TObject; dtype: TF_DataType; name: string; as_ref: Boolean; preferred_dtype: TF_DataType; ctx: TContext): TFTensor;
+class function TOps.convert_to_tensor(value: TValue; dtype: TF_DataType; name: string; as_ref: Boolean; preferred_dtype: TF_DataType; ctx: TContext): TFTensor;
 begin
     if dtype = TF_DataType.TF_DATATYPE_UNKNOWN then
         dtype := preferred_dtype;
     if dtype = TF_DataType.TF_DATATYPE_UNKNOWN then
-        dtype :=  TUtils.GetDataType( TValue.From<TObject>(value) ) ;
-    (*
-    if value is TEagerTensor then
+        dtype :=  TUtils.GetDataType( value ) ;
+
+    if value.IsType<TEagerTensor> then
     begin
-        var eager_tensor := value as TEagerTensor;
+        var eager_tensor := value.AsType<TEagerTensor>;
         if tf.executing_eagerly then
         begin
             if (dtype <> TF_DataType.TF_DATATYPE_UNKNOWN) and (dtype <> eager_tensor.TensorDataType) then
-                Exit(gen_math_ops.cast(eager_tensor, TUtils.as_base_dtype(dtype), name);
+                Exit(TGen_Math_Ops.cast(eager_tensor, Tdtypes.as_base_dtype(dtype), name));
             Exit(eager_tensor);
         end else
         begin
             var graph := get_default_graph;
             if not graph.building_function then
-                throw new RuntimeError("Attempting to capture an EagerTensor without building a function.");
-            return (graph as FuncGraph).capture(eager_tensor, name: name);
+               raise Exception.Create('Attempting to capture an EagerTensor without building a function.');
+//            return (graph as FuncGraph).capture(eager_tensor, name: name);
         end;
     end;
     // graph mode
-    Tensor ret = value switch
+    (*Tensor ret = value switch
     {
         NDArray nd => constant_op.constant(nd, dtype: dtype, name: name),
         EagerTensor tensor => tensor.dtype == TF_DataType.TF_RESOURCE
@@ -407,7 +408,7 @@ begin
 
     Result := TConstant_op.constant(@value,
                                     dtype,
-                                    sh,
+                                    @sh,
                                     verify_shape,
                                     false,
                                     name);
@@ -484,7 +485,8 @@ end;
 
 class function TOps.set_default_graph(g: TFGraph): TFGraph;
 begin
-    Fdefault_graph_stack.get_controller(g)
+    Fdefault_graph_stack.get_controller(g);
+    Result := g;
 end;
 
 function TOps.Get_default_graph_stack: DefaultGraphStack;
@@ -535,17 +537,20 @@ end;
 
 function TOps.get_name_scope: string;
 begin
-
+    var g := get_default_graph;
+    Result := g.get_name_scope;
 end;
 
 class function TOps.GraphUniqueId: Integer;
 begin
-    TInterlocked.Increment(Fgraph_uid_number)
+    TInterlocked.Increment(Fgraph_uid_number);
+    Result := Fgraph_uid_number
 end;
 
 class function TOps.uid_function: Integer;
 begin
-    TInterlocked.Increment(Fuid_number_for_function)
+    TInterlocked.Increment(Fuid_number_for_function);
+    Result := Fuid_number_for_function
 end;
 
 function TOps.init_scope: TNameScope;
@@ -553,7 +558,7 @@ begin
 
 end;
 
-class function TOps.internal_convert_n_to_tensor(values: TArray<TObject>; dtype: TF_DataType; name: string; preferred_dtype: TF_DataType; as_ref: Boolean): TArray<TFTensor>;
+class function TOps.internal_convert_n_to_tensor(values: TArray<TValue>; dtype: TF_DataType; name: string; preferred_dtype: TF_DataType; as_ref: Boolean): TArray<TFTensor>;
 begin
 
 end;
@@ -572,8 +577,6 @@ function TOps.internal_convert_to_tensor_or_indexed_slices(value: TFTensor; dtyp
 begin
 
 end;
-
-
 
 class function TOps.name_from_scope_name(name: string): string;
 begin
@@ -766,7 +769,10 @@ constructor TNameScope.Create(name, default_name: TFString; values: PValue; skip
 begin
     _name := name;
     _default_name := default_name;
-    _values := values^;
+    if values <> nil then
+      _values := values^
+    else
+      _values := default(TValue);
     _skip_on_eager := skip_on_eager;
 end;
 
@@ -784,9 +790,9 @@ begin
     begin
         scope_name := name + '/';
         if not string.IsNullOrEmpty(old_name) then
-            scope_name := old_name + scope_name;
+            scope_name := AnsiString(old_name) + scope_name;
     end;
-    ctx.ScopeName := scope_name;
+    ctx.ScopeName := string(scope_name);
 
     Result  := Tuple<TFString, TFString>.Create(scope_name, old_name);
 end;
@@ -810,12 +816,12 @@ begin
         if _name = '' then
           _name := _default_name;
         var g : TFGraph := nil;
-        if _values.IsType< TList<TFTensor> > then
+        if (not _values.IsEmpty) and (_values.IsType< TList<TFTensor> >) then
         begin
             var vList : TList<TFTensor> := _values.AsType< TList<TFTensor> > ;
             g := TOps._get_graph_from_inputs(vList.ToArray);
         end
-        else if _values.IsType< TArray<TFTensor> > then
+        else if (not _values.IsEmpty) and (_values.IsType< TArray<TFTensor> >) then
         begin
             var vArray : TArray<TFTensor> := _values.AsType<  TArray<TFTensor> >;
             g := TOps._get_graph_from_inputs(vArray);
@@ -830,46 +836,34 @@ end;
 procedure TNameScope._Exit_;
 begin
     if tf.Context.executing_eagerly then
-        tf.Context.ScopeName := old_scope_name
+        tf.Context.ScopeName := string(old_scope_name)
     else
         TOps.get_default_graph._name_stack := old_scope_name;
 end;
 
 { TGen_Math_Ops }
 
-class function TGen_Math_Ops.cast(x: TFTensor; DstT: TF_DataType; Truncate: Boolean; name: string): TFTensor;
+class function TGen_Math_Ops.cast(x: TFTensor; DstT: TF_DataType; name: string = '';Truncate : Boolean = false): TFTensor;
 begin
-    tf.Context.ExecuteOp('Cast', name, ExecuteOpArgs.Create([TValue.From<TFTensor>(x)]).SetAttributes([TValue.From<Integer>(Ord(DstT)), Truncate]) );
+    Result := tf.Context.ExecuteOp('Cast', name, ExecuteOpArgs.Create([TValue.From<TFTensor>(x)]).SetAttributes([TValue.From<Integer>(Ord(DstT)), Truncate]) ).FirstOrDefault;
 end;
 
 { T_Math_Ops }
 
-class function T_Math_Ops.cast(x: TFTensor; DstT: TF_DataType; name: string): TFTensor;
+class function T_Math_Ops.cast(x: TFTensor; dtype: TF_DataType; name: string): TFTensor;
 begin
-    var base_type = dtype.as_base_dtype();
-    if (base_type == x.dtype)
-        return x;
+    var base_type := Tdtypes.as_base_dtype(dtype);
+    if base_type = x.dtype then
+        Exit(x);
 
-    return tf_with(ops.name_scope(name, "Cast", new { x }), scope =>
-    {
-        name = scope;
-        if (x.dtype.as_base_dtype() != base_type)
-            x = gen_math_ops.cast(x, base_type, name: name);
-
-        return x;
-    });
-
-    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'zeros', @ss),
+    var vvalue := TValue.From<TFTensor>(x);
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'Cast', @vvalue),
                                           function(v1: TNameScope): TFTensor
                                             begin
-                                                name := scope;
-                                                case ddtype of
-                                                  TF_DataType.TF_DOUBLE: Result := TOps.constant(Double(0.0));
-                                                  TF_DataType.TF_FLOAT:  Result := TOps.constant(Single(0.0));
-                                                 else
-                                                    Result := TOps.constant(0);
-                                                end;
-                                                fill(TFTensor.Create(shape), Result,  name);
+                                                name := string(v1.ToString);
+                                                if Tdtypes.as_base_dtype(x.dtype) <> base_type then
+                                                    x := TGen_Math_Ops.cast(x, base_type, name);
+                                                Result := x;
                                             end );
 end;
 

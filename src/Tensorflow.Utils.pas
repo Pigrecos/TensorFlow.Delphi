@@ -12,6 +12,43 @@ interface
          ProtoGen.Tensor;
 
 type
+ Tdtypes = class
+   public
+     const
+       cbool       : TF_DataType  = TF_DataType.TF_BOOL;
+       cint8       : TF_DataType  = TF_DataType.TF_INT8;
+       cint32      : TF_DataType  = TF_DataType.TF_INT32;
+       cint64      : TF_DataType  = TF_DataType.TF_INT64;
+       cuint8      : TF_DataType  = TF_DataType.TF_UINT8;
+       cuint32     : TF_DataType  = TF_DataType.TF_UINT32;
+       cuint64     : TF_DataType  = TF_DataType.TF_UINT64;
+       cfloat32    : TF_DataType  = TF_DataType.TF_FLOAT; // is that float32?
+       cfloat16    : TF_DataType  = TF_DataType.TF_HALF;
+       cfloat64    : TF_DataType  = TF_DataType.TF_DOUBLE;
+       ccomplex    : TF_DataType  = TF_DataType.TF_COMPLEX;
+       ccomplex64  : TF_DataType  = TF_DataType.TF_COMPLEX64;
+       ccomplex128 : TF_DataType  = TF_DataType.TF_COMPLEX128;
+       cvariant    : TF_DataType  = TF_DataType.TF_VARIANT;
+       cresource   : TF_DataType  = TF_DataType.TF_RESOURCE;
+
+       class function as_numpy_name(value: TF_DataType): string;
+       class function as_base_dtype(value: TF_DataType): TF_DataType; overload;
+       class function as_base_dtype(value: TDataType): TDataType;  overload;
+       class function as_ref(value: TF_DataType): TF_DataType;
+       class function as_tf_dtype(value: TValue): TF_DataType; overload;
+       class function as_tf_dtype(value: PTypeInfo): TF_DataType; overload;
+       class function as_tf_dtype(value: TDataType): TF_DataType; overload;
+       class function get_datatype_size(tipo: TF_DataType): Integer; static;
+       class function as_datatype_enum(value: TF_DataType): TDataType; static;
+       class function ToIntArray(value: TArray<TF_DataType>): TArray<Integer>;
+       /// <summary>
+       ///
+       /// </summary>
+       /// <param name="type"></param>
+       /// <returns><see cref="System.Type"/> equivalent to <paramref name="type"/>, if none exists, returns null.</returns>
+       class function as_system_dtype(tipo: TF_DataType): PTypeInfo; static;
+ end;
+
  TSorted = class
    public
       class function Sort<T,T1>(dict_: IDictionary<T, T1> ): IEnumerable<T>;
@@ -29,26 +66,13 @@ type
       class function flatten<T>(obj : TArray<TArray<TArray<TArray<T>>>>): TList<T> ;  overload;
 
       class function tf_with<TIn, TOut>(py: TIn; action: TFunc<TIn, TOut>): TOut;
-      class function as_numpy_name(value: TF_DataType): string;
-      class function as_base_dtype(value: TF_DataType): TF_DataType;
-      class function as_ref(value: TF_DataType): TF_DataType;
       class function GetDataType(value: TValue): TF_DataType;
-      class function get_datatype_size(tipo: TF_DataType): Integer; static;
-      class function as_tf_dtype(value: TValue): TF_DataType; overload;
-      class function as_tf_dtype(value: PTypeInfo): TF_DataType; overload;
       class function GetShape(value: TValue): TFShape;overload;
       class function GetShape<T>(Tval: TArray<TArray<TArray<TArray<T>>>>): TFShape;  overload;
       class function ConvertToDict(dny: TArray<TParameter>): TDictionary<string,TValue> ;
       class function isinstance(v: TValue; t : PTypeInfo):Boolean;
-      class function as_datatype_enum(value: TF_DataType): TDataType; static;
       class function as_shape_proto(tshape: TFShape): TTensorShapeProto; static;
-      /// <summary>
-      ///
-      /// </summary>
-      /// <param name="type"></param>
-      /// <returns><see cref="System.Type"/> equivalent to <paramref name="type"/>, if none exists, returns null.</returns>
-      class function as_system_dtype(tipo: TF_DataType): PTypeInfo; static;
-
+      class function as_shape<T>(dims: TArray<T>): TTensorShapeProto;
       /// <summary>
       /// Create a TensorProto, invoked in graph mode
       /// </summary>
@@ -58,13 +82,14 @@ type
       /// <param name="verify_shape"></param>
       /// <param name="allow_broadcast"></param>
       /// <returns></returns>
-      class function make_tensor_proto(values: TValue; var dtype : TF_DataType; var shape : TFShape; verify_shape : Boolean= false; allow_broadcast : Boolean= false) : TTensorProto;
+      class function make_tensor_proto(values: TValue; var dtype : TF_DataType; shape : PTFShape; verify_shape : Boolean= false; allow_broadcast : Boolean= false) : TTensorProto;
 
  end;
 
 
 implementation
-        uses TensorFlow.Ops, NDArray,Numpy.Axis,Complex;
+        uses Tensorflow, TensorFlow.Ops, NDArray,Numpy.Axis,Complex,TensorFlow.Variable;
+
 { TSorted }
 
 class function TSorted.Sort<T,T1>(dict_: IDictionary<T, T1> ): IEnumerable<T>;
@@ -72,9 +97,149 @@ begin
      Result := TDictionary<T, T1>(dict_).Keys.Ordered;
 end;
 
-{ TUtils }
+{ Tdtypes }
 
-class function TUtils.get_datatype_size(tipo: TF_DataType) : Integer;
+class function Tdtypes.as_datatype_enum(value: TF_DataType): TDataType;
+begin
+    Result := TDataType(Ord(value)) ;
+end;
+
+class function Tdtypes.ToIntArray(value: TArray<TF_DataType>): TArray<Integer>;
+begin
+    Result := [];
+    for var i:= 0 to Length(value)-1 do
+       Result := Result + [Ord(value[i]) ] ;
+end;
+
+class function Tdtypes.as_base_dtype(value: TF_DataType): TF_DataType;
+begin
+    if Ord(value) > 100 then Result := TF_DataType(Ord(value) - 100 )
+    else                     Result := value;
+end;
+
+class function Tdtypes.as_base_dtype(value: TDataType): TDataType;
+begin
+    if Ord(value) > 100 then Result := TDataType(Ord(value) - 100 )
+    else                     Result := value;
+end;
+
+class function Tdtypes.as_ref(value: TF_DataType): TF_DataType;
+begin
+    if Ord(value) < 100 then Result := TF_DataType(Ord(value) + 100 )
+    else                     Result := value;
+end;
+
+class function Tdtypes.as_numpy_name(value: TF_DataType): string;
+begin
+    case value of
+        TF_DataType.TF_STRING   : Result :='string';
+        TF_DataType.TF_UINT8    : Result :='uint8';
+        TF_DataType.TF_INT8     : Result :='int8';
+        TF_DataType.TF_UINT32   : Result :='uint32';
+        TF_DataType.TF_INT32    : Result :='int32';
+        TF_DataType.TF_UINT64   : Result :='uint64';
+        TF_DataType.TF_INT64    : Result :='int64';
+        TF_DataType.TF_FLOAT    : Result :='float32';
+        TF_DataType.TF_DOUBLE   : Result :='float64';
+        TF_DataType.TF_BOOL     : Result :='bool';
+        TF_DataType.TF_RESOURCE : Result :='resource';
+        TF_DataType.TF_VARIANT  : Result :='variant';
+    else
+        Result := TEnum.GetName<TF_DataType>(value);
+    end;
+end;
+
+class function Tdtypes.as_tf_dtype(value: TDataType): TF_DataType;
+begin
+    Result := TF_DataType(value);
+end;
+
+class function Tdtypes.as_tf_dtype(value: TValue): TF_DataType;
+var
+  tTipo : PTypeInfo;
+  dType : TF_DataType;
+begin
+     dType := TF_DataType.TF_DATATYPE_UNKNOWN;
+
+     while value.IsArray do
+       value := value.GetArrayElement(0);
+
+     tTipo:= value.TypeInfo;
+
+     if      String.LowerCase(tTipo.TypeName) = 'integer'   then dType := TF_DataType.TF_INT32
+     else if String.LowerCase(tTipo.TypeName) = 'cardinal'  then dType := TF_DataType.TF_UINT32
+     else if String.LowerCase(tTipo.TypeName) = 'int64'     then dType := TF_DataType.TF_INT64
+     else if String.LowerCase(tTipo.TypeName) = 'uint64'    then dType := TF_DataType.TF_UINT64
+     else if String.LowerCase(tTipo.TypeName) = 'word'      then dType := TF_DataType.TF_UINT16
+     else if String.LowerCase(tTipo.TypeName) = 'smallint'  then dType := TF_DataType.TF_INT16
+     else if String.LowerCase(tTipo.TypeName) = 'byte'      then dType := TF_DataType.TF_UINT8
+     else if String.LowerCase(tTipo.TypeName) = 'char'      then dType := TF_DataType.TF_UINT8
+     else if String.LowerCase(tTipo.TypeName) = 'shortint'  then dType := TF_DataType.TF_INT8
+     else if String.LowerCase(tTipo.TypeName) = 'boolean'   then dType := TF_DataType.TF_BOOL
+     else if String.LowerCase(tTipo.TypeName) = 'single'    then dType := TF_DataType.TF_FLOAT
+     else if String.LowerCase(tTipo.TypeName) = 'double'    then dType := TF_DataType.TF_DOUBLE
+     else if String.LowerCase(tTipo.TypeName) = 'string'    then dType := TF_DataType.TF_STRING
+     else if String.LowerCase(tTipo.TypeName) = 'ansistring'then dType := TF_DataType.TF_STRING;
+
+     Result := dType;
+
+end;
+
+class function Tdtypes.as_tf_dtype(value: PTypeInfo): TF_DataType;
+var
+  tTipo : PTypeInfo;
+  dType : TF_DataType;
+begin
+     dType := TF_DataType.TF_DATATYPE_UNKNOWN;
+
+
+     while (value.Kind = tkDynArray) or (value.Kind = tkArray) do
+       value := value^.TypeData^.DynArrElType^;
+
+     tTipo:= value;
+
+     if      String.LowerCase(tTipo.TypeName) = 'integer'   then dType := TF_DataType.TF_INT32
+     else if String.LowerCase(tTipo.TypeName) = 'cardinal'  then dType := TF_DataType.TF_UINT32
+     else if String.LowerCase(tTipo.TypeName) = 'int64'     then dType := TF_DataType.TF_INT64
+     else if String.LowerCase(tTipo.TypeName) = 'uint64'    then dType := TF_DataType.TF_UINT64
+     else if String.LowerCase(tTipo.TypeName) = 'word'      then dType := TF_DataType.TF_UINT16
+     else if String.LowerCase(tTipo.TypeName) = 'smallint'  then dType := TF_DataType.TF_INT16
+     else if String.LowerCase(tTipo.TypeName) = 'byte'      then dType := TF_DataType.TF_UINT8
+     else if String.LowerCase(tTipo.TypeName) = 'char'      then dType := TF_DataType.TF_UINT8
+     else if String.LowerCase(tTipo.TypeName) = 'shortint'  then dType := TF_DataType.TF_INT8
+     else if String.LowerCase(tTipo.TypeName) = 'boolean'   then dType := TF_DataType.TF_BOOL
+     else if String.LowerCase(tTipo.TypeName) = 'single'    then dType := TF_DataType.TF_FLOAT
+     else if String.LowerCase(tTipo.TypeName) = 'double'    then dType := TF_DataType.TF_DOUBLE
+     else if String.LowerCase(tTipo.TypeName) = 'string'    then dType := TF_DataType.TF_STRING
+     else if String.LowerCase(tTipo.TypeName) = 'ansistring'then dType := TF_DataType.TF_STRING;
+
+     Result := dType;
+
+end;
+
+class function Tdtypes.as_system_dtype(tipo: TF_DataType): PTypeInfo ;
+begin
+    case as_base_dtype(tipo) of
+        TF_DataType.TF_BOOL:   Result := TypeInfo(Boolean) ;
+        TF_DataType.TF_UINT8:  Result := TypeInfo(UInt8) ;
+        TF_DataType.TF_INT8:   Result := TypeInfo(Int8) ;
+        TF_DataType.TF_INT64:  Result := TypeInfo(Int64) ;
+        TF_DataType.TF_UINT64: Result := TypeInfo(UInt64) ;
+        TF_DataType.TF_INT32:  Result := TypeInfo(Int32) ;
+        TF_DataType.TF_UINT32: Result := TypeInfo(UInt32) ;
+        TF_DataType.TF_INT16:  Result := TypeInfo(Int16) ;
+        TF_DataType.TF_UINT16: Result := TypeInfo(UInt16) ;
+        TF_DataType.TF_FLOAT:  Result := TypeInfo(Single) ;
+        TF_DataType.TF_DOUBLE: Result := TypeInfo(Double) ;
+        TF_DataType.TF_STRING: Result := TypeInfo(String) ;
+        TF_DataType.TF_COMPLEX128,
+        TF_DataType.TF_COMPLEX64:  Result := TypeInfo(TComplex) ;
+        else
+            raise Exception.Create('Unable to convert {type} to a system data type.');
+    end;
+end;
+
+class function Tdtypes.get_datatype_size(tipo: TF_DataType) : Integer;
 begin
      case as_base_dtype(tipo) of
         TF_DataType.TF_BOOL     : Result := SizeOf(Boolean);
@@ -88,10 +253,13 @@ begin
         TF_DataType.TF_INT64    : Result := SizeOf(Int64);
         TF_DataType.TF_FLOAT    : Result := SizeOf(Single);
         TF_DataType.TF_DOUBLE   : Result := SizeOf(Double);
+        TF_DataType.TF_STRING   : Result := 1;
     else
         raise Exception.Create('TUtils.get_datatype_size - NotImplemented');
     end;
 end;
+
+{ TUtils }
 
 class function TUtils.GetDataType(value: TValue): TF_DataType;
 var
@@ -101,7 +269,7 @@ begin
    Result := TF_DATATYPE_UNKNOWN;
 
    case ttipo.Kind of
-     tkClass,tkRecord : begin
+     tkClass,tkRecord,tkMRecord : begin
           if      string.LowerCase(string(tTipo.Name)) = 'tfshape'  then   Exit(TF_DataType.TF_INT64)
           else if string.LowerCase(string(tTipo.Name)) = 'taxis'    then   Exit(TF_DataType.TF_INT32)
           else if string.LowerCase(string(tTipo.Name)) = 'tndarray' then
@@ -114,6 +282,11 @@ begin
              var v : TFTensor := value.AsType<TFTensor>;
              Exit(v.TensorDataType);
           end
+          else if string.LowerCase(string(tTipo.Name)) = 'teagertensor' then
+          begin
+             var v : TEagerTensor := value.AsType<TEagerTensor>;
+             Exit(v.TensorDataType);
+          end
           else if string.LowerCase(string(tTipo.Name)) = 'tftensors' then
           begin
              var v : TFTensors := value.AsType<TFTensors>;
@@ -121,17 +294,20 @@ begin
           end
           else if string.LowerCase(string(tTipo.Name)) = 'refvariable' then
           begin
-             var v : TFTensor := value.AsType<TFTensor>;
-             Exit(v.TensorDataType);
+             var v : RefVariable := value.AsType<RefVariable>;
+             Exit(v.dtype);
           end
           else if string.LowerCase(string(tTipo.Name)) = 'resourcevariable' then
           begin
-             var v : TFTensor := value.AsType<TFTensor>;
-             Exit(v.TensorDataType);
+             var v : ResourceVariable := value.AsType<ResourceVariable>;
+             Exit(v.dtype);
           end;
      end;
+     tkArray,tkDynArray: begin
+          Result := GetDataType( value.GetArrayElement(0) )
+     end
    else
-     Result := as_tf_dtype(value);
+     Result := Tdtypes.as_tf_dtype(value);
    end;
 end;
 
@@ -142,14 +318,15 @@ begin
    tTipo:= value.TypeInfo;
 
    case ttipo.Kind of
-     tkClass,tkRecord : begin
+     tkClass,tkRecord,tkMRecord : begin
           if string.LowerCase(string(tTipo.Name)) = 'taxis'     then
           begin
               var v : TAxis:= value.AsType<TAxis>;
 
               if v.isScalar then Exit( TFShape.scalar );
 
-              Result := TFShape.Create([Length(v.axis)]);
+              var vAx : TArray<Int64>; SetLength(vAx,Length(v.axis.Value));
+              Result := TFShape.Create(vAx);
               Exit;
           end
           else if string.LowerCase(string(tTipo.Name)) = 'tndarray' then
@@ -231,129 +408,6 @@ begin
         end;
     end;
 
-end;
-
-class function TUtils.as_datatype_enum(value: TF_DataType): TDataType;
-begin
-    Result := TDataType(Ord(value)) ;
-end;
-
-class function TUtils.as_base_dtype(value: TF_DataType): TF_DataType;
-begin
-    if Ord(value) > 100 then Result := TF_DataType(Ord(value) - 100 )
-    else                     Result := value;
-end;
-
-class function TUtils.as_ref(value: TF_DataType): TF_DataType;
-begin
-    if Ord(value) < 100 then Result := TF_DataType(Ord(value) + 100 )
-    else                     Result := value;
-end;
-
-class function TUtils.as_numpy_name(value: TF_DataType): string;
-begin
-    case value of
-        TF_DataType.TF_STRING   : Result :='string';
-        TF_DataType.TF_UINT8    : Result :='uint8';
-        TF_DataType.TF_INT8     : Result :='int8';
-        TF_DataType.TF_UINT32   : Result :='uint32';
-        TF_DataType.TF_INT32    : Result :='int32';
-        TF_DataType.TF_UINT64   : Result :='uint64';
-        TF_DataType.TF_INT64    : Result :='int64';
-        TF_DataType.TF_FLOAT    : Result :='float32';
-        TF_DataType.TF_DOUBLE   : Result :='float64';
-        TF_DataType.TF_BOOL     : Result :='bool';
-        TF_DataType.TF_RESOURCE : Result :='resource';
-        TF_DataType.TF_VARIANT  : Result :='variant';
-    else
-        Result := TEnum.GetName<TF_DataType>(value);
-    end;
-end;
-
-class function TUtils.as_tf_dtype(value: TValue): TF_DataType;
-var
-  tTipo : PTypeInfo;
-  dType : TF_DataType;
-begin
-     dType := TF_DataType.TF_DATATYPE_UNKNOWN;
-
-     while value.IsArray do
-       value := value.GetArrayElement(0);
-
-     tTipo:= value.TypeInfo;
-
-     if      String.LowerCase(tTipo.TypeName) = 'integer'   then dType := TF_DataType.TF_INT32
-     else if String.LowerCase(tTipo.TypeName) = 'cardinal'  then dType := TF_DataType.TF_UINT32
-     else if String.LowerCase(tTipo.TypeName) = 'int64'     then dType := TF_DataType.TF_INT64
-     else if String.LowerCase(tTipo.TypeName) = 'uint64'    then dType := TF_DataType.TF_UINT64
-     else if String.LowerCase(tTipo.TypeName) = 'word'      then dType := TF_DataType.TF_UINT16
-     else if String.LowerCase(tTipo.TypeName) = 'smallint'  then dType := TF_DataType.TF_INT16
-     else if String.LowerCase(tTipo.TypeName) = 'byte'      then dType := TF_DataType.TF_UINT8
-     else if String.LowerCase(tTipo.TypeName) = 'char'      then dType := TF_DataType.TF_UINT8
-     else if String.LowerCase(tTipo.TypeName) = 'shortint'  then dType := TF_DataType.TF_INT8
-     else if String.LowerCase(tTipo.TypeName) = 'boolean'   then dType := TF_DataType.TF_BOOL
-     else if String.LowerCase(tTipo.TypeName) = 'single'    then dType := TF_DataType.TF_FLOAT
-     else if String.LowerCase(tTipo.TypeName) = 'double'    then dType := TF_DataType.TF_DOUBLE
-     else if String.LowerCase(tTipo.TypeName) = 'string'    then dType := TF_DataType.TF_STRING
-     else if String.LowerCase(tTipo.TypeName) = 'ansistring'then dType := TF_DataType.TF_STRING;
-
-     Result := dType;
-
-end;
-
-class function TUtils.as_tf_dtype(value: PTypeInfo): TF_DataType;
-var
-  tTipo : PTypeInfo;
-  dType : TF_DataType;
-begin
-     dType := TF_DataType.TF_DATATYPE_UNKNOWN;
-
-
-     while (value.Kind = tkDynArray) or (value.Kind = tkArray) do
-       value := value^.TypeData^.DynArrElType^;
-
-     tTipo:= value;
-
-     if      String.LowerCase(tTipo.TypeName) = 'integer'   then dType := TF_DataType.TF_INT32
-     else if String.LowerCase(tTipo.TypeName) = 'cardinal'  then dType := TF_DataType.TF_UINT32
-     else if String.LowerCase(tTipo.TypeName) = 'int64'     then dType := TF_DataType.TF_INT64
-     else if String.LowerCase(tTipo.TypeName) = 'uint64'    then dType := TF_DataType.TF_UINT64
-     else if String.LowerCase(tTipo.TypeName) = 'word'      then dType := TF_DataType.TF_UINT16
-     else if String.LowerCase(tTipo.TypeName) = 'smallint'  then dType := TF_DataType.TF_INT16
-     else if String.LowerCase(tTipo.TypeName) = 'byte'      then dType := TF_DataType.TF_UINT8
-     else if String.LowerCase(tTipo.TypeName) = 'char'      then dType := TF_DataType.TF_UINT8
-     else if String.LowerCase(tTipo.TypeName) = 'shortint'  then dType := TF_DataType.TF_INT8
-     else if String.LowerCase(tTipo.TypeName) = 'boolean'   then dType := TF_DataType.TF_BOOL
-     else if String.LowerCase(tTipo.TypeName) = 'single'    then dType := TF_DataType.TF_FLOAT
-     else if String.LowerCase(tTipo.TypeName) = 'double'    then dType := TF_DataType.TF_DOUBLE
-     else if String.LowerCase(tTipo.TypeName) = 'string'    then dType := TF_DataType.TF_STRING
-     else if String.LowerCase(tTipo.TypeName) = 'ansistring'then dType := TF_DataType.TF_STRING;
-
-     Result := dType;
-
-end;
-
-
-class function TUtils.as_system_dtype(tipo: TF_DataType): PTypeInfo ;
-begin
-    case as_base_dtype(tipo) of
-        TF_DataType.TF_BOOL:   Result := TypeInfo(Boolean) ;
-        TF_DataType.TF_UINT8:  Result := TypeInfo(UInt8) ;
-        TF_DataType.TF_INT8:   Result := TypeInfo(Int8) ;
-        TF_DataType.TF_INT64:  Result := TypeInfo(Int64) ;
-        TF_DataType.TF_UINT64: Result := TypeInfo(UInt64) ;
-        TF_DataType.TF_INT32:  Result := TypeInfo(Int32) ;
-        TF_DataType.TF_UINT32: Result := TypeInfo(UInt32) ;
-        TF_DataType.TF_INT16:  Result := TypeInfo(Int16) ;
-        TF_DataType.TF_UINT16: Result := TypeInfo(UInt16) ;
-        TF_DataType.TF_FLOAT:  Result := TypeInfo(Single) ;
-        TF_DataType.TF_DOUBLE: Result := TypeInfo(Double) ;
-        TF_DataType.TF_STRING: Result := TypeInfo(String) ;
-        TF_DataType.TF_COMPLEX128,
-        TF_DataType.TF_COMPLEX64:  Result := TypeInfo(TComplex) ;
-        else
-            raise Exception.Create('Unable to convert {type} to a system data type.');
-    end;
 end;
 
 class function TUtils.flatten<T>(obj :TArray<T>): TList<T> ;
@@ -531,6 +585,31 @@ begin
 
 end;
 
+class function TUtils.as_shape<T>(dims: TArray<T>): TTensorShapeProto;
+var
+  shape : TTensorShapeProto;
+  i     : Integer;
+begin
+    shape.Init;
+    var v := TValue.From< TArray<T> >(dims) ;
+
+    for i := 0 to Length(dims) - 1 do
+    begin
+        var dim : TDim ;
+        dim.Init;
+        if TypeInfo(T) = TypeInfo(Integer) then
+          dim.Size := v.AsType< TArray<Integer> >[i]
+        else if TypeInfo(T) = TypeInfo(Int64) then
+          dim.Size := v.AsType< TArray<Int64> >[i]
+        else
+          raise Exception.Create('as_shape Not Implemented');
+
+        shape.Dims.Add(@dim);
+    end;
+    Result := shape;
+
+end;
+
 class function TUtils.as_shape_proto(tshape : TFShape): TTensorShapeProto;
 var
   shape : TTensorShapeProto;
@@ -549,7 +628,7 @@ begin
     Result := shape;
 end;
 
-class function TUtils.make_tensor_proto(values: TValue; var dtype: TF_DataType; var shape: TFShape; verify_shape,
+class function TUtils.make_tensor_proto(values: TValue; var dtype: TF_DataType; shape: PTFShape; verify_shape,
                        allow_broadcast: Boolean): TTensorProto;
 begin
 
@@ -564,7 +643,7 @@ begin
         dtype := origin_dtype
     else if origin_dtype <> dtype then
     begin
-        var new_system_dtype := TUtils.as_system_dtype(dtype);
+        var new_system_dtype := Tdtypes.as_system_dtype(dtype);
         if values.IsType< TArray<Int64> > then
         begin
             if dtype = TF_DataType.TF_INT32 then
@@ -580,13 +659,17 @@ begin
         dtype := GetDataType(values);
     end;
 
-   if shape = nil then
-      shape :=  GetShape(values);
+    var sShape : TFShape;
+    if shape = nil then
+    begin
+        sShape := GetShape(values);
+        shape :=  @sShape;
+    end;
 
     var tensor_proto : TTensorProto;
     tensor_proto.Init;
 
-    tensor_proto.Dtype       := TUtils.as_datatype_enum(dtype);
+    tensor_proto.Dtype       := Tdtypes.as_datatype_enum(dtype);
     tensor_proto.TensorShape := TUtils.as_shape_proto(shape);
     
     if values.IsType<TNDArray> then
@@ -625,7 +708,7 @@ begin
     begin
         if (values.IsType<string>) or (values.IsType<AnsiString>) then
         begin
-            var str := AnsiString( values.asType<string> );
+            var str :=  values.AsType<string> ;
             var bytes := TEncoding.UTF8.GetBytes(str);
             tensor_proto.StringVals.Add(@bytes);
         end
@@ -646,7 +729,7 @@ begin
     else if values.IsArray then
     begin
         // array
-        var len := TUtils.get_datatype_size(dtype) * shape.size;
+        var len := Tdtypes.get_datatype_size(dtype) * shape.size;
         var bytes : TArray<Byte>;
         var src := values.GetReferenceToRawData;
         var dst := @bytes[0];

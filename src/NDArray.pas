@@ -23,44 +23,44 @@ type
      constructor Create(value: Single);  overload; override;
      constructor Create(value: Double);  overload; override;
      //
-     constructor Create(bytes: TArray<TFString>;shape: TFShape= nil);overload;
+     constructor Create(bytes: TArray<TFString>;shape: PTFShape= nil);overload;
      //
-     constructor Create(bytes: TArray<Boolean>;                        shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<Boolean>>;                shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<Boolean>>>;        shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<TArray<Boolean>>>>;shape: TFShape= nil);overload;
+     constructor Create(bytes: TArray<Boolean>;                        shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<Boolean>>;                shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<Boolean>>>;        shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<TArray<Boolean>>>>;shape: PTFShape= nil);overload;
      //
-     constructor Create(bytes: TArray<Byte>;                         shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<Byte>>;                 shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<Byte>>>;         shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<TArray<Byte>>>>; shape: TFShape= nil);overload;
+     constructor Create(bytes: TArray<Byte>;                         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<Byte>>;                 shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<Byte>>>;         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<TArray<Byte>>>>; shape: PTFShape= nil);overload;
      //
-     constructor Create(bytes: TArray<Int16>;                         shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<Int16>>;                 shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<Int16>>>;         shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<TArray<Int16>>>>; shape: TFShape= nil);overload;
+     constructor Create(bytes: TArray<Int16>;                         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<Int16>>;                 shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<Int16>>>;         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<TArray<Int16>>>>; shape: PTFShape= nil);overload;
      //
-     constructor Create(bytes: TArray<Int32>;                         shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<Int32>>;                 shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<Int32>>>;         shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<TArray<Int32>>>>; shape: TFShape= nil);overload;
+     constructor Create(bytes: TArray<Int32>;                         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<Int32>>;                 shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<Int32>>>;         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<TArray<Int32>>>>; shape: PTFShape= nil);overload;
      //
-     constructor Create(bytes: TArray<Int64>;                         shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<Int64>>;                 shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<Int64>>>;         shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<TArray<Int64>>>>;  shape: TFShape= nil);overload;
+     constructor Create(bytes: TArray<Int64>;                         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<Int64>>;                 shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<Int64>>>;         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<TArray<Int64>>>>;  shape: PTFShape= nil);overload;
      //
-     constructor Create(bytes: TArray<Single>;                         shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<Single>>;                 shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<Single>>>;         shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<TArray<Single>>>>; shape: TFShape= nil);overload;
+     constructor Create(bytes: TArray<Single>;                         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<Single>>;                 shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<Single>>>;         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<TArray<Single>>>>; shape: PTFShape= nil);overload;
      //
-     constructor Create(bytes: TArray<Double>;                         shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<Double>>;                 shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<Double>>>;         shape: TFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<TArray<Double>>>>; shape: TFShape= nil);overload;
+     constructor Create(bytes: TArray<Double>;                         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<Double>>;                 shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<Double>>>;         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<TArray<Double>>>>; shape: PTFShape= nil);overload;
      //
-     constructor Create(value: TValue;shape: TFShape= nil); overload;
+     constructor Create(value: TValue;shape: PTFShape= nil); overload;
      //
      constructor Create(shape: TFShape;                      dtype: TF_DataType); overload;
      constructor Create(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType); overload;
@@ -119,30 +119,34 @@ begin
     NewEagerTensorHandle ;
 end;
 
-constructor TNDArray.Create(bytes: TArray<Boolean>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<Boolean>; shape: PTFShape);
 begin
      Create(TValue.From(Bytes),shape );
      NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<Boolean>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<Boolean>>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<TArray<Boolean>>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<Boolean>>>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Boolean>>>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Boolean>>>>; shape: PTFShape);
 var
   dtype : TF_DataType;
 begin
+    var v : TFShape;
     if shape = nil then
-      shape := TUtils.GetShape<Boolean>(bytes);
+    begin
+        v := TUtils.GetShape<Boolean>(bytes);
+        shape := @v;
+    end;
 
     dtype:=TF_DataType.TF_BOOL;
 
@@ -150,30 +154,34 @@ begin
     NewEagerTensorHandle ;
 end;
 
-constructor TNDArray.Create(bytes: TArray<Byte>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<Byte>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<Byte>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<Byte>>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<TArray<Byte>>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<Byte>>>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Byte>>>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Byte>>>>; shape: PTFShape);
 var
   dtype : TF_DataType;
 begin
+    var v : TFShape;
     if shape = nil then
-      shape := TUtils.GetShape<Byte>(bytes);
+    begin
+        v := TUtils.GetShape<Byte>(bytes);
+        shape := @v;
+    end;
 
     dtype:=TF_DataType.TF_UINT8;
 
@@ -181,30 +189,34 @@ begin
     NewEagerTensorHandle ;
 end;
 
-constructor TNDArray.Create(bytes: TArray<Int16>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<Int16>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<Int16>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<Int16>>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<TArray<Int16>>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<Int16>>>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Int16>>>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Int16>>>>; shape: PTFShape);
 var
   dtype : TF_DataType;
 begin
+    var v : TFShape;
     if shape = nil then
-      shape := TUtils.GetShape<Int16>(bytes);
+    begin
+        v := TUtils.GetShape<Int16>(bytes);
+        shape := @v;
+    end;
 
     dtype:= TF_DataType.TF_INT16;
 
@@ -212,30 +224,34 @@ begin
     NewEagerTensorHandle ;
 end;
 
-constructor TNDArray.Create(bytes: TArray<Int32>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<Int32>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<Int32>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<Int32>>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<TArray<Int32>>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<Int32>>>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Int32>>>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Int32>>>>; shape: PTFShape);
 var
   dtype : TF_DataType;
 begin
+    var v : TFShape;
     if shape = nil then
-      shape := TUtils.GetShape<Int32>(bytes);
+    begin
+        v := TUtils.GetShape<Int32>(bytes);
+        shape := @v;
+    end;
 
     dtype:=TF_DataType.TF_INT32;
 
@@ -243,30 +259,34 @@ begin
     NewEagerTensorHandle ;
 end;
 
-constructor TNDArray.Create(bytes: TArray<Int64>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<Int64>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<Int64>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<Int64>>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<TArray<Int64>>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<Int64>>>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Int64>>>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Int64>>>>; shape: PTFShape);
 var
   dtype : TF_DataType;
 begin
+    var v : TFShape;
     if shape = nil then
-      shape := TUtils.GetShape<Int64>(bytes);
+    begin
+        v := TUtils.GetShape<Int64>(bytes);
+        shape := @v;
+    end;
 
     dtype:= TF_DataType.TF_INT64;
 
@@ -274,30 +294,34 @@ begin
     NewEagerTensorHandle ;
 end;
 
-constructor TNDArray.Create(bytes: TArray<Single>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<Single>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<Single>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<Single>>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<TArray<Single>>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<Single>>>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Single>>>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Single>>>>; shape: PTFShape);
 var
   dtype : TF_DataType;
 begin
+    var v : TFShape;
     if shape = nil then
-      shape := TUtils.GetShape<Single>(bytes);
+    begin
+        v := TUtils.GetShape<Single>(bytes);
+        shape := @v;
+    end;
 
     dtype:= TF_DataType.TF_FLOAT;
 
@@ -305,30 +329,34 @@ begin
     NewEagerTensorHandle ;
 end;
 
-constructor TNDArray.Create(bytes: TArray<Double>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<Double>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<Double>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<Double>>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<TArray<Double>>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<Double>>>; shape: PTFShape);
 begin
     Create(TValue.From(Bytes),shape );
     NewEagerTensorHandle;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Double>>>>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Double>>>>; shape: PTFShape);
 var
   dtype : TF_DataType;
 begin
+    var v : TFShape;
     if shape = nil then
-      shape := TUtils.GetShape<Double>(bytes);
+    begin
+        v := TUtils.GetShape<Double>(bytes);
+        shape := @v;
+    end;
 
     dtype:= TF_DataType.TF_DOUBLE;
 
@@ -348,16 +376,20 @@ begin
     NewEagerTensorHandle ;
 end;
 
-constructor TNDArray.Create(bytes: TArray<TFString>; shape: TFShape);
+constructor TNDArray.Create(bytes: TArray<TFString>; shape: PTFShape);
 begin
+    var v : TFShape;
     if shape = nil then
-      shape := TFShape.Create([Length(bytes)]);
+    begin
+        v := TFShape.Create([Length(bytes)]);
+        shape := @v ;
+    end;
 
     inherited Create( StringTensor(bytes,shape).Handle );
     NewEagerTensorHandle ;
 end;
 
-constructor TNDArray.Create(value: TValue; shape: TFShape);
+constructor TNDArray.Create(value: TValue; shape: PTFShape);
 var
   aDim  : Integer;
   dtype : TF_DataType;
@@ -371,8 +403,12 @@ begin
         inc(aDim)
     end;
 
+    var v : TFShape;
     if shape = nil then
-      shape := TUtils.GetShape(value);
+    begin
+        v := TUtils.GetShape(value);
+        shape := @v;
+    end;
 
     dtype:= TUtils.GetDataType(value);
 

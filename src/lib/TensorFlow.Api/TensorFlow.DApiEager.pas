@@ -1,0 +1,287 @@
+﻿unit TensorFlow.DApiEager;
+
+interface
+   uses System.SysUtils, TensorFlow.LowLevelAPI;
+
+type
+  /// <summary> Controls how to act when we try to run an operation on a given device but
+  /// some input tensors are not on that device.
+  /// LINT.IfChange
+  /// Note: Keep in sync with internal copy of enum in eager/context.h. </summary>
+  TFE_ContextDevicePlacementPolicy = (
+    // <summary> Running operations with input tensors on the wrong device will fail. </summary>
+    TFE_DEVICE_PLACEMENT_EXPLICIT = 0,
+    // <summary> Copy the tensor to the right device but log a warning.</summary>
+    TFE_DEVICE_PLACEMENT_WARN = 1,
+    // <summary> Silently copy the tensor, which has a performance cost since the operation
+    // will be blocked till the copy completes. This is the default placement </summary>
+    // policy.
+    TFE_DEVICE_PLACEMENT_SILENT = 2,
+    // <summary> Placement policy which silently copies int32 tensors but not other dtypes. </summary>
+    TFE_DEVICE_PLACEMENT_SILENT_FOR_INT32 = 3);
+
+
+  PTFE_ContextOptions = Pointer;
+
+  // <summary> "Context" under which operations/functions are executed. It encapsulates
+  // things like the available devices, resource manager etc.</summary>
+  // <remarks> TFE_Context must outlive all tensor handles created using it. In other
+  // words, TFE_DeleteContext() must be called after all tensor handles have
+  // been deleted (with TFE_DeleteTensorHandle).</remarks>
+  //
+  // TODO(ashankar): Merge with TF_Session?
+  PTFE_Context = Pointer;
+
+  PTFE_Op  = Pointer;
+
+  // A handle to a tensor on a device.
+  //
+  // Like a TF_Tensor, a TFE_TensorHandle refers to a tensor with a value, shape,
+  // type etc. Unlike a TF_Tensor, a TFE_TensorHandle may refer to such tensors
+  // placed in memory of different devices or remote address spaces.
+  PTFE_TensorHandle = Pointer;
+
+  /// <summary>
+  /// Execute the operation defined by 'op' and return handles to computed
+  /// tensors in `retvals`.
+  /// </summary>
+  /// <param name="op">TFE_Op*</param>
+  /// <param name="retvals">TFE_TensorHandle**</param>
+  /// <param name="num_retvals">int*</param>
+  /// <param name="status">TF_Status*</param>
+  procedure TFE_Execute(op: PTFE_Op; retvals: PTFE_TensorHandle; var num_retvals: Integer; status: PTF_Status);cdecl;
+  {$EXTERNALSYM TFE_Execute}
+
+  /// <summary>
+  ///
+  /// </summary>
+  /// <param name="ctx">TFE_Context*</param>
+  /// <param name="op_or_function_name">const char*</param>
+  /// <param name="status">TF_Status*</param>
+  /// <returns></returns>
+  function TFE_NewOp(ctx: PTFE_Context; op_or_function_name: PTFChar; status: PTF_Status): PTFE_Op; cdecl;
+  {$EXTERNALSYM TFE_NewOp}
+
+  /// <summary>
+  /// Resets `op_to_reset` with `op_or_function_name` and `raw_device_name`. This
+  /// is for performance optimization by reusing an exiting unused op rather than
+  /// creating a new op every time. If `raw_device_name` is `NULL` or empty, it
+  /// does not set the device name. If it's not `NULL`, then it attempts to parse
+  /// and set the device name. It's effectively `TFE_OpSetDevice`, but it is faster
+  /// than separately calling it because if the existing op has the same
+  /// `raw_device_name`, it skips parsing and just leave as it is.
+  /// </summary>
+  /// <param name="op_to_reset">TFE_Op*</param>
+  /// <param name="op_or_function_name">const char*</param>
+  /// <param name="raw_device_name">const char*</param>
+  /// <param name="status">TF_Status*</param>
+  procedure TFE_OpReset(op_to_reset: PTFE_Op; op_or_function_name: PTFChar; raw_device_name: PTFChar; status: PTF_Status);cdecl;
+  {$EXTERNALSYM TFE_OpReset}
+
+  /// <summary>
+  ///
+  /// </summary>
+  /// <param name="op">TFE_Op*</param>
+  procedure TFE_DeleteOp(op: PTFE_Op); cdecl;
+  {$EXTERNALSYM TFE_DeleteOp}
+  /// <summary>
+  ///
+  /// </summary>
+  /// <param name="op"></param>
+  /// <param name="device_name"></param>
+  /// <param name="status"></param>
+  procedure TFE_OpSetDevice(op: PTFE_Op; device_name: PTFChar; status: PTF_Status); cdecl;
+  {$EXTERNALSYM TFE_OpSetDevice}
+
+  /// <summary>
+  ///
+  /// </summary>
+  /// <param name="op">TFE_Op*</param>
+  /// <param name="h">TFE_TensorHandle*</param>
+  /// <param name="status">TF_Status*</param>
+  procedure TFE_OpAddInput(op: PTFE_Op; h: PTFE_TensorHandle; status: PTF_Status); cdecl;
+  {$EXTERNALSYM TFE_OpAddInput}
+
+  /// <summary>
+  ///
+  /// </summary>
+  /// <param name="op">TFE_Op*</param>
+  /// <param name="attr_name">const char*</param>
+  /// <param name="is_list">unsigned char*</param>
+  /// <param name="status">TF_Status*</param>
+  /// <returns></returns>
+  function TFE_OpGetAttrType(op: PTFE_Op; attr_name: PTFChar; is_list: pbyte; status: PTF_Status): TF_AttrType; cdecl;
+  {$EXTERNALSYM TFE_OpGetAttrType}
+
+  /// <summary>
+  ///
+  /// </summary>
+  /// <param name="op">TFE_Op*</param>
+  /// <param name="attr_name">const char*</param>
+  /// <param name="value">TF_DataType</param>
+  procedure TFE_OpSetAttrType(op: PTFE_Op; attr_name: PTFChar; value: TF_DataType); cdecl;
+  {$EXTERNALSYM TFE_OpSetAttrType}
+  procedure TFE_OpSetAttrInt(op: PTFE_Op; attr_name: PTFChar; value: Int64); cdecl;
+  {$EXTERNALSYM TFE_OpSetAttrInt}
+  procedure TFE_OpSetAttrFloat(op: PTFE_Op; attr_name: PTFChar; value: Single); cdecl;
+  {$EXTERNALSYM TFE_OpSetAttrFloat}
+
+  /// <summary>
+  ///
+  /// </summary>
+  /// <param name="op">TFE_Op*</param>
+  /// <param name="attr_name">const char*</param>
+  /// <param name="dims">const int64_t*</param>
+  /// <param name="num_dims">const int</param>
+  /// <param name="out_status">TF_Status*</param>
+  procedure TFE_OpSetAttrShape(op : PTFE_Op; attr_name: PTFChar; dims: PInt64; num_dims: Integer; out_status: PTF_Status); cdecl;
+  {$EXTERNALSYM TFE_OpSetAttrShape}
+  procedure TFE_OpSetAttrShapeList(op : PTFE_Op; attr_name: PTFChar; dims: PInteger; num_dims: PInteger; num_values: Integer; out_status: PTF_Status); cdecl;
+  {$EXTERNALSYM TFE_OpSetAttrShapeList}
+  procedure TFE_OpSetAttrStringList(op : PTFE_Op; attr_name: PTFChar; values: PTFChar; lengths: PUInt64; num_values: Integer);cdecl;
+  {$EXTERNALSYM TFE_OpSetAttrStringList}
+  procedure TFE_OpSetAttrBool(op : PTFE_Op; attr_name: PTFChar; value: Boolean); cdecl;
+  {$EXTERNALSYM TFE_OpSetAttrBool}
+  procedure TFE_OpSetAttrFunctionName(op : PTFE_Op; attr_name: PTFChar; data:PTFChar; length: Integer); cdecl;
+  {$EXTERNALSYM TFE_OpSetAttrFunctionName}
+  /// <summary>
+  ///
+  /// </summary>
+  /// <param name="op">TFE_Op*</param>
+  /// <param name="attr_name">const char*</param>
+  /// <param name="value">const void*</param>
+  /// <param name="length">size_t</param>
+  procedure TFE_OpSetAttrString(op : PTFE_Op; attr_name: PTFChar; value: PTFChar; length: UInt64); cdecl;
+  {$EXTERNALSYM TFE_OpSetAttrString}
+  procedure TFE_OpSetAttrTypeList(op : PTFE_Op; attr_name: PTFChar; values: PTF_DataType; num_values: Integer); cdecl;
+  {$EXTERNALSYM TFE_OpSetAttrTypeList}
+  procedure TFE_OpSetAttrIntList(op : PTFE_Op; attr_name: PTFChar; values : PInt64; num_values: Integer); cdecl;
+  {$EXTERNALSYM TFE_OpSetAttrIntList}
+
+  //<summary> Return a new options object.</summary>
+  function TFE_NewContextOptions: PTFE_ContextOptions; cdecl;
+  {$EXTERNALSYM TFE_NewContextOptions}
+  // <summary> Set the config in TF_ContextOptions.options.
+  // config should be a serialized tensorflow.ConfigProto proto.
+  // If config was not parsed successfully as a ConfigProto, record the
+  // error information in *status.</summary>
+  procedure TFE_ContextOptionsSetConfig(options: PTFE_ContextOptions; proto: Pointer; proto_len: TF_size_t; status: PTF_Status);cdecl;
+  {$EXTERNALSYM TFE_ContextOptionsSetConfig}
+
+  // <summary> Sets the default execution mode (sync/async). Note that this can be
+  // overridden per thread using TFE_ContextSetExecutorForThread.</summary>
+  procedure TFE_ContextOptionsSetAsync(opt: PTFE_ContextOptions; enable: Byte); cdecl;
+  {$EXTERNALSYM TFE_ContextOptionsSetAsync}
+  procedure TFE_ContextOptionsSetDevicePlacementPolicy(opt: PTFE_ContextOptions;dp: TFE_ContextDevicePlacementPolicy); cdecl;
+  {$EXTERNALSYM TFE_ContextOptionsSetAsync}
+  // <summary> Destroy an options object.</summary>
+  procedure TFE_DeleteContextOptions(opt: PTFE_ContextOptions); cdecl;
+  {$EXTERNALSYM TFE_DeleteContextOptions}
+
+  function TFE_NewContext(const opts: PTFE_ContextOptions; status: PTF_Status): PTFE_Context;cdecl;
+  {$EXTERNALSYM TFE_NewContext}
+
+  procedure TFE_DeleteContext(ctx: PTFE_Context); cdecl;
+  {$EXTERNALSYM TFE_DeleteContext}
+  function TFE_ContextListDevices(ctx: PTFE_Context; status: PTF_Status): PTF_DeviceList;cdecl;
+  {$EXTERNALSYM TFE_ContextListDevices}
+  // <summary> Clears the internal caches in the TFE context. Useful when reseeding random
+  // ops.</summary>
+  procedure TFE_ContextClearCaches(ctx: PTFE_Context);cdecl;
+  {$EXTERNALSYM TFE_ContextClearCaches}
+
+  // <summary> Some TF ops need a step container to be set to limit the lifetime of some
+  // resources (mostly TensorArray and Stack, used in while loop gradients in
+  // graph mode). Calling this on a context tells it to start a step.</summary>
+  procedure TFE_ContextStartStep(ctx: PTFE_Context);cdecl;
+  {$EXTERNALSYM TFE_ContextStartStep}
+  // <summary> Ends a step. When there is no active step (that is, every started step has
+  // been ended) step containers will be cleared. Note: it is not safe to call
+  // TFE_ContextEndStep while ops that rely on the step container may be running.</summary>
+  procedure TFE_ContextEndStep(ctx: PTFE_Context);cdecl;
+  {$EXTERNALSYM TFE_ContextEndStep}
+
+  // <summary> Configure device placement policy logging for the eager executor. Note this
+  // policy is applied to any subsequent op executions.</summary>
+  procedure TFE_ContextSetLogDevicePlacement(ctx: PTFE_Context; enable: Byte;status: PTF_Status);cdecl;
+  {$EXTERNALSYM TFE_ContextSetLogDevicePlacement}
+
+  /// <summary>
+  ///
+  /// </summary>
+  /// <param name="h">TFE_TensorHandle*</param>
+  procedure TFE_DeleteTensorHandle(h: Pointer); cdecl;
+  {$EXTERNALSYM TFE_DeleteTensorHandle}
+
+  /// <summary>
+  ///
+  /// </summary>
+  /// <param name="t">const tensorflow::Tensor&amp;</param>
+  /// <returns>TFE_TensorHandle*</returns>
+  function TFE_NewTensorHandle(t: Pointer;  status: PTF_Status):PTFE_TensorHandle;cdecl;
+  {$EXTERNALSYM TFE_NewTensorHandle}
+
+  /// <summary>
+  /// This function will block till the operation that produces `h` has
+  /// completed. The memory returned might alias the internal memory used by
+  /// TensorFlow. Hence, callers should not mutate this memory (for example by
+  /// modifying the memory region pointed to by TF_TensorData() on the returned
+  /// TF_Tensor).
+  /// </summary>
+  /// <param name="h">TFE_TensorHandle*</param>
+  /// <param name="status">TF_Status*</param>
+  /// <returns></returns>
+  function TFE_TensorHandleResolve(t: Pointer;  status: PTF_Status):PTFE_TensorHandle;cdecl;
+  {$EXTERNALSYM TFE_TensorHandleResolve}
+
+  function TFE_TensorHandleNumDims(t: Pointer;  status: PTF_Status):Integer;cdecl;
+  {$EXTERNALSYM TFE_TensorHandleNumDims}
+
+  function TFE_TensorHandleDim(t: Pointer;  dim: Integer ; status: PTF_Status):Integer;cdecl;
+  {$EXTERNALSYM TFE_TensorHandleDim}
+
+  function TFE_TensorHandleDeviceName(h : PTFE_TensorHandle ; status: PTF_Status): PTFChar;
+  {$EXTERNALSYM TFE_TensorHandleDeviceName}
+
+implementation
+
+function  TFE_NewContextOptions;                      external c_sNameOfTensorflowLib name 'TFE_NewContextOptions';
+procedure TFE_ContextOptionsSetConfig;                external c_sNameOfTensorflowLib name 'TFE_ContextOptionsSetConfig';
+procedure TFE_ContextOptionsSetAsync;                 external c_sNameOfTensorflowLib name 'TFE_ContextOptionsSetAsync';
+procedure TFE_ContextOptionsSetDevicePlacementPolicy; external c_sNameOfTensorflowLib name 'TFE_ContextOptionsSetDevicePlacementPolicy';
+procedure TFE_DeleteContextOptions;                   external c_sNameOfTensorflowLib name 'TFE_DeleteContextOptions';
+function  TFE_NewContext;                             external c_sNameOfTensorflowLib name 'TFE_NewContext';
+procedure TFE_DeleteContext;                          external c_sNameOfTensorflowLib name 'TFE_DeleteContext';
+function  TFE_ContextListDevices;                     external c_sNameOfTensorflowLib name 'TFE_ContextListDevices';
+procedure TFE_ContextClearCaches;                     external c_sNameOfTensorflowLib name 'TFE_ContextClearCaches';
+procedure TFE_ContextStartStep;                       external c_sNameOfTensorflowLib name 'TFE_ContextStartStep';
+procedure TFE_ContextEndStep;                         external c_sNameOfTensorflowLib name 'TFE_ContextEndStep';
+procedure TFE_ContextSetLogDevicePlacement;           external c_sNameOfTensorflowLib name 'TFE_ContextSetLogDevicePlacement';
+function  TFE_NewTensorHandle;                        external c_sNameOfTensorflowLib name 'TFE_NewTensorHandle';
+procedure TFE_DeleteTensorHandle;                     external c_sNameOfTensorflowLib name 'TFE_DeleteTensorHandle';
+function  TFE_TensorHandleResolve;                    external c_sNameOfTensorflowLib name 'TFE_TensorHandleResolve';
+function  TFE_TensorHandleNumDims;                    external c_sNameOfTensorflowLib name 'TFE_TensorHandleNumDims';
+function  TFE_TensorHandleDim;                        external c_sNameOfTensorflowLib name 'TFE_TensorHandleDim';
+function  TFE_TensorHandleDeviceName;                 external c_sNameOfTensorflowLib name 'TFE_TensorHandleDeviceName';
+
+procedure TFE_Execute;                                external c_sNameOfTensorflowLib name 'TFE_Execute';
+function  TFE_NewOp;                                  external c_sNameOfTensorflowLib name 'TFE_NewOp';
+procedure TFE_OpReset;                                external c_sNameOfTensorflowLib name 'TFE_OpReset';
+procedure TFE_DeleteOp;                               external c_sNameOfTensorflowLib name 'TFE_DeleteOp';
+procedure TFE_OpSetDevice;                            external c_sNameOfTensorflowLib name 'TFE_OpSetDevice';
+procedure TFE_OpAddInput;                             external c_sNameOfTensorflowLib name 'TFE_OpAddInput';
+function  TFE_OpGetAttrType;                          external c_sNameOfTensorflowLib name 'TFE_OpGetAttrType';
+procedure TFE_OpSetAttrType;                          external c_sNameOfTensorflowLib name 'TFE_OpSetAttrType';
+procedure TFE_OpSetAttrInt;                           external c_sNameOfTensorflowLib name 'TFE_OpSetAttrInt';
+procedure TFE_OpSetAttrFloat;                         external c_sNameOfTensorflowLib name 'TFE_OpSetAttrFloat';
+procedure TFE_OpSetAttrShape;                         external c_sNameOfTensorflowLib name 'TFE_OpSetAttrShape';
+procedure TFE_OpSetAttrShapeList;                     external c_sNameOfTensorflowLib name 'TFE_OpSetAttrShapeList';
+procedure TFE_OpSetAttrStringList;                    external c_sNameOfTensorflowLib name 'TFE_OpSetAttrStringList';
+procedure TFE_OpSetAttrBool;                          external c_sNameOfTensorflowLib name 'TFE_OpSetAttrBool';
+procedure TFE_OpSetAttrFunctionName;                  external c_sNameOfTensorflowLib name 'TFE_OpSetAttrFunctionName';
+procedure TFE_OpSetAttrString;                        external c_sNameOfTensorflowLib name 'TFE_OpSetAttrString';
+procedure TFE_OpSetAttrTypeList;                      external c_sNameOfTensorflowLib name 'TFE_OpSetAttrTypeList';
+procedure TFE_OpSetAttrIntList;                       external c_sNameOfTensorflowLib name 'TFE_OpSetAttrIntList';
+
+
+end.

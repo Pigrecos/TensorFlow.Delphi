@@ -73,7 +73,7 @@ TFGraphHelper = class Helper for TFGraph
   ///   intended as a way to represent a value that will always be fed, and to
   ///   provide attrs that enable the fed value to be checked at runtime.
   /// </remarks>
-  function OpPlaceholder(dtype: TF_DataType; shape: TFShape = Nil; operName: TFString = ''): TFOutput;
+  function OpPlaceholder(dtype: TF_DataType; shape: PTFShape = Nil; operName: TFString = ''): TFOutput;
   /// <summary>
   /// Variable node, with a starting initial value.
   /// </summary>
@@ -591,7 +591,7 @@ function TFGraphHelper.OpConst(value: TFTensor; operName: TFString = ''): TFOutp
 begin
  Result := OpConst(value, value.TensorDataType, operName);
 end;
-function TFGraphHelper.OpPlaceholder (dtype: TF_DataType; shape: TFShape = Nil; operName: TFString = ''): TFOutput;
+function TFGraphHelper.OpPlaceholder (dtype: TF_DataType; shape: PTFShape = Nil; operName: TFString = ''): TFOutput;
 var
  l_oDesc: TFOperationDesc;
  l_sBuf1, l_sBuf2: TFString;
@@ -630,7 +630,7 @@ begin
        Result := hnd;
      end;
    end;
-   l_oShape.Free;
+
  end;
 end;
 function TFGraphHelper.Variable(initialValue: TFOutput; var value: TFOutput; operName: TFString = ''): TFOutput;
@@ -663,7 +663,7 @@ begin
        Result := hnd;
      end;
    end;
-   l_oShape.Free;
+
  end;
 end;
 function TFGraphHelper.Variable(initialValue: TFOutput; operName: TFString = ''): TFOutput;
@@ -691,7 +691,7 @@ begin
      self.AddInitVariable(init);
      Result := hnd;
    end;
-   l_oShape.Free;
+
  end;
 end;
 function TFGraphHelper.OpReadVariable(resource: TFOutput; dtype: TF_DataType; operName: TFString = ''): TFOutput;
