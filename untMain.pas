@@ -1,30 +1,61 @@
 ﻿unit untMain;
 
+{$WARN IMPLICIT_STRING_CAST OFF}
+{$WARN IMPLICIT_STRING_CAST_LOSS OFF}
+
 interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.Buttons,
-  TensorFlow.LowLevelAPI,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.Buttons,rtti,
+
+  TF4D.Core.CApi,
+
+  Numpy,
   Tensorflow,
   TensorFlow.DApiBase,
   TensorFlow.DApi,
   Tensorflow.Utils,
   TensorFlow.Ops,
-  Spring,
-  rtti,
-  NDArray, CNClrLib.Comp;
+  TensorFlow.Context,
+  Tensorflow.NameScope,
+  TensorFlow.EagerTensor,
+
+  TensorFlow.Tensor,
+  NumPy.NDArray;
 
 type
+  GraphModeTestBase = class
+    private
+    protected
+      Fgraph : TFGraph;
+    public
+      constructor Create;virtual;
+      destructor  Destroy;virtual;
+  end;
+
+  TSessionTest = class(GraphModeTestBase)
+  private
+
+    public
+      constructor Create; override;
+      destructor  Destroy; override;
+
+      procedure EvalTensor;
+      procedure Eval_SmallString_Scalar;
+      procedure Eval_LargeString_Scalar;
+      procedure Autocast_Case0;
+      procedure Autocast_Case1;
+      procedure Autocast_Case2;
+  end;
+
   TForm1 = class(TForm)
     btn1: TBitBtn;
     mmo1: TMemo;
     procedure btn1Click(Sender: TObject);
+    procedure FormShow(Sender: TObject);
   private
-    function fill<T>(dims: TFTensor; value: T; name: AnsiString= ''): TFTensor;
-    function zeros(shape: TFTensor; dtype: TF_DataType = TF_DataType.TF_FLOAT; name: AnsiString = ''): TFTensor; overload;
-    function zeros(shape: TFShape;  dtype: TF_DataType = TF_DataType.TF_FLOAT; name: AnsiString = '') : TFTensor; overload;
-    { Private declarations }
+
   public
     { Public declarations }
   end;
@@ -33,218 +64,153 @@ var
   Form1: TForm1;
 
 implementation
+         uses System.Types,
+              System.TypInfo,
+              TensorFlow.Constant_op,
+              Tensorflow.array_ops,
+              Tensorflow.math_ops,
 
+              TensorFlow.Slice,
+
+              DUnitX.TestFramework;
 {$R *.dfm}
 
-function TForm1.fill<T>(dims:TFTensor; value: T;name: AnsiString): TFTensor;
+{ GraphModeTestBase }
+
+constructor GraphModeTestBase.Create;
 begin
-    Result := tf.Context.ExecuteOp( 'Fill', name,ExecuteOpArgs.Create([dims, TValue.From<T>(value)]) ).FirstOrDefault;
+    tf.compat.v1.disable_eager_execution;
+    Fgraph := tf.Graph.as_default;
 end;
 
-function TForm1.zeros(shape: TFShape; dtype: TF_DataType; name: AnsiString) : TFTensor;
+destructor GraphModeTestBase.Destroy;
 begin
-    var ddtype := TUtils.as_base_dtype(dtype);
-
-    var ss := TValue.From<TFShape>(shape);
-    var scope := TOps.name_scope(name, 'zeros', @ss).ToString;
-
-    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'zeros', @ss),
-                                          function(v1: TNameScope): TFTensor
-                                            begin
-                                                name := scope;
-                                                case ddtype of
-                                                  TF_DataType.TF_DOUBLE: Result := TOps.constant(Double(0.0));
-                                                  TF_DataType.TF_FLOAT:  Result := TOps.constant(Single(0.0));
-                                                 else
-                                                    Result := TOps.constant(0);
-                                                end;
-                                                fill(TFTensor.Create(shape), Result,  name);
-                                            end );
+    Fgraph.gExit
 end;
 
-function TForm1.zeros(shape: TFTensor; dtype: TF_DataType; name: AnsiString) : TFTensor;
+{ SessionTest }
 
+procedure TSessionTest.Autocast_Case0;
 begin
+    var sess := tf.Session.as_default;
+    var operation : ITensorOrOperation := tf.global_variables_initializer;
+    // the cast to ITensorOrOperation is essential for the test of this method signature
+    var ret := sess.run(operation);
+end;
 
+procedure TSessionTest.Autocast_Case1;
+begin
+    var sess := tf.Session.as_default;
+    var input := tf.placeholder(tf.int32_t, TFShape.Create([6]));
+    var shape : TArray<Integer> := [ 2, 3 ];
+    var op := tf.reshape(input, shape);
+    sess.run(tf.global_variables_initializer);
+    var input1 : TArray<Integer> :=[1, 2, 3, 4, 5, 6];
+    var ret := sess.run(op, [ FeedItem.Create(input, np.np_array(input1)) ] );
 
-    var ddtype := TUtils.as_base_dtype(dtype);
+    var s1 := ret.shape;
+    if s1 <> TFShape.Create([2, 3]) then
+      raise TFException.Create('Autocast_Case1- Shape not Equal');
 
-    var vShape := TValue.From<TFTensor>(shape) ;
-    var scope := TOps.name_scope(name, 'zeros', @vShape).ToString;
+    var aInput := ret.ToArray<Integer>;
+    Assert.AreEqual(aInput,input1);
 
-    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'zeros', @vShape),
-                                          function(v1: TNameScope): TFTensor
-                                            begin
+    var tipo := ret.dtype;
+    var t := ret.ToString;
+end;
 
-                                                name := scope;
-                                                case ddtype of
-                                                  TF_DataType.TF_BOOL:
-                                                    Result := fill(shape, tf.constant(false, dtype), name);
-                                                  TF_DataType.TF_DOUBLE:
-                                                    Result := fill(shape, tf.constant(0.0, dtype),  name);
-                                                  TF_DataType.TF_FLOAT:
-                                                    Result := fill(shape, tf.constant(0.0, dtype),  name);
-                                                  TF_DataType.TF_INT32:
-                                                    Result := fill(shape, tf.constant(0, dtype),  name);
-                                                  else
-                                                    raise Exception.Create('can''t find type for zeros');
-                                                end;
+procedure TSessionTest.Autocast_Case2;
+begin
+    var sess := tf.Session.as_default;
+    var input := tf.placeholder(tf.float32_, TFShape.Create([6]));
+    var shape : TArray<Integer> := [ 2, 3 ];
+    var op := tf.reshape(input, shape);
+    sess.run(tf.global_variables_initializer);
 
-                                            end );
+    var input1 : TArray<Integer> :=[1, 2, 3, 4, 5, 6];
+    var npArray : NDArray  := np.np_array(input1).astype(np._float32) ;
+    var addFloat : NDArray := Single(0.1);
+    var res : TNdArray  := npArray+addFloat;
+    var ret := sess.run(op, [ FeedItem.Create(input, res ) ] );
 
+    
+end;
 
+constructor TSessionTest.Create;
+begin
+  inherited Create;
 
 end;
+
+destructor TSessionTest.Destroy;
+begin
+
+  inherited Destroy;
+end;
+
+procedure TSessionTest.EvalTensor;
+begin
+    var a : TTensor := constant_op.constant( np.np_array(3.0).reshape( TFShape.Create([1, 1])) );
+    var b : TTensor := constant_op.constant(  np.np_array(2.0).reshape( TFShape.Create([1, 1])) );
+    var c : TTensor := math_ops.matmul(a, b, 'matmul');
+
+    var sess := tf.Session;
+
+    var res : NDArray := c.eval(sess);
+    Assert.AreEqual<Single>(NDArray(res[0]), 6.0,'EvalTensor Error!');
+end;
+
+procedure TSessionTest.Eval_SmallString_Scalar;
+begin
+
+    var a := constant_op.constant( '123 heythere 123 ', TF_DataType.TF_STRING,'Const');
+    var c := tf.strings.substr(a, 4, 8);
+    var sess := tf.Session;
+    var res : TArray<TF_TString> := c.eval(sess).StringData;
+    Assert.AreEqual<String>( res[0], 'heythere');
+
+end;
+
+procedure TSessionTest.Eval_LargeString_Scalar;
+begin
+    var size  : Integer := 30000;
+    var s := string.Create('a',size);
+    var a := constant_op.constant(AnsiString(s), TF_DataType.TF_STRING,'Const');
+    var c := tf.strings.substr(a, 0, size - 5000);
+    var sess := tf.Session;
+    var res := c.eval(sess).ToByteArray ;
+    var sRes := TUTF8Encoding.UTF8.GetString(res);
+end;
+
+procedure TForm1.FormShow(Sender: TObject);
+begin
+    Form1.Caption := 'TensorFlow lib ver. : ('+tf.Version +') TensoFlow.NET Commit(3fde7558e2c0a457272075219107b0dee3c8e4e5)'
+end;
+
 
 procedure TForm1.btn1Click(Sender: TObject);
-var
-  tf         : TTensorflow;
-  ctx        : TContext;
-  te,te1,tes : TEagerTensor;
-  testA      : TArray<TArray<TArray<TArray<Int32>>>> ;
-  testA1     : TArray<TArray<TArray<Int32>>> ;
-
-  testString : TArray<TFString> ;
-
-  ndArrayTest : TNDArray;
-
 begin
+
     mmo1.Clear;
-    tf := TTensorflow.Create;
-    mmo1.Lines.Add('Crazione tf.Context');
     mmo1.Lines.Add('TensorFlow ver. : '+tf.Version);
+    mmo1.Lines.Add('==================');
 
+    // Init Test Graph Mode
     //
+    mmo1.Lines.Add('Init Test Graph Mode');
+    mmo1.Lines.Add('Session Test....');
+    var SessionTest := TSessionTest.Create;
+    SessionTest.EvalTensor;
+    SessionTest.Eval_SmallString_Scalar;
+    SessionTest.Eval_LargeString_Scalar;
+    SessionTest.Autocast_Case0;
+    SessionTest.Autocast_Case1;
+    SessionTest.Autocast_Case2;
+
+    // End Test
     //
-    ctx := tf.Context;
-    var h := ctx.Handle_;
-    //
-    //
-    var shape1 := TFShape.Create([4,5,3,4]);
-    SetLength(testA,4);
-    for var i := 0 to Length(testA) - 1 do
-    begin
-       SetLength( testA[i],5);
-       for var k := 0 to Length(testA[i]) - 1 do
-       begin
-           SetLength( testA[i][k],3);
-           for var c := 0 to Length(testA[i][k]) - 1 do
-           begin
-               for var j := 0 to 4 - 1 do
-               begin
-                  testA[i][k][c] := testA[i][k][c] + [ Random($FF)  ] ;
-               end;
-           end;
-       end;
-    end;
-
-    te1 := TEagerTensor.Create(testA,shape1,TF_DataType.TF_UINT32);
-    mmo1.Lines.Add('Creazione TEagerTensor : TArray<TArray<TArray<TArray<Int32>>>>');
-    //var rr := te1.ToArray<UInt32>;
-
-    //
-    //
-    var shape := TFShape.Create([4,5,3]);
-    SetLength(testA1,4);
-    for var i := 0 to Length(testA1) - 1 do
-    begin
-       SetLength( testA1[i],5);
-       for var k := 0 to Length(testA1[i]) - 1 do
-       begin
-           for var j := 0 to 3 - 1 do
-           begin
-              testA1[i][k] := testA1[i][k] + [ Random($FF)  ]
-           end;
-       end;
-    end;
-    te := TEagerTensor.Create(testA1,shape,TF_DataType.TF_UINT32)  ;
-    mmo1.Lines.Add('Creazione TEagerTensor : TArray<TArray<TArray<Int32>>>');
-
-    var t1 := TEagerTensor.GetDims(te);
-    var k1 := TEagerTensor.GetRank(te);
-
-    var ssDev :=te.Device;
-    mmo1.Lines.Add('Device : '+ ssDev);
-    //
-    //
-    var shapeS := TFShape.Create([6]);
-    testString := ['ABCD','123456','Abxyu','48778ER','Massimo','VVVVV123'];
-    tes := TEagerTensor.Create(testString,shapeS);
-    mmo1.Lines.Add('Creazione TEagerTensor : TArray<TFString>');
-
-
-
-    var x0 : int8 := 102;
-    var x1 : Byte := 102;
-    var x2 : int16 := 102;
-    var x6 : word := 102;
-    var x3 : cardinal := 102;
-    var x3_: Integer := 102;
-    var x4 : int64 := 102;
-    var x5 : uint64 := 102;
-    var x7 : Boolean := True;
-    var x8 : string := '31';
-    var x9 : AnsiString := '32';
-
-    ndArrayTest := TNDArray.Create(x0);
-    ndArrayTest := TNDArray.Create(x1);
-    ndArrayTest := TNDArray.Create(x2);
-    ndArrayTest := TNDArray.Create(x3);
-    ndArrayTest := TNDArray.Create(x3_);
-    ndArrayTest := TNDArray.Create(x4);
-    ndArrayTest := TNDArray.Create(x5);
-    ndArrayTest := TNDArray.Create(x6);
-    ndArrayTest := TNDArray.Create(x7);
-    ndArrayTest := TNDArray.Create(x8);
-    ndArrayTest := TNDArray.Create(x9);
-    mmo1.Lines.Add('Creazione TNDArray : scalar explicit');
-
-    ndArrayTest := TNDArray.scalar<byte>(x1);
-    ndArrayTest := TNDArray.scalar<int64>(x4);
-
-    var d : Double := 10.4;
-    ndArrayTest := TNDArray.scalar<Double>(d);
-    var s : single := 10.4;
-    ndArrayTest := TNDArray.scalar<Single>(s);
-    mmo1.Lines.Add('Creazione TNDArray : scalar Generic');
-
-    var y : Tarray<int16> := [44,55,66];
-    ndArrayTest := TNDArray.Create(y);
-    mmo1.Lines.Add('Creazione TNDArray : Tarray<int16>');
-
-    ndArrayTest := TNDArray.Create(testA1);
-    mmo1.Lines.Add('Creazione TNDArray : TArray<TArray<TArray<Int32>>>');
-
-    ndArrayTest := TNDArray.Create(testString);
-    mmo1.Lines.Add('Creazione TNDArray : TArray<TFString>');
-
-    ndArrayTest := TNDArray.Create(testA);
-
-
-   /// test OpDefLibrary._apply_op_helper
-   ///
-   var dtype  : TF_DataType := TF_INT32;
-   var shape0 : TFShape := nil;
-
-   var re := System.Rtti.TValue.From<TFShape>(shape0);
-
-   var Args : TArray<TParameter>;
-   SetLength(Args,2);
-   Args[0].sNome := 'dtype';
-   Args[0].vValue:= TValue.From<Integer>(Ord(dtype));
-   Args[1].sNome := 'shape';
-   Args[1].vValue:= TValue.From<TFShape>(shape0);
-   var _op := OpDefLibrary._apply_op_helper('Placeholder', 'test', Args);
-   mmo1.Lines.Add('KerasNet : Placeholder');
-
-
-   zeros( TFShape.Create([2, 3, 4, 5]) );
-
-   var name := 'set_diag';
-   var input    : TFTensor;
-   var diagonal : TFTensor;
-   var k        : Integer;
-   //tf.Context.ExecuteOp('MatrixSetDiagV3',name,ExecuteOpArgs.Create([input, diagonal, k]))
+    mmo1.Lines.Add('End Test ');
+    SessionTest.Free;
 end;
 
 end.

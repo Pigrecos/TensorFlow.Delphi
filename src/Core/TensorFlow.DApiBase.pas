@@ -20,7 +20,7 @@ unit TensorFlow.DApiBase;
 interface
 uses
   System.SysUtils, Winapi.Windows, System.Classes, System.Types,
-  TensorFlow.LowLevelAPI, TensorFlow._Helpers;
+  TF4D.Core.CApi;
 var
  g_aTFProt: TStrings = Nil;      // <- optional for list protocol
 type
@@ -34,7 +34,7 @@ public
   /// </summary>
   /// <param name="msg">Message.</param>
   constructor Create(msg: String);  overload;
-  constructor Create(msg: TFString); overload;
+  constructor Create(msg: TF_TString); overload;
 end;
 /// <summary>
 /// Holds a block of data, suitable to pass, or retrieve from TensorFlow.
@@ -109,7 +109,7 @@ TFBuffer = class(TFDisposable)
  public
    constructor Create; overload;
    constructor Create(p: PTF_Buffer); overload;
-   constructor Create(str: TFString); overload;
+   constructor Create(str: TF_TString); overload;
    function toBuffer(data: TArray<byte>) : TFBuffer;
    function toArray : TArray<byte>;
    destructor  Destroy; override;
@@ -136,7 +136,7 @@ end;
 TFStatus = class(TFDisposable)
  private
    function GetStatusCode(): TF_Code;
-   function GetStatusMessage(): TFString;
+   function GetStatusMessage(): TF_TString;
    function GetOk(): Boolean;
    function GetError(): Boolean;
  protected
@@ -144,7 +144,7 @@ TFStatus = class(TFDisposable)
  public
    constructor Create;
    destructor  Destroy; override;
-   procedure   SetStatusCode (code: TF_Code; msg: TFString); overload;
+   procedure   SetStatusCode (code: TF_Code; msg: TF_TString); overload;
    function    CheckMaybeRaise(incoming: TFStatus; last: Boolean = True): Boolean;
    class function Setup(incoming: TFStatus): TFStatus;
    /// <summary>String representation of a class instance.</summary>
@@ -164,7 +164,7 @@ TFStatus = class(TFDisposable)
    /// exception is raised.
    /// </summary>
    property    StatusCode:    TF_Code  read GetStatusCode;
-   property    StatusMessage: TFString read GetStatusMessage;
+   property    StatusMessage: TF_TString read GetStatusMessage;
    property    Ok:            Boolean  read GetOk;
    property    Error:         Boolean  read GetError;
 end;
@@ -188,7 +188,7 @@ constructor TFException.Create(msg: String);
 begin
  inherited Create(msg);
 end;
-constructor TFException.Create(msg: TFString);
+constructor TFException.Create(msg: TF_TString);
 begin
  inherited Create(String(msg));
 end;
@@ -234,10 +234,10 @@ begin
  inherited Create(p);
 end;
 
-constructor TFBuffer.Create(str: TFString);
+constructor TFBuffer.Create(str: TF_TString);
 var
  lng: TF_size_t;
- l_sTFStr: TFString;
+ l_sTFStr: TF_TString;
 begin
  l_sTFStr := AnsiString(str);
  if Length(l_sTFStr) > 0 then begin
@@ -316,17 +316,19 @@ function TFStatus.CheckMaybeRaise(incoming: TFStatus; last: Boolean = True): Boo
 var
  l_oEx: TFException;
 begin
- if not Assigned(incoming) then begin
-   if not Assigned(Handle) then
-     WriteTFProt('CheckMaybeRaise: TFStatus.Handle is Nil!');
-   if StatusCode <> TF_Code.TF_OK then begin
-     l_oEx := TFException.Create(StatusMessage);
-     self.DisposeOf;
-     raise l_oEx;
-   end;
-   if last then
-     self.DisposeOf;
-   Result := True;
+ if not Assigned(incoming) then
+ begin
+     if not Assigned(Handle) then
+       WriteTFProt('CheckMaybeRaise: TFStatus.Handle is Nil!');
+     if StatusCode <> TF_Code.TF_OK then
+     begin
+         l_oEx := TFException.Create(StatusMessage);
+         self.DisposeOf;
+         raise l_oEx;
+     end;
+     if last then
+       self.DisposeOf;
+     Result := True;
  end
  else
    Result := StatusCode = TF_Code.TF_OK;
@@ -342,16 +344,16 @@ function  TFStatus.GetStatusCode(): TF_Code;
 begin
  Result := TF_GetCode(Handle);
 end;
-function  TFStatus.GetStatusMessage(): TFString;
+function  TFStatus.GetStatusMessage(): TF_TString;
 begin
- Result := TFString(TF_Message(Handle));
+ Result := TF_TString(TF_Message(Handle));
 end;
-procedure TFStatus.SetStatusCode(code: TF_Code; msg: TFString);
+procedure TFStatus.SetStatusCode(code: TF_Code; msg: TF_TString);
 var
- l_sTFStr: TFString;
+ l_sTFStr: TF_TString;
 begin
- l_sTFStr := TFString(msg);
- TF_SetStatus (Handle, code, _PTFChar(l_sTFStr));
+ l_sTFStr := TF_TString(msg);
+ TF_SetStatus (Handle, code, PAnsiChar(l_sTFStr));
 end;
 function  TFStatus.ToString(): String;
 begin

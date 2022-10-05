@@ -3,7 +3,7 @@ unit TensorFlow.Framework;
 interface
       uses System.SysUtils, spring.Collections.Dictionaries,
 
-           TensorFlow.LowLevelAPI,
+           TF4D.Core.CApi,
            TensorFlow.DApiBase,
 
            Oz.Pb.Classes,
@@ -48,21 +48,14 @@ begin
     var aBuf := buffer.toArray;
     Loader.Init;
     Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
-    //Loader.Pb.SaveToFile('testpb1.pb') ;
-    //loaderpb := Loader.pb.From( buffer.toArray );
 
     Loader.LoadOpList(op_list);
 
-
-    var l : TStringList := TStringList.Create;
-    var cc := op_list.Ops.Count;
     for var i := 0 to op_list.Ops.Count - 1 do
     begin
        var op_def : TOpDef := op_list.Ops[i]^;
        registered_ops.AddOrSetValue(op_def.Name,op_def);
-       l.Add(op_def.Name)
     end;
-    //l.SaveToFile('Oplist.txt');
 
     Result := registered_ops
 end;

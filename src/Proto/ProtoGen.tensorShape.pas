@@ -230,7 +230,8 @@ var
 begin
   if Value.FDims.Count > 0 then
     S.SaveList<TDim>(Value.FDims, SaveDim, TTensorShapeProto.ftDims);
-  S.Pb.writeBoolean(TTensorShapeProto.ftUnknownRank, Value.UnknownRank);
+   if Value.UnknownRank <> false then
+    S.Pb.writeBoolean(TTensorShapeProto.ftUnknownRank, Value.UnknownRank);
 end;
 
 end.

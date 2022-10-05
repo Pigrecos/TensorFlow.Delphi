@@ -1,7 +1,7 @@
 ﻿unit TensorFlow.DApiEager;
 
 interface
-   uses System.SysUtils, TensorFlow.LowLevelAPI;
+   uses System.SysUtils,TF4D.Core.CApi;
 
 type
   /// <summary> Controls how to act when we try to run an operation on a given device but
@@ -245,43 +245,43 @@ type
 
 implementation
 
-function  TFE_NewContextOptions;                      external c_sNameOfTensorflowLib name 'TFE_NewContextOptions';
-procedure TFE_ContextOptionsSetConfig;                external c_sNameOfTensorflowLib name 'TFE_ContextOptionsSetConfig';
-procedure TFE_ContextOptionsSetAsync;                 external c_sNameOfTensorflowLib name 'TFE_ContextOptionsSetAsync';
-procedure TFE_ContextOptionsSetDevicePlacementPolicy; external c_sNameOfTensorflowLib name 'TFE_ContextOptionsSetDevicePlacementPolicy';
-procedure TFE_DeleteContextOptions;                   external c_sNameOfTensorflowLib name 'TFE_DeleteContextOptions';
-function  TFE_NewContext;                             external c_sNameOfTensorflowLib name 'TFE_NewContext';
-procedure TFE_DeleteContext;                          external c_sNameOfTensorflowLib name 'TFE_DeleteContext';
-function  TFE_ContextListDevices;                     external c_sNameOfTensorflowLib name 'TFE_ContextListDevices';
-procedure TFE_ContextClearCaches;                     external c_sNameOfTensorflowLib name 'TFE_ContextClearCaches';
-procedure TFE_ContextStartStep;                       external c_sNameOfTensorflowLib name 'TFE_ContextStartStep';
-procedure TFE_ContextEndStep;                         external c_sNameOfTensorflowLib name 'TFE_ContextEndStep';
-procedure TFE_ContextSetLogDevicePlacement;           external c_sNameOfTensorflowLib name 'TFE_ContextSetLogDevicePlacement';
-function  TFE_NewTensorHandle;                        external c_sNameOfTensorflowLib name 'TFE_NewTensorHandle';
-procedure TFE_DeleteTensorHandle;                     external c_sNameOfTensorflowLib name 'TFE_DeleteTensorHandle';
-function  TFE_TensorHandleResolve;                    external c_sNameOfTensorflowLib name 'TFE_TensorHandleResolve';
-function  TFE_TensorHandleNumDims;                    external c_sNameOfTensorflowLib name 'TFE_TensorHandleNumDims';
-function  TFE_TensorHandleDim;                        external c_sNameOfTensorflowLib name 'TFE_TensorHandleDim';
-function  TFE_TensorHandleDeviceName;                 external c_sNameOfTensorflowLib name 'TFE_TensorHandleDeviceName';
+function  TFE_NewContextOptions;                      external TensorFlowLib name 'TFE_NewContextOptions';
+procedure TFE_ContextOptionsSetConfig;                external TensorFlowLib name 'TFE_ContextOptionsSetConfig';
+procedure TFE_ContextOptionsSetAsync;                 external TensorFlowLib name 'TFE_ContextOptionsSetAsync';
+procedure TFE_ContextOptionsSetDevicePlacementPolicy; external TensorFlowLib name 'TFE_ContextOptionsSetDevicePlacementPolicy';
+procedure TFE_DeleteContextOptions;                   external TensorFlowLib name 'TFE_DeleteContextOptions';
+function  TFE_NewContext;                             external TensorFlowLib name 'TFE_NewContext';
+procedure TFE_DeleteContext;                          external TensorFlowLib name 'TFE_DeleteContext';
+function  TFE_ContextListDevices;                     external TensorFlowLib name 'TFE_ContextListDevices';
+procedure TFE_ContextClearCaches;                     external TensorFlowLib name 'TFE_ContextClearCaches';
+procedure TFE_ContextStartStep;                       external TensorFlowLib name 'TFE_ContextStartStep';
+procedure TFE_ContextEndStep;                         external TensorFlowLib name 'TFE_ContextEndStep';
+procedure TFE_ContextSetLogDevicePlacement;           external TensorFlowLib name 'TFE_ContextSetLogDevicePlacement';
+function  TFE_NewTensorHandle;                        external TensorFlowLib name 'TFE_NewTensorHandle';
+procedure TFE_DeleteTensorHandle;                     external TensorFlowLib name 'TFE_DeleteTensorHandle';
+function  TFE_TensorHandleResolve;                    external TensorFlowLib name 'TFE_TensorHandleResolve';
+function  TFE_TensorHandleNumDims;                    external TensorFlowLib name 'TFE_TensorHandleNumDims';
+function  TFE_TensorHandleDim;                        external TensorFlowLib name 'TFE_TensorHandleDim';
+function  TFE_TensorHandleDeviceName;                 external TensorFlowLib name 'TFE_TensorHandleDeviceName';
 
-procedure TFE_Execute;                                external c_sNameOfTensorflowLib name 'TFE_Execute';
-function  TFE_NewOp;                                  external c_sNameOfTensorflowLib name 'TFE_NewOp';
-procedure TFE_OpReset;                                external c_sNameOfTensorflowLib name 'TFE_OpReset';
-procedure TFE_DeleteOp;                               external c_sNameOfTensorflowLib name 'TFE_DeleteOp';
-procedure TFE_OpSetDevice;                            external c_sNameOfTensorflowLib name 'TFE_OpSetDevice';
-procedure TFE_OpAddInput;                             external c_sNameOfTensorflowLib name 'TFE_OpAddInput';
-function  TFE_OpGetAttrType;                          external c_sNameOfTensorflowLib name 'TFE_OpGetAttrType';
-procedure TFE_OpSetAttrType;                          external c_sNameOfTensorflowLib name 'TFE_OpSetAttrType';
-procedure TFE_OpSetAttrInt;                           external c_sNameOfTensorflowLib name 'TFE_OpSetAttrInt';
-procedure TFE_OpSetAttrFloat;                         external c_sNameOfTensorflowLib name 'TFE_OpSetAttrFloat';
-procedure TFE_OpSetAttrShape;                         external c_sNameOfTensorflowLib name 'TFE_OpSetAttrShape';
-procedure TFE_OpSetAttrShapeList;                     external c_sNameOfTensorflowLib name 'TFE_OpSetAttrShapeList';
-procedure TFE_OpSetAttrStringList;                    external c_sNameOfTensorflowLib name 'TFE_OpSetAttrStringList';
-procedure TFE_OpSetAttrBool;                          external c_sNameOfTensorflowLib name 'TFE_OpSetAttrBool';
-procedure TFE_OpSetAttrFunctionName;                  external c_sNameOfTensorflowLib name 'TFE_OpSetAttrFunctionName';
-procedure TFE_OpSetAttrString;                        external c_sNameOfTensorflowLib name 'TFE_OpSetAttrString';
-procedure TFE_OpSetAttrTypeList;                      external c_sNameOfTensorflowLib name 'TFE_OpSetAttrTypeList';
-procedure TFE_OpSetAttrIntList;                       external c_sNameOfTensorflowLib name 'TFE_OpSetAttrIntList';
+procedure TFE_Execute;                                external TensorFlowLib name 'TFE_Execute';
+function  TFE_NewOp;                                  external TensorFlowLib name 'TFE_NewOp';
+procedure TFE_OpReset;                                external TensorFlowLib name 'TFE_OpReset';
+procedure TFE_DeleteOp;                               external TensorFlowLib name 'TFE_DeleteOp';
+procedure TFE_OpSetDevice;                            external TensorFlowLib name 'TFE_OpSetDevice';
+procedure TFE_OpAddInput;                             external TensorFlowLib name 'TFE_OpAddInput';
+function  TFE_OpGetAttrType;                          external TensorFlowLib name 'TFE_OpGetAttrType';
+procedure TFE_OpSetAttrType;                          external TensorFlowLib name 'TFE_OpSetAttrType';
+procedure TFE_OpSetAttrInt;                           external TensorFlowLib name 'TFE_OpSetAttrInt';
+procedure TFE_OpSetAttrFloat;                         external TensorFlowLib name 'TFE_OpSetAttrFloat';
+procedure TFE_OpSetAttrShape;                         external TensorFlowLib name 'TFE_OpSetAttrShape';
+procedure TFE_OpSetAttrShapeList;                     external TensorFlowLib name 'TFE_OpSetAttrShapeList';
+procedure TFE_OpSetAttrStringList;                    external TensorFlowLib name 'TFE_OpSetAttrStringList';
+procedure TFE_OpSetAttrBool;                          external TensorFlowLib name 'TFE_OpSetAttrBool';
+procedure TFE_OpSetAttrFunctionName;                  external TensorFlowLib name 'TFE_OpSetAttrFunctionName';
+procedure TFE_OpSetAttrString;                        external TensorFlowLib name 'TFE_OpSetAttrString';
+procedure TFE_OpSetAttrTypeList;                      external TensorFlowLib name 'TFE_OpSetAttrTypeList';
+procedure TFE_OpSetAttrIntList;                       external TensorFlowLib name 'TFE_OpSetAttrIntList';
 
 
 end.

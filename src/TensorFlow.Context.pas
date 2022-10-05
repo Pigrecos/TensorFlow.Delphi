@@ -1,5 +1,8 @@
 unit TensorFlow.Context;
 
+{$WARN IMPLICIT_STRING_CAST OFF}
+{$WARN IMPLICIT_STRING_CAST_LOSS OFF}
+
 interface
        uses System.SysUtils, System.Rtti,  System.TypInfo,
        System.Generics.Collections,
@@ -8,10 +11,9 @@ interface
        Spring.Collections.Stacks,
        Spring,
        Quick.Logger.Provider.Files,
-       TensorFlow.LowLevelAPI,
+       TF4D.Core.CApi,
        TensorFlow.DApiBase,
        TensorFlow.DApi,
-       TensorFlow.DApiOperations,
        TensorFlow.DApiEager,
        Tensorflow.Utils,
 
@@ -38,14 +40,14 @@ type
 
     ExecuteOpArgs = class
     private
-      FGetGradientAttrs : TFunc<TFOperation,TObject>;
+      FGetGradientAttrs : TFunc< TFOperation,TArray<TParameter> >;
       FOpAttrs          : TDictionary<string,TValue>;
       FOpInputArgs      : TArray<TValue>;
     public
       constructor Create(inputArgs: TArray<TValue>);
       function    SetAttributes(attrs: TArray<TValue>): ExecuteOpArgs;
 
-    property GetGradientAttrs : TFunc<TFOperation,TObject> read FGetGradientAttrs write FGetGradientAttrs;
+    property GetGradientAttrs : TFunc< TFOperation,TArray<TParameter> >  read FGetGradientAttrs write FGetGradientAttrs;
     property OpAttrs          : TDictionary<string,TValue> read FOpAttrs          write FOpAttrs;
     property OpInputArgs      : TArray<TValue>             read FOpInputArgs      write FOpInputArgs ;
   end;
@@ -164,11 +166,13 @@ end;
 function ExecuteOpArgs.SetAttributes(attrs: TArray<TValue>): ExecuteOpArgs;
 begin
      var att : TArray<TParameter> ;
-     for var i := 0 to Length(attrs)-1 do
+     var j : Integer := 0;
+     for var i := 0 to (Length(attrs) div 2)-1 do
      begin
          SetLength(att,Length(att)+1);
-         att[i].vValue := attrs[i];
-         att[i].sNome  := attrs[i].TypeInfo.Name;
+         att[i].sNome  := attrs[j].AsString;
+         att[i].vValue := attrs[j+1];
+         Inc(j,2)
      end;
      FOpAttrs := TUtils.ConvertToDict(att);
      Result := Self;
@@ -244,8 +248,9 @@ end;
 
 constructor TContext.Create;
 begin
-    _device_policy   := TFE_DEVICE_PLACEMENT_SILENT;
-    context_switches := ContextSwitchStack.Create(defaultExecutionMode = C_GRAPH_MODE, false);
+    _device_policy       := TFE_DEVICE_PLACEMENT_SILENT;
+    defaultExecutionMode := C_GRAPH_MODE;
+    context_switches := ContextSwitchStack.Create(defaultExecutionMode = C_EAGER_MODE, false);
     initialized      := false;
     FConfig.Init;
 end;
@@ -253,6 +258,7 @@ end;
 destructor TContext.Destroy;
 begin
    inherited Destroy;
+   context_switches.Free;
 end;
 
 procedure TContext.ensure_initialized;
@@ -294,9 +300,9 @@ begin
         for var attr in args.OpAttrs do
             keywords[attr.Key] := attr.Value;
     end;
-    var Operation := tf.OpDefLib._apply_op_helperDict(OpType, Name, keywords);
 
-    Result :=  TFTensors.Create( tf.OpDefLib._apply_op_helperDict(OpType, Name, keywords).Outputs );
+    var res := tf.OpDefLib._apply_op_helperDict(OpType, Name, keywords).Outputs;
+    Result :=  TFTensors.Create( res );
 end;
 
 function TContext.ExecEagerAction(OpType, Name: string; args: ExecuteOpArgs): TFTensors;
@@ -321,30 +327,29 @@ begin
         end else
         begin
             var res := ExecGraphAction(opType, name, args);
-            (*if (tf.Runner.MustRecordGradient())
-            {
-                var op = result[0].op;
-                Dictionary<string, object> attrs;
-                if (args.GetGradientAttrs == null)
-                {
-                    attrs = new Dictionary<string, object>();
-                    attrs["T"] = op.get_attr<TF_DataType>("T");
-                }
-                else
-                {
-                    attrs = ConvertToDict(args.GetGradientAttrs(op));
-                }
-                var args1 = new object[attrs.Count() * 2];
-                int i = 0;
-                foreach (var arg in attrs)
-                {
-                    args1[i] = arg.Key;
-                    args1[i + 1] = arg.Value;
-                    i += 2;
-                }
-                tf.Runner.RecordGradient(opType, op.inputs, args1, op.outputs);
-            }
-            *)
+            if tf.Runner.MustRecordGradient then
+            begin
+                var op : TFOperation := res[0].op;
+                var attrs :=  TDictionary<string, TValue>.Create;
+                if args.GetGradientAttrs = nil then
+                begin
+                    attrs.Add('T', op.DType );
+                end else
+                begin
+                    attrs := TUtils.ConvertToDict( args.GetGradientAttrs(op) );
+                end;
+                var args1 : TArray<TValue>;
+                SetLength(args1,attrs.Count * 2);
+                var i : Integer := 0;
+                for var arg in attrs do
+                begin
+                    args1[i]     := arg.Key;
+                    args1[i + 1] := arg.Value;
+                    i := i + 2;
+                end;
+                tf.Runner.RecordGradient(opType, op.inputs.ToArray, args1, op.outputs);
+            end;
+
             Exit(res);
         end;
     end else
@@ -516,9 +521,6 @@ var
 begin
     var flatten_args := TUtils.flatten<TValue>(args);
 
-    (*if (flatten_args.Count(x => x.GetType().IsValueType) == flatten_args.Count())
-        return tf.Context.executing_eagerly() == false *)
-    { DONE -oMax -c :  completare poi 11/12/2021 10:02:13 }
     var  has_graph_arg := not tf.Context.executing_eagerly;
     for var i := 0 to flatten_args.Count -1 do
     begin

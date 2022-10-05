@@ -1,5 +1,8 @@
 unit TensorFlow.EagareRunner;
 
+{$WARN IMPLICIT_STRING_CAST OFF}
+{$WARN IMPLICIT_STRING_CAST_LOSS OFF}
+
 interface
      uses System.SysUtils, System.Rtti,  System.TypInfo, Winapi.Windows,
 
@@ -7,19 +10,22 @@ interface
        Spring.Collections.Dictionaries,
        Spring.Collections.Lists,
        Spring.Collections.Extensions,
+       Spring.Collections.Enumerable,
        Spring.Collections.Stacks,
        Spring,
        Quick.Logger.Provider.Files,
        TensorFlow.Context,
-       TensorFlow.LowLevelAPI,
+       TF4D.Core.CApi,
        TensorFlow.DApiBase,
        TensorFlow.DApi,
-       TensorFlow.DApiOperations,
        TensorFlow.DApiEager,
+       Tensorflow.Gradient,
 
        ProtoGen.OpDef;
 
 type
+
+TCallBack = Reference to procedure;
 
 TFastPathOpExecInfo  = class
   public
@@ -32,7 +38,7 @@ TFastPathOpExecInfo  = class
     run_gradient_callback   : Boolean;
     run_post_exec_callbacks : Boolean;
     run_callbacks           : Boolean;
-    callbacks               : procedure;
+    callbacks               : TCallBack;
 
     constructor Create(opName:string; name: string; inputArgs: TArray<TValue>);
 end;
@@ -65,8 +71,12 @@ TEagerRunner = class(TFDisposable)
     /// <param name="op"></param>
     /// <param name="status"></param>
     /// <returns></returns>
-    function  AddInputToOp(inputs: TValue; add_type_attr: Boolean; input_arg: TArgDef;flattened_attrs: TList<TValue>; flattened_inputs: TList<TFTensor>; op: PTFE_Op;status: TFStatus): Boolean;
-
+    function AddInputToOp(inputs: TValue; add_type_attr: Boolean; input_arg: TArgDef;flattened_attrs: TList<TValue>; flattened_inputs: TList<TFTensor>; op: PTFE_Op;status: TFStatus): Boolean;
+    function HasAccumulator: Boolean;
+    function HasAccumulatorOrTape: Boolean;
+    function HasGradientTape: Boolean;
+    function MakeTensorList(tensors: TArray<TFTensor>): TArray<TFTensor>;
+    function ShouldRecord(inputs: TArray<TFTensor>): Boolean;
 
   protected
     procedure NativeDispose(hnd: Pointer); override;
@@ -80,6 +90,10 @@ TEagerRunner = class(TFDisposable)
     function  GetOp(ctx: TContext; op_or_function_name: AnsiString; status: TFStatus): PTFE_Op;
     procedure SetOpAttrs(op: PTFE_Op; attrs: TArray<TValue>);
 
+    function RunCallbacks(op_exec_info: TFastPathOpExecInfo; num_inferred_attrs: Integer; inputs: TArray<TFTensor>;attrs: TArray<TValue>; flattened_result: TArray<TFTensor>): Boolean;
+    function RecordGradient(op_name: string; inputs: TArray<TFTensor>; attrs: TArray<TValue>; results: TArray<TFTensor>; backward_Function: BackwardFunction = nil) : Boolean;
+    function MustRecordGradient: Boolean;
+    function TFE_TapeGradient(tape: ITape; target, sources, output_gradients: TArray<TFTensor>): TArray<TFTensor>;
     function TFE_Execute(ctx: TContext; device_name: AnsiString; op_name: AnsiString; inputs: TArray<TFTensor>;attrs: TArray<TValue>; num_outputs: Integer): TArray<TFTensor>;
     function TFE_ExecuteCancelable(ctx: TContext; device_name, op_name: AnsiString; inputs: TArray<TFTensor>; attrs: TArray<TValue>; num_outputs: Integer): TArray<TFTensor>;
     function TFE_FastPathExecute(op_exec_info: TFastPathOpExecInfo): TArray<TFTensor>;
@@ -105,11 +119,11 @@ TEagerRunner = class(TFDisposable)
     /// <param name="name">Customized name for the operation.</param>
     /// <returns>List of output Tensor objects. The list is empty if there are no outputs</returns>
     function Execute(ctx: TContext; op_name: AnsiString; num_outputs: Integer; inputs: TArray<TFTensor>; attrs: TArray<TValue>;name: AnsiString = '') : TArray<TFTensor>;
-
+    procedure ArgsToMatchingEager(ctx: TContext; var vRes : Tuple<TF_DataType, TArray<TFTensor>>; default_dtype: TF_DataType = TF_DataType.DtInvalid; args: TArray<TValue> = nil);
 end;
 
 implementation
-      uses Tensorflow, TensorFlow.Ops, Tensorflow.Utils, Oz.SGL.Collections;
+      uses Tensorflow, TensorFlow.EagerTensor, TensorFlow.Ops, Tensorflow.Utils, Oz.SGL.Collections;
 
 { TEagerRunner }
 
@@ -143,6 +157,72 @@ procedure TEagerRunner.NativeDispose(hnd: Pointer);
 begin
    if Assigned(hnd) then
      TFE_DeleteTensorHandle(hnd);
+end;
+
+function TEagerRunner.RecordGradient(op_name: string; inputs: TArray<TFTensor>; attrs: TArray<TValue>; results: TArray<TFTensor>;
+  backward_Function: BackwardFunction): Boolean;
+begin
+    var should_record := ShouldRecord(inputs);
+
+    if  not should_record then
+    begin
+        (*for (TFE_Py_ForwardAccumulator* accumulator : SafeAccumulatorSet())
+        {
+            if (accumulator->accumulator->ShouldRecord(input_ids, input_dtypes))
+            {
+                should_record = true;
+                break;
+            }
+        }*)
+    end;
+    if  not should_record  then Exit(should_record);
+    // tf.Logger.Debug($"RecordGradient: op_name={op_name}");
+    (*Tensor[] op_outputs = null;
+    var unused_output_indices = gradient_exclustions.OpGradientUnusedOutputIndices(op_name);
+    if (unused_output_indices != null)
+    {
+        if (unused_output_indices.Length == 0)
+            op_outputs = new Tensor[0];
+        else
+        {
+            // op_outputs = CopySequenceSettingIndicesToNull(results, *unused_output_indices);
+        }
+    }
+    else
+        op_outputs = results;
+    Tensor[] op_inputs = null;
+    var unused_input_indices = gradient_exclustions.OpGradientUnusedInputIndices(op_name);
+    if (unused_input_indices != null)
+    {
+        if (unused_input_indices.Length == 0)
+            op_inputs = new Tensor[0];
+        else
+        {
+            // op_inputs = CopySequenceSettingIndicesToNull(inputs, *unused_input_indices);
+        }
+    }
+    else
+        op_inputs = inputs;*)
+    {TODO -oMax -cGradient : Add Gradient Function}
+    (*if backward_Function <> nil then  backward_Function
+    else                              GetGradientFunction(op_name, inputs, attrs, results);
+    TapeSetRecordOperation(op_name, inputs, results, backwardFunction) *)
+    Result := true;
+end;
+
+function TEagerRunner.RunCallbacks(op_exec_info: TFastPathOpExecInfo; num_inferred_attrs: Integer; inputs: TArray<TFTensor>;
+  attrs: TArray<TValue>; flattened_result: TArray<TFTensor>): Boolean;
+begin
+    if op_exec_info.run_gradient_callback then
+    begin
+        if not RecordGradient(op_exec_info.op_name, inputs, attrs, flattened_result) then
+          Exit(false);
+    end;
+    if op_exec_info.run_post_exec_callbacks then
+    begin
+
+    end;
+    Result := true;
 end;
 
 procedure TEagerRunner.SetOpAttrs(op: PTFE_Op; attrs: TArray<TValue>);
@@ -350,6 +430,20 @@ begin
 
 end;
 
+function TEagerRunner.ShouldRecord(inputs: TArray<TFTensor>): Boolean;
+begin
+    var should_record : Boolean := false;
+    for var tape in tf.GetTapeSet do
+    begin
+        if tape.ShouldRecord(inputs) then
+        begin
+            should_record := true;
+            break;
+        end;
+    end;
+    Result := should_record;
+end;
+
 function  TEagerRunner.AddInputToOp(inputs: TValue; add_type_attr: Boolean; input_arg: TArgDef;flattened_attrs: TList<TValue>; flattened_inputs: TList<TFTensor>; op: PTFE_Op;status: TFStatus): Boolean;
 begin
     var tensor := tf.convert_to_tensor(inputs);
@@ -387,11 +481,11 @@ begin
     if string.IsNullOrEmpty(op_exec_info.device_name) then
         op_exec_info.device_name := tf.Context.DeviceName;
     var attr_list_sizes := TDictionary<string, Int64>.Create;
-    (*
-    op_exec_info.run_gradient_callback   := HasAccumulatorOrTape();
-    op_exec_info.run_post_exec_callbacks := op_exec_info.callbacks != null;
-    op_exec_info.run_callbacks           := op_exec_info.run_gradient_callback || op_exec_info.run_post_exec_callbacks;
-    *)
+
+    op_exec_info.run_gradient_callback   := HasAccumulatorOrTape;
+    op_exec_info.run_post_exec_callbacks := op_exec_info.callbacks <> nil;
+    op_exec_info.run_callbacks           := op_exec_info.run_gradient_callback or op_exec_info.run_post_exec_callbacks;
+
     var status := tf.Status;
     var op := GetOp(op_exec_info.ctx, op_exec_info.op_name, status);
     var op_def := tf.get_default_graph.GetOpDef(op_exec_info.op_name);
@@ -495,15 +589,102 @@ begin
        flat_result := flat_result + [ TEagerTensor.Create( retVals[i] ) ];
     if op_exec_info.run_callbacks then
     begin
-        (*
-        RunCallbacks(op_exec_info,
-            op_def.InputArg.Count(),
-            flattened_inputs.ToArray(), flattened_attrs.ToArray(), flat_result);
-        *)
+        RunCallbacks(op_exec_info, op_def.InputArgs.Count,flattened_inputs.ToArray, flattened_attrs.ToArray, flat_result);
     end;
     Result := flat_result;
 end;
 
+procedure TEagerRunner.ArgsToMatchingEager(ctx: TContext; var vRes : Tuple<TF_DataType, TArray<TFTensor>>; default_dtype: TF_DataType;
+  args: TArray<TValue>);
+begin
+    var res : Tuple<TF_DataType, TArray<TFTensor>>;
+
+    var eArgs := Enumerable<TValue>.Create(args) ;
+    var predicateCount :  TPredicate<TValue> := function(const x: TValue): Boolean
+                             begin
+                                 Result := x.IsType<TFTensor>;
+                             end;
+
+    if (Length(Args) = 0) and (default_dtype <> TF_DataType.DtInvalid) then
+    begin
+        Res := Tuple<TF_DataType, TArray<TFTensor>>.create(default_dtype, nil);
+    end;
+
+    if (eArgs.Count( predicateCount ) = Length(args)) then
+    begin
+        var sel := eArgs.Select<TFTensor>(function(x: TValue): TFTensor
+                                 begin
+                                     Result := x.AsType<TFTensor>;
+                                 end).ToArray;
+
+        res := Tuple<TF_DataType, TArray<TFTensor>>.create(sel[0].Dtype, sel);
+    end;
+
+    var dtype := TF_DataType.DtInvalid;
+    for var x in args do
+    begin
+        if x.IsType<TFTensor> then
+            dtype := x.AsType<TFTensor>.dtype;
+    end;
+    if dtype = TF_DataType.DtInvalid then
+    begin
+        var ret := TList<TFTensor>.Create;
+        for var t in args do
+        begin
+            ret.Add(Tops.convert_to_tensor(t, dtype, '',False,default_dtype, ctx));
+            if dtype = TF_DataType.DtInvalid then
+                dtype := ret.Last.dtype;
+        end;
+        res := Tuple<TF_DataType, TArray<TFTensor>>.create(dtype, ret.ToArray) ;
+    end else
+    begin
+        raise Exception.Create('Not Implemented');
+    end;
+end;
+
+function TEagerRunner.HasAccumulator: Boolean;
+begin
+    Result := false;
+end;
+
+function TEagerRunner.HasGradientTape: Boolean;
+begin
+   Result := tf.GetTapeSet.Count > 0;
+end;
+
+function TEagerRunner.HasAccumulatorOrTape: Boolean;
+begin
+    Result := HasGradientTape or HasAccumulator;
+end;
+
+function TEagerRunner.MakeTensorList(tensors: TArray<TFTensor>): TArray<TFTensor>;
+Begin
+    Result := tensors;
+end;
+
+function TEagerRunner.MustRecordGradient: Boolean;
+begin
+    Result := HasGradientTape;
+end;
+
+function TEagerRunner.TFE_TapeGradient(tape: ITape; target: TArray<TFTensor>; sources: TArray<TFTensor>; output_gradients: TArray<TFTensor>): TArray<TFTensor>;
+begin
+    var target_vec  := target;
+    var sources_vec := sources;
+    var sources_set := sources_vec;
+    var seq_array := target;
+    var source_tensors_that_are_targets := TDictionary<TFTensor, TapeTensor>.Create;
+    for var i := 0 to Length(target) - 1 do
+    begin
+        source_tensors_that_are_targets.Add(target_vec[i], TapeTensor.Create( seq_array[i]) );
+    end;
+    if output_gradients <> nil then
+        raise Exception.Create('Not Implemented')
+    else
+        output_gradients :=  [];
+    var outgrad_vec := MakeTensorList(output_gradients);
+    Result := tape.ComputeGradient(target_vec, sources_vec, source_tensors_that_are_targets, outgrad_vec);
+end;
 { TFastPathOpExecInfo }
 
 constructor TFastPathOpExecInfo.Create(opName, name: string; inputArgs: TArray<TValue>);

@@ -1,181 +1,26 @@
 unit TensorFlow.Tensor;
 
+{$WARN IMPLICIT_STRING_CAST OFF}
+{$WARN IMPLICIT_STRING_CAST_LOSS OFF}
+
 interface
     uses
        System.SysUtils, System.Classes, System.Types, Generics.Collections, Winapi.Windows,
-       System.AnsiStrings, System.Rtti, Spring,spring.Collections.Base,
-       TensorFlow.LowLevelAPI, TensorFlow.DApiEager, TensorFlow.DApi;
+       System.AnsiStrings, System.Rtti, Spring,Spring.Collections.Base,
+       TF4D.Core.CApi,
+       TensorFlow.DApiEager,
+       TensorFlow.DApi,
+       TensorFlow.Variable,
+       NumPy.NDArray;
 
 type
- /// <summary>
-/// TFTensor holds a multi-dimensional array of elements of a single data type.
-/// </summary>
-/// <remarks>
-/// <para>
-/// You can create tensors with the various constructors in this class, or using
-/// the implicit conversions from various data types into a TFTensor.
-///</para>
-/// <para>
-/// The implicit conversions for basic types produce tensors of one dimesion with
-/// a single element, while the implicit conversion from an array, expects a multi-dimensional
-/// array that is converted into a tensor of the right dimensions.
-/// </para>
-/// <para>
-/// The special "String" tensor data type that you will find in TensorFlow documentation
-/// really represents a byte array.   You can create string tensors by using the <see cref="M:TensorFlow.TFTensor.CreateString"/>
-/// method that takes a byte array buffer as input.
-/// </para>
-/// </remarks>
-TFTensor = class(ITensorOrOperation)
- private
-   FEagerTensorHandle    : PTFE_TensorHandle;
-   FlDeallocator_called  : Boolean;
-   FIsCreatedInGraphMode : Boolean;
-   FIsList               : Boolean;
-   /// <summary>
-   ///     The Operation that produces this tensor as an output.
-   /// </summary>
-   Ftf_output            : Nullable<TF_Output>;
-   FValue_index          : Integer;
-   FOverride_dtype       : TF_DataType;
-   FId                   : Int64;
-   /// <summary>
-   ///     The Graph that contains this tensor.
-   /// </summary>
-   FGraph                : TFGraph;
-   FRank                 : Integer;
-   FShape                : TFShape;
-
-   function GetByteSize: UInt64;
-   function GetDataTypeSize: UInt64;
-   function GetSize: UInt64;
-   function GetData: Pointer;
-   function GetDim: Tarray<UInt64>;
-   function GetRank: Integer;
-   function GetShape: TFShape;
-   procedure Setshape(const Value: TFShape);
-   function GetName: string;
-   /// <summary>
-	 /// Returns the data type for the tensor.
-	 /// </summary>
-	 /// <value>The type of the tensor.</value>
-   function GetType: TF_DataType; reintroduce;
-   function GetDevice: string;
-   function GetTensorDataPointer: Pointer;
-
-   procedure UpdateTensoData;
-
-   class function    TF_NewTensor(shape: TFShape; dtype: TF_DataType; data: Pointer):PTF_Tensor; overload;
-   class function    TF_NewTensor(data: TArray<Byte>; shape: TFShape; dtype: TF_DataType):PTF_Tensor; overload;
-   class function    StringTensor(srcArray: TArray<TArray<Byte>>; shape: TFShape):PTF_Tensor;overload;
-   class function    StringTensor(srcArray: TArray<TFString>; shape: TFShape):PTF_Tensor;overload;
-   class function    StringTensor(srcArray: TArray<string>; shape: TFShape):PTF_Tensor;overload;
-
-   procedure InitTensor(shape: TFShape; dtype: TF_DataType);overload;
-   Procedure InitTensor(shape: TFShape; bytes: TArray<Byte>; dtype: TF_DataType); overload;
-
-   function InitTensor<T>(aArray: TArray<T>; shape: TFShape): PTF_Tensor; overload;
-
-   class function InitTensor<T>(aArray: TArray<T>;                        shape: TFShape; dtype: TF_DataType): PTF_Tensor; overload;
-   class function InitTensor<T>(aArray: TArray<TArray<T>>;                shape: TFShape; dtype: TF_DataType): PTF_Tensor; overload;
-   class function InitTensor<T>(aArray: TArray<TArray<TArray<T>>>;        shape: TFShape; dtype: TF_DataType): PTF_Tensor; overload;
-   class function InitTensor<T>(aArray: TArray<TArray<TArray<TArray<T>>>>;shape: TFShape; dtype: TF_DataType): PTF_Tensor; overload;
-   function StringBytes(index: Integer): TArray<byte>; overload;
-   function StringBytes:TArray< TArray<Byte> >; overload;
-   function StringData(index: integer): AnsiString; overload;
-
- protected
-   procedure NativeDispose(hnd: Pointer); override;
- public
-   // Scalar
-   constructor Create(hnd: Pointer);   overload;
-   constructor Create(const value: Boolean);  overload; virtual;
-   constructor Create(const value: Byte);     overload; virtual;
-   constructor Create(const value: Int8);     overload; virtual;
-   constructor Create(const value: UInt16);   overload; virtual;
-   constructor Create(const value: Int16);    overload; virtual;
-   constructor Create(const value: Cardinal); overload; virtual;
-   constructor Create(const value: Integer);  overload; virtual;
-   constructor Create(const value: UInt64);   overload; virtual;
-   constructor Create(const value: Int64);    overload; virtual;
-   constructor Create(const value: Single);   overload; virtual;
-   constructor Create(const value: Double);   overload; virtual;
-   constructor Create(const value: TFString); overload; virtual;
-
-   constructor Create(shape : TFShape; dtype:TF_DataType); overload;
-   constructor Create(bytes : TArray<Byte>;shape : TFShape; dtype:TF_DataType); overload;
-   constructor Create(op: TFOperation; value_index: Integer; dtype:TF_DataType); overload;
-   // Array of T
-   class function Create<T>(aArray: TArray<T>;                        shape: PTFShape=nil):TFTensor; overload;
-   class function Create<T>(aArray: TArray<TArray<T>>;                shape: PTFShape=nil):TFTensor; overload;
-   class function Create<T>(aArray: TArray<TArray<TArray<T>>>;        shape: PTFShape=nil):TFTensor; overload;
-   class function Create<T>(aArray: TArray<TArray<TArray<TArray<T>>>>;shape: PTFShape=nil):TFTensor; overload;
-
-   function StringData: TArray<TFString>; overload;
-   //
-   function ToString: string;override;
-   //
-   destructor  Destroy; override;
-   //
-   function MMLck(): TFTensor;
-   /// <summary>
-   ///
-   /// </summary>
-   /// <typeparam name="T"></typeparam>
-   /// <returns></returns>
-   function ToArray<T>:TArray<T>;
-
-   function _as_tf_output : TF_Output;
-
-   /// <summary>
-   /// Copies the memory of current buffer onto newly allocated array.
-   /// </summary>
-   /// <returns></returns>
-   function BufferToArray: TArray<Byte>;
-
-   class function TestTensor: Boolean;
-
-   property  bytesize      : UInt64         read GetByteSize;
-   property  dtypesize     : UInt64         read GetDataTypeSize;
-   property  size          : UInt64         read GetSize;
-   property  buffer        : Pointer        read GetData;
-   property  ndim          : Tarray<UInt64> read GetDim;
-   property  value_index   : Integer        read FValue_index;
-   property  override_dtype: TF_DataType    read FOverride_dtype;
-   property  id            : Int64          read FId;
-   property  graph         : TFGraph        read FGraph;
-   property  Shape         : TFShape        read GetShape write Setshape;
-   property  isList        : Boolean        read FIsList write FIsList;
-   /// <summary>
-   /// number of dimensions <br></br>
-   /// -1 Unknown  <br></br>
-   /// 0	Scalar (magnitude only) <br></br>
-   /// 1	Vector (magnitude and direction) <br></br>
-   /// 2	Matrix (table of numbers) <br></br>
-   /// 3	3-Tensor (cube of numbers) <br></br>
-   /// n	n-Tensor (you get the idea)
-   /// </summary>
-   /// <remarks>https://www.tensorflow.org/api_docs/python/tf/rank</remarks>
-   property  rank             :    Integer         read GetRank;
-   property  DeallocatorCalled:    Boolean         read FlDeallocator_called;
-   property  isCreatedInGraphMode: Boolean         read FIsCreatedInGraphMode;
-   property  TensorDataPointer:    Pointer         read GetTensorDataPointer;
-   property  EagerTensorHandle: PTFE_TensorHandle  read FEagerTensorHandle write FEagerTensorHandle;
-   // inherithed from  ITensorOrOperation
-   property Device : string            read GetDevice;
-   property Op     : TFOperation       read FOp;
-   property Name   : string            read GetName;
-   property Dtype  : TF_DataType       read GetType;
-
-end;
-
 TTensor = record
   private
       FHandleTensor : TFTensor;
 
       class procedure EnsureScalar(t: TTensor);static;
       class procedure EnsureDType(t: TTensor; _is: TF_DataType); static;
-    function GetShape: TFShape;
+      function GetShape: TFShape;
 
   public
       class operator Implicit(t : TFTensor): TTensor;
@@ -194,7 +39,7 @@ TTensor = record
       constructor Create(const value: Int64);    overload;
       constructor Create(const value: Single);   overload;
       constructor Create(const value: Double);   overload;
-      constructor Create(const value: TFString); overload;
+      constructor Create(const value: TF_TString); overload;
 
       constructor Create(shape : TFShape; dtype:TF_DataType); overload;
       constructor Create(bytes : TArray<Byte>;shape : TFShape; dtype:TF_DataType); overload;
@@ -221,6 +66,227 @@ TTensor = record
       class operator Explicit(t : TTensor): AnsiString;
 
       class function ToStringArray(t: TTensor): TArray<AnsiString>; static;
+      //
+      // Class Operator
+      Class Operator Add(lhs: TTensor; rhs: ResourceVariable) : TTensor; Overload;
+      Class Operator Add(lhs: TTensor; rhs: TTensor)          : TTensor; Overload;
+      Class Operator Add(lhs: TTensor; rhs: TNDArray)         : TTensor; Overload;
+      Class Operator Add(lhs: TNDArray;rhs: TTensor)          : TTensor; Overload;
+      Class Operator Add(lhs: TTensor; rhs: Int8)             : TTensor; Overload;
+      Class Operator Add(lhs: Int8;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Add(lhs: TTensor; rhs: Byte)             : TTensor; Overload;
+      Class Operator Add(lhs: Byte;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Add(lhs: TTensor; rhs: Int16)            : TTensor; Overload;
+      Class Operator Add(lhs: Int16;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator Add(lhs: TTensor; rhs: Word)             : TTensor; Overload;
+      Class Operator Add(lhs: Word;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Add(lhs: TTensor; rhs: Integer)          : TTensor; Overload;
+      Class Operator Add(lhs: Integer; rhs: TTensor)          : TTensor; Overload;
+      Class Operator Add(lhs: TTensor; rhs: UInt32)           : TTensor; Overload;
+      Class Operator Add(lhs: UInt32;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Add(lhs: TTensor; rhs: UInt64)           : TTensor; Overload;
+      Class Operator Add(lhs: UInt64;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Add(lhs: TTensor; rhs: Int64)            : TTensor; Overload;
+      Class Operator Add(lhs: Int64;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator Add(lhs: TTensor; rhs: Single)           : TTensor; Overload;
+      Class Operator Add(lhs: Single;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Add(lhs: TTensor; rhs: Double)           : TTensor; Overload;
+      Class Operator Add(lhs: Double;  rhs: TTensor)          : TTensor; Overload;
+      //
+      Class Operator Subtract(lhs: TTensor; rhs: TTensor)          : TTensor; Overload;
+      Class Operator Subtract(lhs: TTensor; rhs: TNDArray)         : TTensor; Overload;
+      Class Operator Subtract(lhs: TNDArray;rhs: TTensor)          : TTensor; Overload;
+      Class Operator Subtract(lhs: TTensor; rhs: Int8)             : TTensor; Overload;
+      Class Operator Subtract(lhs: Int8;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Subtract(lhs: TTensor; rhs: Byte)             : TTensor; Overload;
+      Class Operator Subtract(lhs: Byte;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Subtract(lhs: TTensor; rhs: Int16)            : TTensor; Overload;
+      Class Operator Subtract(lhs: Int16;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator Subtract(lhs: TTensor; rhs: Word)             : TTensor; Overload;
+      Class Operator Subtract(lhs: Word;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Subtract(lhs: TTensor; rhs: Integer)          : TTensor; Overload;
+      Class Operator Subtract(lhs: Integer; rhs: TTensor)          : TTensor; Overload;
+      Class Operator Subtract(lhs: TTensor; rhs: UInt32)           : TTensor; Overload;
+      Class Operator Subtract(lhs: UInt32;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Subtract(lhs: TTensor; rhs: UInt64)           : TTensor; Overload;
+      Class Operator Subtract(lhs: UInt64;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Subtract(lhs: TTensor; rhs: Int64)            : TTensor; Overload;
+      Class Operator Subtract(lhs: Int64;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator Subtract(lhs: TTensor; rhs: Single)           : TTensor; Overload;
+      Class Operator Subtract(lhs: Single;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Subtract(lhs: TTensor; rhs: Double)           : TTensor; Overload;
+      Class Operator Subtract(lhs: Double;  rhs: TTensor)          : TTensor; Overload;
+      //
+      Class Operator Multiply(lhs: TTensor; rhs: TTensor)          : TTensor; Overload;
+      Class Operator Multiply(lhs: TTensor; rhs: TNDArray)         : TTensor; Overload;
+      Class Operator Multiply(lhs: TNDArray;rhs: TTensor)          : TTensor; Overload;
+      Class Operator Multiply(lhs: TTensor; rhs: Int8)             : TTensor; Overload;
+      Class Operator Multiply(lhs: Int8;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Multiply(lhs: TTensor; rhs: Byte)             : TTensor; Overload;
+      Class Operator Multiply(lhs: Byte;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Multiply(lhs: TTensor; rhs: Int16)            : TTensor; Overload;
+      Class Operator Multiply(lhs: Int16;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator Multiply(lhs: TTensor; rhs: Word)             : TTensor; Overload;
+      Class Operator Multiply(lhs: Word;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Multiply(lhs: TTensor; rhs: Integer)          : TTensor; Overload;
+      Class Operator Multiply(lhs: Integer; rhs: TTensor)          : TTensor; Overload;
+      Class Operator Multiply(lhs: TTensor; rhs: UInt32)           : TTensor; Overload;
+      Class Operator Multiply(lhs: UInt32;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Multiply(lhs: TTensor; rhs: UInt64)           : TTensor; Overload;
+      Class Operator Multiply(lhs: UInt64;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Multiply(lhs: TTensor; rhs: Int64)            : TTensor; Overload;
+      Class Operator Multiply(lhs: Int64;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator Multiply(lhs: TTensor; rhs: Single)           : TTensor; Overload;
+      Class Operator Multiply(lhs: Single;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Multiply(lhs: TTensor; rhs: Double)           : TTensor; Overload;
+      Class Operator Multiply(lhs: Double;  rhs: TTensor)          : TTensor; Overload;
+      //
+      Class Operator Divide(lhs: TTensor; rhs: TTensor)          : TTensor; Overload;
+      Class Operator Divide(lhs: TTensor; rhs: TNDArray)         : TTensor; Overload;
+      Class Operator Divide(lhs: TNDArray;rhs: TTensor)          : TTensor; Overload;
+      Class Operator Divide(lhs: TTensor; rhs: Int8)             : TTensor; Overload;
+      Class Operator Divide(lhs: Int8;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Divide(lhs: TTensor; rhs: Byte)             : TTensor; Overload;
+      Class Operator Divide(lhs: Byte;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Divide(lhs: TTensor; rhs: Int16)            : TTensor; Overload;
+      Class Operator Divide(lhs: Int16;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator Divide(lhs: TTensor; rhs: Word)             : TTensor; Overload;
+      Class Operator Divide(lhs: Word;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Divide(lhs: TTensor; rhs: Integer)          : TTensor; Overload;
+      Class Operator Divide(lhs: Integer; rhs: TTensor)          : TTensor; Overload;
+      Class Operator Divide(lhs: TTensor; rhs: UInt32)           : TTensor; Overload;
+      Class Operator Divide(lhs: UInt32;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Divide(lhs: TTensor; rhs: UInt64)           : TTensor; Overload;
+      Class Operator Divide(lhs: UInt64;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Divide(lhs: TTensor; rhs: Int64)            : TTensor; Overload;
+      Class Operator Divide(lhs: Int64;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator Divide(lhs: TTensor; rhs: Single)           : TTensor; Overload;
+      Class Operator Divide(lhs: Single;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Divide(lhs: TTensor; rhs: Double)           : TTensor; Overload;
+      Class Operator Divide(lhs: Double;  rhs: TTensor)          : TTensor; Overload;
+      //
+      Class Operator Modulus(lhs: TTensor; rhs: TTensor)          : TTensor; Overload;
+      Class Operator Modulus(lhs: TTensor; rhs: TNDArray)         : TTensor; Overload;
+      Class Operator Modulus(lhs: TNDArray;rhs: TTensor)          : TTensor; Overload;
+      Class Operator Modulus(lhs: TTensor; rhs: Int8)             : TTensor; Overload;
+      Class Operator Modulus(lhs: Int8;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Modulus(lhs: TTensor; rhs: Byte)             : TTensor; Overload;
+      Class Operator Modulus(lhs: Byte;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Modulus(lhs: TTensor; rhs: Int16)            : TTensor; Overload;
+      Class Operator Modulus(lhs: Int16;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator Modulus(lhs: TTensor; rhs: Word)             : TTensor; Overload;
+      Class Operator Modulus(lhs: Word;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator Modulus(lhs: TTensor; rhs: Integer)          : TTensor; Overload;
+      Class Operator Modulus(lhs: Integer; rhs: TTensor)          : TTensor; Overload;
+      Class Operator Modulus(lhs: TTensor; rhs: UInt32)           : TTensor; Overload;
+      Class Operator Modulus(lhs: UInt32;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Modulus(lhs: TTensor; rhs: UInt64)           : TTensor; Overload;
+      Class Operator Modulus(lhs: UInt64;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Modulus(lhs: TTensor; rhs: Int64)            : TTensor; Overload;
+      Class Operator Modulus(lhs: Int64;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator Modulus(lhs: TTensor; rhs: Single)           : TTensor; Overload;
+      Class Operator Modulus(lhs: Single;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator Modulus(lhs: TTensor; rhs: Double)           : TTensor; Overload;
+      Class Operator Modulus(lhs: Double;  rhs: TTensor)          : TTensor; Overload;
+      //
+      Class Operator GreaterThan(lhs: TTensor; rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThan(lhs: TTensor; rhs: TNDArray)         : TTensor; Overload;
+      Class Operator GreaterThan(lhs: TNDArray;rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThan(lhs: TTensor; rhs: Int8)             : TTensor; Overload;
+      Class Operator GreaterThan(lhs: Int8;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThan(lhs: TTensor; rhs: Byte)             : TTensor; Overload;
+      Class Operator GreaterThan(lhs: Byte;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThan(lhs: TTensor; rhs: Int16)            : TTensor; Overload;
+      Class Operator GreaterThan(lhs: Int16;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThan(lhs: TTensor; rhs: Word)             : TTensor; Overload;
+      Class Operator GreaterThan(lhs: Word;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThan(lhs: TTensor; rhs: Integer)          : TTensor; Overload;
+      Class Operator GreaterThan(lhs: Integer; rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThan(lhs: TTensor; rhs: UInt32)           : TTensor; Overload;
+      Class Operator GreaterThan(lhs: UInt32;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThan(lhs: TTensor; rhs: UInt64)           : TTensor; Overload;
+      Class Operator GreaterThan(lhs: UInt64;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThan(lhs: TTensor; rhs: Int64)            : TTensor; Overload;
+      Class Operator GreaterThan(lhs: Int64;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThan(lhs: TTensor; rhs: Single)           : TTensor; Overload;
+      Class Operator GreaterThan(lhs: Single;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThan(lhs: TTensor; rhs: Double)           : TTensor; Overload;
+      Class Operator GreaterThan(lhs: Double;  rhs: TTensor)          : TTensor; Overload;
+      //
+      Class Operator LessThan(lhs: TTensor; rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThan(lhs: TTensor; rhs: TNDArray)         : TTensor; Overload;
+      Class Operator LessThan(lhs: TNDArray;rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThan(lhs: TTensor; rhs: Int8)             : TTensor; Overload;
+      Class Operator LessThan(lhs: Int8;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThan(lhs: TTensor; rhs: Byte)             : TTensor; Overload;
+      Class Operator LessThan(lhs: Byte;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThan(lhs: TTensor; rhs: Int16)            : TTensor; Overload;
+      Class Operator LessThan(lhs: Int16;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThan(lhs: TTensor; rhs: Word)             : TTensor; Overload;
+      Class Operator LessThan(lhs: Word;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThan(lhs: TTensor; rhs: Integer)          : TTensor; Overload;
+      Class Operator LessThan(lhs: Integer; rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThan(lhs: TTensor; rhs: UInt32)           : TTensor; Overload;
+      Class Operator LessThan(lhs: UInt32;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThan(lhs: TTensor; rhs: UInt64)           : TTensor; Overload;
+      Class Operator LessThan(lhs: UInt64;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThan(lhs: TTensor; rhs: Int64)            : TTensor; Overload;
+      Class Operator LessThan(lhs: Int64;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThan(lhs: TTensor; rhs: Single)           : TTensor; Overload;
+      Class Operator LessThan(lhs: Single;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThan(lhs: TTensor; rhs: Double)           : TTensor; Overload;
+      Class Operator LessThan(lhs: Double;  rhs: TTensor)          : TTensor; Overload;
+      //
+      Class Operator GreaterThanOrEqual(lhs: TTensor; rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: TTensor; rhs: TNDArray)         : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: TNDArray;rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: TTensor; rhs: Int8)             : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: Int8;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: TTensor; rhs: Byte)             : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: Byte;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: TTensor; rhs: Int16)            : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: Int16;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: TTensor; rhs: Word)             : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: Word;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: TTensor; rhs: Integer)          : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: Integer; rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: TTensor; rhs: UInt32)           : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: UInt32;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: TTensor; rhs: UInt64)           : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: UInt64;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: TTensor; rhs: Int64)            : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: Int64;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: TTensor; rhs: Single)           : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: Single;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: TTensor; rhs: Double)           : TTensor; Overload;
+      Class Operator GreaterThanOrEqual(lhs: Double;  rhs: TTensor)          : TTensor; Overload;
+      //
+      Class Operator LessThanOrEqual(lhs: TTensor; rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: TTensor; rhs: TNDArray)         : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: TNDArray;rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: TTensor; rhs: Int8)             : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: Int8;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: TTensor; rhs: Byte)             : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: Byte;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: TTensor; rhs: Int16)            : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: Int16;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: TTensor; rhs: Word)             : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: Word;    rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: TTensor; rhs: Integer)          : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: Integer; rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: TTensor; rhs: UInt32)           : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: UInt32;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: TTensor; rhs: UInt64)           : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: UInt64;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: TTensor; rhs: Int64)            : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: Int64;   rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: TTensor; rhs: Single)           : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: Single;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: TTensor; rhs: Double)           : TTensor; Overload;
+      Class Operator LessThanOrEqual(lhs: Double;  rhs: TTensor)          : TTensor; Overload;
+
+      function  eval(session : TFSession; feed_dict : TArray<FeedItem>= nil) : TNDArray;
+      function  numpy: NDArray;
 
       // Property
       property HTensor : TFTensor read FHandleTensor;
@@ -228,720 +294,9 @@ TTensor = record
 end;
 
 implementation
-         uses Tensorflow,TensorFlow.Ops,Tensorflow.Utils;
+         uses Tensorflow,TensorFlow.Ops,Tensorflow.Utils, TensorFlow.gen_math_ops;
 
-//------------------------------------------------------------------------------
-//----------------------------- TFTensor ---------------------------------------
-//------------------------------------------------------------------------------
-constructor TFTensor.Create(hnd: Pointer);
-begin
- inherited Create(hnd);
- FlDeallocator_called := False;
-
- UpdateTensoData;
-
- self.MMLck();
-end;
-
-constructor TFTensor.Create(const value: Boolean);
-begin
-   Create(InitTensor<Boolean>([value], TFShape.Scalar));
-
-   FIsCreatedInGraphMode := not tf.executing_eagerly;
-   FEagerTensorHandle    := nil;
-end;
-
-constructor TFTensor.Create(const value: Byte);
-begin
-   Create(InitTensor<Byte>([value], TFShape.Scalar));
-
-   FIsCreatedInGraphMode := not tf.executing_eagerly;
-   FEagerTensorHandle    := nil;
-end;
-
-constructor TFTensor.Create(const value: Int8);
-begin
-   Create(InitTensor<Int8>([value], TFShape.Scalar));
-
-   FIsCreatedInGraphMode := not tf.executing_eagerly;
-   FEagerTensorHandle    := nil;
-end;
-
-constructor TFTensor.Create(const value: UInt16);
-begin
-   Create(InitTensor<UInt16>([value], TFShape.Scalar));
-
-   FIsCreatedInGraphMode := not tf.executing_eagerly;
-   FEagerTensorHandle    := nil;
-end;
-
-constructor TFTensor.Create(const value: Int16);
-begin
-   Create(InitTensor<Int16>([value], TFShape.Scalar));
-
-   FIsCreatedInGraphMode := not tf.executing_eagerly;
-   FEagerTensorHandle    := nil;
-end;
-
-constructor TFTensor.Create(const value: Cardinal);
-begin
-   Create(InitTensor<Cardinal>([value], TFShape.Scalar));
-
-   FIsCreatedInGraphMode := not tf.executing_eagerly;
-   FEagerTensorHandle    := nil;
-end;
-
-constructor TFTensor.Create(const value: Integer);
-begin
-   Create(InitTensor<Integer>([value], TFShape.Scalar));
-
-   FIsCreatedInGraphMode := not tf.executing_eagerly;
-   FEagerTensorHandle    := nil;
-end;
-
-constructor TFTensor.Create(const value: UInt64);
-begin
-   Create(InitTensor<UInt64>([value], TFShape.Scalar));
-
-   FIsCreatedInGraphMode := not tf.executing_eagerly;
-   FEagerTensorHandle    := nil;
-end;
-
-constructor TFTensor.Create(const value: Int64);
-begin
-   Create(InitTensor<Int64>([value], TFShape.Scalar));
-
-   FIsCreatedInGraphMode := not tf.executing_eagerly;
-   FEagerTensorHandle    := nil;
-end;
-
-constructor TFTensor.Create(const value: Single);
-begin
-   Create(InitTensor<Single>([value], TFShape.Scalar));
-
-   FIsCreatedInGraphMode := not tf.executing_eagerly;
-   FEagerTensorHandle    := nil;
-end;
-
-constructor TFTensor.Create(const value: Double);
-begin
-   Create(InitTensor<Double>([value], TFShape.Scalar));
-
-   FIsCreatedInGraphMode := not tf.executing_eagerly;
-   FEagerTensorHandle    := nil;
-end;
-
-constructor TFTensor.Create(const value: TFString);
-begin
-   Create(InitTensor<TFString>([value], TFShape.Scalar));
-
-   FIsCreatedInGraphMode := not tf.executing_eagerly;
-   FEagerTensorHandle    := nil;
-end;
-
-constructor TFTensor.Create(shape : TFShape; dtype:TF_DataType);
-begin
-   InitTensor(shape, dtype);
-   Create(Handle);
-
-   FIsCreatedInGraphMode := not tf.executing_eagerly;
-   FEagerTensorHandle    := nil;
-end;
-
-constructor TFTensor.Create(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType);
-begin
-    InitTensor(shape,bytes,dtype) ;
-    Create(Handle);
-
-    FIsCreatedInGraphMode := not tf.executing_eagerly;
-    FEagerTensorHandle    := nil;
-end;
-
-class function TFTensor.Create<T>(aArray: TArray<T>; shape: PTFShape):TFTensor;
-begin
-    var sShape : TFShape;
-    if shape = nil then  sShape := TUtils.GetShape( TValue.From< TArray<T> >( aArray ) )
-    else                 sShape := shape^ ;
-
-    var dtype := TUtils.GetDataType( TValue.From<T>( aArray[0] ) );
-
-    var HTensor := InitTensor<T>(aArray, sShape,dtype);
-
-    Result := TFTensor.Create(HTensor);
-
-    Result.FIsCreatedInGraphMode := not tf.executing_eagerly;
-    Result.FEagerTensorHandle    := nil;
-end;
-
-class function TFTensor.Create<T>(aArray: TArray<TArray<T>>; shape: PTFShape):TFTensor;
-begin
-    var sShape : TFShape;
-    if shape = nil then  sShape := TUtils.GetShape( TValue.From< TArray<TArray<T>> >( aArray ) )
-    else                 sShape := shape^ ;
-
-    var dtype := TUtils.GetDataType( TValue.From<T>( aArray[0][0] ) );
-
-    var HTensor := InitTensor<T>(aArray, sShape,dtype);
-
-    Result := TFTensor.Create(HTensor);
-
-    Result.FIsCreatedInGraphMode := not tf.executing_eagerly;
-    Result.FEagerTensorHandle    := nil;
-end;
-
-class function TFTensor.Create<T>(aArray: TArray<TArray<TArray<T>>>; shape: PTFShape):TFTensor;
-begin
-    var sShape : TFShape;
-    if shape = nil then  sShape := TUtils.GetShape( TValue.From<  TArray<TArray<TArray<T>>> >( aArray ) )
-    else                 sShape := shape^ ;
-
-    var dtype := TUtils.GetDataType( TValue.From<T>( aArray[0][0][0] ) );
-
-    var HTensor := InitTensor<T>(aArray, sShape,dtype);
-
-    Result := TFTensor.Create(HTensor);
-
-    Result.FIsCreatedInGraphMode := not tf.executing_eagerly;
-    Result.FEagerTensorHandle    := nil;
-end;
-
-class function TFTensor.Create<T>(aArray: TArray<TArray<TArray<TArray<T>>>>; shape: PTFShape):TFTensor;
-begin
-    var sShape : TFShape;
-    if shape = nil then  sShape := TUtils.GetShape( TValue.From<  TArray<TArray<TArray<TArray<T>>>> >( aArray ) )
-    else                 sShape := shape^ ;
-
-    var dtype := TUtils.GetDataType( TValue.From<T>( aArray[0][0][0][0] ) );
-
-    var HTensor := InitTensor<T>(aArray, sShape,dtype);
-
-    Result := TFTensor.Create(HTensor);
-
-    Result.FIsCreatedInGraphMode := not tf.executing_eagerly;
-    Result.FEagerTensorHandle    := nil;
-end;
-
-constructor TFTensor.Create(op: TFOperation; value_index: Integer; dtype: TF_DataType);
-begin
-     Fop     := op;
-     FGraph := Fop.Graph;
-
-     FValue_index := value_index;
-     FOverride_dtype := dtype;
-     FId := TOps.uid;
-     FIsCreatedInGraphMode := not tf.executing_eagerly;
-     FEagerTensorHandle    := nil;
-end;
-
-class function TFTensor.TF_NewTensor(data: TArray<Byte>; shape: TFShape; dtype: TF_DataType):PTF_Tensor;
-begin
-     inherited Create(Nil);
-
-     var _length : TF_size_t := Length(data);
-     var dims     := shape.Dims;
-
-     var pDims : PTF_int64_t;
-     pDims :=  PTF_int64_t(Pointer(@dims)^);
-
-     var hHandle := TF_AllocateTensor(Integer(dtype), pDims, shape.ndim, _length);
-     var ttensor := TF_TensorData(hHandle);
-     if ttensor = nil then
-        raise Exception.Create('AllocateTensor failed.');
-
-     if Assigned(data)  then
-       Move(@data[0], ttensor^, _length);
-
-     Result := hHandle;
-end;
-
-class function TFTensor.TF_NewTensor(shape: TFShape; dtype: TF_DataType; data: Pointer):PTF_Tensor;
-begin
-     inherited Create(Nil);
-
-     var _length : TF_size_t := shape.Size * get_datatype_size(dtype);
-     var dims     := shape.Dims;
-
-     var pDims : PTF_int64_t ;
-     pDims :=  PTF_int64_t(Pointer(@dims)^);
-
-     var hHandle := TF_AllocateTensor(Integer(dtype), pDims, shape.ndim, _length);
-     var ttensor := TF_TensorData(hHandle);
-     if ttensor = nil then
-        raise Exception.Create('AllocateTensor failed.');
-
-     if Assigned(data)  then
-       Move(data^, ttensor^, _length);
-
-     Result := hHandle;
-end;
-
-destructor  TFTensor.Destroy;
-begin
- if FlDeallocator_called then
-   Handle := Nil;
- inherited Destroy;
-end;
-
-procedure TFTensor.NativeDispose(hnd: Pointer);
-begin
- if Assigned(hnd) then
-   TF_DeleteTensor(hnd);
-end;
-
-function TFTensor.StringBytes: TArray< TArray<Byte> >;
-var
-  i    : Integer;
-  buf  : TArray< TArray<Byte> > ;
-begin
-    if dtype <> TF_DataType.TF_STRING then
-      raise Exception.Create('Unable to call StringData when dtype != TF_DataType.TF_STRING (dtype is {dtype})');
-    //
-    // TF_STRING tensors are encoded with a table of 8-byte offsets followed by TF_StringEncode-encoded bytes.
-    // [offset1, offset2,...,offsetn, s1size, s1bytes, s2size, s2bytes,...,snsize,snbytes]
-    //
-    var size : Int64 := 1;
-    for var s in shape.dims do
-          size := size * s;
-
-    SetLength(buf,size);
-    for i := 0 to  size - 1 do
-        buf[i] := StringBytes(i);
-
-    Result := buf;
-end;
-
-function TFTensor.StringBytes(index: Integer): TArray<byte>;
-var
- data : Pointer;
-
-begin
-    if dtype <> TF_DataType.TF_STRING then
-      raise Exception.Create('Unable to call StringData when dtype != TF_DataType.TF_STRING (dtype is {dtype})');
-
-    Result := [] ;
-    var tstrings := TensorDataPointer;
-    for var i := 0 to  shape.size - 1 do
-    begin
-        if index = i then
-        begin
-            data := TF_StringGetDataPointer(tstrings);
-            var len  := TF_StringGetSize(tstrings);
-
-            SetLength(Result,len);
-            CopyMemory(@Result[0], PByte(Pointer(data)^), len);
-            break;
-        end;
-         Inc(PByte(tstrings), TF_TSRING_SIZE);
-    end;
-
-end;
-
-function TFTensor.StringData(index: integer): AnsiString;
-Begin
-    var bytes := StringBytes(index);
-    Result := AnsiString (TEncoding.UTF8.GetString(bytes));
-end;
-
-function TFTensor.StringData: TArray<TFString>;
-begin
-    var buffer := StringBytes;
-    var _str : TArray<TFString>;
-    SetLength(_str, Length(buffer) );
-    for var i := 0  to Length(_str) - 1 do
-        _str[i] := AnsiString(TEncoding.UTF8.GetString( buffer[i]));
-    Result :=  _str;
-end;
-
-class function TFTensor.StringTensor(srcArray: TArray<TArray<byte>>; shape: TFShape):PTF_Tensor;
-var
-  l_pTensor   : PTF_Tensor;
-  size        : TF_int64_t;
-  tstr        : PTFString;
-begin
-
-     var num_dims := Length(shape.Dims);
-     var dims     := shape.Dims;
-     size := 0;
-     for var i := 0 to num_dims-1 do
-       size := size + dims[i];
-
-     var pDims : PTF_int64_t ;
-     pDims :=  PTF_int64_t(Pointer(@dims)^);
-
-     l_pTensor := TF_AllocateTensor(Int32(TF_STRING), pDims, num_dims, shape.Size * TF_TSRING_SIZE);
-     tstr      := TF_TensorData(l_pTensor);
-
-     for var i := 0 to Length(srcArray) - 1 do
-     begin
-          TF_StringInit(tstr);
-          TF_StringCopy(tstr, PTFChar(@srcArray[i]), Length(srcArray[i]));
-          Inc(PByte(tstr), TF_TSRING_SIZE);
-     end;
-
-     Result := l_pTensor;
-end;
-
-class function TFTensor.StringTensor(srcArray: TArray<TFString>; shape: TFShape):PTF_Tensor;
-var
-  buffer : TArray<TArray<Byte>>;
-begin
-    // convert string array to byte[][]
-    //
-    SetLength(buffer,Length(srcArray));
-    for var i := 0 to Length(srcArray)- 1 do
-      buffer[i] := TEncoding.UTF8.GetBytes( string(srcArray[i]) );
-
-    Result := StringTensor(buffer,shape);
-end;
-
-class function TFTensor.StringTensor(srcArray: TArray<string>; shape: TFShape):PTF_Tensor;
-var
-  buffer : TArray<TArray<Byte>>;
-begin
-    // convert string array to byte[][]
-    //
-    SetLength(buffer,Length(srcArray));
-    for var i := 0 to Length(srcArray)- 1 do
-      buffer[i] := TEncoding.UTF8.GetBytes( srcArray[i] );
-
-    Result := StringTensor(buffer,shape);
-end;
-
-function TFTensor.ToArray<T>: TArray<T>;
-var
-  l_pData,l_pVal  : Pointer ;
-  l_iFullByteSize : Integer;
-  res             : TArray<T>;
-begin
-    if Tdtypes.as_tf_dtype( TypeInfo(T) ) <> Dtype then
-      raise Exception.Create('Required dtype {dtype} mismatch with {typeof(T).as_tf_dtype()}.');
-
-    l_pData := TF_TensorData(Handle);
-
-
-    if (ndim[0] = 0) or (size = 1) then
-    begin
-        SetLength(res,1);
-        l_pVal  := @res[0];
-        l_iFullByteSize := dtypesize;
-
-        Move(l_pData^, l_pVal^, l_iFullByteSize);
-        Exit;
-    end;
-
-    if (ndim[0] > 1) then
-       raise Exception.Create('ToArray - ndim[0] > 1  !!!.');
-
-    SetLength(res,size);
-    l_pVal  := @res[0];
-    l_iFullByteSize :=  size * dtypesize;
-    Move(l_pData^, l_pVal^, l_iFullByteSize);
-
-    Result := res;
-end;
-
-function TFTensor.ToString: string;
-begin
-    Result := Format('tf.Tensor "%s" shape=%s dtype=%s',[name,Shape.ToString,Tdtypes.as_numpy_name(dtype)]);
-end;
-
-procedure TFTensor.UpdateTensoData;
-begin
-   FEagerTensorHandle    := nil;
-   FlDeallocator_called  := False;
-   FIsCreatedInGraphMode := False;
-   FIsList               := False;
-
-   Ftf_output            := nil;
-   FValue_index          := 0;
-   FOverride_dtype       := TF_DataType.TF_DATATYPE_UNKNOWN;
-   FId                   := 0;
-
-   FGraph                := nil;
-
-   GetRank;
-   GetShape;
-   GetName;
-   GetType;
-   GetDevice;
- end;
-
-function TFTensor._as_tf_output: TF_Output;
-begin
-    if not Ftf_output.HasValue then
-    begin
-        var o := TFOutput.Create(Fop,FValue_index);
-        Ftf_output := o.ToTF_Output;
-    end;
-    Result := Ftf_output;
-end;
-
-function TFTensor.BufferToArray: TArray<Byte>;
-var
-  l_pData,l_pVal  : Pointer ;
-  res             : TArray<Byte>;
-begin
-    SetLength(res,bytesize);
-    l_pData := TF_TensorData(Handle);
-
-    l_pVal  := @res[0];
-
-    Move(l_pData^, l_pVal^, bytesize);
-
-    Result := res;
-end;
-
-procedure TFTensor.InitTensor(shape: TFShape; dtype: TF_DataType);
-begin
-    Handle := TF_NewTensor(shape,dtype,nil)  ;
-end;
-
-Procedure TFTensor.InitTensor(shape: TFShape; bytes: TArray<Byte>; dtype: TF_DataType);
-begin
-     if dtype = TF_DataType.TF_STRING then
-     begin
-         var buf : TArray<TArray<byte>>;
-         SetLength(buf,1);
-         for var i := 0 to Length(bytes) - 1 do
-           buf[0][i] := bytes[i];
-         Handle := StringTensor( buf, TFShape.Scalar);
-     end else
-     begin
-         Handle  := TF_NewTensor(bytes,shape,dtype) ;
-     end;
-end;
-
-function TFTensor.InitTensor<T>(aArray: TArray<T>; shape: TFShape): PTF_Tensor;
-begin
-    var dtype := TUtils.GetDataType( TValue.From< TArray<T> >(aArray)) ;
-    
-
-    Result := InitTensor<T>(aArray, shape,dtype)
-end;
-
-class function TFTensor.InitTensor<T>(aArray: TArray<T>;shape: TFShape; dtype: TF_DataType): PTF_Tensor;
-var
-  l_pData     : Pointer;
-begin
-     if TypeInfo(T) = TypeInfo(TFString) then
-     begin
-         var v := TValue.From< TArray<T> >(aArray);
-         var v1 := v.AsType< TArray<TFString> > ;
-         Result := StringTensor(v1, shape);
-     end
-     else if TypeInfo(T) = TypeInfo(string)then
-     begin
-         var v := TValue.From< TArray<T> >(aArray);
-         var v1 := v.AsType< TArray<string> > ;
-         Result := StringTensor(v1, shape);
-     end else
-     begin
-         l_pData := PByte(@aArray[0]);
-         Result  := TF_NewTensor(shape,dtype,l_pData) ;
-     end;
-end;
-
-class function TFTensor.InitTensor<T>(aArray: TArray<TArray<T>>; shape: TFShape; dtype: TF_DataType): PTF_Tensor;
-var
-  l_pData     : Pointer;
-begin
-     l_pData := PByte(@aArray[0][0]);
-     Result := TF_NewTensor(shape,dtype,l_pData) ;
-end;
-
-class function TFTensor.InitTensor<T>(aArray: TArray<TArray<TArray<T>>>; shape: TFShape; dtype: TF_DataType): PTF_Tensor;
-var
-  l_pData     : Pointer;
-begin
-     l_pData := PByte(@aArray[0][0][0]);
-     Result := TF_NewTensor(shape,dtype,l_pData) ;
-end;
-
-class function TFTensor.InitTensor<T>(aArray: TArray<TArray<TArray<TArray<T>>>>; shape: TFShape; dtype: TF_DataType): PTF_Tensor;
-var
-  l_pData     : Pointer;
-begin
-     l_pData := PByte(@aArray[0][0][0][0]);
-     Result := TF_NewTensor(shape,dtype,l_pData) ;
-end;
-
-function TFTensor.GetTensorDataPointer: Pointer;
-begin
-     if Handle = nil then Result := nil
-     else                 Result := TF_TensorData(Handle);
-end;
-
-function TFTensor.GetType: TF_DataType;
-begin
-    if Handle = nil then
-      FDtype := FOverride_dtype
-    else
-      FDtype := TF_DataType( TF_TensorType(Handle) );
-
-    Result := FDtype;
-end;
-
-function TFTensor.GetByteSize: UInt64;
-begin
-    if Assigned(Handle) then
-     Result := TF_TensorByteSize(Handle)
-   else
-     Result := 0;
-end;
-function TFTensor.GetData: Pointer;
-begin
-    if Assigned(Handle) then
-     Result := TF_TensorData(Handle)
-   else
-     Result := nil;
-end;
-
-function TFTensor.GetDataTypeSize: UInt64;
-begin
-    Result := Tdtypes.get_datatype_size(Dtype);
-end;
-
-function TFTensor.GetDevice: string;
-begin
-    Result := '';
-    if FOp <> nil then
-      Result := FOp.Device;
-    FDevice := Result;
-end;
-
-function TFTensor.GetDim: Tarray<UInt64>;
-begin
-    if Assigned(Handle) then
-     Result := [TF_NumDims(Handle)]
-   else begin
-      var output := _as_tf_output;
-      var ndim := TF_GraphGetTensorNumDims(op.graph, output, tf.Status.Handle);
-      Result := [ndim];
-   end;
-end;
-
-function TFTensor.GetName: string;
-var
- opname : string;
-begin
-    opname := '<unnamed>';
-    if Fop <> nil then
-      opname := Fop.name;
-
-    FName := Format('%s:%d',[opname,value_index]);
-    Result := FName
-end;
-
-function TFTensor.GetRank: Integer;
-begin
-    if not Assigned(Handle) then
-    begin
-        var output :=  _as_tf_output;
-        var ndim : Integer := TF_GraphGetTensorNumDims(FGraph.Handle,output,tf.Status.Handle);
-        Result := ndim;
-    end else
-    begin
-        Result := TF_NumDims(Handle)
-    end;
-    FRank := Result;
-end;
-
-function TFTensor.GetShape: TFShape;
-begin
-    FShape := default(TFShape);
-
-    if rank < 0 then
-        Exit(FShape);
-
-    var irank : TArray<Int64>; SetLength(irank,rank);
-    var dims := TFShape.Create(irank);
-
-    if not Assigned(Handle) then
-    begin
-        TF_GraphGetTensorShape(op.graph.Handle, _as_tf_output(), @dims, rank, tf.Status.Handle);
-    end else
-    begin
-        for var i := 0 to rank -1 do
-           dims.Dims[i] := TF_Dim(Handle, i);
-
-        FShape := dims;
-    end;
-    Result := FShape;
-end;
-
-procedure TFTensor.Setshape(const Value: TFShape);
-begin
-    if value.IsNil then
-      TF_GraphSetTensorShape(graph.Handle, _as_tf_output, nil, -1, tf.Status.Handle)
-    else
-      TF_GraphSetTensorShape(graph.Handle, _as_tf_output, @value.dims, value.ndim, tf.Status.Handle);
-    tf.Status.RaiseEx;
-end;
-
-function TFTensor.GetSize: UInt64;
-begin
-    if Handle = nil then Exit(0);
-
-    Result := bytesize div dtypesize;
-end;
-
-function TFTensor.MMLck(): TFTensor;
-var
- env: TFMMEnv;
-begin
- env := TFMMEnv.GetMMEnv();
- //if Assigned(env) then
- //  env.AddTensor(self);
- Result := self;
-end;
-
-class function TFTensor.TestTensor: Boolean;
-
-begin
-    var t1 := TTensor.Create(Byte($77));
-    var B2 := Byte(t1);
-    Assert( B2 = $77 ) ;
-
-    t1 := TTensor.Create(Integer($61626364));
-    var I2 := Integer(t1);
-    Assert( I2 = $61626364 ) ;
-
-    var t2 := TTensor.Create('Abcd');
-    var ts2 := string(t2);
-    Assert( ts2 = 'Abcd' ) ;
-
-    var s2 := TTensor.Create<String>(['Abcd','12345']);
-    var tshape := s2.Shape;
-    var as2 := TTensor.ToStringArray(s2);
-
-    var testA      : TArray<TArray<TArray<TArray<Int32>>>>;
-    var shape1 := TFShape.Create([4,5,3,4]);
-
-    shape1 := TFShape.Create([4,5,3,4]);
-    SetLength(testA,4);
-    for var i := 0 to Length(testA) - 1 do
-    begin
-       SetLength( testA[i],5);
-       for var k := 0 to Length(testA[i]) - 1 do
-       begin
-           SetLength( testA[i][k],3);
-           for var c := 0 to Length(testA[i][k]) - 1 do
-           begin
-               for var j := 0 to 4 - 1 do
-               begin
-                  testA[i][k][c] := testA[i][k][c] + [ Random($FF)  ] ;
-               end;
-           end;
-       end;
-    end;
-
-    var t3 := TTensor.Create<Int32>(testA,@shape1);
-    Assert( t3.Shape.Equals( TValue.From<TFShape>(shape1) ) ) ;
-
-    Result := True;
-end;
-
-{ tensor }
+{ TTensor }
 
 constructor TTensor.Create(hnd: Pointer);
 begin
@@ -1003,7 +358,7 @@ begin
     FHandleTensor := TFTensor.Create(value)
 end;
 
-constructor TTensor.Create(const value: TFString);
+constructor TTensor.Create(const value: TF_TString);
 begin
     FHandleTensor := TFTensor.Create(value)
 end;
@@ -1057,6 +412,11 @@ begin
       raise Exception.Create('Tensor must have 0 dimensions in order to convert to scalar');
     if t.FHandleTensor.shape.size <> 1 then
       raise Exception.Create('Tensor must have size 1 in order to convert to scalar');
+end;
+
+function TTensor.eval(session: TFSession; feed_dict: TArray<FeedItem>): TNDArray;
+begin
+    Result := FHandleTensor.eval(session,feed_dict);
 end;
 
 class operator TTensor.Implicit(t: TTensor): TFTensor;
@@ -1163,10 +523,1056 @@ begin
     Result := t.FHandleTensor.StringData;
 end;
 
-initialization
-  if tf = nil then
-     tf := TTensorflow.Create;
+// Add
+Class Operator TTensor.Add(lhs: TTensor; rhs: ResourceVariable): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
 
-   TFTensor.TestTensor
+Class Operator TTensor.Add(lhs: TTensor; rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: TTensor; rhs: TNDArray): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: TNDArray;rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: TTensor; rhs: Int8): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: Int8;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: TTensor; rhs: Byte): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: Byte;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: TTensor; rhs: Int16): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: Int16;   rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: TTensor; rhs: Word): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: Word;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: TTensor; rhs: Integer): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: Integer; rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: TTensor; rhs: UInt32): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: UInt32;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: TTensor; rhs: UInt64): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: UInt64;  rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: TTensor; rhs: Int64): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: Int64;   rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: TTensor; rhs: Single): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: Single;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: TTensor; rhs: Double): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+
+Class Operator TTensor.Add(lhs: Double;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('add', lhs, rhs);
+end;
+// subtract
+Class Operator TTensor.Subtract(lhs: TTensor; rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: TTensor; rhs: TNDArray): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: TNDArray;rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: TTensor; rhs: Int8): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: Int8;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: TTensor; rhs: Byte): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: Byte;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: TTensor; rhs: Int16): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: Int16;   rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: TTensor; rhs: Word): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: Word;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: TTensor; rhs: Integer): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: Integer; rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: TTensor; rhs: UInt32): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: UInt32;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: TTensor; rhs: UInt64): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: UInt64;  rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: TTensor; rhs: Int64): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: Int64;   rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: TTensor; rhs: Single): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: Single;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: TTensor; rhs: Double): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+
+Class Operator TTensor.Subtract(lhs: Double;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('sub', lhs, rhs);
+end;
+// mul
+Class Operator TTensor.Multiply(lhs: TTensor; rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: TTensor; rhs: TNDArray): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: TNDArray;rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: TTensor; rhs: Int8): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: Int8;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: TTensor; rhs: Byte): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: Byte;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: TTensor; rhs: Int16): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: Int16;   rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: TTensor; rhs: Word): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: Word;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: TTensor; rhs: Integer): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: Integer; rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: TTensor; rhs: UInt32): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: UInt32;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: TTensor; rhs: UInt64): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: UInt64;  rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: TTensor; rhs: Int64): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: Int64;   rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: TTensor; rhs: Single): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: Single;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: TTensor; rhs: Double): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+Class Operator TTensor.Multiply(lhs: Double;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+function TTensor.numpy: NDArray;
+begin
+   Result := FHandleTensor.numpy;
+end;
+
+// Div
+Class Operator TTensor.Divide(lhs: TTensor; rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('truediv', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: TTensor; rhs: TNDArray): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: TNDArray;rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: TTensor; rhs: Int8): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: Int8;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: TTensor; rhs: Byte): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: Byte;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: TTensor; rhs: Int16): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: Int16;   rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: TTensor; rhs: Word): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: Word;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: TTensor; rhs: Integer): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: Integer; rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: TTensor; rhs: UInt32): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: UInt32;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: TTensor; rhs: UInt64): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: UInt64;  rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: TTensor; rhs: Int64): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: Int64;   rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: TTensor; rhs: Single): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: Single;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: TTensor; rhs: Double): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+
+Class Operator TTensor.Divide(lhs: Double;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('div', lhs, rhs);
+end;
+// Mod
+Class Operator TTensor.Modulus(lhs: TTensor; rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: TTensor; rhs: TNDArray): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: TNDArray;rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: TTensor; rhs: Int8): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: Int8;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: TTensor; rhs: Byte): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: Byte;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: TTensor; rhs: Int16): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: Int16;   rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: TTensor; rhs: Word): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: Word;    rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: TTensor; rhs: Integer): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: Integer; rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: TTensor; rhs: UInt32): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: UInt32;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: TTensor; rhs: UInt64): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: UInt64;  rhs: TTensor): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: TTensor; rhs: Int64): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: Int64;   rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: TTensor; rhs: Single): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: Single;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: TTensor; rhs: Double): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+
+Class Operator TTensor.Modulus(lhs: Double;  rhs: TTensor): TTensor;
+begin
+   Result :=  TFTensor.BinaryOpWrapper('mod', lhs, rhs);
+end;
+//// GreaterThan
+Class Operator TTensor.GreaterThan(lhs: TTensor; rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: TTensor; rhs: TNDArray): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: TNDArray;rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: TTensor; rhs: Int8): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: Int8;    rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: TTensor; rhs: Byte): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: Byte;    rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: TTensor; rhs: Int16): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: Int16;   rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: TTensor; rhs: Word): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: Word;    rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: TTensor; rhs: Integer): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: Integer; rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: TTensor; rhs: UInt32): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: UInt32;  rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: TTensor; rhs: UInt64): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: UInt64;  rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: TTensor; rhs: Int64): TTensor;
+begin
+   Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: Int64;   rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: TTensor; rhs: Single): TTensor;
+begin
+    Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: Single;  rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: TTensor; rhs: Double): TTensor;
+begin
+   Result := gen_math_ops.greater(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThan(lhs: Double;  rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.greater(lhs, rhs);
+end;
+// LessThan
+Class Operator TTensor.LessThan(lhs: TTensor; rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: TTensor; rhs: TNDArray): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: TNDArray;rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: TTensor; rhs: Int8): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: Int8;    rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: TTensor; rhs: Byte): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: Byte;    rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: TTensor; rhs: Int16): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: Int16;   rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: TTensor; rhs: Word): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: Word;    rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: TTensor; rhs: Integer): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: Integer; rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: TTensor; rhs: UInt32): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: UInt32;  rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: TTensor; rhs: UInt64): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: UInt64;  rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: TTensor; rhs: Int64): TTensor;
+begin
+   Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: Int64;   rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: TTensor; rhs: Single): TTensor;
+begin
+    Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: Single;  rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: TTensor; rhs: Double): TTensor;
+begin
+   Result := gen_math_ops.less(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThan(lhs: Double;  rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.less(lhs, rhs);
+end;
+// GreaterThanOrEqual
+Class Operator TTensor.GreaterThanOrEqual(lhs: TTensor; rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: TTensor; rhs: TNDArray): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: TNDArray;rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: TTensor; rhs: Int8): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: Int8;    rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: TTensor; rhs: Byte): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: Byte;    rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: TTensor; rhs: Int16): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: Int16;   rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: TTensor; rhs: Word): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: Word;    rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: TTensor; rhs: Integer): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: Integer; rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: TTensor; rhs: UInt32): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: UInt32;  rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: TTensor; rhs: UInt64): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: UInt64;  rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: TTensor; rhs: Int64): TTensor;
+begin
+   Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: Int64;   rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: TTensor; rhs: Single): TTensor;
+begin
+    Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: Single;  rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: TTensor; rhs: Double): TTensor;
+begin
+   Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.GreaterThanOrEqual(lhs: Double;  rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.greater_equal(lhs, rhs);
+end;
+// LessThanOrEqual
+Class Operator TTensor.LessThanOrEqual(lhs: TTensor; rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: TTensor; rhs: TNDArray): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: TNDArray;rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: TTensor; rhs: Int8): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: Int8;    rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: TTensor; rhs: Byte): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: Byte;    rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: TTensor; rhs: Int16): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: Int16;   rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: TTensor; rhs: Word): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: Word;    rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: TTensor; rhs: Integer): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: Integer; rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: TTensor; rhs: UInt32): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: UInt32;  rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: TTensor; rhs: UInt64): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: UInt64;  rhs: TTensor): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: TTensor; rhs: Int64): TTensor;
+begin
+   Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: Int64;   rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: TTensor; rhs: Single): TTensor;
+begin
+    Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: Single;  rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: TTensor; rhs: Double): TTensor;
+begin
+   Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+Class Operator TTensor.LessThanOrEqual(lhs: Double;  rhs: TTensor): TTensor;
+begin
+   Result := gen_math_ops.less_equal(lhs, rhs);
+end;
+
+initialization
+  //if tf = nil then
+  //   tf := TTensorflow.Create;
+
+   //TTensor.TestTensor
 
 end.

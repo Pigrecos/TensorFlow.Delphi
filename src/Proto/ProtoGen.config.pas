@@ -722,6 +722,7 @@ type
   end;
 
 implementation
+       uses Oz.Pb.StrBuffer;
 
 { TVirtualDevices }
 
@@ -942,14 +943,13 @@ end;
 
 procedure TLoadHelper.LoadVirtualDevices(var Value: TVirtualDevices);
 var
-  fieldNumber, wireType: integer;
+  fieldNumber: integer;
   tag: TpbTag;
 begin
   Value.Init;
   tag := Pb.readTag;
   while tag.v <> 0 do
   begin
-    wireType := tag.WireType;
     fieldNumber := tag.FieldNumber;
     case fieldNumber of
       TVirtualDevices.ftMemoryLimitMbs:
@@ -3828,14 +3828,13 @@ end;
 
 procedure TLoadHelper.LoadScopedAllocatorOptions(var Value: TScopedAllocatorOptions);
 var
-  fieldNumber, wireType: integer;
+  fieldNumber: integer;
   tag: TpbTag;
 begin
   Value.Init;
   tag := Pb.readTag;
   while tag.v <> 0 do
   begin
-    wireType := tag.WireType;
     fieldNumber := tag.FieldNumber;
     case fieldNumber of
       TScopedAllocatorOptions.ftEnableOps:
@@ -4431,14 +4430,13 @@ end;
 
 procedure TLoadHelper.LoadArgAttrs(var Value: TArgAttrs);
 var
-  fieldNumber, wireType: integer;
+  fieldNumber: integer;
   tag: TpbTag;
 begin
   Value.Init;
   tag := Pb.readTag;
   while tag.v <> 0 do
   begin
-    wireType := tag.WireType;
     fieldNumber := tag.FieldNumber;
     case fieldNumber of
       TArgAttrs.ftAttr:
@@ -4633,14 +4631,13 @@ end;
 
 procedure TLoadHelper.LoadExperimentalDebugInfo(var Value: TExperimentalDebugInfo);
 var
-  fieldNumber, wireType: integer;
+  fieldNumber: integer;
   tag: TpbTag;
 begin
   Value.Init;
   tag := Pb.readTag;
   while tag.v <> 0 do
   begin
-    wireType := tag.WireType;
     fieldNumber := tag.FieldNumber;
     case fieldNumber of
       TExperimentalDebugInfo.ftOriginalNodeNamess:

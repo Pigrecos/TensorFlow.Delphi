@@ -947,12 +947,18 @@ procedure TMemoryRegion.Clear;
 begin
   // Clear managed fields
   if Assigned(FreeItem) then
-    FreeItems(Heap);
-  // Clear the memory of all segments.
-  // Return to the heap memory of all segments except the first.
-  FreeHeap(Heap.Next);
-  // Determine the size of free memory
-  Heap.Init(Heap.GetHeapSize);
+  begin
+     if Assigned(Heap) then
+     begin
+         FreeItems(Heap);
+         // Clear the memory of all segments.
+         // Return to the heap memory of all segments except the first.
+         if Assigned(Heap.Next) then
+           FreeHeap(Heap.Next);
+         // Determine the size of free memory
+         Heap.Init(Heap.GetHeapSize);
+     end;
+  end;
   FCount := 0;
 end;
 

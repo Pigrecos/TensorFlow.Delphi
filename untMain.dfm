@@ -10,7 +10,7 @@ object Form1: TForm1
   Font.Height = -11
   Font.Name = 'Tahoma'
   Font.Style = []
-  PixelsPerInch = 96
+  OnShow = FormShow
   TextHeight = 13
   object btn1: TBitBtn
     Left = 536

@@ -12,6 +12,8 @@ type
       axis     : Nullable< TArray<Integer> >;
 
       property size : Integer read GetSize;
+
+      class operator Implicit(const value: TAxis): TValue;
   End;
 
 implementation
@@ -23,6 +25,11 @@ begin
    if axis = nil then Result := -1
    else               Result := Length(axis.Value);
 
+end;
+
+class operator TAxis.Implicit(const value: TAxis): TValue;
+begin
+    Result := TValue.From<TAxis>(Value);
 end;
 
 end.

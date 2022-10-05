@@ -322,10 +322,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveVariableDef(const S: TpbSaver; const Value: TVariableDef);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeString(TVariableDef.ftVariableName, Value.VariableName);
   S.Pb.writeString(TVariableDef.ftInitialValueName, Value.InitialValueName);

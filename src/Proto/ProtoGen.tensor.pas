@@ -726,7 +726,7 @@ begin
   h.Init;
   try
     for i := 0 to Value.StringVals.Count - 1 do
-      h.Pb.writeRawBytes(Value.FStringVals[i]^);
+      h.Pb.writeRawData(Value.StringVals[i]^, Length(Value.StringVals[i]^));
     S.Pb.writeMessage(TTensorProto.ftStringVals, h.Pb^);
   finally
     h.Free;
