@@ -1,5 +1,8 @@
 unit TensorFlow.gen_state_ops;
 
+{$WARN IMPLICIT_STRING_CAST OFF}
+{$WARN IMPLICIT_STRING_CAST_LOSS OFF}
+
 interface
     uses System.SysUtils,
          Spring,

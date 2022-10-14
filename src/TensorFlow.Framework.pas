@@ -10,6 +10,13 @@ interface
            ProtoGen.opDef;
 
 type
+  /// <summary>
+  /// Abstract base class for Tensor-like objects that are composed from Tensors.
+  /// </summary>
+  CompositeTensor = class abstract
+  end;
+
+
    op_def_registry = class
      private
        class var registered_ops  : TDictionary<string,TOpDef>;

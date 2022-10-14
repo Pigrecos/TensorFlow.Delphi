@@ -1114,41 +1114,56 @@ var
 begin
   h.Init;
   try
-    for i := 0 to Value.Ss.Count - 1 do
-      h.Pb.writeRawBytes(Value.Ss[i]^);
-    S.Pb.writeMessage(TListValue.ftSs, h.Pb^);
+    if Value.Ss.Count > 0 then
+    begin
+        for i := 0 to Value.Ss.Count - 1 do
+          h.Pb.writeRawBytes(Value.Ss[i]^);
+        S.Pb.writeMessage(TListValue.ftSs, h.Pb^);
+    end;
   finally
     h.Free;
   end;
   h.Init;
   try
-    for i := 0 to Value.&Is.Count - 1 do
-      h.Pb.writeRawVarint64(Value.&Is[i]^);
-    S.Pb.writeMessage(TListValue.ftIs, h.Pb^);
+    if Value.&Is.Count > 0 then
+    begin
+        for i := 0 to Value.&Is.Count - 1 do
+          h.Pb.writeRawVarint64(Value.&Is[i]^);
+        S.Pb.writeMessage(TListValue.ftIs, h.Pb^);
+    end;
   finally
     h.Free;
   end;
   h.Init;
   try
-    for i := 0 to Value.Fs.Count - 1 do
-      h.Pb.writeRawData(Value.Fs[i], sizeof(Single));
-    S.Pb.writeMessage(TListValue.ftFs, h.Pb^);
+    if Value.Fs.Count > 0 then
+    begin
+        for i := 0 to Value.Fs.Count - 1 do
+          h.Pb.writeRawData(Value.Fs[i], sizeof(Single));
+        S.Pb.writeMessage(TListValue.ftFs, h.Pb^);
+    end;
   finally
     h.Free;
   end;
   h.Init;
   try
-    for i := 0 to Value.Bs.Count - 1 do
-      h.Pb.writeRawVarint32(Integer(Value.Bs[i]^));
-    S.Pb.writeMessage(TListValue.ftBs, h.Pb^);
+    if Value.Bs.Count > 0 then
+    begin
+        for i := 0 to Value.Bs.Count - 1 do
+          h.Pb.writeRawVarint32(Integer(Value.Bs[i]^));
+        S.Pb.writeMessage(TListValue.ftBs, h.Pb^);
+    end;
   finally
     h.Free;
   end;
   h.Init;
   try
-    for i := 0 to Value.&Types.Count - 1 do
-      h.Pb.writeRawVarint32(Ord(Value.&Types[i]^));
-    S.Pb.writeMessage(TListValue.ftTypes, h.Pb^);
+    if Value.&Types.Count > 0 then
+    begin
+        for i := 0 to Value.&Types.Count - 1 do
+          h.Pb.writeRawVarint32(Ord(Value.&Types[i]^));
+        S.Pb.writeMessage(TListValue.ftTypes, h.Pb^);
+    end;
   finally
     h.Free;
   end;

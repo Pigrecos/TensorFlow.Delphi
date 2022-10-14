@@ -60,6 +60,7 @@ type
        class function conj(x: TFTensor; name: string = ''): TFTensor; static;
        class function equal<Tx, Ty>(x: Tx; y: Ty; name : string= ''): TFTensor; static;
        class function not_equal<Tx, Ty>(x: Tx; y: Ty; name : string= '') : TFTensor; static;
+       class function range(start: TValue; limit: TValue; delta: TValue; dtype: Nullable<TF_DataType>; name: string = 'range'): TFTensor; static;
   end;
 
 implementation
@@ -98,6 +99,34 @@ end;
 class function math_ops.not_equal<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
 begin
     Result := gen_math_ops.not_equal(x, y, name)
+end;
+
+class function math_ops.range(start, limit, delta: TValue; dtype: Nullable<TF_DataType>; name: string): TFTensor;
+begin
+    if limit.IsEmpty then
+    begin
+        limit := start;
+        start := 0;
+    end;
+    var dtype1 : TF_DataType;
+    if not (dtype = nil) then
+        dtype1 := dtype
+    else
+        dtype1 := TUtils.GetdataType(limit);
+    var newVal : TValue := TValue.From<TArray<TValue>>([start, limit,delta]);;
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'Range', @newVal),
+                                          function(v1: TNameScope): TFTensor
+                                            begin
+                                                name := v1.ToString;
+
+                                                var start1 := Tops.convert_to_tensor(start, dtype1, 'start');
+                                                var limit1 := Tops.convert_to_tensor(limit, dtype1, 'limit');
+                                                var v : TValue;
+                                                if delta.isEmpty then v := 1
+                                                else                  v := delta;
+                                                var delta1 := Tops.convert_to_tensor(v, dtype1, 'delta');
+                                                Result := gen_math_ops.range(start1, limit1, delta1, name);
+                                            end );
 end;
 
 class function math_ops.matmul(a, b: TFTensor; transpose_a, transpose_b, adjoint_a, adjoint_b, a_is_sparse, b_is_sparse: Boolean;

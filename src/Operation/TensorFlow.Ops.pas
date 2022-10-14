@@ -43,8 +43,8 @@ type
     public
       class var FdefaultSession     : TFSession;
       function  Tensor_Id(tensor: TFTensor): Int64;
-      procedure Add_to_collection<T>(name: string; value: T);overload;
-      procedure Add_to_collection<T>(names: TList<string>; value: T);overload;
+      class procedure Add_to_collection<T>(name: string; value: T);overload;
+      class procedure Add_to_collection<T>(names: TList<string>; value: T);overload;
       /// <summary>
       /// Wrapper for `Graph.get_collection()` using the default graph.
       /// contains many standard names for collections.
@@ -100,7 +100,7 @@ type
       /// A context manager that lifts ops out of control-flow scopes and function-building graphs.
       /// </summary>
       /// <returns></returns>
-      function init_scope: TNameScope;
+      class function init_scope: TNameScope;
       /// <summary>
       /// A unique (within this program execution) integer.
       /// Not thread safe
@@ -111,11 +111,11 @@ type
       class function uid_function: Integer;
       class procedure reset_uid;
       //
-      procedure colocate_with(ignore_existing : Boolean = false); overload;
-      procedure colocate_with(op: TFOperation; ignore_existing : Boolean = false); overload;
-      procedure colocate_with(tensor: TFTensor; ignore_existing : Boolean= false); overload;
-      procedure colocate_with(variable: IVariableV1; ignore_existing : Boolean = false); overload;
-      procedure _colocate_with_for_gradient(op: TFOperation; gradient_uid: string; ignore_existing : Boolean = false);
+      class procedure colocate_with(ignore_existing : Boolean = false); overload;
+      class procedure colocate_with(op: TFOperation; ignore_existing : Boolean = false); overload;
+      class procedure colocate_with(tensor: TFTensor; ignore_existing : Boolean= false); overload;
+      class procedure colocate_with(variable: IVariableV1; ignore_existing : Boolean = false); overload;
+      class procedure _colocate_with_for_gradient(op: TFOperation; gradient_uid: string; ignore_existing : Boolean = false);
       /// <summary>
       /// Uses the default session to evaluate one or more tensors.
       /// </summary>
@@ -145,7 +145,8 @@ type
       class function  convert_to_tensor_or_indexed_slices(value: TFTensor; dtype: TF_DataType = DtInvalid; name: string = ''): TFTensor;
       class function  internal_convert_to_tensor_or_indexed_slices(value: TFTensor; dtype: TF_DataType = DtInvalid; name: string = ''; as_ref : Boolean = false): TFTensor;
       class function  internal_convert_n_to_tensor_or_indexed_slices(values: TArray<TFTensor>; dtype: TF_DataType = DtInvalid; name : string= ''; as_ref : Boolean= false): TArray<TFTensor>;
-      class function  internal_convert_n_to_tensor(values: TArray<TValue>; dtype: TF_DataType = DtInvalid; name: string = ''; preferred_dtype : TF_DataType = DtInvalid; as_ref: Boolean = false):TArray<TFTensor>;
+      class function  internal_convert_n_to_tensor(values: TArray<TValue>; dtype: TF_DataType = DtInvalid; name: string = ''; preferred_dtype : TF_DataType = DtInvalid; as_ref: Boolean = false):TArray<TFTensor>;overload;
+      class function  internal_convert_n_to_tensor(values: TArray<TFTensor>; dtype: TF_DataType = DtInvalid; name: string = ''; preferred_dtype : TF_DataType = DtInvalid; as_ref: Boolean = false):TArray<TFTensor>;overload;
       class function  strip_name_scope(name: string; export_scope: string = ''): string;
       class function  get_name_scope: string;
       class function  executing_eagerly_outside_functions: Boolean;
@@ -236,7 +237,20 @@ type
   end;
 
 implementation
-           uses Tensorflow.Utils, TensorFlow.EagerTensor,  TensorFlow.Constant_op, Tensorflow.gen_array_ops, TensorFlow.gen_math_ops, Tensorflow.array_ops,  Numpy.Axis, Numpy, oz.Pb.Classes, Oz.SGL.Collections,oz.Pb.StrBuffer,System.TypInfo;
+           uses Tensorflow.Utils,
+                TensorFlow.EagerTensor,
+                TensorFlow.Constant_op,
+                Tensorflow.gen_array_ops,
+                TensorFlow.gen_math_ops,
+                Tensorflow.array_ops,
+                Numpy.Axis, Numpy,
+                TensorFlow.Tensor,
+
+                oz.Pb.Classes,
+                Oz.SGL.Collections,
+                oz.Pb.StrBuffer,
+
+                System.TypInfo;
 
 { TOps }
 
@@ -250,13 +264,13 @@ begin
     Result := TInterlocked.Increment(Fuid_number)
 end;
 
-procedure TOps.Add_to_collection<T>(name: string; value: T);
+class procedure TOps.Add_to_collection<T>(name: string; value: T);
 begin
      var graph := tf.get_default_graph;
      graph.add_to_collection<T>(name, value);
 end;
 
-procedure TOps.Add_to_collection<T>(names: TList<string>; value: T);
+class procedure TOps.Add_to_collection<T>(names: TList<string>; value: T);
 begin
     var graph := tf.get_default_graph;
     graph.add_to_collection<T>(names, value);
@@ -299,7 +313,10 @@ begin
         if (op_input.TypeInfo<> nil) and (string.LowerCase(string(op_input.TypeInfo^.Name))  = 'tftensor') then
         begin
             if graph = nil then
-               graph := op_input.AsType<TFTensor>.graph
+            begin
+               var t := op_input.AsType<TFTensor>;
+               graph := t.graph;
+            end
             else
                graph := graph;
         end;
@@ -358,6 +375,11 @@ begin
         var nd := value.AsType<TNDArray>;
         ret := constant_op.constant(nd, dtype, name);
     end
+    else if value.IsType<NDArray> then
+    begin
+        var nd := TNDArray(value.AsType<NDArray>);
+        ret := constant_op.constant(nd, dtype, name);
+    end
     else if value.IsType<TEagerTensor> then
     begin
         var tensor := value.AsType<TEagerTensor>;
@@ -367,6 +389,11 @@ begin
     else if value.IsType<TFTensor> then
     begin
         var tensor := value.AsType<TFTensor>;
+        ret := tensor;
+    end
+    else if value.IsType<TTensor> then
+    begin
+        var tensor := TFTensor(value.AsType<TTensor>);
         ret := tensor;
     end
     else if value.IsType<TFTensors> then
@@ -546,7 +573,7 @@ begin
     Result := Fuid_number_for_function
 end;
 
-function TOps.init_scope: TNameScope;
+class function TOps.init_scope: TNameScope;
 begin
     // Retrieve the active name scope: entering an `init_scope` preserves
     // the name scope of the current context.
@@ -617,6 +644,15 @@ begin
     Result := ret.ToArray;
 end;
 
+class function TOps.internal_convert_n_to_tensor(values: TArray<TFTensor>; dtype: TF_DataType; name: string; preferred_dtype: TF_DataType; as_ref: Boolean): TArray<TFTensor>;
+begin
+    var aValue : TArray<TValue> := [];
+    for var i := 0 to Length(values)-1 do
+         aValue := aValue + [ TValue.From<TFTensor>( values[i] ) ] ;
+
+    Result := internal_convert_n_to_tensor(aValue, dtype, name,preferred_dtype, as_ref)
+end;
+
 class function TOps.convert_n_to_tensor(values: TArray<TValue>; dtype: TF_DataType; name: string): TArray<TFTensor>;
 begin
     Result := internal_convert_n_to_tensor(values, dtype, name, DtInvalid, false);
@@ -668,27 +704,27 @@ begin
         Result := name;
 end;
 
-procedure TOps.colocate_with(variable: IVariableV1; ignore_existing: Boolean);
+class procedure TOps.colocate_with(variable: IVariableV1; ignore_existing: Boolean);
 begin
      _colocate_with_for_gradient(variable.AsTensor.Op, '', ignore_existing);
 end;
 
-procedure TOps.colocate_with(tensor: TFTensor; ignore_existing: Boolean);
+class procedure TOps.colocate_with(tensor: TFTensor; ignore_existing: Boolean);
 begin
     _colocate_with_for_gradient(tensor.op, '', ignore_existing);
 end;
 
-procedure TOps.colocate_with(ignore_existing: Boolean);
+class procedure TOps.colocate_with(ignore_existing: Boolean);
 begin
     _colocate_with_for_gradient(nil, '', ignore_existing);
 end;
 
-procedure TOps.colocate_with(op: TFOperation; ignore_existing: Boolean);
+class procedure TOps.colocate_with(op: TFOperation; ignore_existing: Boolean);
 begin
      _colocate_with_for_gradient(op, '', ignore_existing);
 end;
 
-procedure TOps._colocate_with_for_gradient(op: TFOperation; gradient_uid: string; ignore_existing: Boolean);
+class procedure TOps._colocate_with_for_gradient(op: TFOperation; gradient_uid: string; ignore_existing: Boolean);
 begin
     var default_graph := get_default_graph;
     default_graph.colocate_with_for_gradient(op, gradient_uid, ignore_existing);
@@ -718,8 +754,8 @@ begin
       if op_input.IsList then
       begin
           var aListO : TArray<TF_Output> := [];
-          for var i := 0 to op_input.Count do
-            aListO := aListO + [ op_input[0]._as_tf_output ];
+          for var i := 0 to op_input.Count -1 do
+            aListO := aListO + [ op_input[i]._as_tf_output ];
 
           TF_AddInputList(op_desc.Handle, PTF_Output(@aListO[0]), Length(aListO))  
       end else

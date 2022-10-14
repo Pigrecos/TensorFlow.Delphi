@@ -35,6 +35,7 @@ type
        procedure SetItem(indices: TArray<Integer>; const Value: TNDArray); overload;
        procedure SetItem(indices: TArray<Slice>; const Value: TNDArray); overload;
        procedure SetItem(indice: Integer; const Value: TNDArray); overload;
+       function GetShape: TFShape;
     public
       class operator Implicit(t : TNDArray): NDArray;  static;
       class operator Implicit(t : NDArray): TNDArray;  static;
@@ -67,6 +68,9 @@ type
       property Item[indices: Integer ]         : TNDArray read GetItem write SetItem; default;
       property Item[indices: TArray<Integer> ] : TNDArray read GetItem write SetItem; default;
       property Item[slices: TArray<Slice> ]    : TNDArray read GetItem write SetItem; default;
+
+      property HandleNDArray  : TNDArray read FHandleNDArray;
+      property Shape          : TFShape  read GetShape;
   end;
 
 implementation
@@ -191,6 +195,11 @@ end;
 function NDArray.GetItem(indice: Integer): TNDArray;
 begin
      Result := FHandleNDArray.Item[indice]
+end;
+
+function NDArray.GetShape: TFShape;
+begin
+     Result :=  FHandleNDArray.Shape;
 end;
 
 class operator NDArray.Implicit(t: NDArray): Double;

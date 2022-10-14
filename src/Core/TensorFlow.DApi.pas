@@ -119,10 +119,14 @@ TFShape = record
    function  GetnDim: Integer;
    function  GetRank: Integer;
    function  GetStrid: TArray<Int64>;
+   function  GetItem(idx: Integer): Int64;overload;
+   function  GetItem(sSlice: Slice): TFShape;overload;
+   procedure SetItem(idx: Integer; const Value: Int64);
  public
    constructor Create(dims: TArray<TF_int64_t>); overload;
    constructor Create(dims: TArray<Integer>); overload;
    class function Scalar: TFShape; static;
+   class function null: TFShape; static;
    // Da slicehelper a shape
    class function AlignWithShape(shape: TFShape; slices: TArray<Slice>):TArray<Slice>; static;
    class function GetShape(shape1: TFShape; slices: TArray<Slice>):TFShape;static;
@@ -138,12 +142,34 @@ TFShape = record
    class operator Equal(a,b : TFShape): Boolean;
    class operator NotEqual(a,b : TFShape): Boolean;
 
+   /// <summary>
+   /// Returns an unknown Shape, optionally with a known rank.
+   /// </summary>
+   /// <param name="rank"></param>
+   /// <returns></returns>
+   function unknown_shape(rank_: Integer = -1): TFShape;
+   /// <summary>
+   /// Returns a `Shape` combining the information in `self` and `other`.
+   /// </summary>
+   /// <param name="other"></param>
+   /// <returns></returns>
+   function merge_with(other: TFShape): TFShape;
+   function with_rank(rank_: Integer): TFShape;
+   function with_rank_at_least(rank_: Integer): TFShape;
    function ToString: string;
    function is_compatible_with(shape2:TFShape):Boolean;
+   function as_int_list : TArray<Integer>;
    function IsScalar: Boolean;
    function IsNull: Boolean;
    function IsNil: Boolean;
    function Equals(target: TValue): Boolean; reintroduce;
+   /// <summary>
+   ///     Returns the concatenation of the dimension in `self` and `other`.
+   /// </summary>
+   /// <param name="other"></param>
+   /// <returns></returns>
+   function concatenate(other: TFShape): TFShape; overload;
+   function concatenate(other: TArray<Int64>): TFShape; overload;
    //
    property ndim: Integer read GetnDim;
    /// <summary>
@@ -153,8 +179,34 @@ TFShape = record
    property rank: Integer read GetRank;
    property Strides : TArray<Int64> read GetStrid;
 
-   property Dims: TArray<TF_int64_t> read FaDims write FaDims;
-   property IsFullyDefined: Boolean read GetIsFullDef;
+   property Dims               : TArray<TF_int64_t> read FaDims write FaDims;
+   property IsFullyDefined     : Boolean            read GetIsFullDef;
+   property Item[idx: Integer ]: Int64              read GetItem write SetItem; default;
+   property Item[sSlice: Slice]: TFShape            read GetItem ; default;
+
+end;
+{$ENDREGION}
+
+{$REGION 'InitializerArgs'}
+InitializerArgs = class
+   private
+     FName       : string;
+     FShape      : TFShape;
+     FDType      : TF_DataType;
+     FVerifyShape: Boolean;
+   public
+     constructor Create(shape: TFShape; dtype : TF_DataType= TF_DataType.DtInvalid;  verify_shape : Boolean = false; name: string = '');
+
+     property Name       : string       read FName        write FName;
+     property Shape      : TFShape      read FShape       write FShape;
+     property DType      : TF_DataType  read FDType       write FDType;
+     property VerifyShape: Boolean      read FVerifyShape write FVerifyShape ;
+end;
+{$ENDREGION}
+
+{$REGION 'IInitializer'}
+IInitializer  = class abstract
+  function Apply(args: InitializerArgs): TFTensor; virtual; abstract;
 end;
 {$ENDREGION}
 
@@ -463,12 +515,13 @@ TFSession = class(TFDisposable)
    constructor Create(g     : TFGraph;         config : PConfigProto= nil; status: TFStatus = nil); overload;
    destructor  Destroy; override;
 
-   procedure   run(op: TFOperation; feed_dict: TArray<FeedItem>);overload;
-   function    run(fetche: TFTensor; feed_dict: TArray<FeedItem>): TNDArray ;overload;
-   function    run(fetche: ITensorOrOperation; feed_dict: TArray<FeedItem>): TNDArray;overload;
-   function    run(fetches: TValue; feed_dict: TArray<FeedItem>):TArray<TNDArray>;overload;
-   function    run(fetches: TValue):TArray<TNDArray>;overload;
-   function    as_default: TFSession;
+   procedure   run(op:      TFOperation;        feed_dict: TArray<FeedItem>); overload;
+   function    run(fetche:  TFTensor;           feed_dict: TArray<FeedItem>): TNDArray ;overload;
+   function    run(fetche:  ITensorOrOperation; feed_dict: TArray<FeedItem>): TNDArray;overload;
+   function    run(fetches: TValue;             feed_dict: TArray<FeedItem>): TArray<TNDArray>;overload;
+   function    run(fetches: TValue)                                         : TArray<TNDArray>;overload;
+   function    run(fetches: TFTensor)                                       : TNDArray;overload;
+   function    as_default:  TFSession;
    function    eval(tensor: TFTensor): TFTensor;
    //
    property    Graph: TFGraph read FGraph write FGraph;
@@ -519,7 +572,6 @@ TFTensor = class(ITensorOrOperation)
    function GetDataTypeSize: UInt64;
    function GetSize: UInt64;
    function GetData: Pointer;
-   function GetDim: Tarray<UInt64>;
    function GetRank: Integer;
    function GetShape: TFShape;
    procedure Setshape(const Value: TFShape);
@@ -537,10 +589,11 @@ TFTensor = class(ITensorOrOperation)
    class function TF_NewTensor(shape: TFShape; dtype: TF_DataType; data: Pointer):PTF_Tensor; overload;
    class function TF_NewTensor(data: TArray<Byte>; shape: TFShape; dtype: TF_DataType):PTF_Tensor; overload;
    class function InitTensor<T>(aArray: TArray<T>; shape: TFShape): PTF_Tensor; overload;
-    function GetDims: TArray<Int64>;
-    function GetItem(slices: TArray<Slice>): TFTensor;overload;
-    function GetItem(idx: Integer): TFTensor;overload;
-    function GetItem(slices: TArray<string>): TFTensor;overload;
+   function GetDims: TArray<Int64>;
+   function GetItem(slices: TArray<Slice>): TFTensor;overload;
+   function GetItem(idx: Integer): TFTensor;overload;
+   function GetItem(slices: TArray<string>): TFTensor;overload;
+   function GetnDim: Integer;
  protected
    procedure NativeDispose(hnd: Pointer); override;
    function  GetNDArray(ddtype: TF_DataType): TNDArray;
@@ -635,7 +688,6 @@ TFTensor = class(ITensorOrOperation)
    property  dtypesize     : UInt64         read GetDataTypeSize;
    property  size          : UInt64         read GetSize;
    property  buffer        : Pointer        read GetData;
-   property  ndim          : Tarray<UInt64> read GetDim;
    property  value_index   : Integer        read FValue_index;
    property  override_dtype: TF_DataType    read FOverride_dtype;
    property  id            : Int64          read FId;
@@ -654,6 +706,7 @@ TFTensor = class(ITensorOrOperation)
    /// <remarks>https://www.tensorflow.org/api_docs/python/tf/rank</remarks>
    property  rank             :    Integer          read GetRank;
    property  dims             :    TArray<Int64>    read GetDims;
+   property  ndim             :    Integer          read GetnDim;
    property  DeallocatorCalled:    Boolean          read FlDeallocator_called;
    property  isCreatedInGraphMode: Boolean          read FIsCreatedInGraphMode;
    property  TensorDataPointer:    Pointer          read GetTensorDataPointer;
@@ -701,20 +754,40 @@ TNDArray = class(TFTensor)
      constructor Create(bytes: TArray<TArray<TArray<Byte>>>;         shape: PTFShape= nil);overload;
      constructor Create(bytes: TArray<TArray<TArray<TArray<Byte>>>>; shape: PTFShape= nil);overload;
      //
+     constructor Create(bytes: TArray<Int8>;                         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<Int8>>;                 shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<Int8>>>;         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<TArray<Int8>>>>; shape: PTFShape= nil);overload;
+     //
      constructor Create(bytes: TArray<Int16>;                         shape: PTFShape= nil);overload;
      constructor Create(bytes: TArray<TArray<Int16>>;                 shape: PTFShape= nil);overload;
      constructor Create(bytes: TArray<TArray<TArray<Int16>>>;         shape: PTFShape= nil);overload;
      constructor Create(bytes: TArray<TArray<TArray<TArray<Int16>>>>; shape: PTFShape= nil);overload;
+     //
+     constructor Create(bytes: TArray<UInt16>;                         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<UInt16>>;                 shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<UInt16>>>;         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<TArray<UInt16>>>>; shape: PTFShape= nil);overload;
      //
      constructor Create(bytes: TArray<Int32>;                         shape: PTFShape= nil);overload;
      constructor Create(bytes: TArray<TArray<Int32>>;                 shape: PTFShape= nil);overload;
      constructor Create(bytes: TArray<TArray<TArray<Int32>>>;         shape: PTFShape= nil);overload;
      constructor Create(bytes: TArray<TArray<TArray<TArray<Int32>>>>; shape: PTFShape= nil);overload;
      //
+     constructor Create(bytes: TArray<UInt32>;                         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<UInt32>>;                 shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<UInt32>>>;         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<TArray<UInt32>>>>; shape: PTFShape= nil);overload;
+     //
      constructor Create(bytes: TArray<Int64>;                         shape: PTFShape= nil);overload;
      constructor Create(bytes: TArray<TArray<Int64>>;                 shape: PTFShape= nil);overload;
      constructor Create(bytes: TArray<TArray<TArray<Int64>>>;         shape: PTFShape= nil);overload;
-     constructor Create(bytes: TArray<TArray<TArray<TArray<Int64>>>>;  shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<TArray<Int64>>>>; shape: PTFShape= nil);overload;
+     //
+     constructor Create(bytes: TArray<UInt64>;                         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<UInt64>>;                 shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<UInt64>>>;         shape: PTFShape= nil);overload;
+     constructor Create(bytes: TArray<TArray<TArray<TArray<UInt64>>>>; shape: PTFShape= nil);overload;
      //
      constructor Create(bytes: TArray<Single>;                         shape: PTFShape= nil);overload;
      constructor Create(bytes: TArray<TArray<Single>>;                 shape: PTFShape= nil);overload;
@@ -1135,7 +1208,8 @@ implementation
         Tensorflow.math_ops,
         TensorFlow.gen_math_ops,
         Tensorflow.array_ops,
-        Tensorflow.gen_array_ops;
+        Tensorflow.gen_array_ops,
+        TensorFlow.Tensors.Ragged;
 
 
 {$REGION 'FeedItem'}
@@ -1607,6 +1681,12 @@ begin
    end;
 end;
 
+function TFSession.run(fetches: TFTensor): TNDArray;
+begin
+    var feed_items : TArray<FeedItem> := [];
+    Result := _run(fetches, feed_items)[0];
+end;
+
 function TFSession.run(fetches: TValue): TArray<TNDArray>;
 begin
     var feed_items : TArray<FeedItem> := [];
@@ -2066,8 +2146,6 @@ end;
 
 class function TFTensor.TF_NewTensor(data: TArray<Byte>; shape: TFShape; dtype: TF_DataType):PTF_Tensor;
 begin
-     inherited Create(Nil);
-
      var _length : TF_size_t := Length(data);
      var dims     := shape.Dims;
 
@@ -2083,12 +2161,12 @@ begin
        Move(@data[0], ttensor^, _length);
 
      Result := hHandle;
+
+     inherited Create(Result);
 end;
 
 class function TFTensor.TF_NewTensor(shape: TFShape; dtype: TF_DataType; data: Pointer):PTF_Tensor;
 begin
-     inherited Create(Nil);
-
      var _length : TF_size_t := shape.Size * Tdtypes.get_datatype_size(dtype);
      var dims     := shape.Dims;
 
@@ -2104,6 +2182,8 @@ begin
        Move(data^, ttensor^, _length);
 
      Result := hHandle;
+
+     inherited Create(Result);
 end;
 
 destructor  TFTensor.Destroy;
@@ -2255,7 +2335,7 @@ begin
 
     l_pData := TF_TensorData(Handle);
 
-    if (ndim[0] = 0) or (size = 1) then
+    if (ndim = 0) or (size = 1) then
     begin
         SetLength(res,1);
         l_pVal  := @res[0];
@@ -2314,7 +2394,12 @@ begin
     Result := TNDArray.Create(self, true);
  end;
 
- function TFTensor.numpy: TNDArray;
+ function TFTensor.GetnDim: Integer;
+begin
+   Result := rank;
+end;
+
+function TFTensor.numpy: TNDArray;
  begin
      Result := GetNDArray(dtype);
  end;
@@ -2322,7 +2407,14 @@ begin
 function TFTensor._as_tf_output: TF_Output;
 begin
     if not Ftf_output.HasValue then
-      Ftf_output := TF_Output.Create(Fop.Handle,FValue_index);
+    begin
+     if Fop <> nil then
+        Ftf_output := TF_Output.Create(Fop.Handle,FValue_index)
+     else
+        Ftf_output := TF_Output.Create(Handle,FValue_index)
+
+    end ;
+
 
     Result := Ftf_output;
 end;
@@ -2514,17 +2606,6 @@ begin
     FDevice := Result;
 end;
 
-function TFTensor.GetDim: Tarray<UInt64>;
-begin
-    if Assigned(Handle) then
-     Result := [TF_NumDims(Handle)]
-   else begin
-      var output := _as_tf_output;
-      var ndim := TF_GraphGetTensorNumDims(op.graph.Handle, output, tf.Status.Handle);
-      Result := [ndim];
-   end;
-end;
-
 function TFTensor.GetDims: TArray<Int64>;
 begin
    Result := shape.Dims;
@@ -2632,7 +2713,7 @@ begin
     if value.IsNil then
       TF_GraphSetTensorShape(graph.Handle, _as_tf_output, nil, -1, tf.Status.Handle)
     else
-      TF_GraphSetTensorShape(graph.Handle, _as_tf_output, @value.dims, value.ndim, tf.Status.Handle);
+      TF_GraphSetTensorShape(graph.Handle, _as_tf_output, @value.dims[0], value.ndim, tf.Status.Handle);
     tf.Status.RaiseEx;
 end;
 
@@ -2828,6 +2909,41 @@ begin
     NewEagerTensorHandle ;
 end;
 
+constructor TNDArray.Create(bytes: TArray<Int8>; shape: PTFShape);
+begin
+    inherited Create( TFTensor.InitTensor<Int8>(bytes,shape) );
+    NewEagerTensorHandle;
+end;
+
+constructor TNDArray.Create(bytes: TArray<TArray<Int8>>; shape: PTFShape);
+begin
+    Create(TValue.From(Bytes),shape );
+    NewEagerTensorHandle;
+end;
+
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<Int8>>>; shape: PTFShape);
+begin
+    Create(TValue.From(Bytes),shape );
+    NewEagerTensorHandle;
+end;
+
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<Int8>>>>; shape: PTFShape);
+var
+  dtype : TF_DataType;
+begin
+    var v : TFShape;
+    if shape = nil then
+    begin
+        v := TUtils.GetShape<Int8>(bytes);
+        shape := @v;
+    end;
+
+    dtype:=TF_DataType.TF_UINT8;
+
+    inherited Create( TFTensor.InitTensor<Int8>(bytes,shape,dtype) );
+    NewEagerTensorHandle ;
+end;
+
 constructor TNDArray.Create(bytes: TArray<Int16>; shape: PTFShape);
 begin
     inherited Create( TFTensor.InitTensor<Int16>(bytes,shape) );
@@ -2860,6 +2976,41 @@ begin
     dtype:= TF_DataType.TF_INT16;
 
     inherited Create( TFTensor.InitTensor<Int16>(bytes,shape,dtype) );
+    NewEagerTensorHandle ;
+end;
+
+constructor TNDArray.Create(bytes: TArray<UInt16>; shape: PTFShape);
+begin
+    inherited Create( TFTensor.InitTensor<UInt16>(bytes,shape) );
+    NewEagerTensorHandle;
+end;
+
+constructor TNDArray.Create(bytes: TArray<TArray<UInt16>>; shape: PTFShape);
+begin
+    Create(TValue.From(Bytes),shape );
+    NewEagerTensorHandle;
+end;
+
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<UInt16>>>; shape: PTFShape);
+begin
+    Create(TValue.From(Bytes),shape );
+    NewEagerTensorHandle;
+end;
+
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<UInt16>>>>; shape: PTFShape);
+var
+  dtype : TF_DataType;
+begin
+    var v : TFShape;
+    if shape = nil then
+    begin
+        v := TUtils.GetShape<UInt16>(bytes);
+        shape := @v;
+    end;
+
+    dtype:= TF_DataType.TF_INT16;
+
+    inherited Create( TFTensor.InitTensor<UInt16>(bytes,shape,dtype) );
     NewEagerTensorHandle ;
 end;
 
@@ -2898,6 +3049,41 @@ begin
     NewEagerTensorHandle ;
 end;
 
+constructor TNDArray.Create(bytes: TArray<UInt32>; shape: PTFShape);
+begin
+    inherited Create( TFTensor.InitTensor<UInt32>(bytes,shape) );
+    NewEagerTensorHandle;
+end;
+
+constructor TNDArray.Create(bytes: TArray<TArray<UInt32>>; shape: PTFShape);
+begin
+    Create(TValue.From(Bytes),shape );
+    NewEagerTensorHandle;
+end;
+
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<UInt32>>>; shape: PTFShape);
+begin
+    Create(TValue.From(Bytes),shape );
+    NewEagerTensorHandle;
+end;
+
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<UInt32>>>>; shape: PTFShape);
+var
+  dtype : TF_DataType;
+begin
+    var v : TFShape;
+    if shape = nil then
+    begin
+        v := TUtils.GetShape<UInt32>(bytes);
+        shape := @v;
+    end;
+
+    dtype:=TF_DataType.TF_INT32;
+
+    inherited Create( TFTensor.InitTensor<UInt32>(bytes,shape,dtype) );
+    NewEagerTensorHandle ;
+end;
+
 constructor TNDArray.Create(bytes: TArray<Int64>; shape: PTFShape);
 begin
     inherited Create( TFTensor.InitTensor<Int64>(bytes,shape) );
@@ -2930,6 +3116,41 @@ begin
     dtype:= TF_DataType.TF_INT64;
 
     inherited Create( TFTensor.InitTensor<Int64>(bytes,shape,dtype) );
+    NewEagerTensorHandle ;
+end;
+
+constructor TNDArray.Create(bytes: TArray<UInt64>; shape: PTFShape);
+begin
+    inherited Create( TFTensor.InitTensor<UInt64>(bytes,shape) );
+    NewEagerTensorHandle;
+end;
+
+constructor TNDArray.Create(bytes: TArray<TArray<UInt64>>; shape: PTFShape);
+begin
+    Create(TValue.From(Bytes),shape );
+    NewEagerTensorHandle;
+end;
+
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<UInt64>>>; shape: PTFShape);
+begin
+    Create(TValue.From(Bytes),shape );
+    NewEagerTensorHandle;
+end;
+
+constructor TNDArray.Create(bytes: TArray<TArray<TArray<TArray<UInt64>>>>; shape: PTFShape);
+var
+  dtype : TF_DataType;
+begin
+    var v : TFShape;
+    if shape = nil then
+    begin
+        v := TUtils.GetShape<UInt64>(bytes);
+        shape := @v;
+    end;
+
+    dtype:= TF_DataType.TF_INT64;
+
+    inherited Create( TFTensor.InitTensor<UInt64>(bytes,shape,dtype) );
     NewEagerTensorHandle ;
 end;
 
@@ -3250,18 +3471,18 @@ begin
        end;
        1 : begin
          case dtype of
-           TF_FLOAT:  Create( value.AsType< TArray<Single> >);
-           TF_DOUBLE: Create( value.AsType< TArray<Double> >);
-           TF_INT32:  Create( value.AsType< TArray<Int32> >);
-           TF_UINT8:  Create( value.AsType< TArray<UInt8> >);
-           TF_INT16:  Create( value.AsType< TArray<Int16> >);
-           TF_INT8:   Create( value.AsType< TArray<Int8> >);
-           TF_STRING: Create( value.AsType< TArray<string> >);
-           TF_INT64:  Create( value.AsType< TArray<Int64> >);
-           TF_BOOL:   Create( value.AsType< TArray<Boolean> >);
-           TF_UINT16: Create( value.AsType< TArray<UInt16> >);
-           TF_UINT32: Create( value.AsType< TArray<UInt32> >);
-           TF_UINT64: Create( value.AsType< TArray<UInt64> >);
+           TF_FLOAT:  Create( value.AsType< TArray<Single> >,shape);
+           TF_DOUBLE: Create( value.AsType< TArray<Double> >, shape);
+           TF_INT32:  Create( value.AsType< TArray<Int32> > , shape);
+           TF_UINT8:  Create( value.AsType< TArray<UInt8> >,shape);
+           TF_INT16:  Create( value.AsType< TArray<Int16> >,shape);
+           TF_INT8:   Create( value.AsType< TArray<Int8> >,shape);
+           TF_STRING: Create( TFTensor.InitTensor<string>(value.AsType< TArray<string> >, shape,dtype) ); //Create( value.AsType< TArray<string> >,shape);
+           TF_INT64:  Create( value.AsType< TArray<Int64> >,shape);
+           TF_BOOL:   Create( value.AsType< TArray<Boolean> >,shape);
+           TF_UINT16: Create( value.AsType< TArray<UInt16> >,shape);
+           TF_UINT32: Create( value.AsType< TArray<UInt32> >,shape);
+           TF_UINT64: Create( value.AsType< TArray<UInt64> >,shape);
          end;
        end;
        2 : begin
@@ -3785,6 +4006,16 @@ begin
     end;
 end;
 
+function TFShape.GetItem(sSlice: Slice): TFShape;
+begin
+    if not sSlice.Stop.HasValue then
+        sSlice.Stop := Length(dims) - sSlice.Start.Value + 1;
+    if (sSlice.Start.HasValue = false) or (sSlice.Len.HasValue = false) then
+       raise TFException.Create('Slice must has Start and Length.');
+    var r := Enumerable<Int64>.Create(dims) ;
+    Result := TFShape( r.Skip(sSlice.Start.Value).Take(sSlice.Len.Value).ToArray );
+end;
+
 class operator TFShape.Implicit(a: PTFShape): TFShape;
 begin
     if Assigned(a) then
@@ -3859,6 +4090,17 @@ begin
 
 end;
 
+function TFShape.GetItem(idx: Integer): Int64;
+begin
+     if idx < 0 then Result := dims[ndim + idx]
+     else            Result := dims[idx]
+end;
+
+procedure TFShape.SetItem(idx: Integer; const Value: Int64);
+begin
+    dims[idx] := value;
+end;
+
 class function TFShape.AlignWithShape(shape: TFShape; slices: TArray<Slice>): TArray<Slice>;
 begin
     var indim := shape.ndim;
@@ -3895,6 +4137,35 @@ begin
     Result:= new_slices.ToArray();
 end;
 
+function TFShape.as_int_list: TArray<Integer>;
+begin
+    Result := [];
+    for var i := 0 to Length(FaDims)-1 do
+      Result := Result + [ Integer(FaDims[i]) ];
+end;
+
+function TFShape.concatenate(other: TArray<Int64>): TFShape;
+begin
+    Result := concatenate( TFShape.Create(other) );
+end;
+
+function TFShape.concatenate(other: TFShape): TFShape;
+begin
+    var otherShape := other;
+
+    if (ndim < 0) or (otherShape.ndim < 0)  then
+        Exit( TFShape.Null)
+    else begin
+        var concatenate_dims : TArray<Int64>;
+        SetLength(concatenate_dims,ndim + otherShape.ndim);
+        for var i := 0 to ndim - 1 do
+            concatenate_dims[i] := dims[i];
+        for var i := 0 to  otherShape.ndim - 1 do
+            concatenate_dims[ndim + i] := otherShape.dims[i];
+        Result := TFShape.Create(concatenate_dims);
+    end;
+end;
+
 constructor TFShape.Create(dims: TArray<Integer>);
 begin
     var i64Dim :  TArray<TF_int64_t> := [];
@@ -3919,6 +4190,11 @@ end;
 class operator TFShape.NotEqual(a, b: TFShape): Boolean;
 begin
     Result := not (a = b)
+end;
+
+class function TFShape.null: TFShape;
+begin
+  Result := System.Default(TFShape);
 end;
 
 function TFShape.Equals(target: TValue): Boolean;
@@ -4102,6 +4378,44 @@ begin
       Result := Result.Join(',', sStrings);
     end;
 end;
+
+function TFShape.merge_with(other: TFShape): TFShape;
+begin
+    if Length(dims) = 0 then
+        Exit( other );
+    var new_dims := TList<Int64>.Create;
+    try
+      for  var i in TEnumerable.Range(0, ndim) do
+      begin
+          var dim := Dimension.create(dims[i]);
+          var merged := dim.merge_with( Dimension.Create(other.dims[i]));
+          new_dims.Add(merged.value);
+      end;
+      Result := TFShape.Create(new_dims.ToArray);
+    finally
+      new_dims.Free
+    end;
+end;
+
+function TFShape.unknown_shape(rank_: Integer): TFShape;
+begin
+    if rank_ = -1 then Result := TFShape.null
+    else               Result := TFShape.Create(TEnumerable.Repeated<Int64>(-1, rank).ToArray);
+end;
+
+function TFShape.with_rank(rank_: Integer): TFShape;
+begin
+    Result := merge_with(unknown_shape(rank_));
+end;
+
+function TFShape.with_rank_at_least(rank_: Integer): TFShape;
+begin
+    if ndim < rank then
+       raise  TFException.Create(format('Shape {this} must have rank at least {rank}',[Self.ToString,rank_]))
+    else
+       Result := Self;
+end;
+
 {$ENDREGION}
 
 {$REGION 'TFGraph'}
@@ -4445,10 +4759,10 @@ begin
     var control_ops := TList<ITensorOrOperation>.Create;
     for var c in control_inputs do
     begin
-        if c.IsType<TFTEnsor> then
-          control_ops.Add( c.AsType<TFTEnsor>.Op )
-        else if c.IsType<TFOperation> then
-          control_ops.Add( c.AsType<TFOperation> )
+        if string.LowerCase(c.TypeInfo.Name) = 'tftensor' then
+          control_ops.Add(c.AsType<TFTEnsor>.Op )
+        else if string.LowerCase(c.TypeInfo.Name) = 'tfoperation' then
+          control_ops.Add(c.AsType<TFOperation> )
         else begin
                 var t1 := _as_graph_element(c);
                 if t1 = nil then
@@ -4499,8 +4813,9 @@ begin
     if Fcontrol_dependencies_stack.Count < 1 then
        Exit(ret.ToArray);
 
-    for controller in Fcontrol_dependencies_stack do
+    for var i := 0 to Fcontrol_dependencies_stack.Count - 1 do
     begin
+        controller := Fcontrol_dependencies_stack[i] ;
         var dominated : Boolean := false;
         // If any of the input_ops already depends on the inputs from controller,
         // we say that the new op is dominated (by that input), and we therefore
@@ -4522,7 +4837,7 @@ begin
           if not dominated then
               ret.AddRange(x1);
         finally
-          x.Free;
+         // x.Free;
         end;
 
     end;
@@ -4591,7 +4906,7 @@ begin
     {TODO -oMax -cException : Fix Exception}
     var control_inputs := _control_dependencies_for_inputs(input_ops);
 
-    var op := TFOperation.Create(node_def,Self,inputs,dtypes,operations,input_types,'',op_def);
+    var op := TFOperation.Create(node_def,Self,inputs,dtypes,control_inputs,input_types,'',op_def);
 
     _create_op_helper(op, compute_device);
 
@@ -4849,6 +5164,13 @@ begin
 end;
 {$ENDREGION}
 
+{ InitializerArgs }
+
+constructor InitializerArgs.Create(shape: TFShape; dtype: TF_DataType; verify_shape: Boolean; name: string);
+begin
+
+end;
+
 Initialization
 begin
 
@@ -4858,3 +5180,4 @@ begin
 
 end;
 end.
+

@@ -2539,13 +2539,18 @@ begin
       TAttrValue.ftShape:
         begin
           Assert(wireType = TWire.LENGTH_DELIMITED);
-          var v : TpbOneof;
-          v.tag := TAttrValue.ftShape;
-        
-          var v1 : TTensorShapeProto;
-          LoadTensorShapeProto(v1);
-          v.value := TValue.From<TTensorShapeProto>(v1);
-          Value.value := v;
+          Pb.Push;
+          try
+            var v : TpbOneof;
+            v.tag := TAttrValue.ftShape;
+
+            var v1 : TTensorShapeProto;
+            LoadTensorShapeProto(v1);
+            v.value := TValue.From<TTensorShapeProto>(v1);
+            Value.value := v;
+          finally
+            Pb.Pop;
+          end;
         end;
       TAttrValue.ftTensor:
         begin

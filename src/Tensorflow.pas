@@ -25,13 +25,15 @@ interface
        Tensorflow.Session,
        Tensorflow.String_ops,
        TensorFlow.Variable,
+       TensorFlow.Tensors.Ragged,
 
        ProtoGen.Tensor,
        Protogen.tensorShape,
        ProtoGen.attrValue,
        ProtoGen.types,
        ProtoGen.opDef,
-       protogen.config;
+       protogen.config,
+       ProtoGen.variable;
 
 
 
@@ -262,16 +264,23 @@ type
       function    get_default_graph: TFgraph;
       procedure   reset_default_graph;
       function    peak_default_graph: TFgraph;
-
-      function convert_to_tensor(value: TValue; dtype: TF_DataType= DtInvalid; name: string= ''; preferred_dtype: TF_DataType=DtInvalid): TFTensor;
+      /// <summary>
+      ///     Creates a new graph.
+      /// </summary>
+      ///<remarks>Has no interaction with graph defaulting. Equivalent to new Graph();</remarks>
+      function Graph: TFGraph;
       function placeholder(dtype: TF_DataType; shape: TFShape ; name: string = ''): TFTensor;
+      function Session(graph: TFGraph; config: PConfigProto = nil): TFSession;overload;
+      function Session: TFSession;overload;
+      function get_default_session: TFSession;
+      function Variable<T>(data: T;  trainable : Boolean= true; validate_shape: Boolean = true; use_resource: Boolean = true; name : string= '';
+                             dtype: TF_DataType = TF_DataType.DtInvalid; aggregation: TVariableAggregation = TVariableAggregation.VARIABLE_AGGREGATION_NONE; shape : PTFShape= nil):ResourceVariable;
 
-      function  zeros(shape: TFShape; dtype:  TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor; overload;
-      function  zeros(shape: TFTensor; dtype: TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor; overload;
-      function  ones(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor;
-      function  size(input: TFTensor; name: string = ''; out_type: TF_DataType = TF_DataType.TF_INT32): TFTensor;
-      function  reshape(tensor: TFTensor; shape: TFShape; name: string = ''): TFTensor;
+      // tf.tensor
+      function convert_to_tensor(value: TValue; dtype: TF_DataType= DtInvalid; name: string= ''; preferred_dtype: TF_DataType=DtInvalid): TFTensor;
 
+      // tf.constant
+      //
       /// <summary>
       ///
       /// </summary>
@@ -281,13 +290,16 @@ type
       /// <param name="name"></param>
       /// <returns></returns>
       function constant(value: TValue; dtype : TF_DataType = DtInvalid; shape : PTFShape= nil; name : AnsiString = 'Const'): TFTensor;
-      /// <summary>
-      ///     Creates a new graph.
-      /// </summary>
-      ///<remarks>Has no interaction with graph defaulting. Equivalent to new Graph();</remarks>
-      function Graph: TFGraph;
+      function zeros(shape: TFShape; dtype:  TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor; overload;
+      function zeros(shape: TFTensor; dtype: TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor; overload;
+      function ones(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor;
+      function size(input: TFTensor; name: string = ''; out_type: TF_DataType = TF_DataType.TF_INT32): TFTensor;
 
-      property Version : string read GetVersion;
+      // tf.reshape
+      function  reshape(tensor: TFTensor; shape: TFShape; name: string = ''): TFTensor;
+
+      //tf.gradients
+      //
       // Gradient
       /// <summary>
       /// Record operations for automatic differentiation.
@@ -297,10 +309,9 @@ type
       /// <returns>Tape set</returns>
       function GradientTape(persistent: Boolean = false; watch_accessed_variables: Boolean = true): TGradientTape;
       function GetTapeSet: TStack<ITape>;
-      function Session(graph: TFGraph; config: PConfigProto = nil): TFSession;overload;
-      function Session: TFSession;overload;
-      function get_default_session: TFSession;
-      function global_variables_initializer: TFOperation;
+
+      // tf.variable
+      //
       /// <summary>
       /// Returns an Op that initializes a list of variables.
       /// </summary>
@@ -308,8 +319,86 @@ type
       /// <param name="name">Optional name for the returned operation.</param>
       /// <returns>An Op that run the initializers of all the specified variables.</returns>
       function variables_initializer(var_list: TArray<IVariableV1>; name : string= 'init'):TFOperation;
+      function global_variables_initializer: TFOperation;
       function global_variables(scope: string = '') : TArray<IVariableV1>;
       function trainable_variables(scope: string = '') : TArray<IVariableV1>;
+
+      // tf.array
+      //
+      /// <summary>
+      /// Inserts a dimension of 1 into a tensor's shape.
+      /// </summary>
+      /// <param name="input"></param>
+      /// <param name="axis"></param>
+      /// <param name="name"></param>
+      /// <returns>
+      /// A `Tensor` with the same data as `input`, but its shape has an additional
+      /// dimension of size 1 added.
+      /// </returns>
+      function expand_dims(input: TFTensor; axis: Integer = -1; name: string = ''): TFTensor;
+      /// <summary>
+      /// Concatenates tensors along one dimension.
+      /// </summary>
+      /// <param name="values">A list of `Tensor` objects or a single `Tensor`.</param>
+      /// <param name="axis"></param>
+      /// <param name="name"></param>
+      /// <returns>A `Tensor` resulting from concatenation of the input tensors.</returns>
+      function concat(values: TList<TFTensor>; axis: Integer; name: string = 'concat'): TFTensor; overload;
+      function concat(values: TArray<TFTensor>; axis: Integer; name: string = 'concat'): TFTensor; overload;
+      /// <summary>
+      /// Return a tensor with the same shape and contents as input.
+      /// </summary>
+      /// <param name="input"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function identity(input: TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// BatchToSpace for N-D tensors of type T.
+      /// </summary>
+      /// <typeparam name="T"></typeparam>
+      /// <param name="input"></param>
+      /// <param name="block_shape"></param>
+      /// <param name="crops"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function batch_to_space_nd<T>(input: T; block_shape: TArray<Integer>; crops: TArray< TArray<Integer> >; name: string = ''): TFTensor;
+      /// <summary>
+      /// Apply boolean mask to tensor.
+      /// </summary>
+      /// <typeparam name="T1"></typeparam>
+      /// <typeparam name="T2"></typeparam>
+      /// <param name="tensor">N-D tensor.</param>
+      /// <param name="mask">K-D boolean tensor, K &lt;= N and K must be known statically.</param>
+      /// <param name="name"></param>
+      /// <param name="axis">A 0-D int Tensor representing the axis in tensor to mask from. </param>
+      /// <returns>(N-K+1)-dimensional tensor populated by entries in tensor corresponding to True values in mask.</returns>
+      function  boolean_mask<T1, T2>(tensor: T1; mask: T2; name: string = 'boolean_mask'; axis: Integer = 0): TFTensor;
+
+      // tf.sparse
+      //
+      /// <summary>
+      /// Converts a sparse representation into a dense tensor.
+      /// </summary>
+      /// <typeparam name="T"></typeparam>
+      /// <param name="sparse_indices"></param>
+      /// <param name="output_shape"></param>
+      /// <param name="sparse_values"></param>
+      /// <param name="default_value"></param>
+      /// <param name="validate_indices"></param>
+      /// <param name="name"></param>
+      /// <returns>Dense `Tensor` of shape `output_shape`.  Has the same type as `sparse_values`.</returns>
+      function sparse_to_dense<T>(sparse_indices: TFTensor; output_shape: TFShape; sparse_values: T; default_value: T; validate_indices: Boolean = true; name : string = ''): TFTensor;overload;
+      function sparse_to_dense<T>(sparse_indices: TFTensor; output_shape: TFShape; sparse_values: T): TFTensor;overload;
+      function SparseTensor(indices: TArray< TArray<Int64> >; values: TValue; dense_shape:TArray<Int64>) : TSparseTensor;  overload;
+      function SparseTensor(indices: TArray<TArray<Int64>>;   values: TArray<Integer>; dense_shape: TArray<Int64>): TSparseTensor; overload;
+      function sparse_tensor_to_dense(sp_input: TSparseTensor; default_value: TValue; validate_indices : Boolean= true; name: string = ''): TFTensor;
+
+      // tf.math
+      function range(start: TValue; limit: TValue; delta: TValue; dtype: Nullable<TF_DataType>; name: string = 'range'): TFTensor; overload;
+      function range(start: TValue; limit: TValue): TFTensor; overload;
+
+      property Version : string read GetVersion;
+
   end;
 {$ENDREGION}
 
@@ -322,8 +411,11 @@ implementation
         TensorFlow.EagerTensor,
         TensorFlow.Ops ,
         TensorFlow.Constant_op,
+        Tensorflow.math_ops,
         Tensorflow.gen_array_ops,
         Tensorflow.array_ops,
+        tensorflow.gen_sparse_ops,
+        Tensorflow.NameScope,
         Numpy.Axis;
 
 {$REGION 'TTensorflow'}
@@ -335,9 +427,40 @@ begin
 end;
 
 
+function TTensorflow.concat(values: TList<TFTensor>; axis: Integer; name: string): TFTensor;
+begin
+    if values.Count = 1 then
+    begin
+        Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name),
+                                          function(v1: TNameScope): TFTensor
+                                            begin
+                                                var tensor := Tops.convert_to_tensor(axis, TDtypes.cint32, 'concat_dim');
+                                                Assert(tensor.shape.ndim = 0);
+                                                Result := identity(values.First,  v1.toString);
+                                            end );
+        Exit;
+    end;
+    Result := gen_array_ops.concat_v2(values.ToArray, axis, name);
+end;
+
+function TTensorflow.batch_to_space_nd<T>(input: T; block_shape: TArray<Integer>; crops: TArray<TArray<Integer>>; name: string): TFTensor;
+begin
+    Result := gen_array_ops.batch_to_space_nd(input, block_shape, crops, name)
+end;
+
+function TTensorflow.boolean_mask<T1, T2>(tensor: T1; mask: T2; name: string; axis: Integer): TFTensor;
+begin
+    Result := array_ops.boolean_mask(tensor, mask, name, axis);
+end;
+
+function TTensorflow.concat(values: TArray<TFTensor>; axis: Integer; name: string): TFTensor;
+begin
+    Result := concat(TList<TFTensor>.Create(values),axis,name);
+end;
+
 function TTensorflow.constant(value: TValue; dtype: TF_DataType; shape: PTFShape; name: AnsiString): TFTensor;
 begin
-    Result :=constant_op.constant(@value,
+    Result :=constant_op.constant(value,
                                     dtype,
                                     shape,
                                     False,
@@ -394,6 +517,11 @@ begin
     Result := Context.executing_eagerly;
 end;
 
+function TTensorflow.expand_dims(input: TFTensor; axis: Integer; name: string): TFTensor;
+begin
+    Result := array_ops.expand_dims(input, axis, name);
+end;
+
 function TTensorflow.GetVersion: string;
 begin
      Result := string(AnsiString(TF_Version));
@@ -437,6 +565,11 @@ begin
     Result := TFGraph.Create;
 end;
 
+function TTensorflow.identity(input: TFTensor; name: string): TFTensor;
+begin
+    Result := array_ops.identity(input, name);
+end;
+
 function TTensorflow.peak_default_graph: TFgraph;
 begin
     Result := TOps.peak_default_graph;
@@ -445,6 +578,17 @@ end;
 function TTensorflow.placeholder(dtype: TF_DataType; shape: TFShape; name: string): TFTensor;
 begin
     Result := array_ops.placeholder(dtype,@shape,name);
+end;
+
+function TTensorflow.range(start, limit, delta: TValue; dtype: Nullable<TF_DataType>; name: string): TFTensor;
+begin
+   Result :=  math_ops.range(start, limit, delta, dtype, name);
+end;
+
+function TTensorflow.range(start, limit: TValue): TFTensor;
+begin
+    var v : TValue := System.default(TValue);
+    Result := range(start, limit,v, nil,'range');
 end;
 
 procedure TTensorflow.reset_default_graph;
@@ -477,10 +621,61 @@ begin
     Result := array_ops.size(input, name, true, out_type);
 end;
 
+function TTensorflow.SparseTensor(indices: TArray<TArray<Int64>>; values: TValue; dense_shape: TArray<Int64>): TSparseTensor;
+begin
+    Result := TSparseTensor.Create(indices, values, dense_shape);
+end;
+
+function TTensorflow.SparseTensor(indices: TArray<TArray<Int64>>; values: TArray<Integer>; dense_shape: TArray<Int64>): TSparseTensor;
+begin
+    Result := SparseTensor(indices, TValue.From< TArray<Integer> >(values), dense_shape);
+end;
+
+function TTensorflow.sparse_to_dense<T>(sparse_indices: TFTensor; output_shape: TFShape; sparse_values, default_value: T; validate_indices: Boolean; name: string): TFTensor;
+begin
+    Result := gen_sparse_ops.sparse_to_dense(sparse_indices,output_shape,sparse_values, default_value, validate_indices, name)
+end;
+
+function TTensorflow.sparse_tensor_to_dense(sp_input: TSparseTensor; default_value: TValue; validate_indices: Boolean; name: string): TFTensor;
+begin
+    var v : TFTensor := tf.constant( 0 ) ;
+    Result :=  gen_sparse_ops.sparse_to_dense(sp_input.indices,sp_input.dense_shape, sp_input.values,v,True,'')
+end;
+
+function TTensorflow.sparse_to_dense<T>(sparse_indices: TFTensor; output_shape: TFShape; sparse_values: T): TFTensor;
+var
+   v : T;
+begin
+   var FValue : TValue := TValue.from<T>(sparse_values) ;
+   if FValue.IsOrdinal then
+   begin
+       var v1 : TValue := 0;
+       v := v1.asType<T>;
+   end
+   else if FValue.IsType<TFTensor> then
+   begin
+       var v1 : TValue := TValue.From<TFTensor>( TFTensor.Create(0) ) ;
+       v := v1.asType<T>;
+   end
+   else if FValue.IsType<TNDArray> then
+   begin
+       var v1 : TValue := TValue.From<TNDArray>( TNDArray.Create(0) ) ;
+       v := v1.asType<T>;
+   end;
+
+   Result := sparse_to_dense(sparse_indices,output_shape,sparse_values, v, True, '')
+end;
+
 function TTensorflow.trainable_variables(scope: string): TArray<IVariableV1>;
 begin
     var Value := variables.trainable_variables;
     Result := Value.AsType< TList<IVariableV1> >.ToArray;
+end;
+
+function TTensorflow.Variable<T>(data: T;  trainable : Boolean; validate_shape: Boolean; use_resource: Boolean; name : string;dtype: TF_DataType; aggregation: TVariableAggregation; shape : PTFShape):ResourceVariable;
+begin
+    var dData := TValue.from<T>(data);
+    Result := ResourceVariable.Create(@dData, trainable,nil, validate_shape, '',name, nil, dtype, '',aggregation, shape)
 end;
 
 function TTensorflow.variables_initializer(var_list: TArray<IVariableV1>; name: string): TFOperation;

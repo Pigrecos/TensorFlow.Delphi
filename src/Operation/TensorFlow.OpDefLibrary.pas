@@ -268,7 +268,7 @@ begin
             if ( not input_arg.IsRef) and (dtype <> TDataType.DT_INVALID) then
                 dtype := Tdtypes.as_base_dtype(dtype);
 
-            var RetVal := TOps.internal_convert_n_to_tensor(values.AsType< TArray<TValue> >,
+            var RetVal := TOps.internal_convert_n_to_tensor(values.AsType< TArray<TFTensor> >,
                                                             Tdtypes.as_tf_dtype(dtype),
                                                             input_arg.Name,
                                                             Tdtypes.as_tf_dtype(default_dtype),

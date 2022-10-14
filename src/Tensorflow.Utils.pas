@@ -14,6 +14,8 @@ interface
          TensorFlow.DApiBase,
          TF4D.Core.CApi,
          TensorFlow.Slice,
+         Tensorflow.Tensor,
+         NumPy.NDArray,
 
          ProtoGen.tensorShape,
          ProtoGen.types,
@@ -24,9 +26,17 @@ type
   TValueHelp = record Helper for TValue
 
     public
+      class operator Implicit(const Value: TNDArray): TValue;
+      class operator Implicit(const Value: TValue): TNDArray;
+      class operator Implicit(const Value: NDArray): TValue;
+      class operator Implicit(const Value: TValue): NDArray;
+      //
+      class operator Implicit(const Value: TTensor): TValue;
+      class operator Implicit(const Value: TValue): TTensor;
       class operator Implicit(const Value: TFTensor): TValue;
-      class operator Implicit(const Value: TArray<TFTensor>): TValue;
       class operator Implicit(const Value: TValue): TFTensor;
+      //
+      class operator Implicit(const Value: TArray<TFTensor>): TValue;
       class operator Implicit(const Value: TF_DataType): TValue;
 
   end;
@@ -82,6 +92,8 @@ type
     class function ArrayToArrayTipo<T>(a: Tarray<T>; toTipo: PTypeInfo): TArray<Integer>;
 
    public
+      class function SequenceEqual<T>(const v1,v2: TArray<T>): boolean;
+
       class function flatten<T>(obj : TArray<T>                        ): TList<T> ;  overload;
       class function flatten<T>(obj : TArray<TArray<T>>                ): TList<T> ;  overload;
       class function flatten<T>(obj : TArray<TArray<TArray<T>>>        ): TList<T> ;  overload;
@@ -112,14 +124,14 @@ type
  function GetArg(sNome: string; vVal : TValue):  TParameter;
 
 implementation
-        uses Tensorflow,
+        uses system.Generics.Defaults,
+             Winapi.Windows,
+             Tensorflow,
              TensorFlow.EagerTensor,
              Tensorflow.NameScope,
              TensorFlow.Ops,
-             NumPy.NDArray,
              Numpy.Axis,Complex,
-             TensorFlow.Variable,
-             TensorFlow.Tensor;
+             TensorFlow.Variable;
 
 
 function GetArg(sNome: string; vVal : TValue):  TParameter;
@@ -199,7 +211,6 @@ var
   tTipo : PTypeInfo;
   dType : TF_DataType;
 begin
-     dType := TF_DataType.DtInvalid;
 
      while value.IsArray do
        value := value.GetArrayElement(0);
@@ -220,7 +231,13 @@ begin
      else if tTipo = TypeInfo(double)    then dType := TF_DataType.TF_DOUBLE
      else if tTipo = TypeInfo(Extended)  then dType := TF_DataType.TF_DOUBLE
      else if tTipo = TypeInfo(string)    then dType := TF_DataType.TF_STRING
-     else if tTipo = TypeInfo(ansistring)then dType := TF_DataType.TF_STRING;
+     else if tTipo = TypeInfo(ansistring)then dType := TF_DataType.TF_STRING
+
+     else if tTipo.Kind = tkInteger      then dType := TF_DataType.TF_INT32
+     else if tTipo.Kind = tkInt64        then dType := TF_DataType.TF_INT64
+     else if tTipo.Kind = tkfloat        then dType := TF_DataType.TF_FLOAT
+     else
+        raise TFException.Create('Type not found');
 
      Result := dType;
 
@@ -882,14 +899,54 @@ begin
     end
     else if values.IsArray then
     begin
-        // array
-        var len := Tdtypes.get_datatype_size(dtype) * shape.size;
-        var src := values.GetReferenceToRawData;
-        SetLength(bytes,len);
-        var dst := @bytes[0];
+        if shape.ndim = 2 then
+        begin
+            var lenBytes := Tdtypes.get_datatype_size(dtype) * shape.size;
+            SetLength(bytes,lenBytes);
 
-        Move(Pointer(src^)^,dst^,len);
-        tensor_proto.TensorContent := bytes;
+            var len0 := values.GetArrayLength;
+            var BytesIdx: Integer := 0;
+            for var i := 0 to len0-1 do
+            begin
+                var v1  := values.GetArrayElement(i);
+                var len := v1.GetArrayLength;
+
+                var src := v1.GetReferenceToRawArrayElement(0);
+                var dst := @bytes[BytesIdx];
+                CopyMemory(dst,src, len * Tdtypes.get_datatype_size(dtype) );
+                Inc(BytesIdx,len * Tdtypes.get_datatype_size(dtype));
+            end;
+            tensor_proto.TensorContent := bytes;
+        end
+        else if shape.ndim = 3 then
+        begin
+            var lenBytes := Tdtypes.get_datatype_size(dtype) * shape.size;
+            SetLength(bytes,lenBytes);
+
+            var len0 := values.GetArrayLength;
+            var BytesIdx: Integer := 0;
+            for var i := 0 to len0-1 do
+            begin
+                var v1  := values.GetArrayElement(i);
+                var len := v1.GetArrayLength;
+
+                var src := v1.GetReferenceToRawArrayElement(0);
+                var dst := @bytes[BytesIdx];
+                CopyMemory(dst,src, len * Tdtypes.get_datatype_size(dtype) );
+                Inc(BytesIdx,len * Tdtypes.get_datatype_size(dtype));
+            end;
+            tensor_proto.TensorContent := bytes;
+        end else
+        begin
+            // array
+            var len := Tdtypes.get_datatype_size(dtype) * shape.size;
+            var src := values.GetReferenceToRawArrayElement(0);
+            SetLength(bytes,len);
+            var dst := @bytes[0];
+
+            CopyMemory(dst,src,len);
+            tensor_proto.TensorContent := bytes;
+        end;
     end else
     begin
         if values.IsType<TAxis> then
@@ -1005,6 +1062,19 @@ begin
 
 end;
 
+class function TUtils.SequenceEqual<T>(const v1, v2: TArray<T>): boolean;
+var
+  comparer: IEqualityComparer<T>;
+  i: Integer;
+begin
+  comparer := TEqualityComparer<T>.Default;
+  for i := Low(v1) to High(v1) do
+    if not comparer.Equals(v1[i], v2[i]) then
+      Exit(false);
+  Result := true;
+
+end;
+
 { TValueHelper }
 
 class operator TValueHelp.Implicit(const Value: TValue): TFTensor;
@@ -1029,5 +1099,39 @@ class operator TValueHelp.Implicit(const Value: TF_DataType): TValue;
 begin
     Result := TValue.From<Integer>(Ord(Value));
 end;
+
+class operator TValueHelp.Implicit(const Value: TValue): TNDArray;
+begin
+    Result := nil;
+
+    if Value.IsType<TNDArray> then
+      Result := Value.AsType<TNDArray>
+end;
+
+class operator TValueHelp.Implicit(const Value: TNDArray): TValue;
+begin
+   Result := TValue.From<TNDArray>(Value);
+end;
+
+class operator TValueHelp.Implicit(const Value: TValue): NDArray;
+begin
+    Result := Value.AsType<NDArray>
+end;
+
+class operator TValueHelp.Implicit(const Value: NDArray): TValue;
+begin
+   Result := TValue.From<TNDArray>(Value.HandleNDArray);
+end;
+
+class operator TValueHelp.Implicit(const Value: TValue): TTensor;
+begin
+    Result := Value.AsType<TTensor>
+end;
+
+class operator TValueHelp.Implicit(const Value: TTensor): TValue;
+begin
+     Result := TValue.From<TFTensor>(Value.HTensor);
+end;
+
 
 end.

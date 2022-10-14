@@ -1,15 +1,23 @@
 unit TensorFlow.Variable;
 
+{$WARN IMPLICIT_STRING_CAST OFF}
+{$WARN IMPLICIT_STRING_CAST_LOSS OFF}
+
 interface
      uses System.SysUtils,
           System.Rtti,
+          System.TypInfo,
 
+          Spring,
           spring.Collections.Lists,
 
           TF4D.Core.CApi,
           TensorFlow.DApiBase,
           TensorFlow.DApi,
-          NumPy.NDArray;
+          NumPy.NDArray,
+
+          ProtoGen.variable,
+          ProtoGen.attrValue;
 
 type
   /// <summary>
@@ -238,6 +246,16 @@ type
         function GetGraphEle: TFTEnsor;
         function GetShape: TFShape;
         function GetTipo: TF_DataType;
+
+        procedure _init_from_proto(variable_def : TVariableDef; import_scope : string= '');
+        procedure _init_from_args(_initial_value : PValue = nil;
+                                  _trainable     : Boolean = true;
+                                  collections   : TList<string> = nil;
+                                  caching_device: string = '';
+                                  name          : string = '';
+                                  dtype         : TF_DataType = TF_DataType.DtInvalid;
+                                  aggregation   : TVariableAggregation = TVariableAggregation.VARIABLE_AGGREGATION_NONE;
+                                  shape         : PTFShape= nil);
      protected
         Fname          : string;
         Fhandle_name   : string;
@@ -251,8 +269,23 @@ type
         FHandle        : TFTEnsor;
         Fgraph_element : TFTEnsor;
         FShape         : TFShape;
+
      public
+        constructor Create(_initial_value    : PValue;
+                           _trainable        : Boolean= true;
+                           collections      : TList<string>= nil;
+                           validate_shape   : Boolean = true;
+                           caching_device   : string = '';
+                           name             : string= '';
+                           variable_def     : PVariableDef= nil;
+                           dtype            : TF_DataType = TF_DataType.DtInvalid;
+                           import_scope     : string = '';
+                           aggregation      : TVariableAggregation = TVariableAggregation.VARIABLE_AGGREGATION_NONE;
+                           shape            : PTFShape= nil);
         function  _TensorConversionFunction(dtype: TF_DataType = DtInvalid; name: string = ''; as_ref: Boolean = false): TFTensor;
+        function  sparse_read(indices: TFTensor; name : string= 'Gather') : TFTensor;
+        function  to_proto(export_scope: string): TVariableDef;
+        function  eval(session: TFSession = nil): TNDArray;
 
         property Name        : string       read GetName;
         property dtype       : TF_DataType  read GetTipo;
@@ -303,9 +336,27 @@ type
         class  function  variables_initializer(var_list: TArray<IVariableV1>; name: string = 'init'): TFOperation;
   end;
 
+  state_ops = class
+    private
+
+    public
+      /// <summary>
+      /// Create a variable Operation.
+      /// </summary>
+      /// <param name="shape"></param>
+      /// <param name="dtype"></param>
+      /// <param name="name"></param>
+      /// <param name="container"></param>
+      /// <param name="shared_name"></param>
+      /// <returns></returns>
+      class function variable_op_v2(shape: TArray<Integer>; dtype: TF_DataType; name: string = 'Variable'; container : string= ''; shared_name: string = ''): TFTensor;
+  end;
+
 
 implementation
-     uses Tensorflow,
+     uses Oz.Pb.Classes,
+
+          Tensorflow,
           Tensorflow.Utils,
           TensorFlow.Ops,
           Tensorflow.NameScope,
@@ -316,7 +367,8 @@ implementation
           TensorFlow.gen_state_ops,
           TensorFlow.control_flow_ops,
           TensorFlow.gen_control_flow_ops,
-          TensorFlow.gen_resource_variable_ops;
+          TensorFlow.gen_resource_variable_ops,
+          TensorFlow.resource_variable_ops;
 
 
 { RefVariable }
@@ -446,7 +498,136 @@ end;
 
 { ResourceVariable }
 
- function ResourceVariable.GetHandle:TFTensor;
+constructor ResourceVariable.Create(_initial_value: PValue; _trainable: Boolean; collections: TList<string>; validate_shape: Boolean; caching_device, name: string;
+                                       variable_def: PVariableDef; dtype: TF_DataType; import_scope: string; aggregation: TVariableAggregation; shape: PTFShape);
+begin
+    if Assigned(variable_def) then
+    begin
+        if Assigned(_initial_value) then
+           raise  TFException.Create('variable_def and initial_value are mutually exclusive.');
+        _init_from_proto(variable_def^, import_scope);
+    end else
+    begin
+        _init_from_args(_initial_value, _trainable, collections, caching_device, name, dtype, aggregation, shape);
+    end;
+end;
+
+procedure ResourceVariable._init_from_args(_initial_value: PValue; _trainable: Boolean; collections: TList<string>; caching_device, name: string; dtype: TF_DataType;
+                                             aggregation: TVariableAggregation; shape: PTFShape);
+begin
+    var initial_value := _initial_value^;
+
+    var t      := GetTypeData( initial_value.TypeInfo)^;
+    var parent : PTypeInfo := nil;
+    if (initial_value.IsClass) and (t.ParentInfo <> nil) then
+        parent := t.parentInfo^ ;
+
+    var init_from_fn : boolean := False;
+    if (string(initial_value.TypeInfo^.Name).Contains('Func')) or (initial_value.IsType<IInitializer>) or ( (parent <> nil) and (parent.Name = 'IInitializer') ) then
+       init_from_fn  := true;
+
+    if collections = nil then
+        collections := TList<string>.Create( tf.GraphKeys.GLOBAL_VARIABLES );
+    Ftrainable := _trainable;
+    if (_trainable) and ( not collections.Contains(tf.GraphKeys.TRAINABLE_VARIABLES) ) then
+        collections.Add(tf.GraphKeys.TRAINABLE_VARIABLES);
+
+    TUtils.tf_with<TNameScope>( TOps.init_scope,
+        procedure(v1: TNameScope)
+          begin
+              Fin_graph_mode := not tf.Context.executing_eagerly;
+
+              TUtils.tf_with<TNameScope>( TOps.name_scope(name, 'Variable', _initial_value, false),
+                procedure(v1: TNameScope)
+                  begin
+                      name := v1.ToString;
+                      var handle_name := Tops.name_from_scope_name(name);
+                      var unique_id  : string := '';
+                      var shared_name: string := '';
+                      if Fin_graph_mode then
+                      begin
+                          shared_name := handle_name;
+                          unique_id   := shared_name;
+                      end else
+                      begin
+                          unique_id   := handle_name+'_'+IntTostr(Tops.uid);
+                          shared_name := tf.Context.shared_name;
+                      end;
+                      var attr : TAttrValue; attr.Init;
+                      var lst : TListValue; lst.Init;
+                      var b := TEncoding.UTF8.GetBytes('loc:@'+handle_name);
+                      lst.Ss.Add(@b);
+                      var v : TpbOneof;
+                      v.tag := TAttrValue.ftList;
+                      v.value := TValue.From<TListValue>(lst);
+                      attr.Value := v;
+
+                      TUtils.tf_with<TNameScope>( TOps.name_scope('Initializer'),
+                        procedure(v1: TNameScope)
+                          begin
+                              if (initial_value.IsType<IInitializer>) or ( (parent <> nil) and (parent.Name = 'IInitializer') ) then
+                              begin
+                                 Finitial_value := Tops.convert_to_tensor((initial_value.AsType<IInitializer>).Apply( InitializerArgs.Create(shape, dtype)))
+                              end else
+                              begin
+                                  var value : TValue;
+                                  if init_from_fn then
+                                  begin
+                                       var func :=  initial_value.AsType<TFunc<TFTensor>>;
+                                       value := TValue.From<TFunc<TFTensor>>(func)
+                                  end else
+                                  begin
+                                      value := initial_value;
+                                  end;
+                                  Finitial_value := Tops.convert_to_tensor(value, dtype, 'initial_value' );
+                              end;
+                          end );
+                      if shape <> nil then Fshape  := shape^
+                      else                 Fshape  := Finitial_value.Shape;
+
+                      if Fin_graph_mode then
+                      begin
+                          Fhandle         := state_ops.variable_op_v2(Finitial_value.shape, Tdtypes.as_base_dtype(Finitial_value.dtype), name);
+                          Finitializer_op := gen_state_ops.assign(Fhandle, Finitial_value, true).op;
+
+                          Tops.colocate_with(Finitializer_op);
+
+                          Fgraph_element := gen_array_ops.identity(Fhandle, 'read');
+                          Tops.Add_to_collection<IVariableV1>(collections, Self);
+                          Fdtype := Fhandle.dtype;
+                      end else
+                      begin
+                          Fhandle := resource_variable_ops.eager_safe_variable_handle(Finitial_value,Fshape, shared_name,name, Fin_graph_mode);
+
+                          gen_resource_variable_ops.assign_variable_op(Fhandle, Finitial_value);
+                          Finitializer_op := nil;
+                          Fgraph_element  := nil;
+                          Fdtype          := Tdtypes.as_base_dtype(Finitial_value.dtype);
+                          // initial_value = _in_graph_mode ? initial_value : null;
+                      end;
+
+                      __init__(_trainable,Fhandle, name, unique_id, handle_name);
+
+                  end );
+          end );
+end;
+
+ procedure ResourceVariable._init_from_proto(variable_def: TVariableDef; import_scope: string);
+begin
+
+end;
+
+function ResourceVariable.to_proto(export_scope: string): TVariableDef;
+begin
+
+end;
+
+function ResourceVariable.eval(session: TFSession): TNDArray;
+begin
+    Result := Fgraph_element.eval(session);
+end;
+
+function ResourceVariable.GetHandle:TFTensor;
  begin
      Result := FHandle;
  end;
@@ -496,9 +677,26 @@ begin
     Result := Funique_id
 end;
 
+function ResourceVariable.sparse_read(indices: TFTensor; name: string): TFTensor;
+begin
+     Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope('Read'),
+                    function(v1: TNameScope): TFTensor
+                      begin
+                          var sName := v1.ToString;
+                          var value := gen_resource_variable_ops.resource_gather(Fhandle, indices, Fdtype, 0, True, sName);
+                          Result := array_ops.identity(value);
+                       end );
+
+end;
+
 function ResourceVariable._TensorConversionFunction(dtype: TF_DataType; name: string; as_ref: Boolean): TFTensor;
 begin
-
+    if as_ref then
+       Result := Fhandle
+    else begin
+             if GraphElement <> nil then Result  := GraphElement
+             else                        Result  := read_value;
+    end;
 end;
 
 { BaseResourceVariable }
@@ -612,7 +810,7 @@ end;
 procedure BaseResourceVariable._strided_slice_assign(tBegin, tEnd, strides, value: TFTensor; name: string; begin_mask, end_mask, ellipsis_mask, new_axis_mask,
   shrink_axis_mask: Integer);
 begin
-    var op := gen_array_ops.resource_strided_slice_assign(Fhandle, tBegin, tEnd, strides, value,
+    gen_array_ops.resource_strided_slice_assign(Fhandle, tBegin, tEnd, strides, value,
                 begin_mask,
                 end_mask,
                 ellipsis_mask,
@@ -785,4 +983,13 @@ begin
     Result := Funique_id;
 end;
 
+{ state_ops }
+
+class function state_ops.variable_op_v2(shape: TArray<Integer>; dtype: TF_DataType; name, container, shared_name: string): TFTensor;
+begin
+    Result := gen_state_ops.variable_v2(shape, dtype, name, container,shared_name)
+end;
+
 end.
+
+

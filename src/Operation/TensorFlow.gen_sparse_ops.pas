@@ -1,0 +1,60 @@
+unit TensorFlow.gen_sparse_ops;
+
+interface
+   uses  System.SysUtils,
+         Spring,
+         TF4D.Core.CApi,
+         TensorFlow.DApi,
+         Numpy.Axis,
+
+         TensorFlow.Context ;
+
+type
+  gen_sparse_ops = Record
+    private
+
+    public
+      /// <summary>
+      /// Converts a sparse representation into a dense tensor.
+      /// </summary>
+      /// <param name="sparse_indices"></param>
+      /// <param name="output_shape"></param>
+      /// <param name="sparse_values"></param>
+      /// <param name="default_value"></param>
+      /// <param name="validate_indices"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      Class function sparse_to_dense<T>(sparse_indices: TFTensor; output_shape: TArray<Integer>;sparse_values: T; default_value: T; validate_indices: boolean = true; name: string = ''): TFTensor; overload; static;
+      Class function sparse_to_dense<T>(sparse_indices: TFTensor; output_shape: TFTensor; sparse_values: TFTensor; default_value: T; validate_indices: boolean = true; name: string = ''): TFTensor; overload; static;
+  End;
+
+
+implementation
+      uses Tensorflow,
+               TensorFlow.Ops,
+               Tensorflow.Utils;
+{ gen_sperse_ops }
+
+class function gen_sparse_ops.sparse_to_dense<T>(sparse_indices: TFTensor; output_shape: TArray<Integer>; sparse_values, default_value: T; validate_indices: boolean;
+  name: string): TFTensor;
+begin
+    var _op := tf.OpDefLib._apply_op_helper('SparseToDense', name,[ GetArg('sparse_indices',sparse_indices),
+                                                                    GetArg('output_shape', TValue.From< TArray<Integer> >(output_shape)),
+                                                                    GetArg('sparse_values',TValue.From<T>(sparse_values)),
+                                                                    GetArg('default_value',TValue.From<T>(default_value)),
+                                                                    GetArg('validate_indices',validate_indices ) ] );
+    Result := _op.output;
+end;
+
+
+class function gen_sparse_ops.sparse_to_dense<T>(sparse_indices, output_shape, sparse_values: TFTensor; default_value: T; validate_indices: boolean; name: string): TFTensor;
+begin
+    var _op := tf.OpDefLib._apply_op_helper('SparseToDense', name,[ GetArg('sparse_indices',sparse_indices),
+                                                                    GetArg('output_shape', output_shape),
+                                                                    GetArg('sparse_values',sparse_values),
+                                                                    GetArg('default_value',TValue.From<T>(default_value)),
+                                                                    GetArg('validate_indices',validate_indices ) ] );
+    Result := _op.output;
+end;
+
+end.

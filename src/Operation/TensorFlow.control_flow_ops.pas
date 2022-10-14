@@ -1,5 +1,8 @@
 unit TensorFlow.control_flow_ops;
 
+{$WARN IMPLICIT_STRING_CAST OFF}
+{$WARN IMPLICIT_STRING_CAST_LOSS OFF}
+
 interface
    uses  System.SysUtils,
          Spring,

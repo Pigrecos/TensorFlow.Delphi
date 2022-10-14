@@ -42,9 +42,6 @@ type
        function capture(tensor: TFTensor; name: string = ''; shape: PTFShape = nil): TFTensor;
   end;
 
-
-
-
 implementation
 
 { DefaultGraphStack }
