@@ -219,9 +219,10 @@ type
   private
     procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
-    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-      Save: TSavePair<Key, Value>; Tag: Integer);
+
   public
+    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);
+
     class procedure SaveAllocationRecord(const S: TpbSaver; const Value: TAllocationRecord); static;
     class procedure SaveAllocatorMemoryUsed(const S: TpbSaver; const Value: TAllocatorMemoryUsed); static;
     class procedure SaveNodeOutput(const S: TpbSaver; const Value: TNodeOutput); static;
@@ -941,20 +942,12 @@ begin
 end;
 
 class procedure TSaveHelper.SaveAllocationRecord(const S: TpbSaver; const Value: TAllocationRecord);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt64(TAllocationRecord.ftAllocMicros, Value.AllocMicros);
   S.Pb.writeInt64(TAllocationRecord.ftAllocBytes, Value.AllocBytes);
 end;
 
 class procedure TSaveHelper.SaveAllocatorMemoryUsed(const S: TpbSaver; const Value: TAllocatorMemoryUsed);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeString(TAllocatorMemoryUsed.ftAllocatorName, Value.AllocatorName);
   S.Pb.writeInt64(TAllocatorMemoryUsed.ftTotalBytes, Value.TotalBytes);
@@ -966,10 +959,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveNodeOutput(const S: TpbSaver; const Value: TNodeOutput);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt32(TNodeOutput.ftSlot, Value.Slot);
   S.SaveObj<TTensorDescription>(Value.FTensorDescription, SaveTensorDescription, TNodeOutput.ftTensorDescription);
@@ -1004,10 +993,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveNodeExecStats(const S: TpbSaver; const Value: TNodeExecStats);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeString(TNodeExecStats.ftNodeName, Value.NodeName);
   S.Pb.writeInt64(TNodeExecStats.ftAllStartMicros, Value.AllStartMicros);
@@ -1033,7 +1018,6 @@ end;
 
 class procedure TSaveHelper.SaveDeviceStepStats(const S: TpbSaver; const Value: TDeviceStepStats);
 var 
-  i : Integer;
   h : TpbSaver;
 
 begin
@@ -1059,20 +1043,12 @@ begin
 end;
 
 class procedure TSaveHelper.SaveStepStats(const S: TpbSaver; const Value: TStepStats);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   if Value.FDevStatss.Count > 0 then
     S.SaveList<TDeviceStepStats>(Value.FDevStatss, SaveDeviceStepStats, TStepStats.ftDevStatss);
 end;
 
 class procedure TSaveHelper.SaveAllocationDescription(const S: TpbSaver; const Value: TAllocationDescription);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt64(TAllocationDescription.ftRequestedBytes, Value.RequestedBytes);
   S.Pb.writeInt64(TAllocationDescription.ftAllocatedBytes, Value.AllocatedBytes);
@@ -1083,10 +1059,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveTensorDescription(const S: TpbSaver; const Value: TTensorDescription);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt32(TTensorDescription.ftDtype, Ord(Value.Dtype));
   S.SaveObj<TTensorShapeProto>(Value.Shape, SaveTensorShapeProto, TTensorDescription.ftShape);
@@ -1094,20 +1066,12 @@ begin
 end;
 
 class procedure TSaveHelper.SaveDim(const S: TpbSaver; const Value: TDim);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt64(TDim.ftSize, Value.Size);
   S.Pb.writeString(TDim.ftName, Value.Name);
 end;
 
 class procedure TSaveHelper.SaveTensorShapeProto(const S: TpbSaver; const Value: TTensorShapeProto);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   if Value.Dims.Count > 0 then
     S.SaveList<TDim>(Value.Dims, SaveDim, TTensorShapeProto.ftDims);
@@ -1115,8 +1079,6 @@ begin
 end;
 
 procedure TSaveHelper.SaveUint32String(Item: TsgPair<UInt32, string>);
-var
-  h: TpbSaver;
 begin
   Pb.writeInt32(1, Item.Key);
   Pb.writeString(2, Item.Value);

@@ -42,7 +42,8 @@ uses
   TensorFlow.control_flow_ops in 'src\Operation\TensorFlow.control_flow_ops.pas',
   TensorFlow.gen_sparse_ops in 'src\Operation\TensorFlow.gen_sparse_ops.pas',
   TensorFlow.Tensors.Ragged in 'src\TensorFlow.Tensors.Ragged.pas',
-  TensorFlow.resource_variable_ops in 'src\Operation\TensorFlow.resource_variable_ops.pas';
+  TensorFlow.resource_variable_ops in 'src\Operation\TensorFlow.resource_variable_ops.pas',
+  ProtoGen.cppShapeInference in 'src\Proto\ProtoGen.cppShapeInference.pas';
 
 {$R *.res}
 

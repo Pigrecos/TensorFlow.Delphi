@@ -52,11 +52,12 @@ type
     TSave<T> = procedure(const S: TpbSaver; const Value: T);
     TSavePair<Key, Value> = procedure(const S: TpbSaver; const Pair: TsgPair<Key, Value>);
   private
-    procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
+
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
-    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-      Save: TSavePair<Key, Value>; Tag: Integer);
   public
+    procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
+    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);
+
     class procedure SaveJobDef(const S: TpbSaver; const Value: TJobDef); static;
     class procedure SaveClusterDef(const S: TpbSaver; const Value: TClusterDef); static;
     procedure SaveInt32String(Item: TsgPair<Integer, string>);
@@ -207,7 +208,6 @@ end;
 
 class procedure TSaveHelper.SaveJobDef(const S: TpbSaver; const Value: TJobDef);
 var 
-  i : Integer;
   h : TpbSaver;
 
 begin
@@ -231,18 +231,12 @@ begin
 end;
 
 class procedure TSaveHelper.SaveClusterDef(const S: TpbSaver; const Value: TClusterDef);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   if Value.FJobs.Count > 0 then
     S.SaveList<TJobDef>(Value.FJobs, SaveJobDef, TClusterDef.ftJobs);
 end;
 
 procedure TSaveHelper.SaveInt32String(Item: TsgPair<Integer, string>);
-var
-  h: TpbSaver;
 begin
   Pb.writeInt32(1, Item.Key);
   Pb.writeString(2, Item.Value);

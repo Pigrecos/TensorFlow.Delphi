@@ -158,9 +158,10 @@ type
   private
     procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
-    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-      Save: TSavePair<Key, Value>; Tag: Integer);
+
   public
+    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);
+
     class procedure SaveCostGraphDef(const S: TpbSaver; const Value: TCostGraphDef); static;
     class procedure SaveNode(const S: TpbSaver; const Value: TNode); static;
     class procedure SaveInputInfo(const S: TpbSaver; const Value: TInputInfo); static;
@@ -627,20 +628,12 @@ begin
 end;
 
 class procedure TSaveHelper.SaveInputInfo(const S: TpbSaver; const Value: TInputInfo);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt32(TInputInfo.ftPrecedingNode, Value.PrecedingNode);
   S.Pb.writeInt32(TInputInfo.ftPrecedingPort, Value.PrecedingPort);
 end;
 
 class procedure TSaveHelper.SaveOutputInfo(const S: TpbSaver; const Value: TOutputInfo);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt64(TOutputInfo.ftSize, Value.Size);
   S.Pb.writeInt64(TOutputInfo.ftAliasInputPort, Value.AliasInputPort);
@@ -682,20 +675,12 @@ begin
 end;
 
 class procedure TSaveHelper.SaveAggregatedCost(const S: TpbSaver; const Value: TAggregatedCost);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeFloat(TAggregatedCost.ftCost, Value.Cost);
   S.Pb.writeString(TAggregatedCost.ftDimension, Value.Dimension);
 end;
 
 class procedure TSaveHelper.SaveCostGraphDef(const S: TpbSaver; const Value: TCostGraphDef);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   if Value.FNodes.Count > 0 then
     S.SaveList<TNode>(Value.FNodes, SaveNode, TCostGraphDef.ftNodes);
@@ -704,20 +689,12 @@ begin
 end;
 
 class procedure TSaveHelper.SaveDim(const S: TpbSaver; const Value: TDim);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt64(TDim.ftSize, Value.Size);
   S.Pb.writeString(TDim.ftName, Value.Name);
 end;
 
 class procedure TSaveHelper.SaveTensorShapeProto(const S: TpbSaver; const Value: TTensorShapeProto);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   if Value.Dims.Count > 0 then
     S.SaveList<TDim>(Value.Dims, SaveDim, TTensorShapeProto.ftDims);

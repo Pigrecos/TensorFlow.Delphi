@@ -641,9 +641,10 @@ type
   private
     procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
-    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-      Save: TSavePair<Key, Value>; Tag: Integer);
+
   public
+    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);
+
     class procedure SaveGPUOptions(const S: TpbSaver; const Value: TGPUOptions); static;
     class procedure SaveExperimental(const S: TpbSaver; const Value: TExperimental); static;
     class procedure SaveVirtualDevices(const S: TpbSaver; const Value: TVirtualDevices); static;

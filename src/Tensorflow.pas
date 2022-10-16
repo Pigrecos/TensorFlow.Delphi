@@ -274,8 +274,8 @@ type
       function Session: TFSession;overload;
       function get_default_session: TFSession;
       function Variable<T>(data: T;  trainable : Boolean= true; validate_shape: Boolean = true; use_resource: Boolean = true; name : string= '';
-                             dtype: TF_DataType = TF_DataType.DtInvalid; aggregation: TVariableAggregation = TVariableAggregation.VARIABLE_AGGREGATION_NONE; shape : PTFShape= nil):ResourceVariable;
-
+                             dtype: TF_DataType = TF_DataType.DtInvalid; aggregation: TVariableAggregation = TVariableAggregation.VARIABLE_AGGREGATION_NONE; shape : PTFShape= nil):ResourceVariable; overload;
+      function Variable<T>(data: T;  name : string; dtype: TF_DataType = TF_DataType.DtInvalid):ResourceVariable;  overload;
       // tf.tensor
       function convert_to_tensor(value: TValue; dtype: TF_DataType= DtInvalid; name: string= ''; preferred_dtype: TF_DataType=DtInvalid): TFTensor;
 
@@ -670,6 +670,12 @@ function TTensorflow.trainable_variables(scope: string): TArray<IVariableV1>;
 begin
     var Value := variables.trainable_variables;
     Result := Value.AsType< TList<IVariableV1> >.ToArray;
+end;
+
+function TTensorflow.Variable<T>(data: T; name: string; dtype: TF_DataType): ResourceVariable;
+begin
+    var dData := TValue.from<T>(data);
+    Result := ResourceVariable.Create(@dData, {trainable}true,nil, {validate_shape}true, '',name, nil, dtype, '',{aggregation}TVariableAggregation.VARIABLE_AGGREGATION_NONE, {shape}nil)
 end;
 
 function TTensorflow.Variable<T>(data: T;  trainable : Boolean; validate_shape: Boolean; use_resource: Boolean; name : string;dtype: TF_DataType; aggregation: TVariableAggregation; shape : PTFShape):ResourceVariable;

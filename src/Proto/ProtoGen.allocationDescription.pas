@@ -48,11 +48,12 @@ type
     TSave<T> = procedure(const S: TpbSaver; const Value: T);
     TSavePair<Key, Value> = procedure(const S: TpbSaver; const Pair: TsgPair<Key, Value>);
   private
+
+  public
     procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
-    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-      Save: TSavePair<Key, Value>; Tag: Integer);
-  public
+    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);
+
     class procedure SaveAllocationDescription(const S: TpbSaver; const Value: TAllocationDescription); static;
   end;
 
@@ -175,10 +176,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveAllocationDescription(const S: TpbSaver; const Value: TAllocationDescription);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt64(TAllocationDescription.ftRequestedBytes, Value.RequestedBytes);
   S.Pb.writeInt64(TAllocationDescription.ftAllocatedBytes, Value.AllocatedBytes);

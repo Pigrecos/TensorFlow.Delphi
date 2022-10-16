@@ -41,11 +41,12 @@ type
     TSave<T> = procedure(const S: TpbSaver; const Value: T);
     TSavePair<Key, Value> = procedure(const S: TpbSaver; const Pair: TsgPair<Key, Value>);
   private
+
+  public
     procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
-    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-      Save: TSavePair<Key, Value>; Tag: Integer);
-  public
+    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);
+
     class procedure SaveVerifierConfig(const S: TpbSaver; const Value: TVerifierConfig); static;
   end;
 
@@ -148,10 +149,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveVerifierConfig(const S: TpbSaver; const Value: TVerifierConfig);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt64(TVerifierConfig.ftVerificationTimeoutInMs, Value.VerificationTimeoutInMs);
   S.Pb.writeInt32(TVerifierConfig.ftStructureVerifier, Ord(Value.StructureVerifier));

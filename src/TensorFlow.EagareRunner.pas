@@ -336,8 +336,8 @@ begin
          end;
       TF_AttrType.TF_ATTR_SHAPE:
          begin
-            var value1 := value.AsType<TFShape>;
-            var dims := value1.Dims;
+            var value1 := value.AsType<  TArray<Int64>>;
+            var dims := value1;
             TFE_OpSetAttrShape(op, PAnsiChar(AnsiString(key)), @dims[0], Length(dims), status.Handle);
             status.RaiseEx;
          end;
@@ -478,8 +478,10 @@ begin
     Result := [];
     if op_exec_info.ctx = nil then
         op_exec_info.ctx := tf.Context;
+
     if string.IsNullOrEmpty(op_exec_info.device_name) then
         op_exec_info.device_name := tf.Context.DeviceName;
+
     var attr_list_sizes := TDictionary<string, Int64>.Create;
 
     op_exec_info.run_gradient_callback   := HasAccumulatorOrTape;
@@ -487,12 +489,15 @@ begin
     op_exec_info.run_callbacks           := op_exec_info.run_gradient_callback or op_exec_info.run_post_exec_callbacks;
 
     var status := tf.Status;
-    var op := GetOp(op_exec_info.ctx, op_exec_info.op_name, status);
+    var op     := GetOp(op_exec_info.ctx, op_exec_info.op_name, status);
     var op_def := tf.get_default_graph.GetOpDef(op_exec_info.op_name);
+
     var flattened_attrs      := TList<TValue>.Create;
     flattened_attrs.Capacity := op_def.Attrs.Count * 2;
+
     var flattened_inputs      := TList<TFTensor>.Create;
     flattened_inputs.Capacity := op_def.InputArgs.Count;
+
     // Set non-inferred attrs, including setting defaults if the attr is passed in
     // as None.
     if op_exec_info.attrs <> nil then
@@ -580,10 +585,12 @@ begin
           raise Exception.Create('Attributes suggest that the size of an output list is less than 0');
         num_retvals := num_retvals + Integer(delta);
     end;
+
     var retVals : TArray<PTFE_Op> ;
     SetLength(retVals,num_retvals);
     TensorFlow.DApiEager.TFE_Execute(op, @retVals[0], num_retvals, status.Handle);
     status.RaiseEx;
+
     var flat_result : TArray<TFTensor> ;
     for var i := 0 to num_retvals - 1 do
        flat_result := flat_result + [ TEagerTensor.Create( retVals[i] ) ];

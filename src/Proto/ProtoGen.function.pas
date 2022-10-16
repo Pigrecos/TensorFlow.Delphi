@@ -155,9 +155,10 @@ type
   private
     procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
-    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-      Save: TSavePair<Key, Value>; Tag: Integer);
+
   public
+    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;Save: TSavePair<Key, Value>; Tag: Integer);
+
     class procedure SaveFunctionDefLibrary(const S: TpbSaver; const Value: TFunctionDefLibrary); static;
     class procedure SaveFunctionDef(const S: TpbSaver; const Value: TFunctionDef); static;
     class procedure SaveArgAttrs(const S: TpbSaver; const Value: TArgAttrs); static;
@@ -188,6 +189,7 @@ type
   end;
 
 implementation
+           uses Oz.Pb.StrBuffer;
 
 { TFunctionDefLibrary }
 
@@ -1705,10 +1707,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveFunctionDefLibrary(const S: TpbSaver; const Value: TFunctionDefLibrary);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   if Value.FFunctions.Count > 0 then
     S.SaveList<TFunctionDef>(Value.FFunctions, SaveFunctionDef, TFunctionDefLibrary.ftFunctions);
@@ -1719,8 +1717,7 @@ begin
 end;
 
 class procedure TSaveHelper.SaveArgAttrs(const S: TpbSaver; const Value: TArgAttrs);
-var 
-  i : Integer;
+var
   h : TpbSaver;
 
 begin
@@ -1742,7 +1739,6 @@ end;
 
 class procedure TSaveHelper.SaveFunctionDef(const S: TpbSaver; const Value: TFunctionDef);
 var 
-  i : Integer;
   h : TpbSaver;
 
 begin
@@ -1830,27 +1826,19 @@ begin
 end;
 
 class procedure TSaveHelper.SaveGradientDef(const S: TpbSaver; const Value: TGradientDef);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeString(TGradientDef.ftFunctionName, Value.FunctionName);
   S.Pb.writeString(TGradientDef.ftGradientFunc, Value.GradientFunc);
 end;
 
 class procedure TSaveHelper.SaveRegisteredGradient(const S: TpbSaver; const Value: TRegisteredGradient);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeString(TRegisteredGradient.ftGradientFunc, Value.GradientFunc);
   S.Pb.writeString(TRegisteredGradient.ftRegisteredOpType, Value.RegisteredOpType);
 end;
 
 class procedure TSaveHelper.SaveListValue(const S: TpbSaver; const Value: TListValue);
-var 
+var
   i : Integer;
   h : TpbSaver;
 
@@ -1904,10 +1892,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveAttrValue(const S: TpbSaver; const Value: TAttrValue);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   case Value.value.tag of
     TAttrValue.ftS:
@@ -1954,8 +1938,7 @@ begin
 end;
 
 class procedure TSaveHelper.SaveNameAttrList(const S: TpbSaver; const Value: TNameAttrList);
-var 
-  i : Integer;
+var
   h : TpbSaver;
 
 begin
@@ -1977,20 +1960,12 @@ begin
 end;
 
 class procedure TSaveHelper.SaveDtypeAndShape(const S: TpbSaver; const Value: TDtypeAndShape);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt32(TDtypeAndShape.ftDtype, Ord(Value.Dtype));
   S.SaveObj<TTensorShapeProto>(Value.Shape, SaveTensorShapeProto, TDtypeAndShape.ftShape);
 end;
 
 class procedure TSaveHelper.SaveResourceHandleProto(const S: TpbSaver; const Value: TResourceHandleProto);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeString(TResourceHandleProto.ftDevice, Value.Device);
   S.Pb.writeString(TResourceHandleProto.ftContainer, Value.Container);
@@ -2002,10 +1977,9 @@ begin
 end;
 
 class procedure TSaveHelper.SaveExperimentalDebugInfo(const S: TpbSaver; const Value: TExperimentalDebugInfo);
-var 
-  i : Integer;
+var
   h : TpbSaver;
-
+  i : Integer;
 begin
   h.Init;
   try
@@ -2165,10 +2139,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveVariantTensorDataProto(const S: TpbSaver; const Value: TVariantTensorDataProto);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeString(TVariantTensorDataProto.ftTypeName, Value.TypeName);
   S.Pb.writeBytes(TVariantTensorDataProto.ftMetadata, Value.Metadata);
@@ -2177,20 +2147,12 @@ begin
 end;
 
 class procedure TSaveHelper.SaveDim(const S: TpbSaver; const Value: TDim);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt64(TDim.ftSize, Value.Size);
   S.Pb.writeString(TDim.ftName, Value.Name);
 end;
 
 class procedure TSaveHelper.SaveTensorShapeProto(const S: TpbSaver; const Value: TTensorShapeProto);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   if Value.Dims.Count > 0 then
     S.SaveList<TDim>(Value.Dims, SaveDim, TTensorShapeProto.ftDims);
@@ -2198,10 +2160,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveArgDef(const S: TpbSaver; const Value: TArgDef);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeString(TArgDef.ftName, Value.Name);
   S.Pb.writeString(TArgDef.ftDescription, Value.Description);
@@ -2216,10 +2174,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveAttrDef(const S: TpbSaver; const Value: TAttrDef);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeString(TAttrDef.ftName, Value.Name);
   S.Pb.writeString(TAttrDef.ftType, Value.&Type);
@@ -2231,7 +2185,7 @@ begin
 end;
 
 class procedure TSaveHelper.SaveOpDef(const S: TpbSaver; const Value: TOpDef);
-var 
+var
   i : Integer;
   h : TpbSaver;
 
@@ -2262,29 +2216,18 @@ begin
 end;
 
 class procedure TSaveHelper.SaveOpDeprecation(const S: TpbSaver; const Value: TOpDeprecation);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt32(TOpDeprecation.ftVersion, Value.Version);
   S.Pb.writeString(TOpDeprecation.ftExplanation, Value.Explanation);
 end;
 
 class procedure TSaveHelper.SaveOpList(const S: TpbSaver; const Value: TOpList);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   if Value.Ops.Count > 0 then
     S.SaveList<TOpDef>(Value.Ops, SaveOpDef, TOpList.ftOps);
 end;
 
 class procedure TSaveHelper.SaveFullTypeDef(const S: TpbSaver; const Value: TFullTypeDef);
-var 
-  i : Integer;
-  h : TpbSaver;
 
 begin
   S.Pb.writeInt32(TFullTypeDef.ftTypeId, Ord(Value.TypeId));
@@ -2303,32 +2246,24 @@ begin
 end;
 
 procedure TSaveHelper.SaveStringAttrValue(Item: TPair<string, TAttrValue>);
-var
-  h: TpbSaver;
 begin
   Pb.writeString(1, Item.Key);
   SaveObj<TAttrValue>(Item.Value, SaveAttrValue, 2);
 end;
 
 procedure TSaveHelper.SaveUint32ArgAttrs(Item: TsgPair<UInt32, TArgAttrs>);
-var
-  h: TpbSaver;
 begin
   Pb.writeInt32(1, Item.Key);
   SaveObj<TArgAttrs>(Item.Value, SaveArgAttrs, 2);
 end;
 
 procedure TSaveHelper.SaveUint32Uint32(Item: TsgPair<UInt32, UInt32>);
-var
-  h: TpbSaver;
 begin
   Pb.writeInt32(1, Item.Key);
   Pb.writeInt32(2, Item.Value);
 end;
 
 procedure TSaveHelper.SaveStringString(Item: TsgPair<string, string>);
-var
-  h: TpbSaver;
 begin
   Pb.writeString(1, Item.Key);
   Pb.writeString(2, Item.Value);

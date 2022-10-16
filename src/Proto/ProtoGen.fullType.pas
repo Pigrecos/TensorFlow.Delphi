@@ -73,11 +73,12 @@ type
     TSave<T> = procedure(const S: TpbSaver; const Value: T);
     TSavePair<Key, Value> = procedure(const S: TpbSaver; const Pair: TsgPair<Key, Value>);
   private
-    procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
+
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
-    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-      Save: TSavePair<Key, Value>; Tag: Integer);
   public
+    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);
+
+    procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
     class procedure SaveFullTypeDef(const S: TpbSaver; const Value: TFullTypeDef); static;
   end;
 
@@ -208,10 +209,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveFullTypeDef(const S: TpbSaver; const Value: TFullTypeDef);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt32(TFullTypeDef.ftTypeId, Ord(Value.TypeId));
   if Value.FArgss.Count > 0 then

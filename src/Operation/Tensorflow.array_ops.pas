@@ -125,7 +125,10 @@ begin
         Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'Shape'),
                                           function(v1: TNameScope): TFTensor
                                             begin
-                                                var t := Tops.convert_to_tensor(axis, TF_DataType.TF_INT32, 'concat_dim' );
+                                                // Make a throwaway call to convert_to_tensor to make sure
+                                                // that axis is of the correct type, and make sure that
+                                                // the returned tensor is a scalar.
+                                                Tops.convert_to_tensor(axis, TF_DataType.TF_INT32, 'concat_dim' );
                                                 Result := identity(values[0], v1.ToString);;
                                             end );
         Exit;

@@ -438,8 +438,9 @@ begin
     end
     else if attr_def.&Type = 'type' then
     begin
+        var tipo := _MakeType( TF_DataType(value.AsType<Integer>), attr_def);
         v.tag   := TAttrValue.ftType;
-        v.value := value;
+        v.value :=  TValue.From<Integer>( Ord(tipo));
 
         attr_value.Value := v;
     end
@@ -500,30 +501,26 @@ begin
          if (value.IsEmpty) and ( not attr_def.DefaultValue.Value.value.IsEmpty) then
              attr_value.Value := attr_def.DefaultValue.Value;
 
-         if (value.IsEmpty=False)  then
+         if value.IsType<TArray<Integer> > then
          begin
-             if value.IsType<TFShape> then
-             begin
-                 var v1 := TUtils.as_shape_proto(value.AsType<TFShape>) ;
-                 v.tag  := TAttrValue.ftShape;
-                 v.value:= TValue.From<TTensorShapeProto>(v1) ;
-                 attr_value.Value := v;
-             end
-             else if value.IsType< TArray<Int64> > then
-             begin
-                 var v1 := TUtils.as_shape<Int64>(value.AsType<TArray<Int64>>) ;
-                 v.tag  := TAttrValue.ftShape;
-                 v.value:= TValue.From<TTensorShapeProto>(v1) ;
-                 attr_value.Value := v;
-             end
-             else if value.IsType< TArray<Integer> > then
-             begin
-                 var v1 := TUtils.as_shape<Integer>(value.AsType< TArray<Integer>>) ;
-                 v.tag  := TAttrValue.ftShape;
-                 v.value:= TValue.From<TTensorShapeProto>(v1) ;
-                 attr_value.Value := v;
-             end;
-
+             var v1 := TUtils.as_shape_proto(value.AsType<TArray<Integer>>) ;
+             v.tag  := TAttrValue.ftShape;
+             v.value:= TValue.From<TTensorShapeProto>(v1) ;
+             attr_value.Value := v;
+         end
+         else if value.IsType< TArray<Int64> > then
+         begin
+             var v1 := TUtils.as_shape<Int64>(value.AsType<TArray<Int64>>) ;
+             v.tag  := TAttrValue.ftShape;
+             v.value:= TValue.From<TTensorShapeProto>(v1) ;
+             attr_value.Value := v;
+         end
+         else if value.IsType< TFShape > then
+         begin
+             var v1 := TUtils.as_shape<Integer>(value.AsType<  TFShape >) ;
+             v.tag  := TAttrValue.ftShape;
+             v.value:= TValue.From<TTensorShapeProto>(v1) ;
+             attr_value.Value := v;
          end;
     end
     else if attr_def.&Type = 'list(shape)' then

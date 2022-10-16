@@ -93,9 +93,11 @@ type
     TSavePair<Key, Value> = procedure(const S: TpbSaver; const Pair: TsgPair<Key, Value>);
   private
     procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
+
+  public
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
     procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);
-  public
+
     class procedure SaveVariableDef(const S: TpbSaver; const Value: TVariableDef); static;
     class procedure SaveSaveSliceInfoDef(const S: TpbSaver; const Value: TSaveSliceInfoDef); static;
   end;

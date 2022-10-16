@@ -5,6 +5,8 @@ unit TensorFlow.EagerTensor;
 
 interface
    uses System.SysUtils,
+        System.Rtti,
+
         TF4D.Core.CApi,
         TensorFlow.DApiEager,
         TensorFlow.DApi;
@@ -24,6 +26,7 @@ type
        constructor Create(h:Pointer);overload;
        constructor Create(h: Pointer;NewEagerTensor: Boolean);overload; override;
        constructor Create(shape: TFShape;dType: TF_DataType);overload;
+       constructor Create(value: TValue; shape: PTFShape); overload;
 
        constructor Create(bytes: TArray<TF_TString>;shape: TFShape);overload;
 
@@ -85,7 +88,10 @@ type
   end;
 
 implementation
-      uses Tensorflow, Tensorflow.Utils, TensorFlow.Ops;
+      uses System.TypInfo,
+           Tensorflow,
+           Tensorflow.Utils,
+           TensorFlow.Ops;
 
 { TEagerTensor }
 
@@ -291,6 +297,151 @@ begin
     inherited Create( TFTensor.InitTensor<Double>(bytes,shape,dtype));
     NewEagerTensorHandle(Handle);
 end;
+
+constructor TEagerTensor.Create(value: TValue; shape: PTFShape);
+var
+  aDim  : Integer;
+  dtype : TF_DataType;
+  vValue: TValue;
+  lIsArray : Boolean;
+begin
+    aDim := 0;
+    vValue := value;
+    lIsArray := False;
+    while vValue.IsArray do
+    begin
+        lIsArray := True;
+        vValue := vValue.GetArrayElement(0);
+        inc(aDim)
+    end;
+
+    var v : TFShape;
+    if (shape = nil) or (shape.IsNil) then
+    begin
+        v := TUtils.GetShape(value);
+        shape := @v;
+    end;
+
+    dtype:= TUtils.GetDataType(value);
+
+    if (shape.Size = 0) and (dtype <> TF_DataType.TF_STRING ) then
+    begin
+        inherited Create(shape, dtype);
+        Exit;
+    end;
+
+    if (lIsArray) and (dtype = TF_DOUBLE) and (string.LowerCase(vValue.TypeInfo.Name).Contains('extended')) then
+    begin
+        case aDim of
+          1: begin
+             var aValue : TArray<Double> := [];
+             var a := value.AsType< TArray<Extended> > ;
+             for var i := 0 to Length(a)- 1 do
+               aValue := aValue + [ Double(a[i]) ];
+
+             Value := TValue.From< TArray<Double> >(aValue);
+          end;
+          2:begin
+             var aValue : TArray< TArray<Double> > ;
+             var a := value.AsType< TArray< TArray<Extended>> > ;
+             for var i := 0 to Length(a) -1 do
+             begin
+                 SetLength(aValue,Length(aValue)+1);
+                 for var j := 0 to Length(a[i])- 1 do
+                   aValue[i] := aValue[i] + [ Double(a[i][j]) ];
+             end;
+
+             Value := TValue.From< TArray<TArray<Double>> >(aValue);
+          end;
+          3: begin
+             var aValue : TArray<TArray<TArray<Single>>> ;
+             var a := value.AsType< TArray<TArray<TArray<Single>>> > ;
+             for var i := 0 to Length(a) -1 do
+             begin
+                 SetLength(aValue,Length(aValue)+1);
+                 for var j := 0 to Length(a[i])- 1 do
+                 begin
+                      SetLength(aValue[i],Length(aValue[i])+1);
+                      for var k := 0 to Length(a[i][j])- 1 do
+                        aValue[i][j] := aValue[i][j] + [ Double(a[i][j][k]) ];
+                 end;
+             end;
+          end;
+        end;
+    end;
+
+
+    case aDim of
+       0 : begin
+         case dtype of
+           TF_FLOAT:  Create( Single(value.AsExtended) );
+           TF_DOUBLE: Create( double(value.AsExtended) );
+           TF_INT32:  Create( value.AsInteger );
+           TF_UINT8:  Create( Byte(value.AsOrdinal) );
+           TF_INT16:  Create( int16(value.AsOrdinal) );
+           TF_INT8:   Create( int8(value.AsOrdinal) ) ;
+           TF_STRING: Create( AnsiString(value.AsString) );
+           TF_INT64:  Create( value.AsInt64 );
+           TF_BOOL:   Create( value.AsBoolean );
+           TF_UINT16: Create( word(value.AsOrdinal) );
+           TF_UINT32: Create( Cardinal(value.AsOrdinal) );
+           TF_UINT64: Create( value.AsUInt64 );
+         end;
+       end;
+       1 : begin
+         case dtype of
+           TF_FLOAT:  Create( value.AsType< TArray<Single> >,  shape,dtype) ;
+           TF_DOUBLE: Create( value.AsType< TArray<Double> >,  shape,dtype) ;
+           TF_INT32:  Create( value.AsType< TArray<Int32> >,    shape,dtype) ;
+           TF_UINT8:  Create( value.AsType< TArray<UInt8> >,    shape,dtype) ;
+           TF_INT16:  Create( value.AsType< TArray<Int16> >,    shape,dtype) ;
+           TF_INT8:   Create( value.AsType< TArray<Int8> >,      shape,dtype) ;
+           TF_STRING: Create( value.AsType< TArray<string> >,  shape,dtype) ;
+           TF_INT64:  Create( value.AsType< TArray<Int64> >,    shape,dtype) ;
+           TF_BOOL:   Create( value.AsType< TArray<Boolean> >,shape,dtype) ;
+           TF_UINT16: Create( value.AsType< TArray<UInt16> >,  shape,dtype) ;
+           TF_UINT32: Create( value.AsType< TArray<UInt32> >,  shape,dtype);
+           TF_UINT64: Create( value.AsType< TArray<UInt64> >,  shape,dtype) ;
+         end;
+       end;
+       2 : begin
+         case dtype of
+           TF_FLOAT:  Create( value.AsType< TArray<TArray<Single>> >,  shape,dtype) ;
+           TF_DOUBLE: Create( value.AsType< TArray<TArray<Double>> >,  shape,dtype) ;
+           TF_INT32:  Create( value.AsType< TArray<TArray<Int32>> >,    shape,dtype);
+           TF_UINT8:  Create( value.AsType< TArray<TArray<UInt8>> >,    shape,dtype) ;
+           TF_INT16:  Create( value.AsType< TArray<TArray<Int16>> >,    shape,dtype) ;
+           TF_INT8:   Create( value.AsType< TArray<TArray<Int8>> >,      shape,dtype) ;
+           TF_STRING: Create( value.AsType< TArray<TArray<string>> >,  shape,dtype) ;
+           TF_INT64:  Create( value.AsType< TArray<TArray<Int64>> >,    shape,dtype) ;
+           TF_BOOL:   Create( value.AsType< TArray<TArray<Boolean>> >,shape,dtype) ;
+           TF_UINT16: Create( value.AsType< TArray<TArray<UInt16>> >,  shape,dtype) ;
+           TF_UINT32: Create( value.AsType< TArray<TArray<UInt32>> >,  shape,dtype) ;
+           TF_UINT64: Create( value.AsType< TArray<TArray<UInt64>> >,  shape,dtype) ;
+         end;
+       end;
+       3 : begin
+         case dtype of
+           TF_FLOAT:  Create( value.AsType< TArray<TArray<TArray<Single>>> >,  shape,dtype) ;
+           TF_DOUBLE: Create( value.AsType< TArray<TArray<TArray<Double>>> >,  shape,dtype) ;
+           TF_INT32:  Create( value.AsType< TArray<TArray<TArray<Int32>>> >,    shape,dtype) ;
+           TF_UINT8:  Create( value.AsType< TArray<TArray<TArray<UInt8>>> >,    shape,dtype) ;
+           TF_INT16:  Create( value.AsType< TArray<TArray<TArray<Int16>>> >,    shape,dtype) ;
+           TF_INT8:   Create( value.AsType< TArray<TArray<TArray<Int8>>> >,      shape,dtype) ;
+           TF_STRING: Create( value.AsType< TArray<TArray<TArray<string>>> >,  shape,dtype) ;
+           TF_INT64:  Create( value.AsType< TArray<TArray<TArray<Int64>>> >,    shape,dtype) ;
+           TF_BOOL:   Create( value.AsType< TArray<TArray<TArray<Boolean>>> >,shape,dtype) ;
+           TF_UINT16: Create( value.AsType< TArray<TArray<TArray<UInt16>>> >,  shape,dtype) ;
+           TF_UINT32: Create( value.AsType< TArray<TArray<TArray<UInt32>>> >,  shape,dtype);
+           TF_UINT64: Create( value.AsType< TArray<TArray<TArray<UInt64>>> >,  shape,dtype) ;
+         end;
+
+       end;
+
+    end;
+
+end;
+
 
 procedure TEagerTensor.copy_handle_data(target_t: TFTensor);
 begin

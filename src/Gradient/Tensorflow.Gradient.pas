@@ -24,8 +24,8 @@ type
     private
        Ftensor  : TFTensor;
        
-    function GetShape: TFShape;
-    function GetType: TF_DataType;
+       function GetShape: TFShape;
+       function GetType: TF_DataType;
 
     public
        constructor Create(t: TFTensor);
@@ -42,10 +42,10 @@ type
   end;
 
   ITape = class
-
-
+     private
      public
         F_persistent : Boolean;
+
         procedure SetTapeId(id: Integer); virtual; abstract;
         function  ShouldRecord(tensors: TArray<TFTensor>): Boolean;virtual; abstract;
         procedure StartRecord;virtual; abstract;
@@ -97,7 +97,7 @@ type
        FnextTapeId : Integer;
        Ftape       : ITape;
        FtapeSet    : TStack<ITape>;
-    function GetTape: ITape;
+       function GetTape: ITape;
     protected
       procedure NativeDispose(hnd: Pointer); override;
     public
@@ -148,6 +148,7 @@ type
         /// </summary>
         // Stack<AccumulatorCallState> call_state_;
         constructor Create(persistent: Boolean; watch_accessed_variables: Boolean);
+        destructor Destroy;override;
         /// <summary>
         /// Marks this tensor to be watched by the given tape.
         /// </summary>
@@ -214,6 +215,7 @@ end;
 
 constructor TGradientTape.Create;
 begin
+    Ftape    :=  ITape.Create;
     FtapeSet := TStack<ITape>.Create;
 end;
 
@@ -221,6 +223,7 @@ destructor TGradientTape.Destroy;
 begin
   FtapeSet.Clear;
   FtapeSet.Free;
+  Ftape.Free;
   inherited;
 end;
 
@@ -315,6 +318,8 @@ end;
 
 constructor TTape.Create(persistent, watch_accessed_variables: Boolean);
 begin
+    inherited Create;
+
     F_persistent      := persistent;
     F_created_eagerly := tf.Context.executing_eagerly;
     Ftensor_tape_     := TDictionary<TFTensor, Int64>.Create;
@@ -322,6 +327,16 @@ begin
     Ftensor_usage_    := TDictionary<TFTensor, Int64>.Create;
     if F_created_eagerly then
         tf.Context.start_step;
+
+end;
+
+destructor TTape.Destroy;
+begin
+    Ftensor_tape_.free;
+    Fop_tape_.Free;
+    Ftensor_usage_.free;
+
+    inherited Destroy
 end;
 
 function TTape.IsDtypeTrainable(dtype: TF_DataType): Boolean;

@@ -109,9 +109,10 @@ type
   private
     procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
-    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-      Save: TSavePair<Key, Value>; Tag: Integer);
+
   public
+    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);
+
     class procedure SaveAttrValue(const S: TpbSaver; const Value: TAttrValue); static;
     class procedure SaveListValue(const S: TpbSaver; const Value: TListValue); static;
     class procedure SaveNameAttrList(const S: TpbSaver; const Value: TNameAttrList); static;
@@ -125,7 +126,7 @@ type
   end;
 
 implementation
-
+          uses Oz.Pb.StrBuffer;
 { TListValue }
 
 procedure TListValue.Init;
@@ -985,10 +986,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveAttrValue(const S: TpbSaver; const Value: TAttrValue);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   case Value.value.tag of
     TAttrValue.ftS:
@@ -1036,7 +1033,6 @@ end;
 
 class procedure TSaveHelper.SaveNameAttrList(const S: TpbSaver; const Value: TNameAttrList);
 var 
-  i : Integer;
   h : TpbSaver;
 
 begin
@@ -1162,10 +1158,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveVariantTensorDataProto(const S: TpbSaver; const Value: TVariantTensorDataProto);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeString(TVariantTensorDataProto.ftTypeName, Value.TypeName);
   S.Pb.writeBytes(TVariantTensorDataProto.ftMetadata, Value.Metadata);
@@ -1174,20 +1166,12 @@ begin
 end;
 
 class procedure TSaveHelper.SaveDim(const S: TpbSaver; const Value: TDim);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt64(TDim.ftSize, Value.Size);
   S.Pb.writeString(TDim.ftName, Value.Name);
 end;
 
 class procedure TSaveHelper.SaveTensorShapeProto(const S: TpbSaver; const Value: TTensorShapeProto);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   if Value.Dims.Count > 0 then
     S.SaveList<TDim>(Value.Dims, SaveDim, TTensorShapeProto.ftDims);
@@ -1195,20 +1179,12 @@ begin
 end;
 
 class procedure TSaveHelper.SaveDtypeAndShape(const S: TpbSaver; const Value: TDtypeAndShape);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt32(TDtypeAndShape.ftDtype, Ord(Value.Dtype));
   S.SaveObj<TTensorShapeProto>(Value.Shape, SaveTensorShapeProto, TDtypeAndShape.ftShape);
 end;
 
 class procedure TSaveHelper.SaveResourceHandleProto(const S: TpbSaver; const Value: TResourceHandleProto);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeString(TResourceHandleProto.ftDevice, Value.Device);
   S.Pb.writeString(TResourceHandleProto.ftContainer, Value.Container);
@@ -1220,8 +1196,6 @@ begin
 end;
 
 procedure TSaveHelper.SaveStringAttrValue(Item: TPair<string, TAttrValue>);
-var
-  h: TpbSaver;
 begin
   Pb.writeString(1, Item.Key);
   SaveObj<TAttrValue>(Item.Value, SaveAttrValue, 2);

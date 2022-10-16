@@ -267,7 +267,6 @@ var
 begin
     if initialized then  Exit;
 
-
     var opts   := TContextOptions.Create;
     var status := TFStatus.Create;
 

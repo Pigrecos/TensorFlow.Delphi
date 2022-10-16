@@ -9,7 +9,8 @@ interface
           System.TypInfo,
 
           Spring,
-          spring.Collections.Lists,
+          Spring.Collections.Lists,
+          Spring.Collections.Stacks,
 
           TF4D.Core.CApi,
           TensorFlow.DApiBase,
@@ -174,7 +175,7 @@ type
         destructor  Destroy; override;
         procedure __init__(ttrainable : Boolean= true; hHandle: TFTensor = nil; sName: string = ''; unique_id: string = ''; handle_name: string = '');
         function AsTensor(dtype: TF_DataType = TF_DataType.DtInvalid; name : string= ''; as_ref : Boolean= false): TFTensor;
-        function numpy: TNDArray;
+        function numpy: TNDArray; virtual;
         function assign_add<T>(delta :T ; use_locking : Boolean = false; name: string = ''; read_value: Boolean = true):TFTensor;
         function assign_sub<T>(delta: T; use_locking: Boolean = false; name: string = ''; read_value : Boolean= true):TFTensor;
         function assign_sub_lazy_load(delta: TFTensor; name: string = ''): IVariableV1;
@@ -256,18 +257,10 @@ type
                                   dtype         : TF_DataType = TF_DataType.DtInvalid;
                                   aggregation   : TVariableAggregation = TVariableAggregation.VARIABLE_AGGREGATION_NONE;
                                   shape         : PTFShape= nil);
+       function GetTrainable: Boolean;
+       function GetParent_op: TFTEnsor;
      protected
-        Fname          : string;
-        Fhandle_name   : string;
-        Fdtype         : TF_DataType ;
-        Funique_id     : string;
-        Fin_graph_mode : Boolean;
-        Ftrainable     : Boolean;
         Finitial_value : TFTensor;
-        Finitializer_op: TFOperation;
-        Fparent_op     : TFTEnsor;
-        FHandle        : TFTEnsor;
-        Fgraph_element : TFTEnsor;
         FShape         : TFShape;
 
      public
@@ -286,13 +279,14 @@ type
         function  sparse_read(indices: TFTensor; name : string= 'Gather') : TFTensor;
         function  to_proto(export_scope: string): TVariableDef;
         function  eval(session: TFSession = nil): TNDArray;
+        function  numpy: TNDArray; override;
 
         property Name        : string       read GetName;
         property dtype       : TF_DataType  read GetTipo;
         property UniqueId    : string       read GetUniqueId;
-        property trainable   : Boolean      read Ftrainable;
+        property trainable   : Boolean      read GetTrainable;
         property Initializer : TFOperation  read GetInitializer;
-        property parent_op   : TFTEnsor     read Fparent_op;
+        property parent_op   : TFTEnsor     read GetParent_op;
         property GraphElement: TFTEnsor     read GetGraphEle;
         property Shape       : TFShape      read GetShape;
         property Op          : TFOperation  read GetOP;
@@ -355,6 +349,8 @@ type
 
 implementation
      uses Oz.Pb.Classes,
+
+          Tensorflow.Gradient,
 
           Tensorflow,
           Tensorflow.Utils,
@@ -589,16 +585,13 @@ begin
                       begin
                           Fhandle         := state_ops.variable_op_v2(Finitial_value.shape, Tdtypes.as_base_dtype(Finitial_value.dtype), name);
                           Finitializer_op := gen_state_ops.assign(Fhandle, Finitial_value, true).op;
-
                           Tops.colocate_with(Finitializer_op);
-
                           Fgraph_element := gen_array_ops.identity(Fhandle, 'read');
                           Tops.Add_to_collection<IVariableV1>(collections, Self);
-                          Fdtype := Fhandle.dtype;
+                          Fdtype :=  Fhandle.dtype;
                       end else
                       begin
                           Fhandle := resource_variable_ops.eager_safe_variable_handle(Finitial_value,Fshape, shared_name,name, Fin_graph_mode);
-
                           gen_resource_variable_ops.assign_variable_op(Fhandle, Finitial_value);
                           Finitializer_op := nil;
                           Fgraph_element  := nil;
@@ -662,6 +655,11 @@ begin
     Result := FHandle.Op;
 end;
 
+function ResourceVariable.GetParent_op: TFTEnsor;
+begin
+    Result := Fparent_op;
+end;
+
 function ResourceVariable.GetShape: TFShape;
 begin
     Result := FShape
@@ -672,9 +670,22 @@ begin
     Result := Fdtype
 end;
 
+function ResourceVariable.GetTrainable: Boolean;
+begin
+    Result := Ftrainable;
+end;
+
 function ResourceVariable.GetUniqueId: string;
 begin
     Result := Funique_id
+end;
+
+function ResourceVariable.numpy: TNDArray;
+begin
+    if tf.context.executing_eagerly then
+      Result := inherited numpy
+    else
+      raise TFException.Create('numpy() is only available when eager execution is enabled.')
 end;
 
 function ResourceVariable.sparse_read(indices: TFTensor; name: string): TFTensor;
@@ -839,8 +850,12 @@ procedure BaseResourceVariable.variable_accessed(variable: BaseResourceVariable)
 begin
     if variable.trainable then
     begin
-        for var tape in tf.GetTapeSet do
+        var st : TStack<ITape> := tf.GetTapeSet;
+        for var i:= 0 to st.Count - 1 do
+        begin
+            var tape := st.ElementAt(i) ;
             tape.VariableAccessed(variable as ResourceVariable);
+        end;
     end;
 end;
 
@@ -991,5 +1006,6 @@ begin
 end;
 
 end.
+
 
 

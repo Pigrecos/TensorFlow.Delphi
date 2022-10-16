@@ -105,11 +105,12 @@ type
     TSave<T> = procedure(const S: TpbSaver; const Value: T);
     TSavePair<Key, Value> = procedure(const S: TpbSaver; const Pair: TsgPair<Key, Value>);
   private
-    procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
+
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
-    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-      Save: TSavePair<Key, Value>; Tag: Integer);
   public
+    procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
+    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);
+
     class procedure SaveDebugTensorWatch(const S: TpbSaver; const Value: TDebugTensorWatch); static;
     class procedure SaveDebugOptions(const S: TpbSaver; const Value: TDebugOptions); static;
     class procedure SaveDebuggedSourceFile(const S: TpbSaver; const Value: TDebuggedSourceFile); static;
@@ -440,10 +441,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveDebugOptions(const S: TpbSaver; const Value: TDebugOptions);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   if Value.FDebugTensorWatchOptss.Count > 0 then
     S.SaveList<TDebugTensorWatch>(Value.FDebugTensorWatchOptss, SaveDebugTensorWatch, TDebugOptions.ftDebugTensorWatchOptss);
@@ -452,7 +449,7 @@ begin
 end;
 
 class procedure TSaveHelper.SaveDebuggedSourceFile(const S: TpbSaver; const Value: TDebuggedSourceFile);
-var 
+var
   i : Integer;
   h : TpbSaver;
 
@@ -472,10 +469,6 @@ begin
 end;
 
 class procedure TSaveHelper.SaveDebuggedSourceFiles(const S: TpbSaver; const Value: TDebuggedSourceFiles);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   if Value.FSourceFiless.Count > 0 then
     S.SaveList<TDebuggedSourceFile>(Value.FSourceFiless, SaveDebuggedSourceFile, TDebuggedSourceFiles.ftSourceFiless);

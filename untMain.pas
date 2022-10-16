@@ -57,7 +57,8 @@ type
       procedure Tensor_boolean_mask;
       //
       procedure Variabele_InitVariable;
-
+      procedure Variabele_NewVariable;
+      procedure Variabele_StringVar;
   end;
 
   TForm1 = class(TForm)
@@ -66,7 +67,8 @@ type
     procedure btn1Click(Sender: TObject);
     procedure FormShow(Sender: TObject);
   private
-
+    procedure EnableEager;
+    procedure DisableEager;
   public
     { Public declarations }
   end;
@@ -151,7 +153,7 @@ begin
     // var aValue : NDArray  := np.np_array(input1).astype(np.np_float32) ; Valid
     var aValue : NDArray  := np.np_array<Integer>([1, 2, 3, 4, 5, 6]).astype(np.np_float32) ;
     aValue := aValue + Single(0.1);
-    var ret := sess.run(op, [ FeedItem.Create( input, aValue ) ] );
+    sess.run(op, [ FeedItem.Create( input, aValue ) ] );
 end;
 
 procedure TUnitTest_Basic.Session_Autocast_Case3;
@@ -173,8 +175,8 @@ begin
 
     var r := ret.ToArray<Single>;
 
-    var tipo := ret.dtype;
     var t    := ret.ToString;
+    Assert.AreEqual('tf.Tensor "<unnamed>:0" shape=2,3 dtype=float32',t);
 end;
 
 procedure TUnitTest_Basic.Session_EvalTensor;
@@ -279,12 +281,29 @@ begin
     var v    := tf.Variable(aVar);
     var init := tf.compat.v1.global_variables_initializer;
     var sess := tf.compat.v1.Session;
-    sess.run(init);
+    var g := sess.run(init);
     // Usage passing the session explicitly.
     v.eval(sess);
     // Usage with the default session.  The 'with' block
     // above makes 'sess' the default session.
     v.eval;
+end;
+
+procedure TUnitTest_Basic.Variabele_NewVariable;
+begin
+    var x := tf.Variable(10, 'x');
+    Assert.AreEqual(0, x.shape.ndim);
+    if tf.context.executing_eagerly then
+    begin
+        var n : NDArray := x.numpy;
+        Assert.AreEqual(Integer(n), 10);
+    end;
+end;
+
+procedure TUnitTest_Basic.Variabele_StringVar;
+begin
+    var mammal1 := tf.Variable('Elephant', 'var1', tf.string_t);
+    var mammal2 := tf.Variable('Tiger');
 end;
 
 procedure TForm1.FormShow(Sender: TObject);
@@ -325,10 +344,27 @@ begin
     //
     mmo1.Lines.Add('Variable Test Start....');
     UnitTest.Variabele_InitVariable;
+
+    EnableEager  ;
+    UnitTest.Variabele_NewVariable;
+    UnitTest.Variabele_StringVar;
     mmo1.Lines.Add('Variable Test End....');
     // End Variable Test
     //
+    DisableEager;
     UnitTest.Free;
+end;
+
+procedure TForm1.EnableEager;
+begin
+  if not tf.executing_eagerly then
+     tf.enable_eager_execution;
+  tf.Context.ensure_initialized;
+end;
+
+procedure TForm1.DisableEager;
+begin
+   tf.compat.v1.disable_eager_execution;
 end;
 
 end.

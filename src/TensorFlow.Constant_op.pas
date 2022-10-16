@@ -263,6 +263,11 @@ begin
     begin
         var vval : Double := Value.AsType<Double>;
         Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_DOUBLE);
+    end
+    else if value.isArray then
+    begin
+        var sShape : TFShape := TUtils.GetShape(value);
+        Result := TEagerTensor.Create(value, @sShape);
     end else
     begin
        raise Exception.Create('NotImplemented convert_to_eager_tensor Type: '+ Value.TypeInfo.Name);

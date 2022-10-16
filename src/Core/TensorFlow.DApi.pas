@@ -1876,6 +1876,9 @@ var
   final_fetches : TList<TFTensor>;
   final_targets : TList<TValue>;
 begin
+    if Fgraph.version = 0 then
+      raise TFException.Create('The Session graph is empty. Add operations to the graph before calling run().');
+
     var feed_dict_tensor := TDictionary<TValue, TValue>.Create;
     try
 
@@ -2195,6 +2198,8 @@ end;
 
 function TFTensor.eval(session: TFSession; feed_dict: TArray<FeedItem>): TNDArray;
 begin
+    if self = nil then
+      raise TFException.Create('Run in Empty Session. TFTensor.eval(). Run in Graph mode?');
     Result := Tops._eval_using_default_session(self, feed_dict, graph, session);
 end;
 
@@ -3705,6 +3710,8 @@ begin
       FOutputs[i] := TFTensor.Create(self, i, output_types[i]);
 
    FGraph.Add_op(Self);
+
+   FOp := self;
 
    if Handle <> nil then
        _control_flow_post_processing;

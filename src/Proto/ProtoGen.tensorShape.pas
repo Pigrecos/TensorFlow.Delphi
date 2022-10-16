@@ -53,11 +53,12 @@ type
     TSave<T> = procedure(const S: TpbSaver; const Value: T);
     TSavePair<Key, Value> = procedure(const S: TpbSaver; const Pair: TsgPair<Key, Value>);
   private
-    procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
-    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-      Save: TSavePair<Key, Value>; Tag: Integer);
+
   public
+    procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
+    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);
+
     class procedure SaveTensorShapeProto(const S: TpbSaver; const Value: TTensorShapeProto); static;
     class procedure SaveDim(const S: TpbSaver; const Value: TDim); static;
   end;
@@ -213,20 +214,12 @@ begin
 end;
 
 class procedure TSaveHelper.SaveDim(const S: TpbSaver; const Value: TDim);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   S.Pb.writeInt64(TDim.ftSize, Value.Size);
   S.Pb.writeString(TDim.ftName, Value.Name);
 end;
 
 class procedure TSaveHelper.SaveTensorShapeProto(const S: TpbSaver; const Value: TTensorShapeProto);
-var 
-  i : Integer;
-  h : TpbSaver;
-
 begin
   if Value.FDims.Count > 0 then
     S.SaveList<TDim>(Value.FDims, SaveDim, TTensorShapeProto.ftDims);
