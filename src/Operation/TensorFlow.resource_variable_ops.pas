@@ -1,4 +1,16 @@
 unit TensorFlow.resource_variable_ops;
+(*****************************************************************************
+   Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+******************************************************************************)
 
 interface
         uses System.SysUtils,
@@ -89,10 +101,8 @@ class function resource_variable_ops.variable_handle_from_shape_and_dtype(shape:
 begin
     var container := Tops.get_default_graph.Container;
     var handle    := gen_resource_variable_ops.var_handle_op(dtype,shape, container, shared_name, name );
-
     if initial_value = nil then
         initial_value := handle;
-
     if graph_mode then
     begin
         var full_handle_data := _combine_handle_data(handle, initial_value);
@@ -106,20 +116,16 @@ begin
         // When in eager mode, explicitly ensure so here. When in graph mode, it's
         // ensured by always generating different variable names.
         var exists := gen_resource_variable_ops.var_is_initialized_op(handle);
-
         // We create an assert Op instead of checking right away in order to be
         // compatible with ASYNC execution mode. Further, since not all devices
         // support string tensors, we encode the assertion string in the Op name
         (*gen_logging_ops.assert(gen_math_ops.logical_not(exists),
             new[] { exists },
             name: "EagerVariableNameReuse");*)
-
         var handle_data : THandleData; handle_data.Init;
         var item : THandleShapeAndType;  item.init;
-
         item.Shape := TUtils.as_shape_proto(shape);
         item.Dtype := TDtypes.as_datatype_enum(dtype);
-
         handle_data.ShapeAndTypes.Add(@item);
         _set_handle_shapes_and_types(handle, handle_data, graph_mode);
         Result := handle;
@@ -132,7 +138,6 @@ begin
 
     if initial_value.dtype <> Tdtypes.cvariant then
         Exit(variable_handle_data);
-
     raise TFException.Create('Not Implemented') ;
 end;
 
@@ -140,12 +145,9 @@ class procedure resource_variable_ops._set_handle_shapes_and_types(tensor: TFTen
 begin
     if not graph_mode then
         Exit;
-
     var size := handle_data.ShapeAndTypes.Count;
-
     var types : TArray<TDataType> ; SetLength(types,size);
     var ranks : TArray<Integer>;   SetLength(ranks,size);
-
     for var i := 0 to size -1 do
     begin
         var shapeAndType := handle_data.ShapeAndTypes[i];
@@ -161,10 +163,8 @@ begin
     begin
         var data : THandleData ; data.Init ;
         var item : THandleShapeAndType ; item.Init;
-
         item.Shape := TUtils.as_shape_proto(handle.shape);
         item.Dtype := TDtypes.as_datatype_enum(handle.dtype);
-
         data.ShapeAndTypes.Add(@item);
         Result := data;
     end else
@@ -174,7 +174,6 @@ begin
         Loader.Pb.Init(@protoByte[0],Length(protoByte),false);
         var protoHandle : THandleData;
         Loader.LoadHandleData(protoHandle);
-
         Result := protoHandle;
     end;
 end;

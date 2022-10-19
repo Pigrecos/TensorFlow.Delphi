@@ -1,15 +1,37 @@
 unit TensorFlow.Framework;
+(*****************************************************************************
+   Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+******************************************************************************)
 
 interface
-      uses System.SysUtils, spring.Collections.Dictionaries,
+      uses System.SysUtils,
+
+           Spring,
+           Spring.Collections.Dictionaries,
 
            TF4D.Core.CApi,
            TensorFlow.DApiBase,
+           TensorFlow.DApi,
 
            Oz.Pb.Classes,
            ProtoGen.opDef;
 
 type
+  common_shapes = class
+     public
+       class function has_fully_defined_shape(tensor: TFTensor): Boolean;
+       class function rank(tensor: TFTensor): Integer;
+  end;
+
   /// <summary>
   /// Abstract base class for Tensor-like objects that are composed from Tensors.
   /// </summary>
@@ -26,8 +48,25 @@ type
      class function GetOpDef(tipo : string): TOpDef;
    end;
 
+   random_seed = record
+     private
+        const DEFAULT_GRAPH_SEED = 87654321;
+        class var Fgraph_to_seed_dict : TDictionary<string,Integer> ;
+     public
+       class function get_seed(op_seed: TNullableInteger) : Tuple<TNullableInteger,TNullableInteger>; static;
+       class function get_seed_tensor(op_seed: TNullableInteger) : Tuple<TFTensor,TFTensor>; static;
+   end;
+
 implementation
-   uses System.Classes;
+   uses System.Classes,
+        System.Math,
+        TensorFlow.Constant_op,
+        Tensorflow,
+        TensorFlow.Ops,
+        Tensorflow.Utils,
+        Tensorflow.NameScope,
+        Tensorflow.array_ops,
+        Tensorflow.math_ops;
 
 { op_def_registry }
 
@@ -65,6 +104,90 @@ begin
     end;
 
     Result := registered_ops
+end;
+
+{ common_shapes }
+
+class function common_shapes.has_fully_defined_shape(tensor: TFTensor): Boolean;
+begin
+   Result := tensor.shape.IsFullyDefined;
+end;
+
+class function common_shapes.rank(tensor: TFTensor): Integer;
+begin
+   Result := tensor.rank;
+end;
+
+{ random_seed }
+
+class function random_seed.get_seed(op_seed: TNullableInteger): Tuple<TNullableInteger, TNullableInteger>;
+var
+ seed: Integer;
+begin
+    var global_seed: Nullable<Integer>;
+
+    if tf.executing_eagerly then
+        global_seed := tf.Context.global_seed
+    else
+        global_seed := Tops.get_default_graph.seed;
+    if global_seed.HasValue then
+    begin
+        if  not op_seed.HasValue then
+        begin
+            if tf.executing_eagerly then
+            begin
+                op_seed := tf.Context.internal_operation_seed;
+            end
+            else begin
+                 if  not Fgraph_to_seed_dict.TryGetValue(Tops.get_default_graph.graph_key, seed) then
+                    seed := 0;
+                 Fgraph_to_seed_dict.AddOrSetValue(Tops.get_default_graph.graph_key, seed + 1);
+                 op_seed := seed;
+            end;
+        end;
+        Result := Tuple<TNullableInteger, TNullableInteger>.Create(global_seed, op_seed);
+        Exit;
+    end;
+    if op_seed <> nil then  Result :=  Tuple<TNullableInteger, TNullableInteger>.Create(DEFAULT_GRAPH_SEED, op_seed)
+    else                    Result :=  Tuple<TNullableInteger, TNullableInteger>.Create(0, 0)
+end;
+
+class function random_seed.get_seed_tensor(op_seed: TNullableInteger): Tuple<TFTensor, TFTensor>;
+begin
+    var tseed := get_seed(op_seed);
+    var seed := tseed.Value1;
+    var seed2:= tseed.Value2;
+
+    var _seed, _seed2 : TFTensor;
+    if seed = nil then  _seed := constant_op.constant(Int64(0), DtInvalid, 'seed')
+    else                _seed := constant_op.constant(Int64(seed.Value), DtInvalid, 'seed');
+    if seed2 = nil then
+        _seed2 := constant_op.constant(Int64(0), DtInvalid, 'seed2')
+    else begin
+        _seed2 := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope('seed2'),
+                          function(v1: TNameScope): TFTensor
+                            begin
+                                _seed2 := constant_op.constant(Int64(seed2.Value));
+                                Result :=  array_ops.where_v2(
+                                  math_ops.logical_and(
+                                      math_ops.equal(_seed, Int64(0)),
+                                      math_ops.equal(_seed2, Int64(0))),
+                                  constant_op.constant( Power(2,31) - 1),
+                                  _seed2,
+                                  v1.ToString);
+                            end );
+    end;
+    Result := Tuple<TFTensor, TFTensor>.Create(_seed, _seed2);
+end;
+
+initialization
+begin
+    random_seed.Fgraph_to_seed_dict := TDictionary<string,Integer>.Create;
+end;
+
+finalization
+begin
+    random_seed.Fgraph_to_seed_dict.Free;
 end;
 
 end.

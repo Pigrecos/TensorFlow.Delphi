@@ -12,14 +12,14 @@ object Form1: TForm1
   Font.Style = []
   OnShow = FormShow
   TextHeight = 13
-  object btn1: TBitBtn
-    Left = 536
+  object btnTest: TBitBtn
+    Left = 495
     Top = 266
-    Width = 75
+    Width = 132
     Height = 25
-    Caption = 'btn1'
+    Caption = 'Test'
     TabOrder = 0
-    OnClick = btn1Click
+    OnClick = btnTestClick
   end
   object mmo1: TMemo
     Left = 8
@@ -29,5 +29,14 @@ object Form1: TForm1
     Lines.Strings = (
       'mmo1')
     TabOrder = 1
+  end
+  object btnLinReg: TBitBtn
+    Left = 495
+    Top = 224
+    Width = 132
+    Height = 25
+    Caption = 'Linear Regression'
+    TabOrder = 2
+    OnClick = btnLinRegClick
   end
 end

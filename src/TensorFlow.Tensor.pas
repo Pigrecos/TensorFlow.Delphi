@@ -1,4 +1,16 @@
 unit TensorFlow.Tensor;
+(*****************************************************************************
+   Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+******************************************************************************)
 
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
@@ -117,6 +129,7 @@ TTensor = record
       Class Operator Subtract(lhs: TTensor; rhs: Double)           : TTensor; Overload;
       Class Operator Subtract(lhs: Double;  rhs: TTensor)          : TTensor; Overload;
       //
+      Class Operator Multiply(lhs: TTensor; rhs: ResourceVariable) : TTensor; Overload;
       Class Operator Multiply(lhs: TTensor; rhs: TTensor)          : TTensor; Overload;
       Class Operator Multiply(lhs: TTensor; rhs: TNDArray)         : TTensor; Overload;
       Class Operator Multiply(lhs: TNDArray;rhs: TTensor)          : TTensor; Overload;
@@ -294,7 +307,10 @@ TTensor = record
 end;
 
 implementation
-         uses Tensorflow,TensorFlow.Ops,Tensorflow.Utils, TensorFlow.gen_math_ops;
+         uses Tensorflow,
+              TensorFlow.Ops,
+              Tensorflow.Utils,
+              TensorFlow.gen_math_ops;
 
 { TTensor }
 
@@ -873,6 +889,11 @@ Class Operator TTensor.Multiply(lhs: Double;  rhs: TTensor): TTensor;
 begin
    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
 end;
+class operator TTensor.Multiply(lhs: TTensor; rhs: ResourceVariable): TTensor;
+begin
+    Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
 function TTensor.numpy: NDArray;
 begin
    Result := FHandleTensor.numpy;
@@ -1569,10 +1590,5 @@ begin
    Result := gen_math_ops.less_equal(lhs, rhs);
 end;
 
-initialization
-  //if tf = nil then
-  //   tf := TTensorflow.Create;
-
-   //TTensor.TestTensor
-
 end.
+

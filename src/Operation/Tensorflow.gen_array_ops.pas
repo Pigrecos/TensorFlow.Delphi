@@ -1,4 +1,16 @@
 unit Tensorflow.gen_array_ops;
+(*****************************************************************************
+   Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+******************************************************************************)
 
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
@@ -39,6 +51,7 @@ type
      class function shape(input: TFTensor; out_type: TF_DataType = TF_DataType.TF_INT32; name: string = '') : TFTensor; static;
      class function where(condition: TFTensor; name : string = ''): TFTensor; static;
      class function select<Tx, Ty>(condition: TFTensor; x: Tx; y: Ty; name: string = ''): TFTensor; static;
+     class function select_v2<Tx, Ty>(condition: TFTensor; x: Tx; y: Ty; name: string = ''): TFTensor; static;
      /// <summary>
      /// Removes dimensions of size 1 from the shape of a tensor.
      /// Given a tensor `input`, this operation returns a tensor of the same type with
@@ -52,10 +65,13 @@ type
      /// <returns> A `Tensor`. Has the same type as `input`.</returns>
      class function squeeze(input: TFTensor; axis: TArray<Integer> = []; name: string = '') : TFTensor; static;
      class function gather_v2<T1, T2>(params: T1; indices: T2; axis: Integer; batch_dims: Integer = 0; name: string = ''): TFTensor; static;
+     class function rank(input: TFTensor; name: string = ''): TFTensor; static;
+     class function slice<Tb, Ts>(input: TFTensor; _begin: Tb; size: Ts; name: string = ''): TFTensor; static;
   end;
 
 implementation
           uses Tensorflow,
+               TensorFlow.EagareRunner,
                TensorFlow.Ops,
                Tensorflow.Utils;
 { gen_array_ops }
@@ -102,6 +118,11 @@ begin
                                                  .SetAttributes(['axis', TValue.From<Integer>(axis) ]) ).FirstOrDefault(nil);
 end;
 
+class function gen_array_ops.rank(input: TFTensor; name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('Rank', name, ExecuteOpArgs.Create([input])).FirstOrDefault(nil);
+end;
+
 class function gen_array_ops.reshape<T>(tensor: TFTensor; shape: T; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('Reshape', name, ExecuteOpArgs.Create([tensor, TValue.From<T>(shape)])).FirstOrDefault(nil);
@@ -128,6 +149,18 @@ begin
      Result := _op.outputs[0];
 end;
 
+class function gen_array_ops.slice<Tb, Ts>(input: TFTensor; _begin: Tb; size: Ts; name: string): TFTensor;
+begin
+    if tf.executing_eagerly then
+    begin
+        var outputs := tf.Runner.TFE_FastPathExecute(TFastPathOpExecInfo.Create('Slice', name, [input, TValue.From<Tb>(_begin), TValue.From<Ts>(size) ]));
+        Result := outputs[0];
+        Exit;
+    end;
+    var _op := tf.OpDefLib._apply_op_helper('Slice', name, [ GetArg('input',input), GetArg('begin',TValue.From<Tb>(_begin)),GetArg('size',TValue.From<Ts>(size)) ]);
+    Result := _op.outputs[0];
+end;
+
 class function gen_array_ops.squeeze(input: TFTensor; axis: TArray<Integer>; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('Squeeze', name, ExecuteOpArgs.Create([ input ]).SetAttributes([ 'squeeze_dims',TValue.From< TArray<Integer> >(axis) ] ) ).FirstOrDefault(nil);
@@ -147,12 +180,17 @@ end;
 class function gen_array_ops.where(condition: TFTensor; name: string): TFTensor;
 begin
     var _op := tf.OpDefLib._apply_op_helper('Where', name, [ GetArg('input',condition) ]);
-     Result := _op.outputs[0];
+    Result := _op.outputs[0];
 end;
 
 class function gen_array_ops.select<Tx, Ty>(condition: TFTensor; x: Tx; y: Ty; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('Select', name, ExecuteOpArgs.Create([ condition, TValue.From<Tx>(x), TValue.From<Ty>(y) ]) ).FirstOrDefault(nil);
+end;
+
+class function gen_array_ops.select_v2<Tx, Ty>(condition: TFTensor; x: Tx; y: Ty; name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('SelectV2', name, ExecuteOpArgs.Create([ condition, TValue.From<Tx>(x), TValue.From<Ty>(y) ]) ).FirstOrDefault(nil);
 end;
 
 end.

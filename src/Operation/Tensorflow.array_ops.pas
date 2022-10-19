@@ -1,4 +1,16 @@
 unit Tensorflow.array_ops;
+(*****************************************************************************
+   Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+******************************************************************************)
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
@@ -24,6 +36,7 @@ type
      class function _constant_if_small<T>(value: T; shape: TFShape; dtype: TF_DataType; name: string): TFTensor; overload; static;
      class function size_internal<T>(input: T; name: string = ''; optimize: Boolean = true; out_type: TF_DataType = TF_DataType.TF_INT32): TFTensor;static;
      class function _apply_mask_1d(reshaped_tensor: TFTensor; mask: TFTensor; axis: Integer = 0): TFTensor;static;
+     class function rank_internal(input: TFTensor; name: string = ''; optimize: Boolean = true) : TFTensor; static;
    public
      class function placeholder(_dtype: TF_DataType; _shape : PTFShape= nil; name: string = '') : TFTensor;static;
      /// <summary>
@@ -67,7 +80,8 @@ type
      /// <param name="name"></param>
      /// <returns></returns>
      class function concat(values: TArray<TFTensor>; axis: Integer; name: string = 'concat'): TFTensor; static;
-     class function where(condition: TFTensor; x : PValue= nil ; y : PValue= nil; name: string = ''): TFTensor; static;
+     class function where(condition: TFTensor; x : TObject= nil ; y : TObject= nil; name: string = ''): TFTensor; static;
+     class function where_v2(condition: TFTensor; x, y: TObject; name: string): TFTensor; static;
      /// <summary>
      /// Removes dimensions of size 1 from the shape of a tensor.
      /// Given a tensor `input`, this operation returns a tensor of the same type with
@@ -102,6 +116,16 @@ type
      /// <param name="batch_dims">An integer. The number of batch dimensions. Must be less than or equal to rank(indices).</param>
      /// <returns></returns>
      class function gather<T1, T2>(params:T1; indices: T2; name: string = ''; axis: Integer = 0; batch_dims: Integer = 0): TFTensor; static;
+     /// <summary>
+     /// Returns the rank of a tensor.
+     /// </summary>
+     /// <param name="input"></param>
+     /// <param name="name"></param>
+     /// <returns></returns>
+     class function rank(input: TFTensor; name: string = ''): TFTensor; static;
+     class function slice<Tb, Ts>(input: TFTensor; _begin: Tb; size: Ts; name: string = ''): TFTensor; overload; static;
+     class function slice(input: TFTensor; _begin: TArray<TFTensor>; size: TArray<TFTensor>; name: string = ''): TFTensor; overload; static;
+     class function slice(input: TFTensor; _begin: TFTensor; size: TFTensor; name: string = ''): TFTensor; overload; static;
   end;
 
 implementation
@@ -123,14 +147,14 @@ begin
     if Length(values) = 1 then // Degenerate case of one tensor.
     begin
         Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'Shape'),
-                                          function(v1: TNameScope): TFTensor
-                                            begin
-                                                // Make a throwaway call to convert_to_tensor to make sure
-                                                // that axis is of the correct type, and make sure that
-                                                // the returned tensor is a scalar.
-                                                Tops.convert_to_tensor(axis, TF_DataType.TF_INT32, 'concat_dim' );
-                                                Result := identity(values[0], v1.ToString);;
-                                            end );
+                    function(v1: TNameScope): TFTensor
+                      begin
+                          // Make a throwaway call to convert_to_tensor to make sure
+                          // that axis is of the correct type, and make sure that
+                          // the returned tensor is a scalar.
+                          Tops.convert_to_tensor(axis, TF_DataType.TF_INT32, 'concat_dim' );
+                          Result := identity(values[0], v1.ToString);;
+                      end );
         Exit;
     end;
     Result := gen_array_ops.concat_v2(values, axis, name);
@@ -156,6 +180,27 @@ begin
 
 end;
 
+class function array_ops.rank(input: TFTensor; name: string ): TFTensor;
+begin
+    Result := rank_internal(input, name, true);
+end;
+
+class function array_ops.rank_internal(input: TFTensor; name: string; optimize: Boolean) : TFTensor;
+begin
+    var lst := TList<TFTensor>.Create([input]);
+    var vvalue := TValue.From< TList<TFTensor> >(lst);
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'Size', @vvalue),
+                          function(v1: TNameScope): TFTensor
+                            begin
+                                name := string(v1.ToString);
+                                var input_shape := input.shape;
+                                if (optimize) and (input_shape.ndim > 0) then
+                                    Result := constant_op.constant(input_shape.ndim, tf.int32_t, name)
+                                else
+                                    Result := gen_array_ops.rank(input, name);
+                            end );
+end;
+
 class function array_ops.reshape(tensor: TFTensor; shape: TFShape; name: string): TFTensor;
 begin
     Result := gen_array_ops.reshape(tensor, shape, name);
@@ -175,30 +220,30 @@ class function array_ops.shape_internal(input: TFTensor; name: string; optimize:
 begin
     var vvalue := TValue.From<TFTensor>(input);
     Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'Shape', @vvalue),
-                                          function(v1: TNameScope): TFTensor
-                                            begin
-                                                name := string(v1.ToString);
-                                                if not tf.Context.executing_eagerly then
-                                                begin
-                                                    var input_shape := input.shape;
-                                                    if (optimize) and (input.ndim > -1) and (input_shape.IsFullyDefined) then
-                                                    begin
-                                                        if(out_type = TF_DataType.TF_INT32) then
-                                                        begin
-                                                            var v : TValue := TValue.From< TArray<Integer> >(input.shape.as_int_list);
-                                                            Result := constant_op.constant(v, DtInvalid, name);
-                                                            Exit;
-                                                        end else
-                                                        begin
-                                                            var v : TValue := TValue.From< TArray<Int64> >(input.shape.dims);
-                                                            Result := constant_op.constant(v, DtInvalid, name);
-                                                            Exit;
-                                                        end;
-                                                    end;
-                                                end ;
+                        function(v1: TNameScope): TFTensor
+                          begin
+                              name := string(v1.ToString);
+                              if not tf.Context.executing_eagerly then
+                              begin
+                                  var input_shape := input.shape;
+                                  if (optimize) and (input.ndim > -1) and (input_shape.IsFullyDefined) then
+                                  begin
+                                      if(out_type = TF_DataType.TF_INT32) then
+                                      begin
+                                          var v : TValue := TValue.From< TArray<Integer> >(input.shape.as_int_list);
+                                          Result := constant_op.constant(v, DtInvalid, name);
+                                          Exit;
+                                      end else
+                                      begin
+                                          var v : TValue := TValue.From< TArray<Int64> >(input.shape.dims);
+                                          Result := constant_op.constant(v, DtInvalid, name);
+                                          Exit;
+                                      end;
+                                  end;
+                              end ;
 
-                                                Result := gen_array_ops.shape(input,out_type, name );
-                                            end );
+                              Result := gen_array_ops.shape(input,out_type, name );
+                          end );
 end;
 
 class function array_ops.boolean_mask<T1, T2>(tensor: T1; mask: T2; name: string; axis: Integer): TFTensor;
@@ -259,21 +304,51 @@ class function array_ops.size_internal<T>(input: T; name: string; optimize: Bool
 begin
     var vvalue := TValue.From<T>(input);
     Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'Size', @vvalue),
-                                          function(v1: TNameScope): TFTensor
-                                            begin
-                                                name := string(v1.ToString);
-                                                var input_tensor := Tops.convert_to_tensor(TValue.From<T>(input));
-                                                var input_shape  := input_tensor.shape;
-                                                if optimize then
-                                                begin
-                                                    if input_shape.IsFullyDefined then
-                                                    begin
-                                                        Result := constant_op.constant(input_shape.size, out_type, name);
-                                                    end;
-                                                end;
+                        function(v1: TNameScope): TFTensor
+                          begin
+                              name := string(v1.ToString);
+                              var input_tensor := Tops.convert_to_tensor(TValue.From<T>(input));
+                              var input_shape  := input_tensor.shape;
+                              if optimize then
+                              begin
+                                  if input_shape.IsFullyDefined then
+                                  begin
+                                      Result := constant_op.constant(input_shape.size, out_type, name);
+                                  end;
+                              end;
 
-                                                Result := gen_array_ops.size(input_tensor, out_type, name);
-                                            end );
+                              Result := gen_array_ops.size(input_tensor, out_type, name);
+                          end );
+end;
+
+
+class function array_ops.slice<Tb, Ts>(input: TFTensor; _begin: Tb; size: Ts; name: string): TFTensor;
+begin
+    Result := gen_array_ops.slice(input, _begin, size, name);
+end;
+
+class function array_ops.slice(input: TFTensor; _begin, size: TArray<TFTensor>; name: string): TFTensor;
+begin
+    Result := gen_array_ops.slice(input, _begin, size, name);
+end;
+
+class function array_ops.slice(input, _begin, size: TFTensor; name: string): TFTensor;
+begin
+    var Args := ExecuteOpArgs.Create([input, _begin, size]);
+    Args.GetGradientAttrs :=  function(op: TFOperation): TArray<TParameter>
+                   begin
+                       Result := [];
+                       var pParam : TParameter;
+                       pParam.sNome := 'T' ;
+                       pParam.vValue:= op.get_attr('T');
+                       Result := Result + [ pParam ] ;
+
+                       pParam.sNome := 'Index' ;
+                       pParam.vValue:= op.get_attr('Index');
+                       Result := Result + [ pParam ] ;
+                   end;
+
+    Result := tf.Context.ExecuteOp('Mean', name, Args).FirstOrDefault(nil);
 end;
 
 class function array_ops.squeeze(input: TFTensor; axis: TArray<Integer>; name: string): TFTensor;
@@ -290,7 +365,7 @@ begin
      raise TFException.Create('Not Implemented ("array_ops.stack")');
 end;
 
-class function array_ops.where(condition: TFTensor; x, y: PValue; name: string): TFTensor;
+class function array_ops.where(condition: TFTensor; x, y: TObject; name: string): TFTensor;
 begin
     if (x = nil) and (y = nil) then
     begin
@@ -306,6 +381,28 @@ begin
     else if (x <> nil) and (y <> nil) then
     begin
         Result := gen_array_ops.select(condition, x, y, name);
+    end else
+    begin
+        raise TFException.Create('x and y must both be non-None or both be None.');
+    end;
+end;
+
+class function array_ops.where_v2(condition: TFTensor; x, y: TObject; name: string): TFTensor;
+begin
+    if (x = nil) and (y = nil) then
+    begin
+        var vvalue := TValue.From<TFTensor>(condition);
+        Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'Where', @vvalue),
+                    function(v1: TNameScope): TFTensor
+                      begin
+                          name      := string(v1.ToString);
+                          condition := Tops.convert_to_tensor(condition, DtInvalid, 'condition',False, TDtypes.cbool);
+                          Result    := gen_array_ops.where(condition, name);
+                      end );
+    end
+    else if (x <> nil) and (y <> nil) then
+    begin
+        Result := gen_array_ops.select_v2(condition, x, y, name);
     end else
     begin
         raise TFException.Create('x and y must both be non-None or both be None.');
@@ -412,12 +509,12 @@ class function array_ops.ones(shape: TFTensor; dtype: TF_DataType; name : string
 begin
     var vvalue := TValue.From<TFTensor>(shape);
     Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'ones', @vvalue),
-                                          function(v1: TNameScope): TFTensor
-                                            begin
-                                                name := string(v1.ToString);
-                                                var output := gen_array_ops.fill(shape, constant_op.constant(Single(1), dtype, 'Const'), name);
-                                                Result := output;
-                                            end );
+                    function(v1: TNameScope): TFTensor
+                      begin
+                          name := string(v1.ToString);
+                          var output := gen_array_ops.fill(shape, constant_op.constant(Single(1), dtype, 'Const'), name);
+                          Result := output;
+                      end );
 end;
 
 class function array_ops.ones(shape: TArray<TFTensor>; dtype: TF_DataType; name : string): TFTensor;
@@ -425,13 +522,13 @@ begin
     dtype := Tdtypes.as_base_dtype(dtype);
     var vvalue := TValue.From< TArray<TFTensor> >(shape);
     Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'ones', @vvalue),
-                                          function(v1: TNameScope): TFTensor
-                                            begin
-                                                name := string(v1.ToString);
-                                                var shape1 := Tops.convert_to_tensor(shape, TF_DataType.TF_INT32);
-                                                var output := gen_array_ops.fill(shape1, constant_op.constant(1, dtype, 'Const'), name);
-                                                Result := output;
-                                            end );
+                          function(v1: TNameScope): TFTensor
+                            begin
+                                name := string(v1.ToString);
+                                var shape1 := Tops.convert_to_tensor(shape, TF_DataType.TF_INT32);
+                                var output := gen_array_ops.fill(shape1, constant_op.constant(1, dtype, 'Const'), name);
+                                Result := output;
+                            end );
 end;
 
 class function array_ops.expand_dims(input: TFTensor; axis: Integer; name: string): TFTensor;
@@ -466,24 +563,24 @@ class function array_ops.ones(shape: TFShape; dtype: TF_DataType; name: string):
 begin
     var vvalue := TValue.From<TFShape>(shape);
     Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'ones', @vvalue),
-                                          function(v1: TNameScope): TFTensor
-                                            begin
-                                                dtype := Tdtypes.as_base_dtype(dtype);
-                                                name := string(v1.ToString);
-                                                var ones : TFTensor;
-                                                case dtype of
-                                                   TF_DOUBLE : ones := constant(Double(1));
-                                                   TF_FLOAT  : ones := constant(Single(1));
-                                                else
-                                                   ones := constant(1)
-                                                end;
+                      function(v1: TNameScope): TFTensor
+                        begin
+                            dtype := Tdtypes.as_base_dtype(dtype);
+                            name := string(v1.ToString);
+                            var ones : TFTensor;
+                            case dtype of
+                               TF_DOUBLE : ones := constant(Double(1));
+                               TF_FLOAT  : ones := constant(Single(1));
+                            else
+                               ones := constant(1)
+                            end;
 
-                                                if shape.ndim = 0 then
-                                                   Exit(ones);
+                            if shape.ndim = 0 then
+                               Exit(ones);
 
-                                                Result := gen_array_ops.fill(shape, ones,  name);
+                            Result := gen_array_ops.fill(shape, ones,  name);
 
-                                            end );
+                        end );
 end;
 
 class function array_ops.zeros(shape: TFTensor; dtype: TF_DataType; name: AnsiString) : TFTensor;
@@ -492,24 +589,24 @@ begin
     var vShape := TValue.From<TFTensor>(shape) ;
 
     Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'zeros', @vShape),
-                                          function(v1: TNameScope): TFTensor
-                                            begin
+                        function(v1: TNameScope): TFTensor
+                          begin
 
-                                                name := v1.ToString;
-                                                case ddtype of
-                                                  TF_DataType.TF_BOOL:
-                                                    Result := gen_array_ops.fill(shape, tf.constant(false, dtype), name);
-                                                  TF_DataType.TF_DOUBLE:
-                                                    Result := gen_array_ops.fill(shape, tf.constant(Double(0), dtype),  name);
-                                                  TF_DataType.TF_FLOAT:
-                                                    Result := gen_array_ops.fill(shape, tf.constant(Single(0), dtype),  name);
-                                                  TF_DataType.TF_INT32:
-                                                    Result := gen_array_ops.fill(shape, tf.constant(0, dtype),  name);
-                                                  else
-                                                    raise Exception.Create('can''t find type for zeros');
-                                                end;
+                              name := v1.ToString;
+                              case ddtype of
+                                TF_DataType.TF_BOOL:
+                                  Result := gen_array_ops.fill(shape, tf.constant(false, dtype), name);
+                                TF_DataType.TF_DOUBLE:
+                                  Result := gen_array_ops.fill(shape, tf.constant(Double(0), dtype),  name);
+                                TF_DataType.TF_FLOAT:
+                                  Result := gen_array_ops.fill(shape, tf.constant(Single(0), dtype),  name);
+                                TF_DataType.TF_INT32:
+                                  Result := gen_array_ops.fill(shape, tf.constant(0, dtype),  name);
+                                else
+                                  raise Exception.Create('can''t find type for zeros');
+                              end;
 
-                                            end );
+                          end );
 end;
 
 class function array_ops.zeros(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_FLOAT; name : string = ''): TFTensor;
@@ -519,37 +616,37 @@ begin
     if tf.executing_eagerly then
     begin
         Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'zeros', @value_Shape),
-                                          function(v1: TNameScope): TFTensor
-                                            begin
-                                                name := string(v1.ToString);
-                                                var zeros : TFTensor;
-                                                case dtype of
-                                                   TF_DOUBLE : zeros := constant(Double(0));
-                                                   TF_FLOAT  : zeros := constant(Single(0));
-                                                   TF_INT8   : zeros := constant(Int8(0));
-                                                   TF_UINT8  : zeros := constant(UInt8(0));
-                                                else
-                                                   zeros := constant(0)
-                                                end;
-                                                Result := gen_array_ops.fill(shape, zeros,  name);
-                                            end );
+                            function(v1: TNameScope): TFTensor
+                              begin
+                                  name := string(v1.ToString);
+                                  var zeros : TFTensor;
+                                  case dtype of
+                                     TF_DOUBLE : zeros := constant(Double(0));
+                                     TF_FLOAT  : zeros := constant(Single(0));
+                                     TF_INT8   : zeros := constant(Int8(0));
+                                     TF_UINT8  : zeros := constant(UInt8(0));
+                                  else
+                                     zeros := constant(0)
+                                  end;
+                                  Result := gen_array_ops.fill(shape, zeros,  name);
+                              end );
     end else
     begin
         Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'zeros', @value_Shape),
-                                          function(v1: TNameScope): TFTensor
-                                            begin
-                                                name := string(v1.ToString);
-                                                case dtype of
-                                                   TF_BOOL    : Result := _constant_if_small(false,     shape, dtype, name);
-                                                   TF_DOUBLE  : Result := _constant_if_small(Double(0), shape, dtype, name);
-                                                   TF_FLOAT   : Result := _constant_if_small(Single(0), shape, dtype, name);
-                                                   TF_INT64   : Result := _constant_if_small(Int64(0),  shape, dtype, name);
-                                                   TF_INT32   : Result := _constant_if_small(Int32(0),  shape, dtype, name);
-                                                   TF_INT8    : Result := _constant_if_small(Int8(0),   shape, dtype, name);
-                                                else
-                                                   raise Exception.Create('can''t find type for zeros');
-                                                end;
-                                            end );
+                          function(v1: TNameScope): TFTensor
+                            begin
+                                name := string(v1.ToString);
+                                case dtype of
+                                   TF_BOOL    : Result := _constant_if_small(false,     shape, dtype, name);
+                                   TF_DOUBLE  : Result := _constant_if_small(Double(0), shape, dtype, name);
+                                   TF_FLOAT   : Result := _constant_if_small(Single(0), shape, dtype, name);
+                                   TF_INT64   : Result := _constant_if_small(Int64(0),  shape, dtype, name);
+                                   TF_INT32   : Result := _constant_if_small(Int32(0),  shape, dtype, name);
+                                   TF_INT8    : Result := _constant_if_small(Int8(0),   shape, dtype, name);
+                                else
+                                   raise Exception.Create('can''t find type for zeros');
+                                end;
+                            end );
     end;
 
 end;

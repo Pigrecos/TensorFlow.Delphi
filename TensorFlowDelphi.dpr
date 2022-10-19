@@ -32,7 +32,6 @@ uses
   Tensorflow.gen_array_ops in 'src\Operation\Tensorflow.gen_array_ops.pas',
   Tensorflow.math_ops in 'src\Operation\Tensorflow.math_ops.pas',
   Tensorflow.array_ops in 'src\Operation\Tensorflow.array_ops.pas',
-  Tensorflow.Session in 'src\Tensorflow.Session.pas',
   Tensorflow.Gradient in 'src\Gradient\Tensorflow.Gradient.pas',
   TensorFlow.Slice in 'src\TensorFlow.Slice.pas',
   TensorFlow.String_ops in 'src\Operation\TensorFlow.String_ops.pas',
@@ -43,7 +42,10 @@ uses
   TensorFlow.gen_sparse_ops in 'src\Operation\TensorFlow.gen_sparse_ops.pas',
   TensorFlow.Tensors.Ragged in 'src\TensorFlow.Tensors.Ragged.pas',
   TensorFlow.resource_variable_ops in 'src\Operation\TensorFlow.resource_variable_ops.pas',
-  ProtoGen.cppShapeInference in 'src\Proto\ProtoGen.cppShapeInference.pas';
+  ProtoGen.cppShapeInference in 'src\Proto\ProtoGen.cppShapeInference.pas',
+  Esempi in 'Esempi.pas',
+  TensorFlow.gen_random_ops in 'src\Operation\TensorFlow.gen_random_ops.pas',
+  TensorFlow.random_ops in 'src\Operation\TensorFlow.random_ops.pas';
 
 {$R *.res}
 

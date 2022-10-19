@@ -1,4 +1,16 @@
 unit TensorFlow.Variable;
+(*****************************************************************************
+   Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+******************************************************************************)
 
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
@@ -11,12 +23,15 @@ interface
           Spring,
           Spring.Collections.Lists,
           Spring.Collections.Stacks,
+          TensorFlow.Slice,
 
           TF4D.Core.CApi,
           TensorFlow.DApiBase,
           TensorFlow.DApi,
+          TensorFlow.EagerTensor,
           NumPy.NDArray,
 
+          ProtoGen.tensorShape,
           ProtoGen.variable,
           ProtoGen.attrValue;
 
@@ -259,6 +274,9 @@ type
                                   shape         : PTFShape= nil);
        function GetTrainable: Boolean;
        function GetParent_op: TFTEnsor;
+       function GetItem(slices: TArray<Slice>): TFTensor;overload;
+       function GetItem(slices: TArray<string>): TFTensor;overload;
+       function _dense_var_to_tensor(dtype: TF_DataType = TF_DataType.DtInvalid; name: string = ''; as_ref: Boolean = false): TFTensor;
      protected
         Finitial_value : TFTensor;
         FShape         : TFShape;
@@ -292,6 +310,8 @@ type
         property Op          : TFOperation  read GetOP;
         property Graph       : TFGraph      read GetGraph;
         property Device      : String       read GetDevice;
+        property Item[slices: TArray<string>]: TFTensor read GetItem ; default;
+        property Item[slices: TArray<Slice> ]: TFTensor read GetItem ; default;
   end;
 
   variables = class
@@ -346,17 +366,57 @@ type
       class function variable_op_v2(shape: TArray<Integer>; dtype: TF_DataType; name: string = 'Variable'; container : string= ''; shared_name: string = ''): TFTensor;
   end;
 
+/// <summary>
+/// Wrapper record for ResourceVariable for Operator Overloading
+/// </summary>
+TResourceVariable = record
+  private
+      FResourceHandle : ResourceVariable;
+
+      function value: TFTensor;
+  public
+      function assign<T>(value: T; use_locking: Boolean = false; name: string = ''; read_value: Boolean = true):TFTensor;
+      function numpy: TNDArray;
+
+      class operator Implicit(t : ResourceVariable): TResourceVariable;
+      class operator Implicit(t : TResourceVariable): ResourceVariable;
+      class operator Implicit(t : TResourceVariable): TFTensor;
+      class operator Implicit(t : TResourceVariable): TEagerTensor;
+
+      class operator Add(x: TResourceVariable; y: Integer) : TFTensor;
+      class operator Add(x: TResourceVariable; y: Single): TFTensor;
+      class operator Add(x: TResourceVariable; y: Double) : TFTensor;
+      class operator Add(x: TResourceVariable; y: TResourceVariable) : TFTensor;
+      class operator Add(x: TResourceVariable; y: TFTensor) : TFTensor;
+      //
+      class operator Subtract(x: TResourceVariable; y: Integer) : TFTensor;
+      class operator Subtract(x: TResourceVariable; y: Single): TFTensor;
+      class operator Subtract(x: TResourceVariable; y: Double) : TFTensor;
+      class operator Subtract(x: TResourceVariable; y: TResourceVariable) : TFTensor;
+      class operator Subtract(x: TResourceVariable; y: TFTensor) : TFTensor;
+      //
+      class operator Multiply(x: TResourceVariable; y: Integer) : TFTensor;
+      class operator Multiply(x: TResourceVariable; y: Single): TFTensor;
+      class operator Multiply(x: TResourceVariable; y: Double) : TFTensor;
+      class operator Multiply(x: TResourceVariable; y: TResourceVariable) : TFTensor;
+      class operator Multiply(x: TResourceVariable; y: TFTensor) : TFTensor;
+      class operator Multiply(x: TResourceVariable; y: TNDArray) : TFTensor;
+      //
+      class operator LessThan(x: TResourceVariable; y: TFTensor) : TFTensor;
+      class operator GreaterThan(x: TResourceVariable; y: TFTensor) : TFTensor;
+end;
+
 
 implementation
      uses Oz.Pb.Classes,
 
           Tensorflow.Gradient,
+          TensorFlow.Tensor,
 
           Tensorflow,
           Tensorflow.Utils,
           TensorFlow.Ops,
           Tensorflow.NameScope,
-          TensorFlow.EagerTensor,
           TensorFlow.EagareRunner,
           Tensorflow.array_ops,
           Tensorflow.gen_array_ops,
@@ -508,6 +568,11 @@ begin
     end;
 end;
 
+function ResourceVariable._dense_var_to_tensor(dtype: TF_DataType; name: string; as_ref: Boolean): TFTensor;
+begin
+    Result := value;
+end;
+
 procedure ResourceVariable._init_from_args(_initial_value: PValue; _trainable: Boolean; collections: TList<string>; caching_device, name: string; dtype: TF_DataType;
                                              aggregation: TVariableAggregation; shape: PTFShape);
 begin
@@ -605,14 +670,67 @@ begin
           end );
 end;
 
- procedure ResourceVariable._init_from_proto(variable_def: TVariableDef; import_scope: string);
+procedure ResourceVariable._init_from_proto(variable_def: TVariableDef; import_scope: string);
 begin
-
+    Fin_graph_mode := true;
+    if not variable_def.IsResource then
+       raise TFException.Create('Trying to restore Variable as ResourceVariable.');
+    // Create from variable_def.
+    var g := Tops.get_default_graph;
+    var prepend_name_scope := Tops.prepend_name_scope(variable_def.VariableName, import_scope);
+    Fhandle                := g.as_graph_element(prepend_name_scope) as TFTensor;
+    Fhandle_name           := Fhandle.name;
+    Fname                  := Fhandle.name;
+    Fshape                 := TFShape.Create( Fhandle.op.get_attr('shape').AsType<TTensorShapeProto> );
+    prepend_name_scope     := Tops.prepend_name_scope(variable_def.InitializerName, import_scope);
+    Finitializer_op        := g.as_graph_element(prepend_name_scope) as TFOperation;
+    if  not string.IsNullOrEmpty(variable_def.InitialValueName) then
+    begin
+        prepend_name_scope := Tops.prepend_name_scope(variable_def.InitialValueName, import_scope);
+        Finitial_value     := g.as_graph_element(prepend_name_scope) as TFTensor;
+    end;
+    Ftrainable := variable_def.Trainable;
+    (*var (synchronization, aggregation, trainable) =
+                       variables.validate_synchronization_aggregation_trainable(
+    variable_def.Synchronization,
+    variable_def.Aggregation,
+    variable_def.Trainable,
+    variable_def.VariableName);*)
+    if not string.IsNullOrEmpty(variable_def.SnapshotName) then
+    begin
+        prepend_name_scope := Tops.prepend_name_scope(variable_def.SnapshotName, import_scope);
+        var snapshot       := g.as_graph_element(prepend_name_scope) as TFTensor;
+        while (snapshot.op.tipo <> 'ReadVariableOp') do
+            snapshot := snapshot.op.inputs[0];
+        Fgraph_element := snapshot;
+    end else
+    begin
+        raise TFException.Create('Not Implemented SnapshotName _init_from_proto');
+    end;
+    if variable_def.SaveSliceInfoDef <> nil then
+    begin
+        raise TFException.Create('Not Implemented SaveSliceInfoDef _init_from_proto');
+    end;
+    Fdtype := Tdtypes.as_tf_dtype( Fhandle.op.get_attr('dtype') );
 end;
 
 function ResourceVariable.to_proto(export_scope: string): TVariableDef;
 begin
+    if (string.IsNullOrEmpty(export_scope)) or (FHandle.name.StartsWith(export_scope)) then
+    begin
+        var var_def : TVariableDef; var_def.Init;
+        var_def.VariableName := Tops.strip_name_scope(FHandle.name, export_scope);
 
+        if Finitial_value <> nil then
+            var_def.InitialValueName := Tops.strip_name_scope(Finitial_value.name, export_scope);
+
+        var_def.Trainable       := Ftrainable;
+        var_def.InitializerName := Tops.strip_name_scope(initializer.name, export_scope);
+        var_def.SnapshotName    := Tops.strip_name_scope(Fgraph_element.name, export_scope);
+        Result := var_def;
+        Exit;
+    end;
+    raise TFException.Create('Not Implemented to_proto RefVariable');
 end;
 
 function ResourceVariable.eval(session: TFSession): TNDArray;
@@ -628,6 +746,46 @@ function ResourceVariable.GetHandle:TFTensor;
 function ResourceVariable.GetInitializer: TFOperation;
 begin
    Result := Finitializer_op;
+end;
+
+function ResourceVariable.GetItem(slices: TArray<string>): TFTensor;
+begin
+    var sl: TArray<Slice> := [];
+    for var i := 0 to Length(slices) -1 do
+    begin
+        sl := sl + [ Slice.Create( slices[i] ) ]
+    end;
+    Result := item[sl];
+end;
+
+function ResourceVariable.GetItem(slices: TArray<Slice>): TFTensor;
+begin
+    var args := TUtils.ParseSlices(slices);
+    var newVal : TValue := TValue.From< ParsedSliceArgs >(args);
+
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope('', 'strided_slice', @newVal),
+                                          function(v1: TNameScope): TFTensor
+                                            begin
+                                                var name : string := v1.ToString;
+                                                if args.aBegin <> nil then
+                                                begin
+                                                    var packed_begin  := array_ops.stack( TValue.from< TArray<Integer> >(args.aBegin) );
+                                                    var packed_end    := array_ops.stack( TValue.from< TArray<Integer> >(args.aEnd) );
+                                                    var packed_strides:= array_ops.stack( TValue.from< TArray<Integer> >(args.aStrides) );
+                                                    Result := gen_array_ops.strided_slice(self._dense_var_to_tensor,
+                                                                                          packed_begin,
+                                                                                          packed_end,
+                                                                                          packed_strides,
+                                                                                          args.iBeginMask,
+                                                                                          args.iEndMask,
+                                                                                          args.iEllipsisMask,
+                                                                                          args.iNewAxisMask,
+                                                                                          args.iShrinkAxisMask,
+                                                                                          name);
+                                                    Exit;
+                                                end;
+                                                raise  TFException.Create('Not Implemented');
+                                            end );
 end;
 
 function ResourceVariable.GetName: string;
@@ -732,18 +890,19 @@ end;
 
 function BaseResourceVariable.assign<T>(value: T; use_locking: Boolean; name: string; read_value: Boolean): TFTensor;
 begin
-    if TypeInfo(T) = TypeInfo(TFTensor) then
+    var vValue := TValue.From<T>(value) ;
+    if string.LowerCase(string(vValue.TypeInfo.Name)) = 'tftensor' then
     begin
-        var assign := gen_state_ops.assign(handle, TValue.From<T>(value), True,use_locking, name);
+        var assign := gen_state_ops.assign(FHandle, TValue.From<T>(value), True,use_locking, name);
         if read_value then
             Exit(assign);
         Exit( assign.op.Output );
     end;
-    var value_tensor := Tops.convert_to_tensor(TValue.From<T>(value), dtype);
-    var assign_op    := gen_resource_variable_ops.assign_variable_op(handle, value_tensor, name);
+    var value_tensor := Tops.convert_to_tensor(vValue, dtype);
+    var assign_op    := gen_resource_variable_ops.assign_variable_op(FHandle, value_tensor, name);
     if read_value then
     begin
-        Result := gen_resource_variable_ops.read_variable_op(handle, dtype);
+        Result := gen_resource_variable_ops.read_variable_op(FHandle, dtype);
         Exit;
     end;
     if assign_op = nil then
@@ -753,27 +912,27 @@ end;
 
 function BaseResourceVariable.assign_add<T>(delta: T; use_locking: Boolean; name: string; read_value: Boolean): TFTensor;
 begin
-    var assign_add_op := gen_resource_variable_ops.assign_add_variable_op(Handle, Tops.convert_to_tensor(TValue.From<T>(delta), dtype),  name);
+    var assign_add_op := gen_resource_variable_ops.assign_add_variable_op(FHandle, Tops.convert_to_tensor(TValue.From<T>(delta), dtype),  name);
 
     if read_value then
-        Exit( gen_resource_variable_ops.read_variable_op(handle, dtype) );
+        Exit( gen_resource_variable_ops.read_variable_op(FHandle, dtype) );
     // return _lazy_read(assign_add_op);
     Result := assign_add_op.output;
 end;
 
 function BaseResourceVariable.assign_sub<T>(delta: T; use_locking: Boolean; name: string; read_value: Boolean): TFTensor;
 begin
-    var assign_sub_op := gen_resource_variable_ops.assign_sub_variable_op(Handle, Tops.convert_to_tensor(TValue.From<T>(delta), dtype),  name);
+    var assign_sub_op := gen_resource_variable_ops.assign_sub_variable_op(FHandle, Tops.convert_to_tensor(TValue.From<T>(delta), dtype),  name);
 
     if read_value then
-        Exit( gen_resource_variable_ops.read_variable_op(handle, dtype) );
+        Exit( gen_resource_variable_ops.read_variable_op(FHandle, dtype) );
     // return _lazy_read(assign_add_op);
     Result := assign_sub_op.output;
 end;
 
 function BaseResourceVariable.assign_sub_lazy_load(delta: TFTensor; name: string): IVariableV1;
 begin
-    var assign_sub_op := gen_resource_variable_ops.assign_sub_variable_op(Handle, Tops.convert_to_tensor(delta, dtype), name);
+    var assign_sub_op := gen_resource_variable_ops.assign_sub_variable_op(FHandle, Tops.convert_to_tensor(delta, dtype), name);
 
     Result := _lazy_read(assign_sub_op, delta);
 end;
@@ -1005,7 +1164,156 @@ begin
     Result := gen_state_ops.variable_v2(shape, dtype, name, container,shared_name)
 end;
 
+{ TResourceVariable }
+
+class operator TResourceVariable.Implicit(t: TResourceVariable): ResourceVariable;
+begin
+    Result := t.FResourceHandle;
+end;
+
+function TResourceVariable.numpy: TNDArray;
+begin
+    Result := FResourceHandle.numpy;
+end;
+
+function TResourceVariable.value: TFTensor;
+begin
+    Result := FResourceHandle.value;
+end;
+
+class operator TResourceVariable.Implicit(t: ResourceVariable): TResourceVariable;
+begin
+    Result.FResourceHandle := t;
+end;
+
+class operator TResourceVariable.Add(x: TResourceVariable; y: Integer): TFTensor;
+begin
+    var t : TTensor := x.value;
+    Result := t + y;
+end;
+
+class operator TResourceVariable.Add(x: TResourceVariable; y: Single): TFTensor;
+begin
+    var t : TTensor := x.value;
+    Result := t + y;
+end;
+
+class operator TResourceVariable.Add(x: TResourceVariable; y: Double): TFTensor;
+begin
+    var t : TTensor := x.value;
+    Result := t + y;
+end;
+
+class operator TResourceVariable.Add(x, y: TResourceVariable): TFTensor;
+begin
+    var t  : TTensor := x.value;
+    var t1 : TTensor := y.value;
+    Result := t + t1;
+end;
+
+class operator TResourceVariable.Add(x: TResourceVariable; y: TFTensor): TFTensor;
+begin
+    var t  : TTensor := x.value;
+    Result := t + y;
+end;
+
+class operator TResourceVariable.Subtract(x: TResourceVariable; y: Integer): TFTensor;
+begin
+    var t : TTensor := x.value;
+    Result := t - y;
+end;
+
+class operator TResourceVariable.Subtract(x: TResourceVariable; y: Single): TFTensor;
+begin
+    var t : TTensor := x.value;
+    Result := t - y;
+end;
+
+class operator TResourceVariable.Subtract(x: TResourceVariable; y: Double): TFTensor;
+begin
+    var t : TTensor := x.value;
+    Result := t - y;
+end;
+
+class operator TResourceVariable.Subtract(x, y: TResourceVariable): TFTensor;
+begin
+    var t  : TTensor := x.value;
+    var t1 : TTensor := y.value;
+    Result := t - t1;
+end;
+
+class operator TResourceVariable.Subtract(x: TResourceVariable; y: TFTensor): TFTensor;
+begin
+    var t  : TTensor := x.value;
+    Result := t - y;
+end;
+
+class operator TResourceVariable.Multiply(x: TResourceVariable; y: Integer): TFTensor;
+begin
+    var t : TTensor := x.value;
+    Result := t * y;
+end;
+
+class operator TResourceVariable.Multiply(x: TResourceVariable; y: Single): TFTensor;
+begin
+    var t : TTensor := x.value;
+    Result := t * y;
+end;
+
+class operator TResourceVariable.Multiply(x: TResourceVariable; y: Double): TFTensor;
+begin
+    var t : TTensor := x.value;
+    Result := t * y;
+end;
+
+class operator TResourceVariable.Multiply(x, y: TResourceVariable): TFTensor;
+begin
+    var t  : TTensor := x.value;
+    var t1 : TTensor := y.value;
+    Result := t * t1;
+end;
+
+class operator TResourceVariable.Multiply(x: TResourceVariable; y: TFTensor): TFTensor;
+begin
+    var t  : TTensor := x.value;
+    Result := t * y;
+end;
+
+class operator TResourceVariable.Multiply(x: TResourceVariable; y: TNDArray): TFTensor;
+begin
+    var t  : TTensor := x.value;
+    Result := t * y;
+end;
+
+class operator TResourceVariable.LessThan(x: TResourceVariable; y: TFTensor): TFTensor;
+begin
+    var t  : TTensor := x.value;
+    Result := t < y;
+end;
+
+class operator TResourceVariable.GreaterThan(x: TResourceVariable; y: TFTensor): TFTensor;
+begin
+    var t  : TTensor := x.value;
+    Result := t > y;
+end;
+
+function TResourceVariable.assign<T>(value: T; use_locking: Boolean; name: string; read_value: Boolean): TFTensor;
+begin
+    Result := FResourceHandle.assign<T>(value,use_locking, name, read_value)
+end;
+
+class operator TResourceVariable.Implicit(t: TResourceVariable): TEagerTensor;
+begin
+    Result := t.FResourceHandle._dense_var_to_tensor as TEagerTensor;
+end;
+
+class operator TResourceVariable.Implicit(t: TResourceVariable): TFTensor;
+begin
+    Result := t.FResourceHandle._dense_var_to_tensor;
+end;
+
 end.
+
 
 
 

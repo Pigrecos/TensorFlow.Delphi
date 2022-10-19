@@ -1,20 +1,16 @@
 {$REGION 'Licence'}
-{ Copyright 2015 The TensorFlow Authors. All Rights Reserved.
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-Org. Source:  https://github.com/tensorflow/tensorflow
-Org. Docu:    https://www.tensorflow.org
-The structure of this Delphi porting was oriented to C# porting by Miguel Deicaza.
-C# Source:    https://github.com/migueldeicaza/TensorFlowSharp
-Delphi porting version: 1.2
-==============================================================================}
+(*****************************************************************************
+   Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+******************************************************************************)
 {$ENDREGION}
 unit TensorFlow.DApi;
 {$POINTERMATH ON}
@@ -44,6 +40,7 @@ uses
   TensorFlow.DApiBase,
   TensorFlow.Slice,
 
+  ProtoGen.tensorShape,
   ProtoGen.attrValue,
   ProtoGen.opDef,
   ProtoGen.nodeDef,
@@ -125,6 +122,7 @@ TFShape = record
  public
    constructor Create(dims: TArray<TF_int64_t>); overload;
    constructor Create(dims: TArray<Integer>); overload;
+   constructor Create(proto: TTensorShapeProto); overload;
    class function Scalar: TFShape; static;
    class function null: TFShape; static;
    // Da slicehelper a shape
@@ -953,9 +951,9 @@ TFOperation = class(ITensorOrOperation)
     FGraph                : TFGraph;
     FInputs_val           : TInputList;
     Fcontrol_flow_context : TControlFlowContext;
-    m_name                : string;
-    m_id_value            : Integer;
-    m_is_stateful         : Boolean;
+    Fname                 : string;
+    Fid_value             : Integer;
+    Fis_stateful          : Boolean;
 
     function OutputType(index: Integer): TF_DataType;
     function GeNumOutputs: Integer;
@@ -967,6 +965,7 @@ TFOperation = class(ITensorOrOperation)
     function GeNumInputs: Integer;
     function GetInputList: TInputList;
     function GetNodeDef: TNodeDef;
+    function GetipoOp: string;
  protected
    procedure NativeDispose(hnd: Pointer); override;
  public
@@ -1014,10 +1013,11 @@ TFOperation = class(ITensorOrOperation)
    property Graph     : TFGraph    read FGraph;
    property NumOutputs: Integer    read GeNumOutputs;
    property NumInputs : Integer    read GeNumInputs;
-   property id_value  : Integer    read m_id_value write m_id_value;
+   property id_value  : Integer    read Fid_value write Fid_value;
    property Output    : TFTensor   read GetOutput;
    property inputs    : TInputList read GetInputList;
    property NodeDef   : TNodeDef   read GetNodeDef;
+   property Tipo      : string     read GetipoOp;
 end;
 {$ENDREGION}
 
@@ -1184,7 +1184,7 @@ TFGraph = class(TFDisposable)
    property is_loss_scaled_by_optimizer : Boolean read Fis_loss_scaled_by_optimizer;
    property building_function   : Boolean read Fbuilding_function;
    property container           : string  read Fcontainer;
-   property seed                : Integer read Fseed;
+   property seed                : Integer read Fseed write Fseed;
    property outer_graph         : TFGraph read Fouter_graph;
    property control_flow_context: TControlFlowContext read Fcontrol_flow_context;
    property control_dependencies_stack : TList<TControlDependenciesController> read Fcontrol_dependencies_stack;
@@ -2547,7 +2547,16 @@ class function TFTensor.InitTensor<T>(aArray: TArray<TArray<T>>; shape: TFShape;
 var
   l_pData     : Pointer;
 begin
-     l_pData := PByte(@aArray[0][0]);
+     var _length := shape.Size;
+     var a : TArray<T>; SetLength(a,_length) ;
+     var j : Integer := 0;
+     for var i := 0 to Length(aArray) - 1 do
+     begin
+       CopyMemory(@a[j], @aArray[i][0], Length(aArray[i]) * Tdtypes.get_datatype_size(dtype)) ;
+       Inc(j,Length(aArray[i]));
+     end;
+
+     l_pData := PByte(@a[0]);
      Result := TF_NewTensor(shape,dtype,l_pData) ;
 end;
 
@@ -2624,7 +2633,6 @@ begin
         sl := sl + [ Slice.Create( slices[i] ) ]
     end;
     Result := item[sl];
-
 end;
 
 function TFTensor.GetItem(idx: Integer): TFTensor;
@@ -3684,7 +3692,7 @@ begin
                control_input_ops.Add(TFTensor(c).op)
        end;
    end;
-   m_id_value := FGraph.NextId;
+   Fid_value := FGraph.NextId;
 
    // This will be set by self.inputs.
    if op_def = nil then
@@ -3696,7 +3704,7 @@ begin
    var t := TOps._create_c_op(g, node_def, inputs, control_input_ops.ToArray, op_def);
    var _handle := t.Value1;
    //var pDesc   := t.Value2;
-   m_is_stateful := op_def.IsStateful;
+   Fis_stateful := op_def.IsStateful;
 
    Handle := _handle;
 
@@ -3807,13 +3815,20 @@ begin
     Result := Finputs_val;
 end;
 
+function TFOperation.GetipoOp: string;
+begin
+    Result := '';
+    if Assigned(Handle) then
+      Result := string( AnsiString(TF_OperationOpType(Handle)) ) ;
+end;
+
 function TFOperation.Getname: string;
 begin
-    m_name := '';
+    Fname := '';
     if Assigned(Handle) then
-      m_name := string( AnsiString(TF_OperationName(Handle)) ) ;
+      Fname := string( AnsiString(TF_OperationName(Handle)) ) ;
 
-    Result := m_name;
+    Result := Fname;
 end;
 
 function TFOperation.GetOperation(h: Pointer): TFOperation;
@@ -4080,7 +4095,22 @@ begin
     Self.FStrides:= [];
 
     Self.FHandle := Pointer($10000000);
+end;
 
+constructor TFShape.Create(proto: TTensorShapeProto);
+begin
+    Self := System.Default(TFShape);
+
+    for var i := 0 to proto.Dims.Count - 1 do
+    begin
+        Self.FaDims := Self.FaDims + [ proto.Dims[i].Size ];
+    end;
+
+    Self.Fndim   := GetnDim;
+    Self.FSize   := GetSize;
+    Self.FStrides:= [];
+
+    Self.FHandle := Pointer($10000000);
 end;
 
 class function TFShape.Scalar: TFShape;
@@ -4447,10 +4477,10 @@ end;
 
 procedure TFGraph.Add_op(var op: TFOperation);
 begin
-    op.m_id_value := NextId;
-    Fnodes_by_id.AddOrSetValue(op.m_id_value, op);
+    op.id_value := NextId;
+    Fnodes_by_id.AddOrSetValue(op.id_value, op);
     Fnodes_by_name.AddOrSetValue(op.name, op);
-    Fversion := Max(Fversion, op.m_id_value);
+    Fversion := Max(Fversion, op.id_value);
 end;
 
 procedure TFGraph.add_to_collection<T>(names: TList<string>; value: T);

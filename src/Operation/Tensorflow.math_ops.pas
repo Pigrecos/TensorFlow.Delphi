@@ -1,4 +1,16 @@
 unit Tensorflow.math_ops;
+(*****************************************************************************
+   Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+******************************************************************************)
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
@@ -15,8 +27,12 @@ type
     math_ops = record
      private
        class function _truediv_python3(x: TFTensor; y: TFTensor; name: string = ''): TFTensor;static;
+       class function _ReductionDims(x, axis: TFTensor): TFTensor; static;
+       class function _may_reduce_to_scalar(keepdims: Boolean; axis: PAxis; _output: TFTensor): TFTensor; overload; static;
+       class function _may_reduce_to_scalar(keepdims: Boolean; axis: TFTensor; _output: TFTensor) : TFTensor;  overload; static;
      public
        class function cast(x: TFTensor; dtype: TF_DataType = DtInvalid; name: string = ''): TFTensor;static;
+       class function add<Tx, Ty>(x: Tx; y: Ty; name: string = '') : TFTensor; static;
        class function add_v2(x: TFTensor; y: TFTensor; name: string = ''): TFTensor;static;
        /// <summary>
        /// Divide two values using Python 2 semantics. Used for Tensor.__div__.
@@ -61,10 +77,19 @@ type
        class function equal<Tx, Ty>(x: Tx; y: Ty; name : string= ''): TFTensor; static;
        class function not_equal<Tx, Ty>(x: Tx; y: Ty; name : string= '') : TFTensor; static;
        class function range(start: TValue; limit: TValue; delta: TValue; dtype: Nullable<TF_DataType>; name: string = 'range'): TFTensor; static;
+       class function reduce_sum(input_tensor: TFTensor; axis : TFTensor = nil; keepdims: Boolean = false; name: string = ''): TFTensor; static;
+       class function pow<Tx, Ty>(x: Tx; y: Ty; name: string = '') : TFTensor; static;
+       class function logical_and(x: TFTensor; y: TFTensor; name: string = ''): TFTensor; static;
   end;
 
 implementation
-         uses Tensorflow, TensorFlow.Ops, TensorFlow.gen_math_ops, Tensorflow.NameScope,  Tensorflow.Utils;
+         uses Tensorflow,
+              TensorFlow.Ops,
+              TensorFlow.gen_math_ops,
+              Tensorflow.array_ops,
+              Tensorflow.NameScope,
+              Tensorflow.Utils,
+              TensorFlow.Framework;
 
 { math_ops }
 
@@ -96,9 +121,32 @@ begin
     Result := gen_math_ops.equal(x, y, True, name);
 end;
 
+class function math_ops.logical_and(x, y: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.logical_and(x, y, name);
+end;
+
 class function math_ops.not_equal<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
 begin
     Result := gen_math_ops.not_equal(x, y, name)
+end;
+
+class function math_ops.pow<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
+begin
+    var vX := TValue.From<Tx>(x);
+    var vY := TValue.From<Ty>(y);
+    var newVal : TValue := TValue.From<TArray<TValue>>([vX,vY]);
+
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'Pow', @newVal),
+                  function(v1: TNameScope): TFTensor
+                    begin
+                        name := v1.ToString;
+
+                        var x_tensor := Tops.convert_to_tensor(vX, DtInvalid, 'x');
+                        var y_tensor := Tops.convert_to_tensor(vY, Tdtypes.as_base_dtype(x_tensor.dtype), 'y');
+
+                        Result := tf.Context.ExecuteOp('Pow', name, ExecuteOpArgs.Create([x_tensor, y_tensor])).FirstOrDefault(nil)
+                    end );
 end;
 
 class function math_ops.range(start, limit, delta: TValue; dtype: Nullable<TF_DataType>; name: string): TFTensor;
@@ -128,6 +176,42 @@ begin
                                                 Result := gen_math_ops.range(start1, limit1, delta1, name);
                                             end );
 end;
+
+class function math_ops.reduce_sum(input_tensor, axis: TFTensor; keepdims: Boolean; name: string): TFTensor;
+begin
+    var r  := _ReductionDims(input_tensor, axis);
+    var m  := gen_math_ops._sum(input_tensor, r, keepdims, name);
+    Result := _may_reduce_to_scalar(keepdims, axis, m);
+end;
+
+class function math_ops._may_reduce_to_scalar(keepdims: Boolean; axis: PAxis; _output: TFTensor) : TFTensor;
+begin
+    Result := nil;
+    var dims: TArray<TF_int64_t> := [];
+    if ( not common_shapes.has_fully_defined_shape(_output) ) and ( not keepdims) and (axis = nil) and ( _output.shape = TFShape.Create(dims) ) then
+            Result := _output;
+end;
+
+class function math_ops._may_reduce_to_scalar(keepdims: Boolean; axis: TFTensor; _output: TFTensor) : TFTensor;
+begin
+    Result := nil;
+    var dims: TArray<TF_int64_t> := [];
+    if ( not common_shapes.has_fully_defined_shape(_output) ) and ( not keepdims) and (axis = nil) and ( _output.shape = TFShape.Create(dims) ) then
+            Result := _output;
+end;
+
+class function math_ops._ReductionDims(x, axis: TFTensor): TFTensor;
+begin
+    if axis <> nil then
+    begin
+        Result := axis;
+    end else
+    begin
+        var rank := array_ops.rank(x);
+        Result := range(0, rank, 1, nil);
+    end;
+end;
+
 
 class function math_ops.matmul(a, b: TFTensor; transpose_a, transpose_b, adjoint_a, adjoint_b, a_is_sparse, b_is_sparse: Boolean;
   name: string): TFTensor;
@@ -203,6 +287,11 @@ begin
                                                 y := cast(y, dtype);
                                                 Result := gen_math_ops.real_div(x, y, name);
                                             end );
+end;
+
+class function math_ops.add<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
+begin
+    Result := gen_math_ops.add(x, y, name);
 end;
 
 class function math_ops.add_v2(x, y: TFTensor; name: string): TFTensor;

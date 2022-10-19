@@ -1,5 +1,19 @@
 unit Tensorflow;
+(*****************************************************************************
+   Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
 
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+******************************************************************************)
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
@@ -22,10 +36,10 @@ interface
        Tensorflow.Utils,
        TensorFlow.OpDefLibrary,
        Tensorflow.Gradient,
-       Tensorflow.Session,
        Tensorflow.String_ops,
        TensorFlow.Variable,
        TensorFlow.Tensors.Ragged,
+       Numpy.Axis,
 
        ProtoGen.Tensor,
        Protogen.tensorShape,
@@ -49,9 +63,19 @@ type
      public
        constructor Create;
        destructor  Destroy; override;
-       procedure disable_eager_execution;
-       function  Session: TFSession;
-       function global_variables_initializer: TFOperation;
+       procedure   disable_eager_execution;
+       function    Session: TFSession;
+       function    global_variables_initializer: TFOperation;
+       function    get_variable(name            : string;
+                                shape           : PTFShape= nil;
+                                dtype           : TF_DataType = TF_DataType.DtInvalid;
+                                initializer     : TObject = nil;{IInitializer or Tensor}
+                                trainable       : PBoolean= nil;
+                                collections     : TList<string> = nil;
+                                use_resource    : PBoolean= nil;
+                                validate_shape  : Boolean = true;
+                                synchronization : TVariableSynchronization = TVariableSynchronization.VARIABLE_SYNCHRONIZATION_AUTO;
+                                aggregation     : TVariableAggregation     = TVariableAggregation.VARIABLE_AGGREGATION_NONE):IVariableV1;
   end;
 {$ENDREGION}
 
@@ -227,6 +251,52 @@ type
   end;
 {$ENDREGION}
 
+{$REGION 'TRandom'}
+  TRandom  = class
+    private
+
+    public
+      /// <summary>
+      /// Outputs random values from a normal distribution.
+      /// </summary>
+      /// <param name="shape"></param>
+      /// <param name="mean"></param>
+      /// <param name="stddev"></param>
+      /// <param name="dtype"></param>
+      /// <param name="seed"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      Function normal(shape: TFShape; mean: Single = 0.0; stddev: Single = 1.0; dtype: TF_DataType = TF_FLOAT; seed : Integer = 0; name: string = ''): TFTensor;
+      /// <summary>
+      /// Outputs random values from a truncated normal distribution.
+      /// </summary>
+      /// <param name="shape"></param>
+      /// <param name="mean"></param>
+      /// <param name="stddev"></param>
+      /// <param name="dtype"></param>
+      /// <param name="seed"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      Function truncated_normal(shape: TFShape; mean: Single = 0.0; stddev: Single = 1.0; dtype: TF_DataType = TF_FLOAT; seed: Integer = 0; name: string = ''): TFTensor;
+      Function categorical(logits: TFTensor; num_samples: Integer; seed: Integer = 0; name: string = ''; output_dtype: TF_DataType = DtInvalid): TFTensor;
+      Function uniform(shape: TFShape; minval: Single = 0; maxval: Single = 1; dtype: TF_DataType = TF_FLOAT; seed: Integer = 0; name: string = '') : TFTensor;
+      Function random_uniform(shape: TFShape; minval: Single = 0; maxval: SIngle = 1; dtype: TF_DataType = TF_FLOAT; seed: Integer = 0; name: string = '') : TFTensor;
+      /// <summary>
+      /// Randomly shuffles a tensor along its first dimension.
+      /// </summary>
+      /// <param name="value"></param>
+      /// <param name="seed"></param>
+      /// <param name="name"></param>
+      /// <returns>
+      /// A tensor of same shape and type as value, shuffled along its
+      /// first dimension.
+      /// </returns>
+      Function  random_shuffle(value: TFTensor; seed: Integer = 0; name: string = '') : TFTensor;
+      procedure set_random_seed(seed: Integer);
+      Function  multinomial(logits: TFTensor; num_samples: Integer; seed: Integer = 0; name: string = ''; output_dtype: TF_DataType = DtInvalid): TFTensor;
+  end;
+{$ENDREGION}
+
 {$REGION 'TTensorflow'}
   TTensorflow = class(TFDisposable)
     private
@@ -243,7 +313,7 @@ type
       int32_t   = TF_DataType.TF_INT32;
       int64_t   = TF_DataType.TF_INT64;
       float16_t = TF_DataType.TF_HALF;
-      float32_  = TF_DataType.TF_FLOAT;
+      float32_t = TF_DataType.TF_FLOAT;
       float64_t = TF_DataType.TF_DOUBLE;
       bool_t    = TF_DataType.TF_BOOL;
       chars_t   = TF_DataType.TF_STRING;
@@ -256,6 +326,8 @@ type
       compat   : CompatApi;
       strings  : StringsApi;
       GraphKeys: TGraphKeys;
+      //
+      random   : TRandom;
 
       constructor Create;
       destructor  Destroy ; override;
@@ -269,7 +341,8 @@ type
       /// </summary>
       ///<remarks>Has no interaction with graph defaulting. Equivalent to new Graph();</remarks>
       function Graph: TFGraph;
-      function placeholder(dtype: TF_DataType; shape: TFShape ; name: string = ''): TFTensor;
+      function placeholder(dtype: TF_DataType; shape: TFShape ; name: string = ''): TFTensor; overload;
+      function placeholder(dtype: TF_DataType): TFTensor; overload;
       function Session(graph: TFGraph; config: PConfigProto = nil): TFSession;overload;
       function Session: TFSession;overload;
       function get_default_session: TFSession;
@@ -289,7 +362,8 @@ type
       /// <param name="shape"></param>
       /// <param name="name"></param>
       /// <returns></returns>
-      function constant(value: TValue; dtype : TF_DataType = DtInvalid; shape : PTFShape= nil; name : AnsiString = 'Const'): TFTensor;
+      function constant(value: TValue; dtype : TF_DataType = DtInvalid; shape : PTFShape= nil; name : AnsiString = 'Const'): TFTensor; overload;
+      function constant(value: TValue; name : AnsiString ): TFTensor; overload;
       function zeros(shape: TFShape; dtype:  TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor; overload;
       function zeros(shape: TFTensor; dtype: TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor; overload;
       function ones(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor;
@@ -373,6 +447,15 @@ type
       /// <param name="axis">A 0-D int Tensor representing the axis in tensor to mask from. </param>
       /// <returns>(N-K+1)-dimensional tensor populated by entries in tensor corresponding to True values in mask.</returns>
       function  boolean_mask<T1, T2>(tensor: T1; mask: T2; name: string = 'boolean_mask'; axis: Integer = 0): TFTensor;
+      /// <summary>
+      /// Gather slices from params axis axis according to indices.
+      /// </summary>
+      /// <param name="params"></param>
+      /// <param name="indices"></param>
+      /// <param name="name"></param>
+      /// <param name="axis"></param>
+      /// <returns></returns>
+      function gather(params: TFTensor; indices: TFTensor; name: string = ''; axis: Integer = 0): TFTensor;
 
       // tf.sparse
       //
@@ -394,8 +477,24 @@ type
       function sparse_tensor_to_dense(sp_input: TSparseTensor; default_value: TValue; validate_indices : Boolean= true; name: string = ''): TFTensor;
 
       // tf.math
+      /// <summary>
+      /// Computes the sum of elements across dimensions of a tensor.
+      /// </summary>
+      /// <param name="input"></param>
+      /// <param name="axis"></param>
+      /// <returns></returns>
+      function reduce_sum(input: TFTensor; axis: PAxis = nil; reduction_indices: PAxis = nil; keepdims: Boolean = false; name: string = '') : TFTensor;
       function range(start: TValue; limit: TValue; delta: TValue; dtype: Nullable<TF_DataType>; name: string = 'range'): TFTensor; overload;
       function range(start: TValue; limit: TValue): TFTensor; overload;
+      function negative(x: TFTensor; name: string = ''): TFTensor;
+      function add(a: TFTensor; b: TFTensor; name: string = ''): TFTensor; overload;
+      function add<Tx, Ty>(a: Tx; b: Ty; name: string = ''): TFTensor; overload;
+      function multiply(x: TFTensor; y: TFTensor; name: string = ''): TFTensor; overload;
+      function multiply<Tx, Ty>(x: Tx; y: Ty; name: string = ''): TFTensor; overload;
+      function pow<T1, T2>(x:T1; y: T2; name: string = 'pow'): TFTensor;
+
+      // tf.random
+      function random_uniform(shape: TFShape; minval: Single = 0; maxval: Single = 1; dtype: TF_DataType = TF_FLOAT; seed: Integer = 0; name: string = ''): TFTensor;
 
       property Version : string read GetVersion;
 
@@ -412,11 +511,12 @@ implementation
         TensorFlow.Ops ,
         TensorFlow.Constant_op,
         Tensorflow.math_ops,
+        TensorFlow.gen_math_ops,
         Tensorflow.gen_array_ops,
         Tensorflow.array_ops,
         tensorflow.gen_sparse_ops,
-        Tensorflow.NameScope,
-        Numpy.Axis;
+        TensorFlow.random_ops,
+        Tensorflow.NameScope;
 
 {$REGION 'TTensorflow'}
 { TTensorflow }
@@ -443,6 +543,26 @@ begin
     Result := gen_array_ops.concat_v2(values.ToArray, axis, name);
 end;
 
+function TTensorflow.add(a, b: TFTensor; name: string): TFTensor;
+begin
+    Result :=  gen_math_ops.add(a, b, name);
+end;
+
+function TTensorflow.add<Tx, Ty>(a: Tx; b: Ty; name: string): TFTensor;
+begin
+    Result :=  gen_math_ops.add(a, b, name);
+end;
+
+function TTensorflow.multiply(x, y: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.mul(x, y, name);
+end;
+
+function TTensorflow.multiply<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
+begin
+    Result := gen_math_ops.mul(x, y, name);
+end;
+
 function TTensorflow.batch_to_space_nd<T>(input: T; block_shape: TArray<Integer>; crops: TArray<TArray<Integer>>; name: string): TFTensor;
 begin
     Result := gen_array_ops.batch_to_space_nd(input, block_shape, crops, name)
@@ -456,6 +576,11 @@ end;
 function TTensorflow.concat(values: TArray<TFTensor>; axis: Integer; name: string): TFTensor;
 begin
     Result := concat(TList<TFTensor>.Create(values),axis,name);
+end;
+
+function TTensorflow.constant(value: TValue; name: AnsiString): TFTensor;
+begin
+    Result := constant(value, DtInvalid, nil, name);
 end;
 
 function TTensorflow.constant(value: TValue; dtype: TF_DataType; shape: PTFShape; name: AnsiString): TFTensor;
@@ -478,6 +603,8 @@ begin
     compat    := CompatApi.Create;
     strings   := StringsApi.Create;
     GraphKeys := TGraphKeys.Create;
+    //
+    random    := TRandom.Create;
 
     Logger.Providers.Add(GlobalLogFileProvider);
     with GlobalLogFileProvider do
@@ -504,6 +631,8 @@ begin
   FtapeSet.Free;
   compat.Free;
   strings.Free;
+  //
+  random.Free;
 
 end;
 
@@ -522,6 +651,11 @@ begin
     Result := array_ops.expand_dims(input, axis, name);
 end;
 
+function TTensorflow.gather(params, indices: TFTensor; name: string; axis: Integer): TFTensor;
+begin
+    Result := array_ops.gather(params, indices, name, axis);
+end;
+
 function TTensorflow.GetVersion: string;
 begin
      Result := string(AnsiString(TF_Version));
@@ -537,6 +671,11 @@ begin
   Runner.Free;
   FtapeSet.Free;
 
+end;
+
+function TTensorflow.negative(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.neg(x, name);
 end;
 
 function TTensorflow.get_default_graph: TFgraph;
@@ -575,6 +714,16 @@ begin
     Result := TOps.peak_default_graph;
 end;
 
+function TTensorflow.placeholder(dtype: TF_DataType): TFTensor;
+begin
+    Result := array_ops.placeholder(dtype,nil,'');
+end;
+
+function TTensorflow.pow<T1, T2>(x: T1; y: T2; name: string): TFTensor;
+begin
+    Result := math_ops.pow(x, y, name);
+end;
+
 function TTensorflow.placeholder(dtype: TF_DataType; shape: TFShape; name: string): TFTensor;
 begin
     Result := array_ops.placeholder(dtype,@shape,name);
@@ -585,10 +734,28 @@ begin
    Result :=  math_ops.range(start, limit, delta, dtype, name);
 end;
 
+function TTensorflow.random_uniform(shape: TFShape; minval, maxval: Single; dtype: TF_DataType; seed: Integer; name: string): TFTensor;
+begin
+    Result := random.uniform(shape, minval, maxval, dtype, seed, name);
+end;
+
 function TTensorflow.range(start, limit: TValue): TFTensor;
 begin
     var v : TValue := System.default(TValue);
     Result := range(start, limit,v, nil,'range');
+end;
+
+function TTensorflow.reduce_sum(input: TFTensor; axis, reduction_indices: PAxis; keepdims: Boolean; name: string): TFTensor;
+begin
+    if keepdims then
+    begin
+        if axis <> nil then Result := math_ops.reduce_sum(input, constant_op.constant(TValue.From<TAxis>(axis^)), keepdims, name)
+        else                Result := math_ops.reduce_sum(input, constant_op.constant(TValue.From<TAxis>(reduction_indices^)), keepdims, name);
+    end else
+    begin
+        if axis <> nil then Result := math_ops.reduce_sum( input, constant_op.constant(TValue.From<TAxis>(axis^)) )
+        else                Result := math_ops.reduce_sum( input, constant_op.constant(TValue.From<TAxis>(reduction_indices^)) );
+    end;
 end;
 
 procedure TTensorflow.reset_default_graph;
@@ -732,6 +899,12 @@ begin
     tf.Context.graph_mode ;
 end;
 
+function CompatV1Api.get_variable(name: string; shape: PTFShape; dtype: TF_DataType; initializer: TObject; trainable: PBoolean; collections: TList<string>;
+  use_resource: PBoolean; validate_shape: Boolean; synchronization: TVariableSynchronization; aggregation: TVariableAggregation): IVariableV1;
+begin
+
+end;
+
 function CompatV1Api.global_variables_initializer: TFOperation;
 begin
     var g := variables.global_variables;
@@ -812,6 +985,50 @@ begin
 end;
 {$ENDREGION}
 
+
+{ TRandom }
+
+function TRandom.normal(shape: TFShape; mean, stddev: Single; dtype: TF_DataType; seed: Integer; name: string): TFTensor;
+begin
+    Result := random_ops.random_normal(shape, mean, stddev, dtype, seed, name);
+end;
+
+function TRandom.truncated_normal(shape: TFShape; mean, stddev: Single; dtype: TF_DataType; seed: Integer; name: string): TFTensor;
+begin
+    Result := random_ops.truncated_normal(shape, mean, stddev, dtype, seed, name);
+end;
+
+function TRandom.categorical(logits: TFTensor; num_samples, seed: Integer; name: string; output_dtype: TF_DataType): TFTensor;
+begin
+    Result := random_ops.multinomial(logits, num_samples, seed, name, output_dtype);
+end;
+
+function TRandom.uniform(shape: TFShape; minval, maxval: Single; dtype: TF_DataType; seed: Integer; name: string): TFTensor;
+begin
+    if TDtypes.is_integer(dtype) then Result := random_ops.random_uniform_int(shape, Trunc(minval), Trunc(maxval), seed, name)
+    else                              Result := random_ops.random_uniform(shape, minval, maxval, dtype, seed, name);
+end;
+
+function TRandom.random_uniform(shape: TFShape; minval, maxval: SIngle; dtype: TF_DataType; seed: Integer; name: string): TFTensor;
+begin
+    Result := uniform(shape, minval, maxval, dtype, seed, name);
+end;
+
+function TRandom.random_shuffle(value: TFTensor; seed: Integer; name: string): TFTensor;
+begin
+    Result := random_ops.random_shuffle(value, seed, name);
+end;
+
+procedure TRandom.set_random_seed(seed: Integer);
+begin
+    if tf.executing_eagerly then tf.Context.set_global_seed(seed)
+    else                         Tops.get_default_graph.seed := seed;
+end;
+
+function TRandom.multinomial(logits: TFTensor; num_samples, seed: Integer; name: string; output_dtype: TF_DataType): TFTensor;
+begin
+   Result := random_ops.multinomial(logits, num_samples, seed, name, output_dtype);
+end;
 
 initialization
 begin

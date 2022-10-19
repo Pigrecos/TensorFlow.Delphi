@@ -1,4 +1,16 @@
 unit Tensorflow.Utils;
+(*****************************************************************************
+   Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+******************************************************************************)
 
 interface
     uses System.SysUtils,
@@ -38,6 +50,7 @@ type
       //
       class operator Implicit(const Value: TArray<TFTensor>): TValue;
       class operator Implicit(const Value: TF_DataType): TValue;
+      class operator Implicit(const Value: TArray< TArray<Integer> >): TValue;
 
   end;
 
@@ -108,6 +121,7 @@ type
       class function isinstance(v: TValue; t : PTypeInfo):Boolean;
       class function as_shape_proto(tshape: TFShape): TTensorShapeProto; static;
       class function as_shape<T>(dims: TArray<T>): TTensorShapeProto;
+      class function shape_tensor(shape: TArray<Integer>): TFTensor; static;
       /// <summary>
       /// Create a TensorProto, invoked in graph mode
       /// </summary>
@@ -798,6 +812,11 @@ begin
     Result := shape;
 end;
 
+class function TUtils.shape_tensor(shape : TArray<Integer>): TFTensor;
+begin
+    Result := Tops.convert_to_tensor( TValue.From< TArray<Integer> >(shape), TF_DataType.TF_INT32, 'shape');
+end;
+
 class function TUtils.make_tensor_proto(values: TValue; var dtype: TF_DataType; shape: PTFShape; verify_shape,
                        allow_broadcast: Boolean): TTensorProto;
  var
@@ -1133,5 +1152,9 @@ begin
      Result := TValue.From<TFTensor>(Value.HTensor);
 end;
 
+class operator TValueHelp.Implicit(const Value: TArray<TArray<Integer>>): TValue;
+begin
+   Result := TValue.From< TArray<TArray<Integer>> >(Value);
+end;
 
 end.
