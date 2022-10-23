@@ -451,6 +451,7 @@ type
     procedure Reverse; inline;
     function IsEmpty: Boolean; inline;
     function GetEnumerator: TEnumerator;
+    function ToArray: TArray<T>;
     property Count: Integer read GetCount write SetCount;
     property Items[Index: Integer]: PItem read Get write Put; default;
     property List: TsgPointerList read FList;
@@ -2404,6 +2405,15 @@ end;
 procedure TsgRecordList<T>.Sort(Compare: TListSortCompare);
 begin
   FList.Sort(Compare);
+end;
+
+function TsgRecordList<T>.ToArray: TArray<T>;
+var
+  i: Integer;
+begin
+   Result := [];
+   for i := 0 to FList.Count - 1 do
+     Result :=  Result + [ PItem(FList.Get(i)^)^ ];
 end;
 
 procedure TsgRecordList<T>.Reverse;

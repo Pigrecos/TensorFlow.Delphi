@@ -45,7 +45,9 @@ uses
   ProtoGen.cppShapeInference in 'src\Proto\ProtoGen.cppShapeInference.pas',
   Esempi in 'Esempi.pas',
   TensorFlow.gen_random_ops in 'src\Operation\TensorFlow.gen_random_ops.pas',
-  TensorFlow.random_ops in 'src\Operation\TensorFlow.random_ops.pas';
+  TensorFlow.random_ops in 'src\Operation\TensorFlow.random_ops.pas',
+  TensorFlow.clip_ops in 'src\Operation\TensorFlow.clip_ops.pas',
+  Keras.Layer in 'src\Keras\Keras.Layer.pas';
 
 {$R *.res}
 

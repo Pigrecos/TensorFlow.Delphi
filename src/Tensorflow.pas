@@ -1,13 +1,10 @@
 unit Tensorflow;
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
-
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -39,6 +36,7 @@ interface
        Tensorflow.String_ops,
        TensorFlow.Variable,
        TensorFlow.Tensors.Ragged,
+       Numpy,
        Numpy.Axis,
 
        ProtoGen.Tensor,
@@ -328,6 +326,11 @@ type
       GraphKeys: TGraphKeys;
       //
       random   : TRandom;
+      /// <summary>
+      /// NumPy API on TensorFlow
+      /// https://www.tensorflow.org/api_docs/python/tf/experimental/numpy
+      /// </summary>
+      numpy  : NumPyImpl;
 
       constructor Create;
       destructor  Destroy ; override;
@@ -477,6 +480,7 @@ type
       function sparse_tensor_to_dense(sp_input: TSparseTensor; default_value: TValue; validate_indices : Boolean= true; name: string = ''): TFTensor;
 
       // tf.math
+      //
       /// <summary>
       /// Computes the sum of elements across dimensions of a tensor.
       /// </summary>
@@ -490,8 +494,360 @@ type
       function add(a: TFTensor; b: TFTensor; name: string = ''): TFTensor; overload;
       function add<Tx, Ty>(a: Tx; b: Ty; name: string = ''): TFTensor; overload;
       function multiply(x: TFTensor; y: TFTensor; name: string = ''): TFTensor; overload;
+      /// <summary>
+      /// return x * y
+      /// </summary>
+      /// <typeparam name="Tx"></typeparam>
+      /// <typeparam name="Ty"></typeparam>
+      /// <param name="x"></param>
+      /// <param name="y"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
       function multiply<Tx, Ty>(x: Tx; y: Ty; name: string = ''): TFTensor; overload;
       function pow<T1, T2>(x:T1; y: T2; name: string = 'pow'): TFTensor;
+
+      function argmax(input: TFTensor; axis: TAxis ; name: string = ''; dimension: PInteger = nil; output_type: TF_DataType = TF_INT64): TFTensor;
+      /// <summary>
+      /// Computes the Gauss error function of `x` element-wise.
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function erf(x: TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      ///
+      /// </summary>
+      /// <param name="arr"></param>
+      /// <param name="weights"></param>
+      /// <param name="minlength"></param>
+      /// <param name="maxlength"></param>
+      /// <param name="dtype"></param>
+      /// <param name="name"></param>
+      /// <param name="axis"></param>
+      /// <param name="binary_output"></param>
+      /// <returns></returns>
+      function bincount(arr: TFTensor; weights: TFTensor = nil; minlength: TFTensor = nil; maxlength: TFTensor = nil; dtype: TF_DataType = TF_INT32;  name: string = ''; axis: PTFShape = nil; binary_output: Boolean = false): TFTensor;
+      function abs(x: TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes acos of x element-wise.
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function acos(x: TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes asin of x element-wise.
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function asin(x : TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Adds all input tensors element-wise.
+      /// </summary>
+      /// <param name="inputs"></param>
+      /// <param name="name"></param>
+      /// <returns>A `Tensor` of same shape and type as the elements of `inputs`.</returns>
+      function add_n(inputs: TArray<TFTensor>; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes atan of x element-wise.
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function atan(x : TFTensor; name: string = ''): TFTensor;
+      function arg_max(input : TFTensor; dimension: Integer; output_type: TF_DataType = TF_INT64; name: string = ''): TFTensor;
+      function arg_min(input : TFTensor; dimension: Integer; output_type: TF_DataType = TF_INT64; name: string = ''): TFTensor;
+      function is_finite(input : TFTensor; name: string = ''): TFTensor;
+      function is_nan(input : TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Returns element-wise smallest integer not less than x.
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function ceil(x : TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes sin of x element-wise.
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function sin(x : TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes hyperbolic sine of x element-wise.
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function sinh(x : TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes cos of x element-wise.
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function cos(x : TFTensor; name: string = ''): TFTensor; overload;
+      function cos(x: Single; name: string = ''): TFTensor; overload;
+      /// <summary>
+      /// Computes hyperbolic cosine of x element-wise.
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function cosh(x : TFTensor; name: string = ''): TFTensor;
+      function tan(x : TFTensor; name: string = ''): TFTensor;
+      function tanh(x : TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Returns element-wise largest integer not greater than x.
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function floor(x : TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Returns the truth value of (x > y) element-wise.
+      /// </summary>
+      /// <typeparam name="Tx"></typeparam>
+      /// <typeparam name="Ty"></typeparam>
+      /// <param name="x"></param>
+      /// <param name="y"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function greater<Tx, Ty>(x : Tx; y: Ty; name: string = ''): TFTensor;
+      /// <summary>
+      /// Returns the truth value of (x >= y) element-wise.
+      /// </summary>
+      /// <typeparam name="Tx"></typeparam>
+      /// <typeparam name="Ty"></typeparam>
+      /// <param name="x"></param>
+      /// <param name="y"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function greater_equal<Tx, Ty>(x : Tx; y: Ty; name: string = ''): TFTensor;
+      /// <summary>
+      /// Returns the truth value of (x &lt; y) element-wise.
+      /// </summary>
+      /// <typeparam name="Tx"></typeparam>
+      /// <typeparam name="Ty"></typeparam>
+      /// <param name="x"></param>
+      /// <param name="y"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function less<Tx, Ty>(x : Tx; y: Ty; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes the log of the absolute value of `Gamma(x)` element-wise.
+      /// </summary>
+      /// <param name="x">A `Tensor`. Must be one of the following types: `bfloat16`, `half`, `float32`, `float64`.</param>
+      /// <param name="name">A name for the operation (optional).</param>
+      /// <returns>A `Tensor`. Has the same type as `x`.</returns>
+      function lgamma(x : TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Returns the truth value of (x &lt;= y) element-wise.
+      /// </summary>
+      /// <typeparam name="Tx"></typeparam>
+      /// <typeparam name="Ty"></typeparam>
+      /// <param name="x"></param>
+      /// <param name="y"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function less_equal<Tx, Ty>(x : Tx; y: Ty; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes natural logarithm of (1 + x) element-wise.
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function log1p(x : TFTensor; name: string = ''): TFTensor;
+      function logical_and<T>(x: T; y: T; name: string = ''): TFTensor;
+      function logical_not(x : TFTensor; name: string = ''): TFTensor;
+      function logical_or(x : TFTensor;  y: TFTensor; name: string = ''): TFTensor;
+      function logical_xor(x : TFTensor; y: TFTensor; name : string = 'LogicalXor'): TFTensor;
+      /// <summary>
+      /// Clips tensor values to a specified min and max.
+      /// </summary>
+      /// <param name="t"></param>
+      /// <param name="clip_value_min"></param>
+      /// <param name="clip_value_max"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function _clip_by_value(t: TFTensor; clip_value_min: TFTensor; clip_value_max: TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      ///    Clips tensor values to a specified min and max.
+      /// </summary>
+      /// <param name="t">
+      ///    A <c>Tensor</c>.
+      /// </param>
+      /// <param name="clip_value_min">
+      ///    A 0-D (scalar) <c>Tensor</c>, or a <c>Tensor</c> with the same shape
+      ///    as <c>t</c>. The minimum value to clip by.
+      /// </param>
+      /// <param name="clip_value_max">
+      ///    A 0-D (scalar) <c>Tensor</c>, or a <c>Tensor</c> with the same shape
+      ///    as <c>t</c>. The maximum value to clip by.
+      /// </param>
+      /// <param name="name">
+      /// If specified, the created operation in the graph will be this one, otherwise it will be named 'ClipByValue'.
+      /// </param>
+      /// <returns>
+      ///    A clipped <c>Tensor</c> with the same shape as input 't'.
+      ///    The Operation can be fetched from the resulting Tensor, by fetching the Operation property from the result.
+      /// </returns>
+      /// <remarks>
+      ///    Given a tensor <c>t</c>, this operation returns a tensor of the same type and
+      ///    shape as <c>t</c> with its values clipped to <c>clip_value_min</c> and <c>clip_value_max</c>.
+      ///    Any values less than <c>clip_value_min</c> are set to <c>clip_value_min</c>. Any values
+      ///    greater than <c>clip_value_max</c> are set to <c>clip_value_max</c>.
+      /// </remarks>
+      function clip_by_value<T1, T2>(t: TFTensor; clip_value_min: T1; clip_value_max:T2; name: string = 'ClipByValue'): TFTensor;
+      function sub<Tx, Ty>(a: Tx; b: Ty; name: string = ''): TFTensor;
+      function sqrt(a: TFTensor; name: string = ''): TFTensor;
+      function sign(a: TFTensor; name: string = ''): TFTensor;
+      function subtract<T>(x : TFTensor;  y: TArray<T>; name: string = ''): TFTensor; overload;
+      /// <summary>
+      /// return x - y
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="y"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function subtract(x : TFTensor; y: TFTensor; name: string = ''): TFTensor; overload;
+      function log(x: TFTensor; name: string = ''): TFTensor;
+      function equal(x : TFTensor; y: TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes arctangent of `y/x` element-wise, respecting signs of the arguments.
+      /// </summary>
+      /// <param name="y"></param>
+      /// <param name="x"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function atan2(y: TFTensor; x : TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes the maximum of elements across dimensions of a tensor.
+      /// </summary>
+      /// <typeparam name="Tx"></typeparam>
+      /// <typeparam name="Ty"></typeparam>
+      /// <param name="input"></param>
+      /// <param name="axis"></param>
+      /// <param name="keep_dims"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function max<Tx, Ty>(input: Tx; axis: Ty; keep_dims: Boolean = false; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes the minimum of elements across dimensions of a tensor.
+      /// </summary>
+      /// <typeparam name="Tx"></typeparam>
+      /// <typeparam name="Ty"></typeparam>
+      /// <param name="input"></param>
+      /// <param name="axis"></param>
+      /// <param name="keep_dims"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function min<Tx, Ty>(input: Tx; axis: Ty; keep_dims: Boolean = false; name: string = ''): TFTensor;
+      /// <summary>
+      /// Returns the max of x and y (i.e. x > y ? x : y) element-wise.
+      /// </summary>
+      /// <typeparam name="T1"></typeparam>
+      /// <typeparam name="T2"></typeparam>
+      /// <param name="x"></param>
+      /// <param name="y"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function maximum<T1, T2>(x: T1; y: T2; name: string = ''): TFTensor;
+      /// <summary>
+      /// Returns the min of x and y (i.e. x &lt; y ? x : y) element-wise.
+      /// </summary>
+      /// <typeparam name="T1"></typeparam>
+      /// <typeparam name="T2"></typeparam>
+      /// <param name="x"></param>
+      /// <param name="y"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function minimum<T1, T2>(x: T1; y: T2; name: string = ''): TFTensor;
+      /// <summary>
+      /// Returns the truth value of (x != y) element-wise.
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="y"></param>
+      /// <param name="name"></param>
+      /// <returns>A `Tensor` of type bool with the same size as that of x or y.</returns>
+      function not_equal<Tx, Ty>(x: Tx; y: Ty; name: string = ''): TFTensor;
+      /// <summary>
+      /// Divides x / y elementwise (using Python 2 division operator semantics).
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="y"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function &div(x : TFTensor; y: TFTensor; name: string = ''): TFTensor;
+      function divide(a: TFTensor; b: TFTensor): TFTensor; overload;
+      function divide<T>(x : TFTensor; y: TArray<T>; name: string = ''): TFTensor; overload;
+      /// <summary>
+      /// Divides `x / y` elementwise, rounding toward the most negative integer.
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="y"></param>
+      /// <param name="name"></param>
+      /// <returns>`x / y` rounded down.</returns>
+      function floordiv(x : TFTensor; y: TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Divides x / y elementwise (using Python 3 division operator semantics).
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="y"></param>
+      /// <param name="name"></param>
+      /// <returns>`x / y` evaluated in floating point.</returns>
+      class function truediv(x : TFTensor; y: TFTensor; name: string = ''): TFTensor;
+      function real(input : TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes the "logical or" of elements across dimensions of a tensor.
+      /// </summary>
+      /// <param name="input_tensor">The boolean tensor to reduce.</param>
+      /// <param name="axis">The dimensions to reduce.</param>
+      /// <param name="keepdims">If true, retains reduced dimensions with length 1.</param>
+      /// <param name="name"></param>
+      /// <returns>The reduced tensor.</returns>
+      function reduce_any(input_tensor: TFTensor; axis: PAxis = nil; keepdims: Boolean = false; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes the "logical and" of elements across dimensions of a tensor.
+      /// </summary>
+      /// <param name="input_tensor"></param>
+      /// <param name="axis"></param>
+      /// <param name="keepdims"></param>
+      /// <param name="name"></param>
+      /// <returns>The reduced tensor.</returns>
+      function reduce_all(input_tensor: TFTensor; axis: PAxis = nil; keepdims: Boolean = false; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes the product of elements across dimensions of a tensor.
+      /// </summary>
+      /// <param name="input_tensor"></param>
+      /// <param name="axis"></param>
+      /// <param name="keepdims"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function reduce_prod(input_tensor: TFTensor; axis: PAxis = nil; keepdims: Boolean = false; name: string = ''): TFTensor;
+      /// <summary>
+      /// Computes the maximum of elements across dimensions of a tensor.
+      /// </summary>
+      /// <param name="input_tensor"></param>
+      /// <param name="axis"></param>
+      /// <param name="keepdims"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function reduce_max     (input_tensor: TFTensor; axis: PAxis = nil; keepdims: Boolean = false; name: string = ''): TFTensor;
+      function reduce_min     (input_tensor: TFTensor; axis: PAxis = nil; keepdims: Boolean = false; name: string = ''): TFTensor;
+      function reduce_std     (input_tensor: TFTensor; axis: PAxis = nil; keepdims: Boolean = false; name: string = ''): TFTensor;
+      function reduce_variance(input_tensor: TFTensor; axis: PAxis = nil; keepdims: Boolean = false; name: string = ''): TFTensor;
+      function reduce_mean    (input_tensor: TFTensor; axis: PAxis = nil; keepdims: Boolean = false; name: string = ''; reduction_indices: PInteger = nil): TFTensor;
+      function sigmoid<T>(x: T; name: string = ''): TFTensor;
+      function sum(x: TFTensor;      axis: TAxis; name: string = ''): TFTensor; overload;
+      function sum(input : TFTensor; axis: Integer; keep_dims: Boolean = false; name: string = ''): TFTensor; overload;
+      function round(x : TFTensor; name: string = ''): TFTensor;
+      function cast(x : TFTensor; dtype: TF_DataType; name: string = ''): TFTensor;
+      function cumsum(x : TFTensor; axis: Integer = 0; exclusive: Boolean = false; reverse: Boolean = false; name: string = ''): TFTensor;
+      function square(x : TFTensor; name: string = ''): TFTensor;
+      function squared_difference(x : TFTensor; y: TFTensor; name: string = '') : TFTensor;
+      function exp(x: TFTensor; name: string = ''): TFTensor;
 
       // tf.random
       function random_uniform(shape: TFShape; minval: Single = 0; maxval: Single = 1; dtype: TF_DataType = TF_FLOAT; seed: Integer = 0; name: string = ''): TFTensor;
@@ -514,84 +870,15 @@ implementation
         TensorFlow.gen_math_ops,
         Tensorflow.gen_array_ops,
         Tensorflow.array_ops,
+        TensorFlow.clip_ops,
         tensorflow.gen_sparse_ops,
         TensorFlow.random_ops,
-        Tensorflow.NameScope;
+        Tensorflow.NameScope,
+        TensorFlow.Tensor;
 
 {$REGION 'TTensorflow'}
+
 { TTensorflow }
-
-function TTensorflow.convert_to_tensor(value: TValue; dtype: TF_DataType; name: string; preferred_dtype: TF_DataType): TFTensor;
-begin
-    Result := TOps.convert_to_tensor(value,dtype, name,False,preferred_dtype);
-end;
-
-
-function TTensorflow.concat(values: TList<TFTensor>; axis: Integer; name: string): TFTensor;
-begin
-    if values.Count = 1 then
-    begin
-        Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name),
-                                          function(v1: TNameScope): TFTensor
-                                            begin
-                                                var tensor := Tops.convert_to_tensor(axis, TDtypes.cint32, 'concat_dim');
-                                                Assert(tensor.shape.ndim = 0);
-                                                Result := identity(values.First,  v1.toString);
-                                            end );
-        Exit;
-    end;
-    Result := gen_array_ops.concat_v2(values.ToArray, axis, name);
-end;
-
-function TTensorflow.add(a, b: TFTensor; name: string): TFTensor;
-begin
-    Result :=  gen_math_ops.add(a, b, name);
-end;
-
-function TTensorflow.add<Tx, Ty>(a: Tx; b: Ty; name: string): TFTensor;
-begin
-    Result :=  gen_math_ops.add(a, b, name);
-end;
-
-function TTensorflow.multiply(x, y: TFTensor; name: string): TFTensor;
-begin
-    Result := gen_math_ops.mul(x, y, name);
-end;
-
-function TTensorflow.multiply<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
-begin
-    Result := gen_math_ops.mul(x, y, name);
-end;
-
-function TTensorflow.batch_to_space_nd<T>(input: T; block_shape: TArray<Integer>; crops: TArray<TArray<Integer>>; name: string): TFTensor;
-begin
-    Result := gen_array_ops.batch_to_space_nd(input, block_shape, crops, name)
-end;
-
-function TTensorflow.boolean_mask<T1, T2>(tensor: T1; mask: T2; name: string; axis: Integer): TFTensor;
-begin
-    Result := array_ops.boolean_mask(tensor, mask, name, axis);
-end;
-
-function TTensorflow.concat(values: TArray<TFTensor>; axis: Integer; name: string): TFTensor;
-begin
-    Result := concat(TList<TFTensor>.Create(values),axis,name);
-end;
-
-function TTensorflow.constant(value: TValue; name: AnsiString): TFTensor;
-begin
-    Result := constant(value, DtInvalid, nil, name);
-end;
-
-function TTensorflow.constant(value: TValue; dtype: TF_DataType; shape: PTFShape; name: AnsiString): TFTensor;
-begin
-    Result :=constant_op.constant(value,
-                                    dtype,
-                                    shape,
-                                    False,
-                                    True,
-                                    name);
-end;
 
 constructor TTensorflow.Create;
 begin
@@ -605,6 +892,7 @@ begin
     GraphKeys := TGraphKeys.Create;
     //
     random    := TRandom.Create;
+    numpy     := NumPyImpl.Create;
 
     Logger.Providers.Add(GlobalLogFileProvider);
     with GlobalLogFileProvider do
@@ -633,7 +921,199 @@ begin
   strings.Free;
   //
   random.Free;
+  numpy.Free;
 
+end;
+
+function TTensorflow.convert_to_tensor(value: TValue; dtype: TF_DataType; name: string; preferred_dtype: TF_DataType): TFTensor;
+begin
+    Result := TOps.convert_to_tensor(value,dtype, name,False,preferred_dtype);
+end;
+
+function TTensorflow.cos(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.cos(x, name);
+end;
+
+function TTensorflow.cos(x: Single; name: string): TFTensor;
+begin
+    Result := gen_math_ops.cos(x, name);
+end;
+
+function TTensorflow.cosh(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.cosh(x, name);
+end;
+
+function TTensorflow.concat(values: TList<TFTensor>; axis: Integer; name: string): TFTensor;
+begin
+    if values.Count = 1 then
+    begin
+        Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name),
+                                          function(v1: TNameScope): TFTensor
+                                            begin
+                                                var tensor := Tops.convert_to_tensor(axis, TDtypes.cint32, 'concat_dim');
+                                                Assert(tensor.shape.ndim = 0);
+                                                Result := identity(values.First,  v1.toString);
+                                            end );
+        Exit;
+    end;
+    Result := gen_array_ops.concat_v2(values.ToArray, axis, name);
+end;
+
+function TTensorflow.abs(x: TFTensor; name: string): TFTensor;
+begin
+    Result := math_ops.abs(x, name);
+end;
+
+function TTensorflow.acos(x: TFTensor; name: string): TFTensor;
+begin
+   Result := gen_math_ops.acos(x, name);
+end;
+
+function TTensorflow.&div(x, y: TFTensor; name: string): TFTensor;
+begin
+    Result := math_ops.div(x, y, name);
+end;
+
+function TTensorflow.add(a, b: TFTensor; name: string): TFTensor;
+begin
+    Result :=  gen_math_ops.add(a, b, name);
+end;
+
+function TTensorflow.add<Tx, Ty>(a: Tx; b: Ty; name: string): TFTensor;
+begin
+    Result :=  gen_math_ops.add(a, b, name);
+end;
+
+function TTensorflow.add_n(inputs: TArray<TFTensor>; name: string): TFTensor;
+begin
+    Result := math_ops.add_n(inputs, name);
+end;
+
+function TTensorflow.argmax(input: TFTensor; axis: TAxis; name: string; dimension: PInteger; output_type: TF_DataType): TFTensor;
+begin
+    Result := gen_math_ops.arg_max(input, axis, output_type, name);
+end;
+
+function TTensorflow.arg_max(input: TFTensor; dimension: Integer; output_type: TF_DataType; name: string): TFTensor;
+begin
+    Result := gen_math_ops.arg_max(input, dimension, output_type, name);
+end;
+
+function TTensorflow.arg_min(input: TFTensor; dimension: Integer; output_type: TF_DataType; name: string): TFTensor;
+begin
+    Result := gen_math_ops.arg_min(input, dimension, output_type, name);
+end;
+
+function TTensorflow.asin(x: TFTensor; name: string): TFTensor;
+begin
+   Result := gen_math_ops.asin(x, name);
+end;
+
+function TTensorflow.atan(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.atan(x, name);
+end;
+
+function TTensorflow.atan2(y, x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.atan2(y, x, name);
+end;
+
+function TTensorflow.max<Tx, Ty>(input: Tx; axis: Ty; keep_dims: Boolean; name: string): TFTensor;
+begin
+    Result :=  gen_math_ops._max(input, axis, keep_dims, name);
+end;
+
+function TTensorflow.maximum<T1, T2>(x: T1; y: T2; name: string): TFTensor;
+begin
+    Result := gen_math_ops.maximum(x, y, name);
+end;
+
+function TTensorflow.min<Tx, Ty>(input: Tx; axis: Ty; keep_dims: Boolean; name: string): TFTensor;
+begin
+    Result := gen_math_ops._min(input, axis, keep_dims, name);
+end;
+
+function TTensorflow.minimum<T1, T2>(x: T1; y: T2; name: string): TFTensor;
+begin
+    Result := gen_math_ops.minimum(x, y, name);
+end;
+
+function TTensorflow.multiply(x, y: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.mul(x, y, name);
+end;
+
+function TTensorflow.multiply<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
+begin
+    Result := gen_math_ops.mul(x, y, name);
+end;
+
+function TTensorflow.batch_to_space_nd<T>(input: T; block_shape: TArray<Integer>; crops: TArray<TArray<Integer>>; name: string): TFTensor;
+begin
+    Result := gen_array_ops.batch_to_space_nd(input, block_shape, crops, name)
+end;
+
+function TTensorflow.bincount(arr, weights, minlength, maxlength: TFTensor; dtype: TF_DataType; name: string; axis: PTFShape; binary_output: Boolean): TFTensor;
+begin
+    Result := math_ops.bincount(arr, weights, minlength, maxlength, dtype, name, axis, binary_output);
+end;
+
+function TTensorflow.boolean_mask<T1, T2>(tensor: T1; mask: T2; name: string; axis: Integer): TFTensor;
+begin
+    Result := array_ops.boolean_mask(tensor, mask, name, axis);
+end;
+
+function TTensorflow.cast(x: TFTensor; dtype: TF_DataType; name: string): TFTensor;
+begin
+    Result :=  math_ops.cast(x, dtype, name);
+end;
+
+function TTensorflow.ceil(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.ceil(x, name);
+end;
+
+function TTensorflow.clip_by_value<T1, T2>(t: TFTensor; clip_value_min: T1; clip_value_max: T2; name: string): TFTensor;
+begin
+    Result := clip_ops.clip_by_value(t, clip_value_min, clip_value_max, name);
+end;
+
+function TTensorflow.concat(values: TArray<TFTensor>; axis: Integer; name: string): TFTensor;
+begin
+    Result := concat(TList<TFTensor>.Create(values),axis,name);
+end;
+
+function TTensorflow.constant(value: TValue; name: AnsiString): TFTensor;
+begin
+    Result := constant(value, DtInvalid, nil, name);
+end;
+
+function TTensorflow.constant(value: TValue; dtype: TF_DataType; shape: PTFShape; name: AnsiString): TFTensor;
+begin
+    Result :=constant_op.constant(value,
+                                  dtype,
+                                  shape,
+                                  False,
+                                  True,
+                                  name);
+end;
+
+function TTensorflow.cumsum(x: TFTensor; axis: Integer; exclusive, reverse: Boolean; name: string): TFTensor;
+begin
+    Result := math_ops.cumsum(x, axis, exclusive, reverse, name);
+end;
+
+function TTensorflow.divide(a, b: TFTensor): TFTensor;
+begin
+    Result := TTensor(a) / b
+end;
+
+function TTensorflow.divide<T>(x: TFTensor; y: TArray<T>; name: string): TFTensor;
+begin
+    Result := TTensor(x) / Tops.convert_to_tensor( TValue.From< TArray<T> >(y), Tdtypes.as_base_dtype(x.dtype), 'y')
 end;
 
 procedure TTensorflow.enable_eager_execution;
@@ -641,14 +1121,39 @@ begin
     Context.eager_mode;
 end;
 
+function TTensorflow.equal(x, y: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.equal(x, y, True, name);
+end;
+
+function TTensorflow.erf(x: TFTensor; name: string): TFTensor;
+begin
+    Result := math_ops.erf(x, name);
+end;
+
 function TTensorflow.executing_eagerly: Boolean;
 begin
     Result := Context.executing_eagerly;
 end;
 
+function TTensorflow.exp(x: TFTensor; name: string): TFTensor;
+begin
+   Result := gen_math_ops.exp(x, name);
+end;
+
 function TTensorflow.expand_dims(input: TFTensor; axis: Integer; name: string): TFTensor;
 begin
     Result := array_ops.expand_dims(input, axis, name);
+end;
+
+function TTensorflow.floor(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.floor(x, name);
+end;
+
+function TTensorflow.floordiv(x, y: TFTensor; name: string): TFTensor;
+begin
+   Result := math_ops.floordiv(x, y, name);
 end;
 
 function TTensorflow.gather(params, indices: TFTensor; name: string; axis: Integer): TFTensor;
@@ -678,6 +1183,11 @@ begin
     Result := gen_math_ops.neg(x, name);
 end;
 
+function TTensorflow.not_equal<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
+begin
+    Result := math_ops.not_equal(x, y, name);
+end;
+
 function TTensorflow.get_default_graph: TFgraph;
 begin
     Result := TOps.get_default_graph;
@@ -704,9 +1214,74 @@ begin
     Result := TFGraph.Create;
 end;
 
+function TTensorflow.greater<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
+begin
+    Result := gen_math_ops.greater(x, y, name);
+end;
+
+function TTensorflow.greater_equal<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
+begin
+    Result := gen_math_ops.greater_equal(x, y, name);
+end;
+
 function TTensorflow.identity(input: TFTensor; name: string): TFTensor;
 begin
     Result := array_ops.identity(input, name);
+end;
+
+function TTensorflow.is_finite(input: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.is_finite(input, name);
+end;
+
+function TTensorflow.is_nan(input: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.is_nan(input, name);
+end;
+
+function TTensorflow.less<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
+begin
+    Result := gen_math_ops.less(x, y, name);
+end;
+
+function TTensorflow.less_equal<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
+begin
+    Result := gen_math_ops.less_equal(x, y, name);
+end;
+
+function TTensorflow.lgamma(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.lgamma(x, name);
+end;
+
+function TTensorflow.log(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.log(x, name);
+end;
+
+function TTensorflow.log1p(x: TFTensor; name: string): TFTensor;
+begin
+   Result := gen_math_ops.log1p(x, name);
+end;
+
+function TTensorflow.logical_and<T>(x, y: T; name: string): TFTensor;
+begin
+   Result := gen_math_ops.logical_and(x, y, name);
+end;
+
+function TTensorflow.logical_not(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.logical_not(x, name);
+end;
+
+function TTensorflow.logical_or(x, y: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.logical_or(x, y, name);
+end;
+
+function TTensorflow.logical_xor(x, y: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.logical_xor(x, y, name);
 end;
 
 function TTensorflow.peak_default_graph: TFgraph;
@@ -731,7 +1306,7 @@ end;
 
 function TTensorflow.range(start, limit, delta: TValue; dtype: Nullable<TF_DataType>; name: string): TFTensor;
 begin
-   Result :=  math_ops.range(start, limit, delta, dtype, name);
+   Result :=  math_ops.range(start, @limit, @delta, dtype, name);
 end;
 
 function TTensorflow.random_uniform(shape: TFShape; minval, maxval: Single; dtype: TF_DataType; seed: Integer; name: string): TFTensor;
@@ -743,6 +1318,46 @@ function TTensorflow.range(start, limit: TValue): TFTensor;
 begin
     var v : TValue := System.default(TValue);
     Result := range(start, limit,v, nil,'range');
+end;
+
+function TTensorflow.real(input: TFTensor; name: string): TFTensor;
+begin
+    Result := math_ops.real(input, name);
+end;
+
+function TTensorflow.reduce_all(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string): TFTensor;
+begin
+   Result := math_ops.reduce_all(input_tensor, axis^, keepdims, name);
+end;
+
+function TTensorflow.reduce_any(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string): TFTensor;
+begin
+    Result := math_ops.reduce_any(input_tensor, axis^, keepdims, name);
+end;
+
+function TTensorflow.reduce_max(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string): TFTensor;
+begin
+    Result := math_ops.reduce_max(input_tensor, axis^, keepdims, name);
+end;
+
+function TTensorflow.reduce_mean(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string; reduction_indices: PInteger): TFTensor;
+begin
+    Result := math_ops.reduce_mean(input_tensor, axis^, keepdims, name, reduction_indices);
+end;
+
+function TTensorflow.reduce_min(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string): TFTensor;
+begin
+    Result := math_ops.reduce_min(input_tensor, axis^, keepdims, name);
+end;
+
+function TTensorflow.reduce_prod(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string): TFTensor;
+begin
+   Result := math_ops.reduce_prod(input_tensor, axis^, keepdims, name);
+end;
+
+function TTensorflow.reduce_std(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string): TFTensor;
+begin
+   Result := math_ops.reduce_std(input_tensor, axis^, keepdims, name);
 end;
 
 function TTensorflow.reduce_sum(input: TFTensor; axis, reduction_indices: PAxis; keepdims: Boolean; name: string): TFTensor;
@@ -758,6 +1373,11 @@ begin
     end;
 end;
 
+function TTensorflow.reduce_variance(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string): TFTensor;
+begin
+    Result := math_ops.reduce_variance(input_tensor, axis^, keepdims, name);
+end;
+
 procedure TTensorflow.reset_default_graph;
 begin
     TOps.reset_default_graph
@@ -766,6 +1386,11 @@ end;
 function TTensorflow.reshape(tensor: TFTensor; shape: TFShape; name: string): TFTensor;
 begin
     Result := gen_array_ops.reshape(tensor, shape, name);
+end;
+
+function TTensorflow.round(x: TFTensor; name: string): TFTensor;
+begin
+   Result := gen_math_ops.round(x, name);
 end;
 
 function TTensorflow.Session: TFSession;
@@ -781,6 +1406,26 @@ end;
 function TTensorflow.ones(shape: TFShape; dtype: TF_DataType; name: string): TFTensor;
 begin
     Result := array_ops.ones(shape, dtype, name);
+end;
+
+function TTensorflow.sigmoid<T>(x: T; name: string): TFTensor;
+begin
+    Result := math_ops.sigmoid(x, name);
+end;
+
+function TTensorflow.sign(a: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.sign(a, name);
+end;
+
+function TTensorflow.sin(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.sin(x, name);
+end;
+
+function TTensorflow.sinh(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.sinh(x, name);
 end;
 
 function TTensorflow.size(input: TFTensor; name: string; out_type: TF_DataType): TFTensor;
@@ -833,10 +1478,65 @@ begin
    Result := sparse_to_dense(sparse_indices,output_shape,sparse_values, v, True, '')
 end;
 
+function TTensorflow.sqrt(a: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.sqrt(a, name);
+end;
+
+function TTensorflow.square(x: TFTensor; name: string): TFTensor;
+begin
+   Result := gen_math_ops.square(x, name);
+end;
+
+function TTensorflow.squared_difference(x, y: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.squared_difference(x, y, name);
+end;
+
+function TTensorflow.sub<Tx, Ty>(a: Tx; b: Ty; name: string): TFTensor;
+begin
+   Result := gen_math_ops.sub(a, b, name);
+end;
+
+function TTensorflow.subtract(x, y: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.sub(x, y, name);
+end;
+
+function TTensorflow.subtract<T>(x: TFTensor; y: TArray<T>; name: string): TFTensor;
+begin
+    Result := gen_math_ops.sub(x, Tops.convert_to_tensor(TValue.From< TArray<T> >(y),  Tdtypes.as_base_dtype(x.dtype), 'y'), name);
+end;
+
+function TTensorflow.sum(x: TFTensor; axis: TAxis; name: string): TFTensor;
+begin
+   Result :=  math_ops.reduce_sum(x, axis, False, name);
+end;
+
+function TTensorflow.sum(input: TFTensor; axis: Integer; keep_dims: Boolean; name: string): TFTensor;
+begin
+    Result := gen_math_ops._sum(input, axis, keep_dims, name);
+end;
+
+function TTensorflow.tan(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.tan(x, name);
+end;
+
+function TTensorflow.tanh(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.tanh(x, name);
+end;
+
 function TTensorflow.trainable_variables(scope: string): TArray<IVariableV1>;
 begin
     var Value := variables.trainable_variables;
     Result := Value.AsType< TList<IVariableV1> >.ToArray;
+end;
+
+class function TTensorflow.truediv(x, y: TFTensor; name: string): TFTensor;
+begin
+    Result := math_ops.truediv(x, y, name);
 end;
 
 function TTensorflow.Variable<T>(data: T; name: string; dtype: TF_DataType): ResourceVariable;
@@ -864,6 +1564,11 @@ end;
 function TTensorflow.zeros(shape: TFTensor; dtype: TF_DataType; name: string): TFTensor;
 begin
     Result := array_ops.zeros(shape, dtype, name);
+end;
+
+function TTensorflow._clip_by_value(t, clip_value_min, clip_value_max: TFTensor; name: string): TFTensor;
+begin
+    Result := clip_ops.clip_by_value(t, clip_value_min, clip_value_max, name);
 end;
 
 function TTensorflow.GradientTape(persistent: Boolean = false; watch_accessed_variables: Boolean = true): TGradientTape;
@@ -985,7 +1690,7 @@ begin
 end;
 {$ENDREGION}
 
-
+{$REGION 'TRandom'}
 { TRandom }
 
 function TRandom.normal(shape: TFShape; mean, stddev: Single; dtype: TF_DataType; seed: Integer; name: string): TFTensor;
@@ -1029,6 +1734,7 @@ function TRandom.multinomial(logits: TFTensor; num_samples, seed: Integer; name:
 begin
    Result := random_ops.multinomial(logits, num_samples, seed, name, output_dtype);
 end;
+{$ENDREGION}
 
 initialization
 begin

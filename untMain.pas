@@ -21,7 +21,7 @@ uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
   Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.Buttons,rtti,
 
-  spring,
+  Spring,
 
   TF4D.Core.CApi,
 
@@ -101,9 +101,11 @@ type
     btnTest: TBitBtn;
     mmo1: TMemo;
     btnLinReg: TBitBtn;
+    btn1: TBitBtn;
     procedure btnTestClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure btnLinRegClick(Sender: TObject);
+    procedure btn1Click(Sender: TObject);
   private
     procedure EnableEager;
     procedure DisableEager;
@@ -124,6 +126,10 @@ implementation
               Tensorflow.math_ops,
 
               TensorFlow.Slice,
+
+              System.Generics.Collections,
+              //Spring.Collections.Lists,
+              Spring.Collections.Stacks,
 
               DUnitX.TestFramework;
 {$R *.dfm}
@@ -439,6 +445,31 @@ end;
 procedure TForm1.FormShow(Sender: TObject);
 begin
     Form1.Caption := 'TensorFlow lib ver. : ('+tf.Version +') TensoFlow.NET Commit(3fde7558e2c0a457272075219107b0dee3c8e4e5)'
+end;
+
+type
+  stack = class(TStack<Integer>)
+
+  end;
+
+procedure TForm1.btn1Click(Sender: TObject);
+var
+  Lista : TList<stack> ;
+  var item : stack;
+begin
+
+    lista := TList<stack>.Create;
+    item := stack.Create;
+
+    item.Push(2);
+    Lista.Add(item);
+
+
+    for var x in lista do
+        ShowMessage('interatore') ;
+
+    for var x in lista do             // <<------ item not exist in more case Exception
+        ShowMessage('interatore') ;
 end;
 
 procedure TForm1.btnLinRegClick(Sender: TObject);

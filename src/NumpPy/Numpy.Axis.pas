@@ -2,13 +2,10 @@ unit Numpy.Axis;
 {$REGION 'Licence'}
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
-
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,7 +15,11 @@ unit Numpy.Axis;
 {$ENDREGION}
 
 interface
-     uses System.SysUtils, Spring;
+     uses System.SysUtils,
+          Spring,
+
+          TensorFlow.DApi,
+          TensorFlow.Constant_op;
 
 type
   PAxis = ^TAxis;
@@ -32,6 +33,10 @@ type
       property size : Integer read GetSize;
 
       class operator Implicit(const value: TAxis): TValue;
+      class operator Implicit(const value: Integer): TAxis;
+      class operator Implicit(const aValue: TArray<Integer>): TAxis;
+      class operator Implicit(const aValue: TAxis): TFTensor;
+      class operator Implicit(const aValue: TAxis): PAxis;
   End;
 
 implementation
@@ -48,6 +53,30 @@ end;
 class operator TAxis.Implicit(const value: TAxis): TValue;
 begin
     Result := TValue.From<TAxis>(Value);
+end;
+
+class operator TAxis.Implicit(const aValue: TArray<Integer>): TAxis;
+begin
+    Result := Default(TAxis);
+    Result.axis := aValue;
+end;
+
+class operator TAxis.Implicit(const aValue: TAxis): TFTensor;
+begin
+    Result := constant_op.constant(aValue)
+end;
+
+class operator TAxis.Implicit(const aValue: TAxis): PAxis;
+begin
+    if aValue.axis = nil then  Result := nil
+    else                       Result := @aValue;
+
+end;
+
+class operator TAxis.Implicit(const value: Integer): TAxis;
+begin
+    Result.axis     := [value];
+    Result.isScalar := true;
 end;
 
 end.

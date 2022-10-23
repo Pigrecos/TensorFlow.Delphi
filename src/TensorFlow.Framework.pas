@@ -11,6 +11,8 @@ unit TensorFlow.Framework;
    See the License for the specific language governing permissions and
    limitations under the License.
 ******************************************************************************)
+{$WARN IMPLICIT_STRING_CAST OFF}
+{$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
 interface
       uses System.SysUtils,
@@ -30,6 +32,21 @@ type
      public
        class function has_fully_defined_shape(tensor: TFTensor): Boolean;
        class function rank(tensor: TFTensor): Integer;
+       /// <summary>
+       /// Returns the broadcasted shape between `shape_x` and `shape_y
+       /// </summary>
+       /// <param name="shape_x"></param>
+       /// <param name="shape_y"></param>
+       class function broadcast_shape(shape_x: TFTensor; shape_y: TFTEnsor): TFtensor;
+       /// <summary>
+       /// Helper functions for is_broadcast_compatible and broadcast_shape.
+       /// </summary>
+       /// <param name="shape_x"> A `Shape`</param>
+       /// <param name="shape_y"> A `Shape`</param>
+       /// <return> Returns None if the shapes are not broadcast compatible,
+       /// a list of the broadcast dimensions otherwise.
+       /// </return>
+       class function _broadcast_shape_helper(shape_x: TFTensor; shape_y: TFTEnsor): TFtensor;
   end;
 
   /// <summary>
@@ -107,6 +124,18 @@ begin
 end;
 
 { common_shapes }
+
+class function common_shapes.broadcast_shape(shape_x, shape_y: TFTEnsor): TFtensor;
+begin
+    var return_dims := _broadcast_shape_helper(shape_x, shape_y);
+    // return tensor_shape(return_dims);
+    raise TFException.Create('Not Finite NumberException');
+end;
+
+class function common_shapes._broadcast_shape_helper(shape_x, shape_y: TFTEnsor): TFtensor;
+begin
+    raise TFException.Create('Not Finite NumberException');
+end;
 
 class function common_shapes.has_fully_defined_shape(tensor: TFTensor): Boolean;
 begin

@@ -39,4 +39,13 @@ object Form1: TForm1
     TabOrder = 2
     OnClick = btnLinRegClick
   end
+  object btn1: TBitBtn
+    Left = 495
+    Top = 128
+    Width = 116
+    Height = 25
+    Caption = 'Test Spring TList'
+    TabOrder = 3
+    OnClick = btn1Click
+  end
 end

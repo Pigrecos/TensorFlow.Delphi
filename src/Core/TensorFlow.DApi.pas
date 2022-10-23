@@ -20,7 +20,6 @@ unit TensorFlow.DApi;
 interface
 uses
   System.SysUtils,
-
   System.Types,
   Winapi.Windows,
   System.Rtti,
@@ -31,9 +30,9 @@ uses
   Spring.Collections,
   Spring.Collections.Base,
   Spring.Collections.Dictionaries,
+
   Spring.Collections.Enumerable,
   Spring.Collections.Lists,
-  Spring.Collections.Stacks,
 
   TF4D.Core.CApi,
   TensorFlow.DApiEager,
@@ -817,6 +816,18 @@ TNDArray = class(TFTensor)
      property Item[indices: TArray<Integer> ] : TNDArray read GetItem write SetItem; default;
      property Item[slices: TArray<Slice> ]    : TNDArray read GetItem write SetItem; default;
      property data : Pointer read GetDataPointer;
+
+     type
+       TNDArrayEnum = class(TIteratorBase<TNDArray>, IEnumerator<TNDArray>)
+          protected
+             function GetCurrent: TNDArray;
+             function TryMoveNext(var current: TNDArray): Boolean; override;
+          public
+             constructor Create; override;
+             function GetEnumerator: IEnumerator<TNDArray>; override;
+             function MoveNext: Boolean;
+       end;
+
   end;
 {$ENDREGION}
 
@@ -846,7 +857,7 @@ TFTensors = class (TList<TFTensor>)
    procedure   AddRange(tensors : TArray<TFTensor>);
    procedure   Insert(idx : Integer ; const tensor : TFTensor);  override;
    function    ToTensor(tensors: TFTensors): TFTensor;
-   function    ToArray(tensors: TFTensors): TArray<TFTensor>; reintroduce;
+   function    ToArray: TArray<TFTensor>; reintroduce;
    function    ToString: string; override;
    procedure   Deconstruct(var a: TFTensor; var b : TFTensor);
 
@@ -1156,6 +1167,8 @@ TFGraph = class(TFDisposable)
    function  get_collection<T>(name: string; scope: string = ''): TList<T>;overload;
    function  get_collection_ref<T>(name: string): TList<T>;
    procedure colocate_with_for_gradient(op: TFOperation; gradient_uid: string;ignore_existing: Boolean = false);
+   procedure prevent_feeding(tensor: TFTensor);
+   procedure prevent_fetching(op: TFOperation);
    function  GetOpDef(tipo : string): TOpDef;
    procedure gExit;
    function  NewOperation(opType,opName: string):TFOperationDesc;
@@ -3584,6 +3597,34 @@ begin
     Result :=  BufferToArray;
 end;
 
+{ TNDArray.TNDArrayEnum }
+
+constructor TNDArray.TNDArrayEnum.Create;
+begin
+  inherited;
+
+end;
+
+function TNDArray.TNDArrayEnum.GetCurrent: TNDArray;
+begin
+
+end;
+
+function TNDArray.TNDArrayEnum.GetEnumerator: IEnumerator<TNDArray>;
+begin
+
+end;
+
+function TNDArray.TNDArrayEnum.MoveNext: Boolean;
+begin
+
+end;
+
+function TNDArray.TNDArrayEnum.TryMoveNext(var current: TNDArray): Boolean;
+begin
+
+end;
+
 {$ENDREGION}
 
 {$REGION 'TFOperationDesc'}
@@ -4634,6 +4675,16 @@ begin
    Result := Fnext_id_counter;
 end;
 
+procedure TFGraph.prevent_feeding(tensor: TFTensor);
+begin
+    Funfeedable_tensors.Add(tensor);
+end;
+
+procedure TFGraph.prevent_fetching(op: TFOperation);
+begin
+    Funfetchable_ops.Add(op);
+end;
+
 function TFGraph.get_name_scope: TF_TString;
 begin
     Result:= _name_stack;
@@ -5014,7 +5065,7 @@ begin
    FItems[idx] := Value;
 end;
 
-function TFTensors.ToArray(tensors: TFTensors): TArray<TFTensor>;
+function TFTensors.ToArray: TArray<TFTensor>;
 begin
     Result := FItems.ToArray
 end;
@@ -5217,4 +5268,5 @@ begin
 
 end;
 end.
+
 

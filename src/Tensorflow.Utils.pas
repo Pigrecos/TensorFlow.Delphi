@@ -21,6 +21,7 @@ interface
          Spring, Spring.Collections,
          Spring.Collections.Dictionaries,
          Spring.Collections.Lists,
+         Spring.Collections.Enumerable,
 
          TensorFlow.DApi,
          TensorFlow.DApiBase,
@@ -55,6 +56,8 @@ type
   end;
 
  Tdtypes = class
+  private
+
    public
      const
        cbool       : TF_DataType  = TF_DataType.TF_BOOL;
@@ -85,6 +88,8 @@ type
        class function ToIntArray(value: TArray<TF_DataType>): TArray<Integer>;
        class function is_integer(tipo: TF_DataType ): Boolean;
        class function is_floating(tipo: TF_DataType ): Boolean;
+       class function is_complex(tipo: TF_DataType): Boolean; static;
+       class function real_dtype(tipo: TF_DataType): TF_DataType;
        class function is_ref_dtype(tipo: TF_DataType ): Boolean;
        /// <summary>
        ///
@@ -103,8 +108,11 @@ type
   private
     class function ChangeType(x: TValue; new_system_dtype: PTypeInfo): TValue;
     class function ArrayToArrayTipo<T>(a: Tarray<T>; toTipo: PTypeInfo): TArray<Integer>;
+    class function _ConstantValue(tensor: TFTensor; partial: Boolean): TNDArray;
 
    public
+      class function MakeNdarray(tensor: TTensorProto): TNDArray; static;
+
       class function SequenceEqual<T>(const v1,v2: TArray<T>): boolean;
 
       class function flatten<T>(obj : TArray<T>                        ): TList<T> ;  overload;
@@ -132,7 +140,17 @@ type
       /// <param name="allow_broadcast"></param>
       /// <returns></returns>
       class function make_tensor_proto(values: TValue; var dtype : TF_DataType; shape : PTFShape; verify_shape : Boolean= false; allow_broadcast : Boolean= false) : TTensorProto;
+      /// <summary>
+      /// Returns the constant value of the given tensor, if efficiently calculable.
+      /// </summary>
+      /// <param name="tensor"></param>
+      /// <param name="partial"></param>
+      /// <returns></returns>
+      class function constant_value(tensor: TFTensor; partial: Boolean = false): TNDArray;
       class function ParseSlices(slices: TArray<Slice>): ParsedSliceArgs;
+      class function zip<T1, T2>(e1 : Enumerable<T1>; e2 : IEnumerable<T2>): Enumerable<Tuple<T1,T2>> ;
+      class function range(start, _end: Integer): Enumerable<integer>;  overload; static;
+      class function range(_end: Integer): Enumerable<integer> ;  overload; static;
  end;
 
  function GetArg(sNome: string; vVal : TValue):  TParameter;
@@ -144,6 +162,7 @@ implementation
              TensorFlow.EagerTensor,
              Tensorflow.NameScope,
              TensorFlow.Ops,
+             Numpy,
              Numpy.Axis,Complex,
              TensorFlow.Variable;
 
@@ -332,6 +351,11 @@ begin
     end;
 end;
 
+class function Tdtypes.is_complex(tipo: TF_DataType): Boolean;
+begin
+     Result := (tipo = TF_DataType.TF_COMPLEX) or (tipo = TF_DataType.TF_COMPLEX64) or  (tipo = TF_DataType.TF_COMPLEX128);
+end;
+
 class function Tdtypes.is_floating(tipo: TF_DataType): Boolean;
 begin
      Result := (tipo = TF_DataType.TF_HALF) or (tipo = TF_DataType.TF_FLOAT) or  (tipo = TF_DataType.TF_DOUBLE);
@@ -346,6 +370,17 @@ end;
 class function Tdtypes.is_ref_dtype(tipo: TF_DataType): Boolean;
 begin
      Result := Ord(tipo) > 100;
+end;
+
+class function Tdtypes.real_dtype(tipo: TF_DataType): TF_DataType;
+begin
+    var base_ : TF_DataType := as_base_dtype(tipo);
+    if base_ = ccomplex64 then
+        Exit( cfloat32)
+    else if base_ = ccomplex128 then
+        Exit(cfloat64)
+    else
+        Result := tipo;
 end;
 
 { TUtils }
@@ -767,6 +802,78 @@ begin
     else
       raise Exception.Create('type code UnknownTypeCode');  }
 
+end;
+
+class function TUtils.range(_end: Integer): Enumerable<integer> ;
+begin
+     Result := TEnumerable.range(0, _end);
+end;
+
+class function TUtils.range(start: Integer; _end: Integer): Enumerable<integer> ;
+begin
+    Result := TEnumerable.range(start, _end - start);
+end;
+
+class function TUtils.zip<T1, T2>(e1 : Enumerable<T1>; e2 : IEnumerable<T2>): Enumerable<Tuple<T1,T2>> ;
+begin
+    var r := e1.Zip<T2, Tuple<T1,T2> >( e2,function(first:  T1; second : T2 ): Tuple<T1,T2>
+                                                begin
+                                                    Result := Tuple<T1,T2>.Create(first,second)
+                                                end );
+    Result := r;
+end;
+
+class function TUtils.constant_value(tensor: TFTensor; partial: Boolean): TNDArray;
+begin
+    if tensor is TNDArray then Exit(TNDArray(tensor))
+    else if tensor is TEagerTensor then Exit( tensor.numpy) ;
+    var ret: TNDArray := _ConstantValue(tensor, partial);
+    if not (ret = nil) then
+        tensor.graph.prevent_feeding(tensor);
+    Result := ret;
+end;
+
+class function TUtils._ConstantValue(tensor: TFTensor; partial: Boolean): TNDArray;
+begin
+    if tensor.op.tipo = 'Const' then
+    begin
+        var v  := tensor.op.get_attr('value');
+        Result := MakeNdarray( v.Astype<TTensorProto> );
+    end else
+    begin
+       Result := nil;
+    end;
+end;
+
+class function TUtils.MakeNdarray(tensor: TTensorProto) : TNDArray;
+begin
+    var aSize : TArray<Int64> := [];
+    for var i := 0 to tensor.TensorShape.Dims.Count - 1 do
+     aSize := aSize + [ tensor.TensorShape.Dims[i].Size  ] ;
+    var shape        := TFShape.Create(aSize);
+    var num_elements := shape.size;
+    var tensor_dtype := TDTypes.as_tf_dtype(tensor.Dtype);
+    if (shape.ndim > 0) and (Length(tensor.TensorContent) > 0) then
+    begin
+        Result := np.frombuffer(tensor.TensorContent, shape, tensor_dtype);
+    end
+    else if (tensor.Dtype = TDataType.DT_HALF) or (tensor.Dtype = TDataType.DT_BFLOAT16) then
+    begin
+        Result := np.np_array(tensor.HalfVals.ToArray).reshape(shape);
+    end
+    else if tensor.Dtype = TDataType.DT_FLOAT then
+    begin
+        Result := np.np_array(tensor.FloatVals.ToArray).reshape(shape);
+    end
+    else if (tensor.Dtype = TDataType.DT_INT32) or (tensor.Dtype = TDataType.DT_UINT8) then
+    begin
+        Result := np.np_array(tensor.IntVals.ToArray).reshape(shape);
+    end
+    else if tensor.Dtype = TDataType.DT_BOOL then
+    begin
+        Result := np.np_array(tensor.BoolVals.ToArray).reshape(shape);
+    end else
+        raise TFException.Create('Not Implemented ("MakeNdarray")');
 end;
 
 class function TUtils.as_shape<T>(dims: TArray<T>): TTensorShapeProto;
