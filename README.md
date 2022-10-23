@@ -6,9 +6,9 @@
 
 The *intent* is to bring popular data science technology into the Delphi world and to provide .Delphi/Pascal developers with a powerful Machine Learning tool set without reinventing the wheel. Since the APIs are kept as similar as possible you can immediately adapt any existing TensorFlow code in Delphi with a zero learning curve. Take a look at a comparison picture and see how comfortably a TensorFlow/Python script translates into a Delphi program with TensorFlow.Delphi.
 
-![pythn vs csharp](C:\Users\Max\Documents\Embarcadero\Studio\Projects\TensorFlowDelphi\src\lib\img\Gather.png)
+![csharp vs pacal]([C:\Users\Max\Documents\Embarcadero\Studio\Projects\TensorFlowDelphi\src\lib\img](https://github.com/Pigrecos/TensorFlow.Delphi/blob/main/src/lib/img/Gather.png)
 
-![](C:\Users\Max\Documents\Embarcadero\Studio\Projects\TensorFlowDelphi\src\lib\img\Slice.png)
+![]([C:\Users\Max\Documents\Embarcadero\Studio\Projects\TensorFlowDelphi\src\lib\img](https://github.com/Pigrecos/TensorFlow.Delphi/blob/main/src/lib/img/Slice.png)
 
 philosophy allows a large number of machine learning code written in Python to be quickly migrated to Delphi, enabling Delphi/Pascal developers to use cutting edge machine learning models and access a vast number of TensorFlow resources which would not be possible without this project.
 
@@ -53,5 +53,5 @@ You can:
 
 ### Contact
 
-Follow us on [Twitter]https://twitter.com/Marte0016)
+Follow us on [Twitter](https://twitter.com/Marte0016)
 
