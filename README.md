@@ -21,6 +21,7 @@ Tensorflow.Delphi also implements TensorFlow's high level API where all the magi
 As a reference code I used 
 
 [TesorFlow.NET](https://github.com/SciSharp/TensorFlow.NET)
+
 [TensorFlow Python](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/python)
 
 
