@@ -39,7 +39,7 @@ type
         /// <param name="dtype"></param>
         /// <param name="seed"></param>
         /// <returns></returns>
-        class function multinomial_categorical_impl(logits: TFTensor; num_samples: Integer; dtype: TF_DataType = DtInvalid; seed : Integer= 0) : TFTEnsor; static;
+        class function multinomial_categorical_impl(logits: TFTensor; num_samples: Integer; dtype: TF_DataType = DtInvalid; seed : pInteger= nil) : TFTEnsor; static;
     public
         /// <summary>
         ///
@@ -51,7 +51,7 @@ type
         /// <param name="seed"></param>
         /// <param name="name"></param>
         /// <returns></returns>
-        class function random_normal(shape: TFShape; mean: Single = 0.0; stddev: Single = 1.0; dtype: TF_DataType = TF_FLOAT; seed: Integer = 0; name: string = '') : TFTEnsor; static;
+        class function random_normal(shape: TFShape; mean: Single = 0.0; stddev: Single = 1.0; dtype: TF_DataType = TF_FLOAT; seed: pInteger = nil; name: string = '') : TFTEnsor; static;
         /// <summary>
         /// Outputs random values from a uniform distribution.
         /// </summary>
@@ -62,7 +62,7 @@ type
         /// <param name="seed">Used to create a random seed for the distribution.</param>
         /// <param name="name">A name for the operation</param>
         /// <returns>A tensor of the specified shape filled with random uniform values.</returns>
-        class function random_uniform(shape: TArray<Integer>; minval: Single = 0; maxval: Single = 1; dtype: TF_DataType = TF_FLOAT; seed: Integer = 0; name: string = '') : TFTEnsor; overload; static;
+        class function random_uniform(shape: TArray<Integer>; minval: Single = 0; maxval: Single = 1; dtype: TF_DataType = TF_FLOAT; seed: pInteger = nil; name: string = '') : TFTEnsor; overload; static;
         /// <summary>
         /// Outputs random values from a uniform distribution.
         /// </summary>
@@ -73,8 +73,8 @@ type
         /// <param name="seed">Used to create a random seed for the distribution.</param>
         /// <param name="name">A name for the operation</param>
         /// <returns>A tensor of the specified shape filled with random uniform values.</returns>
-        class function random_uniform_int(shape: TArray<Integer>; minval: Integer = 0; maxval: Integer = 1; seed: Integer = 0; name: string = '') : TFTEnsor; static;
-        class function random_uniform(shape: TFTensor; minval: Integer = 0; maxval: TFTensor = nil; dtype: TF_DataType = TF_FLOAT; seed: Integer = 0; name: string = '') : TFTEnsor; overload; static;
+        class function random_uniform_int(shape: TArray<Integer>; minval: Integer = 0; maxval: Integer = 1; seed: pInteger = nil; name: string = '') : TFTEnsor; static;
+        class function random_uniform(shape: TFTensor; minval: Integer = 0; maxval: TFTensor = nil; dtype: TF_DataType = TF_FLOAT; seed: pInteger = nil; name: string = '') : TFTEnsor; overload; static;
         /// <summary>
         /// Randomly shuffles a tensor along its first dimension.
         /// </summary>
@@ -83,8 +83,8 @@ type
         /// <param name="name"></param>
         /// <returns></returns>
         class function random_shuffle(value: TFTensor; seed: Integer = 0; name: string = '') : TFTEnsor; static;
-        class function truncated_normal(shape: TArray<Integer>; mean: Single = 0.0; stddev: Single = 1.0; dtype: TF_DataType = TF_FLOAT; seed: Integer = 0; name: string = '') : TFTEnsor; static;
-        class function multinomial(logits: TFTensor; num_samples: Integer; seed: Integer = 0; name: string = ''; output_dtype: TF_DataType = DtInvalid) : TFTEnsor; static;
+        class function truncated_normal(shape: TArray<Integer>; mean: Single = 0.0; stddev: Single = 1.0; dtype: TF_DataType = TF_FLOAT; seed: pInteger = nil; name: string = '') : TFTEnsor; static;
+        class function multinomial(logits: TFTensor; num_samples: Integer; seed: pInteger = nil; name: string = ''; output_dtype: TF_DataType = DtInvalid) : TFTEnsor; static;
   end;
 
 implementation
@@ -99,7 +99,7 @@ implementation
 
 { random_ops }
 
-class function random_ops.random_normal(shape: TFShape; mean, stddev: Single; dtype: TF_DataType; seed: Integer; name: string): TFTEnsor;
+class function random_ops.random_normal(shape: TFShape; mean, stddev: Single; dtype: TF_DataType; seed: pInteger; name: string): TFTEnsor;
 begin
     var newVal : TValue := TValue.From<TArray<TValue>>([TValue.From<TFShape>(shape), mean, stddev]);
 
@@ -112,7 +112,11 @@ begin
                                 var shape_tensor  := _ShapeTensor(shape);
                                 var mean_tensor   := Tops.convert_to_tensor(mean, dtype, 'mean');
                                 var stddev_tensor := Tops.convert_to_tensor(stddev, dtype, 'stddev');
-                                tSeed             := random_seed.get_seed(seed);
+
+                                var nSeed : Nullable<Integer> := System.Default(Nullable<Integer>);
+                                if Assigned(seed) then nSeed := seed^;
+
+                                tSeed             := random_seed.get_seed(nSeed);
                                 var seed1         := tSeed.Value1;
                                 var seed2         := tSeed.Value1;
                                 var rnd           := gen_random_ops.random_standard_normal(shape_tensor, dtype, seed1, seed2);
@@ -123,7 +127,7 @@ begin
                             end );
 end;
 
-class function random_ops.random_uniform(shape: TArray<Integer>; minval, maxval: Single; dtype: TF_DataType; seed: Integer; name: string): TFTEnsor;
+class function random_ops.random_uniform(shape: TArray<Integer>; minval, maxval: Single; dtype: TF_DataType; seed: pInteger; name: string): TFTEnsor;
 begin
     var newVal : TValue := TValue.From<TArray<TValue>>([TValue.From< TArray<Integer> >(shape), minval, maxval]);
 
@@ -133,7 +137,11 @@ begin
                             tSeed : Tuple<TNullableInteger, TNullableInteger>;
                             begin
                                 var name := string(v1.ToString);
-                                tSeed             := random_seed.get_seed(seed);
+
+                                var nSeed : Nullable<Integer> := System.Default(Nullable<Integer>);
+                                if Assigned(seed) then nSeed := seed^;
+
+                                tSeed             := random_seed.get_seed(nSeed);
 
                                 var seed1         := tSeed.Value1;
                                 var seed2         := tSeed.Value1;
@@ -145,7 +153,7 @@ begin
                             end );
 end;
 
-class function random_ops.random_uniform_int(shape: TArray<Integer>; minval, maxval, seed: Integer; name: string): TFTEnsor;
+class function random_ops.random_uniform_int(shape: TArray<Integer>; minval: Integer; maxval: Integer; seed: pInteger; name: string): TFTEnsor;
 begin
     var newVal : TValue := TValue.From<TArray<TValue>>([TValue.From< TArray<Integer> >(shape), minval, maxval]);
 
@@ -155,7 +163,11 @@ begin
                             tSeed : Tuple<TNullableInteger, TNullableInteger>;
                             begin
                                 var name := string(v1.ToString);
-                                tSeed             := random_seed.get_seed(seed);
+
+                                var nSeed : Nullable<Integer> := System.Default(Nullable<Integer>);
+                                if Assigned(seed) then nSeed := seed^;
+
+                                tSeed             := random_seed.get_seed(nSeed);
 
                                 var seed1         := tSeed.Value1;
                                 var seed2         := tSeed.Value1;
@@ -166,7 +178,7 @@ begin
                             end );
 end;
 
-class function random_ops.random_uniform(shape: TFTensor; minval: Integer; maxval: TFTensor; dtype: TF_DataType; seed: Integer; name: string): TFTEnsor;
+class function random_ops.random_uniform(shape: TFTensor; minval: Integer; maxval: TFTensor; dtype: TF_DataType; seed: pInteger; name: string): TFTEnsor;
 begin
     var newVal : TValue := TValue.From<TArray<TValue>>([shape, minval, maxval]);
 
@@ -181,7 +193,11 @@ begin
                                 if maxval = nil then maxTensor := Tops.convert_to_tensor(1 , dtype, 'max')
                                 else                 maxTensor := Tops.convert_to_tensor(integer(TTensor(maxval)) , dtype, 'max');
 
-                                tSeed             := random_seed.get_seed(seed);
+                                var nSeed : Nullable<Integer> := System.Default(Nullable<Integer>);
+                                if Assigned(seed) then nSeed := seed^;
+
+                                tSeed             := random_seed.get_seed(nSeed);
+
                                 var seed1         := tSeed.Value1;
                                 var seed2         := tSeed.Value1;
                                 if Tdtypes.is_integer(dType) then
@@ -206,7 +222,7 @@ begin
     Result := gen_random_ops.random_shuffle(value, seed1, seed2, name);
 end;
 
-class function random_ops.truncated_normal(shape: TArray<Integer>; mean, stddev: Single; dtype: TF_DataType; seed: Integer; name: string): TFTEnsor;
+class function random_ops.truncated_normal(shape: TArray<Integer>; mean, stddev: Single; dtype: TF_DataType; seed: pInteger; name: string): TFTEnsor;
 begin
     var newVal : TValue := TValue.From<TArray<TValue>>([TValue.From< TArray<Integer> >(shape), mean, stddev]);
 
@@ -219,7 +235,11 @@ begin
                                 var shape_tensor  := _ShapeTensor(shape);
                                 var mean_tensor   := Tops.convert_to_tensor(mean, dtype, 'mean');
                                 var stddev_tensor := Tops.convert_to_tensor(stddev, dtype, 'stddev');
-                                tSeed             := random_seed.get_seed(seed);
+
+                                var nSeed : Nullable<Integer> := System.Default(Nullable<Integer>);
+                                if Assigned(seed) then nSeed := seed^;
+
+                                tSeed             := random_seed.get_seed(nSeed);
                                 var seed1         := tSeed.Value1;
                                 var seed2         := tSeed.Value1;
                                 var rnd           := gen_random_ops.truncated_normal(shape_tensor, dtype, seed1, seed2);
@@ -235,7 +255,7 @@ begin
    Result := Tops.convert_to_tensor(TValue.From< TArray<Integer> >(shape), DtInvalid, 'shape');
 end;
 
-class function random_ops.multinomial(logits: TFTensor; num_samples, seed: Integer; name: string; output_dtype: TF_DataType): TFTEnsor;
+class function random_ops.multinomial(logits: TFTensor; num_samples: Integer; seed: pInteger; name: string; output_dtype: TF_DataType): TFTEnsor;
 begin
     var newVal : TValue := TValue.From<TArray<TValue>>([ logits ]);
     Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'multinomial', @newVal),
@@ -245,15 +265,20 @@ begin
                             end );
 end;
 
-class function random_ops.multinomial_categorical_impl(logits: TFTensor; num_samples: Integer; dtype: TF_DataType; seed: Integer): TFTEnsor;
+class function random_ops.multinomial_categorical_impl(logits: TFTensor; num_samples: Integer; dtype: TF_DataType; seed: pInteger): TFTEnsor;
 var
   tSeed : Tuple<TNullableInteger, TNullableInteger>;
 begin
     logits := Tops.convert_to_tensor(logits, DtInvalid, 'logits');
-    tSeed             := random_seed.get_seed(seed);
+
+    var nSeed : Nullable<Integer> := System.Default(Nullable<Integer>);
+    if Assigned(seed) then nSeed := seed^;
+
+    tSeed             := random_seed.get_seed(nSeed);
     var seed1         := tSeed.Value1;
     var seed2         := tSeed.Value1;
     Result :=  gen_random_ops.multinomial(logits, num_samples, seed1, seed2, dtype);
 end;
 
 end.
+

@@ -47,7 +47,18 @@ uses
   TensorFlow.gen_random_ops in 'src\Operation\TensorFlow.gen_random_ops.pas',
   TensorFlow.random_ops in 'src\Operation\TensorFlow.random_ops.pas',
   TensorFlow.clip_ops in 'src\Operation\TensorFlow.clip_ops.pas',
-  Keras.Layer in 'src\Keras\Keras.Layer.pas';
+  Keras.Layer in 'src\Keras\Keras.Layer.pas',
+  TensorFlow.gen_data_flow_ops in 'src\Operation\TensorFlow.gen_data_flow_ops.pas',
+  TensorFlow.nn_ops in 'src\Operation\TensorFlow.nn_ops.pas',
+  TensorFlow.Initializer in 'src\Operation\TensorFlow.Initializer.pas',
+  Keras.ArgsDefinition in 'src\Keras\Keras.ArgsDefinition.pas',
+  Keras.Activations in 'src\Keras\Keras.Activations.pas',
+  TensorFlow.NnOps in 'src\Operation\NnOps\TensorFlow.NnOps.pas',
+  TensorFlow.gen_nn_ops in 'src\Operation\TensorFlow.gen_nn_ops.pas',
+  TensorFlow.Activation in 'src\Operation\TensorFlow.Activation.pas',
+  TensorFlow.gen_ops in 'src\Operation\TensorFlow.gen_ops.pas',
+  TensorFlow.Interfaces in 'src\TensorFlow.Interfaces.pas',
+  TensorFlow.bitwise_ops in 'src\Operation\TensorFlow.bitwise_ops.pas';
 
 {$R *.res}
 

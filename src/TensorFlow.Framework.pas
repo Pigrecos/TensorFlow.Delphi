@@ -127,6 +127,7 @@ end;
 
 class function common_shapes.broadcast_shape(shape_x, shape_y: TFTEnsor): TFtensor;
 begin
+
     var return_dims := _broadcast_shape_helper(shape_x, shape_y);
     // return tensor_shape(return_dims);
     raise TFException.Create('Not Finite NumberException');
@@ -220,3 +221,5 @@ begin
 end;
 
 end.
+
+

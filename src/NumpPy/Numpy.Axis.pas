@@ -26,22 +26,29 @@ type
   TAxis = Record
     private
      function GetSize: Integer;
+    function GetItem(indices: Integer): Integer;
     public
       isScalar : Boolean;
       axis     : Nullable< TArray<Integer> >;
-
-      property size : Integer read GetSize;
 
       class operator Implicit(const value: TAxis): TValue;
       class operator Implicit(const value: Integer): TAxis;
       class operator Implicit(const aValue: TArray<Integer>): TAxis;
       class operator Implicit(const aValue: TAxis): TFTensor;
       class operator Implicit(const aValue: TAxis): PAxis;
+
+      property size                    : Integer read GetSize;
+      property Item[indices: Integer ] : Integer read GetItem; default;
   End;
 
 implementation
 
 { TAxis }
+
+function TAxis.GetItem(indices: Integer): Integer;
+begin
+   Result := axis.Value[indices]
+end;
 
 function TAxis.GetSize: Integer;
 begin

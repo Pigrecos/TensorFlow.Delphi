@@ -36,6 +36,8 @@ interface
        Tensorflow.String_ops,
        TensorFlow.Variable,
        TensorFlow.Tensors.Ragged,
+       TensorFlow.Initializer,
+       TensorFlow.bitwise_ops,
        Numpy,
        Numpy.Axis,
 
@@ -264,7 +266,7 @@ type
       /// <param name="seed"></param>
       /// <param name="name"></param>
       /// <returns></returns>
-      Function normal(shape: TFShape; mean: Single = 0.0; stddev: Single = 1.0; dtype: TF_DataType = TF_FLOAT; seed : Integer = 0; name: string = ''): TFTensor;
+      Function normal(shape: TFShape; mean: Single = 0.0; stddev: Single = 1.0; dtype: TF_DataType = TF_FLOAT; seed : pInteger = nil; name: string = ''): TFTensor;
       /// <summary>
       /// Outputs random values from a truncated normal distribution.
       /// </summary>
@@ -275,10 +277,10 @@ type
       /// <param name="seed"></param>
       /// <param name="name"></param>
       /// <returns></returns>
-      Function truncated_normal(shape: TFShape; mean: Single = 0.0; stddev: Single = 1.0; dtype: TF_DataType = TF_FLOAT; seed: Integer = 0; name: string = ''): TFTensor;
-      Function categorical(logits: TFTensor; num_samples: Integer; seed: Integer = 0; name: string = ''; output_dtype: TF_DataType = DtInvalid): TFTensor;
-      Function uniform(shape: TFShape; minval: Single = 0; maxval: Single = 1; dtype: TF_DataType = TF_FLOAT; seed: Integer = 0; name: string = '') : TFTensor;
-      Function random_uniform(shape: TFShape; minval: Single = 0; maxval: SIngle = 1; dtype: TF_DataType = TF_FLOAT; seed: Integer = 0; name: string = '') : TFTensor;
+      Function truncated_normal(shape: TFShape; mean: Single = 0.0; stddev: Single = 1.0; dtype: TF_DataType = TF_FLOAT; seed: pInteger = nil; name: string = ''): TFTensor;
+      Function categorical(logits: TFTensor; num_samples: Integer; seed: pInteger = nil; name: string = ''; output_dtype: TF_DataType = DtInvalid): TFTensor;
+      Function uniform(shape: TFShape; minval: Single = 0; maxval: Single = 1; dtype: TF_DataType = TF_FLOAT; seed: pInteger = nil; name: string = '') : TFTensor;
+      Function random_uniform(shape: TFShape; minval: Single = 0; maxval: SIngle = 1; dtype: TF_DataType = TF_FLOAT; seed: pInteger = nil; name: string = '') : TFTensor;
       /// <summary>
       /// Randomly shuffles a tensor along its first dimension.
       /// </summary>
@@ -291,8 +293,69 @@ type
       /// </returns>
       Function  random_shuffle(value: TFTensor; seed: Integer = 0; name: string = '') : TFTensor;
       procedure set_random_seed(seed: Integer);
-      Function  multinomial(logits: TFTensor; num_samples: Integer; seed: Integer = 0; name: string = ''; output_dtype: TF_DataType = DtInvalid): TFTensor;
+      Function  multinomial(logits: TFTensor; num_samples: Integer; seed: pInteger = nil; name: string = ''; output_dtype: TF_DataType = DtInvalid): TFTensor;
   end;
+{$ENDREGION}
+
+{$REGION 'MathApi'}
+MathApi = class
+  private
+
+  public
+    function argmax(input: TFTensor; axis: TAxis ; name: string = ''; dimension: PInteger = nil; output_type: TF_DataType = TF_INT64): TFTensor;
+    function log(x: TFTensor; name: string = ''): TFTensor;
+    /// <summary>
+    /// Computes the Gauss error function of `x` element-wise.
+    /// </summary>
+    /// <param name="x"></param>
+    /// <param name="name"></param>
+    /// <returns></returns>
+    function erf(x: TFTensor; name: string = ''): TFTensor;
+    function sum(x: TFTensor;      axis: TAxis; name: string = ''): TFTensor;
+    /// <summary>
+    ///
+    /// </summary>
+    /// <param name="arr"></param>
+    /// <param name="weights"></param>
+    /// <param name="minlength"></param>
+    /// <param name="maxlength"></param>
+    /// <param name="dtype"></param>
+    /// <param name="name"></param>
+    /// <param name="axis"></param>
+    /// <param name="binary_output"></param>
+    /// <returns></returns>
+    function bincount(arr: TFTensor; weights: TFTensor = nil; minlength: TFTensor = nil; maxlength: TFTensor = nil; dtype: TF_DataType = TF_INT32;  name: string = ''; axis: PTFShape = nil; binary_output: Boolean = false): TFTensor;
+end;
+{$ENDREGION}
+
+{$REGION 'nn_internal'}
+nn_internal = class
+  private
+
+  public
+    class function tanh(x:TFTensor; name: string = '') : TFTensor ; static;
+    class function relu(features:TFTensor; name: string = '') : TFTensor ; static;
+    /// <summary>
+    /// Computes sigmoid of `x` element-wise.
+    /// Specifically, `y = 1 / (1 + exp(-x))`.
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    /// <param name="x"></param>
+    /// <param name="name">A name for the operation (optional).</param>
+    /// <returns>A Tensor with the same type as `x`.</returns>
+    class function sigmoid<T>(x: T; name: string = ''): TFTensor ; static;
+    /// <summary>
+    /// Computes dropout.
+    /// </summary>
+    /// <param name="x">A floating point tensor.</param>
+    /// <param name="keep_prob">(deprecated) A deprecated alias for `(1-rate)`.</param>
+    /// <param name="noise_shape"></param>
+    /// <param name="seed">Used to create random seeds.</param>
+    /// <param name="name"></param>
+    /// <param name="rate">A scalar `Tensor` with the same type as `x`.</param>
+    /// <returns>A Tensor of the same shape of `x`.</returns>
+    class function dropout(x: TFTensor; keep_prob: TFTensor = nil; noise_shape: TFTensor = nil; seed: PInteger = nil; name: string = ''; rate: PSingle = nil): TFTensor ; static;
+end;
 {$ENDREGION}
 
 {$REGION 'TTensorflow'}
@@ -331,6 +394,17 @@ type
       /// https://www.tensorflow.org/api_docs/python/tf/experimental/numpy
       /// </summary>
       numpy  : NumPyImpl;
+      math   : MathApi;
+      nn     : nn_internal;
+      bitwise: bitwise_ops;
+      // Inizializer
+      glorot_uniform_initializer : IInitializer;
+      zeros_initializer          : IInitializer;
+      ones_initializer           : IInitializer;
+      random_uniform_initializer : IInitializer;
+      orthogonal_initializer     : IInitializer;
+
+      function constant_initializer<T>(value: T; dtype: TF_DataType = TF_FLOAT; verify_shape : Boolean= false): IInitializer;
 
       constructor Create;
       destructor  Destroy ; override;
@@ -505,28 +579,6 @@ type
       /// <returns></returns>
       function multiply<Tx, Ty>(x: Tx; y: Ty; name: string = ''): TFTensor; overload;
       function pow<T1, T2>(x:T1; y: T2; name: string = 'pow'): TFTensor;
-
-      function argmax(input: TFTensor; axis: TAxis ; name: string = ''; dimension: PInteger = nil; output_type: TF_DataType = TF_INT64): TFTensor;
-      /// <summary>
-      /// Computes the Gauss error function of `x` element-wise.
-      /// </summary>
-      /// <param name="x"></param>
-      /// <param name="name"></param>
-      /// <returns></returns>
-      function erf(x: TFTensor; name: string = ''): TFTensor;
-      /// <summary>
-      ///
-      /// </summary>
-      /// <param name="arr"></param>
-      /// <param name="weights"></param>
-      /// <param name="minlength"></param>
-      /// <param name="maxlength"></param>
-      /// <param name="dtype"></param>
-      /// <param name="name"></param>
-      /// <param name="axis"></param>
-      /// <param name="binary_output"></param>
-      /// <returns></returns>
-      function bincount(arr: TFTensor; weights: TFTensor = nil; minlength: TFTensor = nil; maxlength: TFTensor = nil; dtype: TF_DataType = TF_INT32;  name: string = ''; axis: PTFShape = nil; binary_output: Boolean = false): TFTensor;
       function abs(x: TFTensor; name: string = ''): TFTensor;
       /// <summary>
       /// Computes acos of x element-wise.
@@ -704,6 +756,7 @@ type
       function sqrt(a: TFTensor; name: string = ''): TFTensor;
       function sign(a: TFTensor; name: string = ''): TFTensor;
       function subtract<T>(x : TFTensor;  y: TArray<T>; name: string = ''): TFTensor; overload;
+      function log(x: TFTensor; name: string = ''): TFTensor;
       /// <summary>
       /// return x - y
       /// </summary>
@@ -712,7 +765,6 @@ type
       /// <param name="name"></param>
       /// <returns></returns>
       function subtract(x : TFTensor; y: TFTensor; name: string = ''): TFTensor; overload;
-      function log(x: TFTensor; name: string = ''): TFTensor;
       function equal(x : TFTensor; y: TFTensor; name: string = ''): TFTensor;
       /// <summary>
       /// Computes arctangent of `y/x` element-wise, respecting signs of the arguments.
@@ -840,8 +892,7 @@ type
       function reduce_variance(input_tensor: TFTensor; axis: PAxis = nil; keepdims: Boolean = false; name: string = ''): TFTensor;
       function reduce_mean    (input_tensor: TFTensor; axis: PAxis = nil; keepdims: Boolean = false; name: string = ''; reduction_indices: PInteger = nil): TFTensor;
       function sigmoid<T>(x: T; name: string = ''): TFTensor;
-      function sum(x: TFTensor;      axis: TAxis; name: string = ''): TFTensor; overload;
-      function sum(input : TFTensor; axis: Integer; keep_dims: Boolean = false; name: string = ''): TFTensor; overload;
+      function sum(input : TFTensor; axis: Integer; keep_dims: Boolean = false; name: string = ''): TFTensor;
       function round(x : TFTensor; name: string = ''): TFTensor;
       function cast(x : TFTensor; dtype: TF_DataType; name: string = ''): TFTensor;
       function cumsum(x : TFTensor; axis: Integer = 0; exclusive: Boolean = false; reverse: Boolean = false; name: string = ''): TFTensor;
@@ -850,7 +901,7 @@ type
       function exp(x: TFTensor; name: string = ''): TFTensor;
 
       // tf.random
-      function random_uniform(shape: TFShape; minval: Single = 0; maxval: Single = 1; dtype: TF_DataType = TF_FLOAT; seed: Integer = 0; name: string = ''): TFTensor;
+      function random_uniform(shape: TFShape; minval: Single = 0; maxval: Single = 1; dtype: TF_DataType = TF_FLOAT; seed: pInteger = nil; name: string = ''): TFTensor;
 
       property Version : string read GetVersion;
 
@@ -873,10 +924,39 @@ implementation
         TensorFlow.clip_ops,
         tensorflow.gen_sparse_ops,
         TensorFlow.random_ops,
+        TensorFlow.gen_nn_ops,
+        TensorFlow.nn_ops,
         Tensorflow.NameScope,
         TensorFlow.Tensor;
 
 {$REGION 'TTensorflow'}
+
+{ MathApi }
+
+function MathApi.argmax(input: TFTensor; axis: TAxis; name: string; dimension: PInteger; output_type: TF_DataType): TFTensor;
+begin
+    Result := gen_math_ops.arg_max(input, axis, output_type, name);
+end;
+
+function MathApi.log(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.log(x, name);
+end;
+
+function MathApi.erf(x: TFTensor; name: string): TFTensor;
+begin
+    Result := math_ops.erf(x, name);
+end;
+
+function MathApi.sum(x: TFTensor; axis: TAxis; name: string): TFTensor;
+begin
+   Result :=  math_ops.reduce_sum(x, axis, False, name);
+end;
+
+function MathApi.bincount(arr, weights, minlength, maxlength: TFTensor; dtype: TF_DataType; name: string; axis: PTFShape; binary_output: Boolean): TFTensor;
+begin
+    Result := math_ops.bincount(arr, weights, minlength, maxlength, dtype, name, axis, binary_output);
+end;
 
 { TTensorflow }
 
@@ -893,6 +973,15 @@ begin
     //
     random    := TRandom.Create;
     numpy     := NumPyImpl.Create;
+    math      := MathApi.Create;
+    nn        := nn_internal.Create;
+    bitwise   := bitwise_ops.Create;
+    //
+    glorot_uniform_initializer := GlorotUniform.Create;
+    zeros_initializer          := TensorFlow.Initializer.Zeros.Create;
+    ones_initializer           := TensorFlow.Initializer.Ones.Create;
+    random_uniform_initializer := RandomUniform.Create;
+    orthogonal_initializer     := Orthogonal.Create;
 
     Logger.Providers.Add(GlobalLogFileProvider);
     with GlobalLogFileProvider do
@@ -922,6 +1011,9 @@ begin
   //
   random.Free;
   numpy.Free;
+  math.Free;
+  nn.Free;
+  bitwise.Free;
 
 end;
 
@@ -991,11 +1083,6 @@ begin
     Result := math_ops.add_n(inputs, name);
 end;
 
-function TTensorflow.argmax(input: TFTensor; axis: TAxis; name: string; dimension: PInteger; output_type: TF_DataType): TFTensor;
-begin
-    Result := gen_math_ops.arg_max(input, axis, output_type, name);
-end;
-
 function TTensorflow.arg_max(input: TFTensor; dimension: Integer; output_type: TF_DataType; name: string): TFTensor;
 begin
     Result := gen_math_ops.arg_max(input, dimension, output_type, name);
@@ -1056,11 +1143,6 @@ begin
     Result := gen_array_ops.batch_to_space_nd(input, block_shape, crops, name)
 end;
 
-function TTensorflow.bincount(arr, weights, minlength, maxlength: TFTensor; dtype: TF_DataType; name: string; axis: PTFShape; binary_output: Boolean): TFTensor;
-begin
-    Result := math_ops.bincount(arr, weights, minlength, maxlength, dtype, name, axis, binary_output);
-end;
-
 function TTensorflow.boolean_mask<T1, T2>(tensor: T1; mask: T2; name: string; axis: Integer): TFTensor;
 begin
     Result := array_ops.boolean_mask(tensor, mask, name, axis);
@@ -1089,6 +1171,11 @@ end;
 function TTensorflow.constant(value: TValue; name: AnsiString): TFTensor;
 begin
     Result := constant(value, DtInvalid, nil, name);
+end;
+
+function TTensorflow.constant_initializer<T>(value: T; dtype: TF_DataType; verify_shape: Boolean): IInitializer;
+begin
+    Result := Constant<T>.Create(value, dtype, verify_shape)
 end;
 
 function TTensorflow.constant(value: TValue; dtype: TF_DataType; shape: PTFShape; name: AnsiString): TFTensor;
@@ -1124,11 +1211,6 @@ end;
 function TTensorflow.equal(x, y: TFTensor; name: string): TFTensor;
 begin
     Result := gen_math_ops.equal(x, y, True, name);
-end;
-
-function TTensorflow.erf(x: TFTensor; name: string): TFTensor;
-begin
-    Result := math_ops.erf(x, name);
 end;
 
 function TTensorflow.executing_eagerly: Boolean;
@@ -1256,7 +1338,7 @@ end;
 
 function TTensorflow.log(x: TFTensor; name: string): TFTensor;
 begin
-    Result := gen_math_ops.log(x, name);
+   Result := gen_math_ops.log(x, name);
 end;
 
 function TTensorflow.log1p(x: TFTensor; name: string): TFTensor;
@@ -1306,18 +1388,26 @@ end;
 
 function TTensorflow.range(start, limit, delta: TValue; dtype: Nullable<TF_DataType>; name: string): TFTensor;
 begin
-   Result :=  math_ops.range(start, @limit, @delta, dtype, name);
+   var pl : PValue := nil;
+   if limit.typeInfo <> nil then  pl := @limit;
+
+   var pD : PValue := nil;
+   if delta.typeInfo <> nil then  pD := @delta;
+
+   Result :=  math_ops.range(start, pl, pD, dtype, name);
 end;
 
-function TTensorflow.random_uniform(shape: TFShape; minval, maxval: Single; dtype: TF_DataType; seed: Integer; name: string): TFTensor;
+function TTensorflow.random_uniform(shape: TFShape; minval, maxval: Single; dtype: TF_DataType; seed: pInteger; name: string): TFTensor;
 begin
     Result := random.uniform(shape, minval, maxval, dtype, seed, name);
 end;
 
 function TTensorflow.range(start, limit: TValue): TFTensor;
 begin
-    var v : TValue := System.default(TValue);
-    Result := range(start, limit,v, nil,'range');
+    var v     : TValue                := System.default(TValue);
+    var nTipo : Nullable<TF_DataType> := dtinvalid ;
+
+    Result := range(start, limit,v, nTipo,'range');
 end;
 
 function TTensorflow.real(input: TFTensor; name: string): TFTensor;
@@ -1365,11 +1455,21 @@ begin
     if keepdims then
     begin
         if axis <> nil then Result := math_ops.reduce_sum(input, constant_op.constant(TValue.From<TAxis>(axis^)), keepdims, name)
-        else                Result := math_ops.reduce_sum(input, constant_op.constant(TValue.From<TAxis>(reduction_indices^)), keepdims, name);
+        else begin
+              var v : TValue := System.default(TValue);
+              if reduction_indices <> nil then v := TValue.From<TAxis>(reduction_indices^);
+
+              Result := math_ops.reduce_sum(input, constant_op.constant(v), keepdims, name);
+        end;
     end else
     begin
         if axis <> nil then Result := math_ops.reduce_sum( input, constant_op.constant(TValue.From<TAxis>(axis^)) )
-        else                Result := math_ops.reduce_sum( input, constant_op.constant(TValue.From<TAxis>(reduction_indices^)) );
+        else begin
+              var v : TValue := System.default(TValue);
+              if reduction_indices <> nil then v := TValue.From<TAxis>(reduction_indices^);
+
+              Result := math_ops.reduce_sum( input, constant_op.constant(v) );
+        end;
     end;
 end;
 
@@ -1506,11 +1606,6 @@ end;
 function TTensorflow.subtract<T>(x: TFTensor; y: TArray<T>; name: string): TFTensor;
 begin
     Result := gen_math_ops.sub(x, Tops.convert_to_tensor(TValue.From< TArray<T> >(y),  Tdtypes.as_base_dtype(x.dtype), 'y'), name);
-end;
-
-function TTensorflow.sum(x: TFTensor; axis: TAxis; name: string): TFTensor;
-begin
-   Result :=  math_ops.reduce_sum(x, axis, False, name);
 end;
 
 function TTensorflow.sum(input: TFTensor; axis: Integer; keep_dims: Boolean; name: string): TFTensor;
@@ -1693,28 +1788,28 @@ end;
 {$REGION 'TRandom'}
 { TRandom }
 
-function TRandom.normal(shape: TFShape; mean, stddev: Single; dtype: TF_DataType; seed: Integer; name: string): TFTensor;
+function TRandom.normal(shape: TFShape; mean, stddev: Single; dtype: TF_DataType; seed: pInteger; name: string): TFTensor;
 begin
     Result := random_ops.random_normal(shape, mean, stddev, dtype, seed, name);
 end;
 
-function TRandom.truncated_normal(shape: TFShape; mean, stddev: Single; dtype: TF_DataType; seed: Integer; name: string): TFTensor;
+function TRandom.truncated_normal(shape: TFShape; mean, stddev: Single; dtype: TF_DataType; seed: pInteger; name: string): TFTensor;
 begin
     Result := random_ops.truncated_normal(shape, mean, stddev, dtype, seed, name);
 end;
 
-function TRandom.categorical(logits: TFTensor; num_samples, seed: Integer; name: string; output_dtype: TF_DataType): TFTensor;
+function TRandom.categorical(logits: TFTensor; num_samples: Integer; seed: pInteger; name: string; output_dtype: TF_DataType): TFTensor;
 begin
     Result := random_ops.multinomial(logits, num_samples, seed, name, output_dtype);
 end;
 
-function TRandom.uniform(shape: TFShape; minval, maxval: Single; dtype: TF_DataType; seed: Integer; name: string): TFTensor;
+function TRandom.uniform(shape: TFShape; minval, maxval: Single; dtype: TF_DataType; seed: pInteger; name: string): TFTensor;
 begin
     if TDtypes.is_integer(dtype) then Result := random_ops.random_uniform_int(shape, Trunc(minval), Trunc(maxval), seed, name)
     else                              Result := random_ops.random_uniform(shape, minval, maxval, dtype, seed, name);
 end;
 
-function TRandom.random_uniform(shape: TFShape; minval, maxval: SIngle; dtype: TF_DataType; seed: Integer; name: string): TFTensor;
+function TRandom.random_uniform(shape: TFShape; minval, maxval: SIngle; dtype: TF_DataType; seed: pInteger; name: string): TFTensor;
 begin
     Result := uniform(shape, minval, maxval, dtype, seed, name);
 end;
@@ -1730,11 +1825,39 @@ begin
     else                         Tops.get_default_graph.seed := seed;
 end;
 
-function TRandom.multinomial(logits: TFTensor; num_samples, seed: Integer; name: string; output_dtype: TF_DataType): TFTensor;
+function TRandom.multinomial(logits: TFTensor; num_samples: Integer; seed: pInteger; name: string; output_dtype: TF_DataType): TFTensor;
 begin
    Result := random_ops.multinomial(logits, num_samples, seed, name, output_dtype);
 end;
 {$ENDREGION}
+
+{ nn_internal }
+
+class function nn_internal.dropout(x, keep_prob, noise_shape: TFTensor; seed: PInteger; name: string; rate: PSingle): TFTensor;
+begin
+    var keep: TFTensor := nil;
+    if keep_prob <> nil then
+        keep := 1.0 - TTensor(keep_prob);
+    var rate_tensor : TFTensor := nil;
+    if rate <> nil  then rate_tensor := tf.constant(rate^,'')
+    else                 rate_tensor := keep;
+    Result := nn_ops.dropout_v2(x, rate_tensor, noise_shape, seed,  name);
+end;
+
+class function nn_internal.relu(features: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_nn_ops.relu(features, name);
+end;
+
+class function nn_internal.sigmoid<T>(x: T; name: string): TFTensor;
+begin
+   Result := math_ops.sigmoid(x, name);
+end;
+
+class function nn_internal.tanh(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_nn_ops.tanh(x, name);
+end;
 
 initialization
 begin

@@ -297,6 +297,7 @@ TTensor = record
       Class Operator LessThanOrEqual(lhs: Single;  rhs: TTensor)          : TTensor; Overload;
       Class Operator LessThanOrEqual(lhs: TTensor; rhs: Double)           : TTensor; Overload;
       Class Operator LessThanOrEqual(lhs: Double;  rhs: TTensor)          : TTensor; Overload;
+      Class Operator negative(x: TTensor): TTensor;
 
       function  eval(session : TFSession; feed_dict : TArray<FeedItem>= nil) : TNDArray;
       function  numpy: NDArray;
@@ -892,6 +893,11 @@ end;
 class operator TTensor.Multiply(lhs: TTensor; rhs: ResourceVariable): TTensor;
 begin
     Result :=  TFTensor.BinaryOpWrapper('mul', lhs, rhs);
+end;
+
+class operator TTensor.negative(x: TTensor): TTensor;
+begin
+   Result := gen_math_ops.neg(x);
 end;
 
 function TTensor.numpy: NDArray;

@@ -50,8 +50,37 @@ type
        function  Run: Boolean;
   end;
 
+  EagerModeTestBase = class
+      procedure TestInit;
+      function  Equal(f1: Single; f2: Single): Boolean; overload;
+      function  Equal(f1: TArray<Single>; f2: TArray<Single>): Boolean; overload;
+      function  Equal(f1: TArray<Double>; f2: TArray<Double>): Boolean; overload;
+  end;
+
+  ActivationFunctionTest = class(EagerModeTestBase)
+    public
+      a : TFTensor;
+
+      constructor Create;
+      procedure Sigmoid;
+      procedure ReLU;
+      procedure TanH;
+  end;
+
+  BitwiseApiTest = class(EagerModeTestBase)
+     public
+       constructor Create;
+       procedure BitwiseAnd;
+       procedure BitwiseOr;
+       procedure BitwiseXOR;
+       procedure Invert;
+       procedure LeftShift;
+       procedure RightShift;
+  end;
+
 
 implementation
+        uses DUnitX.TestFramework;
 
 { LinearRegression }
 
@@ -133,6 +162,151 @@ begin
 
     return diff < 0.01;
     *)
+end;
+
+{ EagerModeTestBase }
+
+function EagerModeTestBase.Equal(f1, f2: TArray<Single>): Boolean;
+begin
+    var ret: Boolean := false;
+    var tolerance : Single := 000001;
+    for var i := 0 to  Length(f1) - 1 do
+    begin
+        ret := Abs(f1[i] - f2[i]) <= tolerance;
+        if  not ret then
+            break;
+    end;
+    Result := ret;
+end;
+
+function EagerModeTestBase.Equal(f1, f2: Single): Boolean;
+begin
+     var tolerance : Single := 000001;
+     Result := Abs(f1 - f2) <= tolerance;
+end;
+
+function EagerModeTestBase.Equal(f1, f2: TArray<Double>): Boolean;
+begin
+    var ret: Boolean := false;
+    var tolerance : Single := 000000000000001;
+    for var i := 0 to  Length(f1) - 1 do
+    begin
+        ret := Abs(f1[i] - f2[i]) <= tolerance;
+        if  not ret then
+            break;
+    end;
+    Result := ret;
+end;
+
+procedure EagerModeTestBase.TestInit;
+begin
+    if not tf.executing_eagerly then
+       tf.enable_eager_execution;
+    tf.Context.ensure_initialized;
+end;
+
+{ ActivationFunctionTest }
+
+constructor ActivationFunctionTest.Create;
+begin
+    a := tf.constant( TArray<Single>.Create( 1.0, -0.5, 3.4, -2.1, 0.0, -6.5 ) );
+    TestInit;
+end;
+
+procedure ActivationFunctionTest.Sigmoid;
+begin
+    var b := tf.nn.sigmoid(a, 'sigmoid');
+    var expected : TArray<Single> := [ 0.7310586, 0.37754068, 0.9677046, 0.10909683, 0.5, 0.00150118 ];
+    var actual := b.ToArray<Single>;
+    Assert.IsTrue( Equal(expected, actual) );
+end;
+
+procedure ActivationFunctionTest.ReLU;
+begin
+    var b := tf.nn.relu(a, 'ReLU');
+    var expected : TArray<Single> := [ 1, 0, 3.4, 0, 0, 0 ];
+    var actual := b.ToArray<Single>;
+    Assert.IsTrue(Equal(expected, actual));
+end;
+
+procedure ActivationFunctionTest.TanH;
+begin
+    var b := tf.nn.tanh(a, 'TanH');
+    var expected  : TArray<Single> := [ 0.7615942, -0.46211717, 0.9977749, -0.970452, 0, -0.99999547 ];
+    var actual := b.ToArray<Single>;
+    Assert.IsTrue(Equal(expected, actual));
+end;
+
+{ BitwiseApiTest }
+
+constructor BitwiseApiTest.Create;
+begin
+    TestInit;
+end;
+
+procedure BitwiseApiTest.BitwiseAnd;
+begin
+    var lhs : TFTensor := tf.constant( TArray<Integer>.Create( 0, 5, 3, 14 ) );
+    var rhs : TFTensor := tf.constant( TArray<Integer>.Create( 5, 0, 7, 11 ) );
+
+    var bitwise_and_result := tf.bitwise.bitwise_and(lhs, rhs);
+    var expected : TArray<Integer> := [ 0, 0, 3, 10 ];
+    var actual := bitwise_and_result.ToArray<Integer>;
+    Assert.IsTrue(TUtils.SequenceEqual<Integer>(expected, actual));
+end;
+
+procedure BitwiseApiTest.BitwiseOr;
+begin
+    var lhs : TFTensor := tf.constant( TArray<Integer>.Create( 0, 5, 3, 14 ) );
+    var rhs : TFTensor := tf.constant( TArray<Integer>.Create( 5, 0, 7, 11 ) );
+
+    var bitwise_or_result := tf.bitwise.bitwise_or(lhs, rhs);
+    var expected : TArray<Integer> := [ 5, 5, 7, 15 ];
+    var actual := bitwise_or_result.ToArray<Integer>;
+    Assert.IsTrue(TUtils.SequenceEqual<Integer>(expected, actual));
+end;
+
+procedure BitwiseApiTest.BitwiseXOR;
+begin
+    var lhs : TFTensor := tf.constant( TArray<Integer>.Create( 0, 5, 3, 14 ) );
+    var rhs : TFTensor := tf.constant( TArray<Integer>.Create( 5, 0, 7, 11 ) );
+
+    var bitwise_xor_result := tf.bitwise.bitwise_xor(lhs, rhs);
+    var expected : TArray<Integer> := [ 5, 5, 4, 5 ];
+    var actual := bitwise_xor_result.ToArray<Integer>;
+    Assert.IsTrue(TUtils.SequenceEqual<Integer>(expected, actual));
+end;
+
+procedure BitwiseApiTest.Invert;
+begin
+    var lhs : TFTensor := tf.constant( TArray<Integer>.Create( 0, 1, -3, integer.MaxValue ) );
+
+    var invert_result := tf.bitwise.invert(lhs);
+    var expected : TArray<Integer> := [ -1, -2, 2, Integer.MinValue ];
+    var actual := invert_result.ToArray<Integer>;
+    Assert.IsTrue(TUtils.SequenceEqual<Integer>(expected, actual));
+end;
+
+procedure BitwiseApiTest.LeftShift;
+begin
+    var lhs : TFTensor := tf.constant( TArray<Integer>.Create( -1, -5, -3, -14 ) );
+    var rhs : TFTensor := tf.constant( TArray<Integer>.Create(5, 0, 7, 11 ));
+
+    var left_shift_result := tf.bitwise.left_shift(lhs, rhs);
+    var expected : TArray<Integer> := [ -32, -5, -384, -28672 ];
+    var actual := left_shift_result.ToArray<Integer>;
+    Assert.IsTrue(TUtils.SequenceEqual<Integer>(expected, actual));
+end;
+
+procedure BitwiseApiTest.RightShift;
+begin
+    var lhs : TFTensor := tf.constant( TArray<Integer>.Create( -2, 64, 101, 32 ) );
+    var rhs : TFTensor := tf.constant( TArray<Integer>.Create( -1, -5, -3, -14 ) );
+
+    var right_shift_result := tf.bitwise.right_shift(lhs, rhs);
+    var expected : TArray<Integer> := [ -2, 64, 101, 32 ];
+    var actual := right_shift_result.ToArray<Integer>;
+    Assert.IsTrue(TUtils.SequenceEqual<Integer>(expected, actual));
 end;
 
 end.

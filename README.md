@@ -2,6 +2,10 @@
 
 *master branch is based on tensorflow v2.11.* ***No python engine or installation required*.**
 
+
+
+#### Note: This is a work-in-progress. please treat it as such.Pull request are welcome
+
 ### Why TensorFlow in Delphi-Pascal ?
 
 The *intent* is to bring popular data science technology into the Delphi world and to provide .Delphi/Pascal developers with a powerful Machine Learning tool set without reinventing the wheel. Since the APIs are kept as similar as possible you can immediately adapt any existing TensorFlow code in Delphi with a zero learning curve. Take a look at a comparison picture and see how comfortably a TensorFlow/Python script translates into a Delphi program with TensorFlow.Delphi.
@@ -17,6 +21,7 @@ Tensorflow.Delphi also implements TensorFlow's high level API where all the magi
 As a reference code I used 
 
 [TesorFlow.NET]: https://github.com/SciSharp/TensorFlow.NET
+[TensorFlow Python]: https://github.com/tensorflow/tensorflow/tree/master/tensorflow/python
 
 
 

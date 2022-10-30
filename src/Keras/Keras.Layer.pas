@@ -11,29 +11,20 @@ interface
             TensorFlow.DApi,
             Numpy.Axis,
             TensorFlow.Context,
-            TensorFlow.Variable ;
+            TensorFlow.Variable;
 
 type
 
-  ILayer = interface;
+  ILayer          = interface;
+  IRegularizer    = interface;
+  RegularizerArgs = class;
+
 
   RegularizerArgs  = class
     public
       X : TFTensor;
 
      constructor Create(t: TFTensor);
-  end;
-
-  IRegularizer = interface
-    ['{F08A34E9-848E-4BF7-915F-6216D1C4E078}']
-
-    function Apply(args: RegularizerArgs): TFTensor;
-  end;
-
-  IPoolFunction = interface
-    ['{17352CCA-5C47-49AD-9265-C9762F7F3FB6}']
-
-    function Apply(value: TFTensor; ksize: TArray<Integer>; strides: TArray<Integer>; padding: string; data_format: string = 'NHWC'; name: string = ''): TFTensor;
   end;
 
   LayerArgs = class
@@ -73,7 +64,6 @@ type
         ActivityRegularizer : IRegularizer;
         Autocast            : Boolean;
         IsFromConfig        : Boolean;
-
         constructor Create;
   end;
 
@@ -83,7 +73,19 @@ type
         NodeIndex   : integer;
         TensorIndex : Integer;
 
-        function ToString: string;
+        function ToString: string; override;
+  end;
+
+  IRegularizer = interface
+    ['{F08A34E9-848E-4BF7-915F-6216D1C4E078}']
+
+    function Apply(args: RegularizerArgs): TFTensor;
+  end;
+
+  IPoolFunction = interface
+    ['{17352CCA-5C47-49AD-9265-C9762F7F3FB6}']
+
+    function Apply(value: TFTensor; ksize: TArray<Integer>; strides: TArray<Integer>; padding: string; data_format: string = 'NHWC'; name: string = ''): TFTensor;
   end;
 
   INode = interface

@@ -115,7 +115,9 @@ begin
         // underlying resource in the runtime.
         // When in eager mode, explicitly ensure so here. When in graph mode, it's
         // ensured by always generating different variable names.
+        {$HINTS OFF}
         var exists := gen_resource_variable_ops.var_is_initialized_op(handle);
+        {$HINTS ON}
         // We create an assert Op instead of checking right away in order to be
         // compatible with ASYNC execution mode. Further, since not all devices
         // support string tensors, we encode the assertion string in the Op name

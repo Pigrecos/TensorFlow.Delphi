@@ -136,6 +136,7 @@ TFShape = record
    class operator Implicit(a : TFShape): TArray<Integer>;
    class operator Implicit(a : TArray<Integer>): TFShape;
    class operator Implicit(a : TArray<Int64>): TFShape;
+   class operator Implicit(a : Integer): TFShape;
    class operator Equal(a,b : TFShape): Boolean;
    class operator NotEqual(a,b : TFShape): Boolean;
 
@@ -4058,7 +4059,7 @@ end;
 
 function TFShape.GetIsFullDef: Boolean;
 begin
-    Result := ndim > -1;
+    Result := (ndim > -1) and ( Length(FaDims) > 0 );
     for var i := 0 to Length(FaDims)-1 do
     begin
       if FaDims[i] < 1 then
@@ -4072,7 +4073,7 @@ end;
 function TFShape.GetItem(sSlice: Slice): TFShape;
 begin
     if not sSlice.Stop.HasValue then
-        sSlice.Stop := Length(dims) - sSlice.Start.Value + 1;
+        sSlice.Stop := Nullable<Integer>( Length(dims) - Integer(sSlice.Start.Value) + 1 );
     if (sSlice.Start.HasValue = false) or (sSlice.Len.HasValue = false) then
        raise TFException.Create('Slice must has Start and Length.');
     var r := Enumerable<Int64>.Create(dims) ;
@@ -4114,6 +4115,11 @@ end;
 class operator TFShape.Implicit(a: TArray<Int64>): TFShape;
 begin
     Result := TFShape.Create(a)
+end;
+
+class operator TFShape.Implicit(a: Integer): TFShape;
+begin
+    Result := TFShape.Create([a])
 end;
 
 function TFShape.IsNil: Boolean;

@@ -1105,6 +1105,9 @@ begin
                                   off_dtype := dtype;
                               end;
 
+                                  if on_dtype <> off_dtype then
+                                     raise Exception.Create('dtype {0} of on_value does not match dtype {1} of off_value');
+
                               Result := gen_array_ops.one_hot(indices, depth, on_value, off_value, DtInvalid, axis,  name);
                           end );
 end;

@@ -70,8 +70,7 @@ begin
     Result := constant(value, dtype, nil, false, True, name);
 end;
 
-class function constant_op.constant(value: TValue; dtype: TF_DataType; shape: PTFShape; verify_shape, allow_broadcast: Boolean;
-  name: AnsiString): TFTensor;
+class function constant_op.constant(value: TValue; dtype: TF_DataType; shape: PTFShape; verify_shape, allow_broadcast: Boolean; name: AnsiString): TFTensor;
 begin
     if value.IsEmpty then
         Exit(nil);

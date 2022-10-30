@@ -101,16 +101,14 @@ type
     btnTest: TBitBtn;
     mmo1: TMemo;
     btnLinReg: TBitBtn;
-    btn1: TBitBtn;
     procedure btnTestClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure btnLinRegClick(Sender: TObject);
-    procedure btn1Click(Sender: TObject);
   private
     procedure EnableEager;
-    procedure DisableEager;
+
   public
-    { Public declarations }
+    procedure DisableEager;
   end;
 
 var
@@ -128,7 +126,6 @@ implementation
               TensorFlow.Slice,
 
               System.Generics.Collections,
-              //Spring.Collections.Lists,
               Spring.Collections.Stacks,
 
               DUnitX.TestFramework;
@@ -348,8 +345,10 @@ end;
 
 procedure TUnitTest_Basic.Variabele_StringVar;
 begin
+
     var mammal1 := tf.Variable('Elephant', 'var1', tf.string_t);
     var mammal2 := tf.Variable('Tiger');
+
 end;
 
 procedure TUnitTest_Basic.Variabele_VarSum;
@@ -452,26 +451,6 @@ type
 
   end;
 
-procedure TForm1.btn1Click(Sender: TObject);
-var
-  Lista : TList<stack> ;
-  var item : stack;
-begin
-
-    lista := TList<stack>.Create;
-    item := stack.Create;
-
-    item.Push(2);
-    Lista.Add(item);
-
-
-    for var x in lista do
-        ShowMessage('interatore') ;
-
-    for var x in lista do             // <<------ item not exist in more case Exception
-        ShowMessage('interatore') ;
-end;
-
 procedure TForm1.btnLinRegClick(Sender: TObject);
 var
   lr : LinearRegression;
@@ -484,6 +463,7 @@ end;
 
 procedure TForm1.btnTestClick(Sender: TObject);
 begin
+    {$HINTS OFF}
     mmo1.Clear;
     mmo1.Lines.Add('TensorFlow ver. : '+tf.Version);
     mmo1.Lines.Add('==================');
@@ -543,6 +523,26 @@ begin
 
     mmo1.Lines.Add('Test ManagedAPI Test End....');
     ma.Free;
+
+    mmo1.Lines.Add('Activation Test Start....');
+    var ActTest := ActivationFunctionTest.Create;
+    ActTest.Sigmoid;
+    ActTest.ReLU;
+    ActTest.TanH;
+    mmo1.Lines.Add('Activation Test End....');
+    ActTest.Free;
+
+    mmo1.Lines.Add('Bitwise op. Test Start....');
+    var Bitwise := BitwiseApiTest.Create;
+    Bitwise.BitwiseAnd;
+    Bitwise.BitwiseOr;
+    Bitwise.BitwiseXOR ;
+    Bitwise.Invert;
+    Bitwise.LeftShift;
+    Bitwise.RightShift;
+    mmo1.Lines.Add('Bitwise op. Activation Test End....');
+    Bitwise.Free;
+    {$HINTS ON}
 end;
 
 procedure TForm1.EnableEager;

@@ -190,7 +190,7 @@ end;
 
 class function np.sum(x1: TNDArray; axis: PAxis): TNDArray;
 begin
-    Result := TNDarray.create( tf.sum(x1, axis^) );
+    Result := TNDarray.create( tf.math.sum(x1, axis^) );
 end;
 
 { NumPyImpl }
@@ -201,4 +201,6 @@ begin
 end;
 
 end.
+
+
 

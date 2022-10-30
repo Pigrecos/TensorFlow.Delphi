@@ -50,12 +50,14 @@ type
       class operator Implicit(const Value: TValue): TFTensor;
       //
       class operator Implicit(const Value: TArray<TFTensor>): TValue;
+      class operator Implicit(const Value: TArray<Integer>): TValue;
+      class operator Implicit(const Value: TArray<Single>): TValue;
       class operator Implicit(const Value: TF_DataType): TValue;
       class operator Implicit(const Value: TArray< TArray<Integer> >): TValue;
 
   end;
 
- Tdtypes = class
+ Tdtypes = record
   private
 
    public
@@ -76,21 +78,24 @@ type
        cvariant    : TF_DataType  = TF_DataType.TF_VARIANT;
        cresource   : TF_DataType  = TF_DataType.TF_RESOURCE;
 
-       class function as_numpy_name(value: TF_DataType): string;
-       class function as_base_dtype(value: TF_DataType): TF_DataType; overload;
-       class function as_base_dtype(value: TDataType): TDataType;  overload;
-       class function as_ref(value: TF_DataType): TF_DataType;
-       class function as_tf_dtype(value: TValue): TF_DataType; overload;
-       class function as_tf_dtype(value: PTypeInfo): TF_DataType; overload;
-       class function as_tf_dtype(value: TDataType): TF_DataType; overload;
+       class function as_numpy_name(value: TF_DataType): string; static;
+       class function as_base_dtype(value: TF_DataType): TF_DataType; overload; static;
+       class function as_base_dtype(value: TDataType): TDataType;  overload; static;
+       class function as_ref(value: TF_DataType): TF_DataType; static;
+       class function as_tf_dtype(value: TValue): TF_DataType; overload; static;
+       class function as_tf_dtype(value: PTypeInfo): TF_DataType; overload;static;
+       class function as_tf_dtype(value: TDataType): TF_DataType; overload;static;
        class function get_datatype_size(tipo: TF_DataType): Integer; static;
        class function as_datatype_enum(value: TF_DataType): TDataType; static;
-       class function ToIntArray(value: TArray<TF_DataType>): TArray<Integer>;
-       class function is_integer(tipo: TF_DataType ): Boolean;
-       class function is_floating(tipo: TF_DataType ): Boolean;
+       class function ToIntArray(value: TArray<TF_DataType>): TArray<Integer>; static;
+       class function is_integer(tipo: TF_DataType ): Boolean; static;
+       class function is_floating(tipo: TF_DataType ): Boolean;static;
        class function is_complex(tipo: TF_DataType): Boolean; static;
-       class function real_dtype(tipo: TF_DataType): TF_DataType;
-       class function is_ref_dtype(tipo: TF_DataType ): Boolean;
+       class function real_dtype(tipo: TF_DataType): TF_DataType; static;
+       class function is_ref_dtype(tipo: TF_DataType ): Boolean; static;
+       class function min(tipo: TF_DataType ): Int64; static;
+       class function max(tipo: TF_DataType ): Int64; static;
+
        /// <summary>
        ///
        /// </summary>
@@ -114,6 +119,10 @@ type
       class function MakeNdarray(tensor: TTensorProto): TNDArray; static;
 
       class function SequenceEqual<T>(const v1,v2: TArray<T>): boolean;
+      class function IsInstance(v: TValue; t : PTypeInfo):Boolean; overload;
+      class function IsInstance<T>(tipo1 : T; Tipo2: PTypeInfo): boolean; overload;
+      class function IsInstance<T,T1,T2>(tipo1 : T; Tipo2: Tuple<T1,T2>): boolean;  overload;
+      class function IsInstance<T,T1,T2,T3>(tipo1 : T; Tipo2: Tuple<T1,T2,T3>): boolean; overload;
 
       class function flatten<T>(obj : TArray<T>                        ): TList<T> ;  overload;
       class function flatten<T>(obj : TArray<TArray<T>>                ): TList<T> ;  overload;
@@ -126,7 +135,7 @@ type
       class function GetShape(value: TValue): TFShape;overload;
       class function GetShape<T>(Tval: TArray<TArray<TArray<TArray<T>>>>): TFShape;  overload;
       class function ConvertToDict(dny: TArray<TParameter>): TDictionary<string,TValue> ;
-      class function isinstance(v: TValue; t : PTypeInfo):Boolean;
+
       class function as_shape_proto(tshape: TFShape): TTensorShapeProto; static;
       class function as_shape<T>(dims: TArray<T>): TTensorShapeProto;
       class function shape_tensor(shape: TArray<Integer>): TFTensor; static;
@@ -152,6 +161,27 @@ type
       class function range(start, _end: Integer): Enumerable<integer>;  overload; static;
       class function range(_end: Integer): Enumerable<integer> ;  overload; static;
  end;
+
+  TNullable<T> = class
+  strict private
+    FNullableValue: Nullable<T>;
+
+  strict protected
+
+  public
+    constructor Create(AValue: Nullable<T>);
+
+    function  GetIsNull: Boolean; virtual;
+    function  GetValue: T; virtual;
+    procedure SetValue(const Value: T); virtual;
+    function  GetNullableValue: Nullable<T>; virtual;
+    procedure SetNullableValue(const Value: Nullable<T>); virtual;
+    property  NullableValue: Nullable<T> read GetNullableValue write SetNullableValue;
+
+  published
+    property IsNull: Boolean read GetIsNull ;
+    property Value: T read GetValue write SetValue;
+  end;
 
  function GetArg(sNome: string; vVal : TValue):  TParameter;
 
@@ -370,6 +400,38 @@ end;
 class function Tdtypes.is_ref_dtype(tipo: TF_DataType): Boolean;
 begin
      Result := Ord(tipo) > 100;
+end;
+
+class function Tdtypes.max(tipo: TF_DataType): Int64;
+begin
+    case tipo of
+      TF_INT8:   Result := Int8.MaxValue;
+      TF_INT16:  Result := Int16.MaxValue;
+      TF_INT32:  Result := Int32.MaxValue;
+      TF_INT64:  Result := Int64.MaxValue;
+      TF_UINT8:  Result := UInt8.MaxValue;
+      TF_UINT16: Result := UInt16.MaxValue;
+      TF_UINT32: Result := UInt32.MaxValue;
+      TF_UINT64: Result := UInt64.MaxValue;
+    else
+      raise Exception.Create(' Not Implemented - Tdtypes.max');
+    end;
+end;
+
+class function Tdtypes.min(tipo: TF_DataType): Int64;
+begin
+    case tipo of
+      TF_INT8:   Result := Int8.MinValue;
+      TF_INT16:  Result := Int16.MinValue;
+      TF_INT32:  Result := Int32.MinValue;
+      TF_INT64:  Result := Int64.MinValue;
+      TF_UINT8:  Result := UInt8.MinValue;
+      TF_UINT16: Result := UInt16.MinValue;
+      TF_UINT32: Result := UInt32.MinValue;
+      TF_UINT64: Result := UInt64.MinValue;
+    else
+      raise Exception.Create(' Not Implemented - Tdtypes.min');
+    end;
 end;
 
 class function Tdtypes.real_dtype(tipo: TF_DataType): TF_DataType;
@@ -704,11 +766,6 @@ begin
 
 end;
 
-class function TUtils.isinstance(v: TValue; t : PTypeInfo):Boolean;
-begin
-    Result := v.TypeInfo = t
-end;
-
 class function TUtils.ArrayToArrayTipo<T>(a : Tarray<T>; toTipo: PTypeInfo): TArray<Integer>;
 var
   i : Integer;
@@ -847,11 +904,14 @@ end;
 
 class function TUtils.MakeNdarray(tensor: TTensorProto) : TNDArray;
 begin
+
     var aSize : TArray<Int64> := [];
     for var i := 0 to tensor.TensorShape.Dims.Count - 1 do
      aSize := aSize + [ tensor.TensorShape.Dims[i].Size  ] ;
     var shape        := TFShape.Create(aSize);
+    {$HINTS OFF}
     var num_elements := shape.size;
+    {$HINTS ON}
     var tensor_dtype := TDTypes.as_tf_dtype(tensor.Dtype);
     if (shape.ndim > 0) and (Length(tensor.TensorContent) > 0) then
     begin
@@ -1201,6 +1261,36 @@ begin
 
 end;
 
+class function TUtils.isinstance(v: TValue; t : PTypeInfo):Boolean;
+begin
+    Result := v.TypeInfo = t
+end;
+
+class function TUtils.IsInstance<T>(tipo1 : T; Tipo2: PTypeInfo): boolean;
+begin
+    Result := PTypeInfo(TypeInfo(T)) = Tipo2;
+end;
+
+class function TUtils.IsInstance<T,T1,T2>(tipo1 : T; Tipo2: Tuple<T1,T2>): boolean;
+begin
+    Result := False;
+    if PTypeInfo(TypeInfo(T)) = PTypeInfo(TypeInfo(T1)) then
+      Exit(True);
+   if PTypeInfo(TypeInfo(T)) = PTypeInfo(TypeInfo(T2)) then
+      Exit(True);
+end;
+
+class function TUtils.IsInstance<T,T1,T2,T3>(tipo1 : T; Tipo2: Tuple<T1,T2,T3>): boolean;
+begin
+    Result := False;
+    if PTypeInfo(TypeInfo(T)) = PTypeInfo(TypeInfo(T1)) then
+      Exit(True);
+   if PTypeInfo(TypeInfo(T)) = PTypeInfo(TypeInfo(T2)) then
+      Exit(True);
+   if PTypeInfo(TypeInfo(T)) = PTypeInfo(TypeInfo(T3)) then
+      Exit(True);
+end;
+
 { TValueHelper }
 
 class operator TValueHelp.Implicit(const Value: TValue): TFTensor;
@@ -1262,6 +1352,55 @@ end;
 class operator TValueHelp.Implicit(const Value: TArray<TArray<Integer>>): TValue;
 begin
    Result := TValue.From< TArray<TArray<Integer>> >(Value);
+end;
+
+class operator TValueHelp.Implicit(const Value: TArray<Integer>): TValue;
+begin
+    Result := TValue.From< TArray<Integer> >(Value);
+end;
+
+class operator TValueHelp.Implicit(const Value: TArray<Single>): TValue;
+begin
+    Result := TValue.From< TArray<Single> >(Value);
+end;
+
+{ TNullable<T> }
+
+constructor TNullable<T>.Create(AValue: Nullable<T>);
+begin
+    FNullableValue := AValue;
+end;
+
+function TNullable<T>.GetIsNull: Boolean;
+begin
+   Result := not Self.NullableValue.HasValue;
+end;
+
+function TNullable<T>.GetNullableValue: Nullable<T>;
+begin
+     Result := FNullableValue;
+end;
+
+function TNullable<T>.GetValue: T;
+begin
+    Result := Self.NullableValue.Value;
+end;
+
+procedure TNullable<T>.SetNullableValue(const Value: Nullable<T>);
+begin
+  if Self.NullableValue <> Value then
+  begin
+    Self.FNullableValue := Value;
+  end;
+end;
+
+procedure TNullable<T>.SetValue(const Value: T);
+var
+  NewNullableValue: Nullable<T>;
+begin
+    NewNullableValue := NullableValue;
+    NewNullableValue := Value;
+    NullableValue    := NewNullableValue;
 end;
 
 end.

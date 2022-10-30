@@ -214,7 +214,7 @@ type
      /// <param name='x'> A `Tensor`. Must be one of the following types: `bfloat16`, `half`, `float32`, `float64`, `complex64`, `complex128`.</param>
      /// <param name='name'> A name for the operation (optional).</param>
      /// <returns> A `Tensor`. Has the same type as `x`.</returns>
-     class function exp(x: TFTensor; name : string) : TFTensor; static;
+     class function exp(x: TFTensor; name : string = '') : TFTensor; static;
      /// <summary>
      /// Computes natural logarithm of x element-wise.
      /// </summary>
@@ -236,6 +236,18 @@ type
      /// <param name='name'></param>
      /// <returns></returns>
      class function equal<Tx, Ty>(x: Tx; y: Ty; incompatible_shape_error: Boolean = true; name : string = ''): TFTensor; static;
+     /// <summary>
+     /// Returns the real part of a complex number.
+     /// Given a tensor `input` of complex numbers, this operation returns a tensor of
+     /// type `float` that is the real part of each element in `input`. All elements in
+     /// `input` must be complex numbers of the form \\(a + bj\\), where *a* is the real
+     /// part returned by this operation and *b* is the imaginary part.
+     /// </summary>
+     /// <param name='input'>A `Tensor`. Must be one of the following types: `complex64`, `complex128`.</param>
+     /// <param name='Tout'>An optional `tf.DType` from: `tf.float32, tf.float64`. Defaults to `tf.float32`.</param>
+     /// <param name='name'>A name for the operation (optional).</param>
+     /// <returns></returns>
+     class function real(input: TFTensor; Tout : TF_DataType= TF_FLOAT; name : string=''): TFTensor; static;
      /// <summary>
      /// Returns the truth value of (x != y) element-wise.
      /// </summary>
@@ -657,6 +669,12 @@ begin
     Result := _op.outputs[0];
 end;
 
+class function gen_math_ops.real(input: TFTensor; Tout: TF_DataType; name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('Real', name, ExecuteOpArgs.Create([input])
+                                          .SetAttributes(['Tout', Tout ]) ).FirstOrDefault(nil);
+end;
+
 class function gen_math_ops.real_div(x: TFTensor; y: TFTensor; name : string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('RealDiv', name, ExecuteOpArgs.Create([x, y])).FirstOrDefault(nil);
@@ -680,7 +698,7 @@ end;
 class function gen_math_ops.mat_mul(a: TFTensor; b: TFTensor; transpose_a : Boolean; transpose_b : Boolean; name : string) : TFTensor;
 begin
     Result := tf.Context.ExecuteOp('MatMul', name, ExecuteOpArgs.Create([a, b])
-        .SetAttributes(['transpose_a',transpose_a,'transpose_b',transpose_b])).FirstOrDefault(nil);;
+        .SetAttributes(['transpose_a',transpose_a,'transpose_b',transpose_b])).FirstOrDefault(nil);
 end;
 
 class function gen_math_ops.maximum<T1, T2>(x: T1; y: T2; name : string): TFTensor;
