@@ -55,6 +55,35 @@ type
   CompositeTensor = class abstract
   end;
 
+  /// <summary>
+  /// A sparse representation of a set of tensor slices at given indices.
+  /// </summary>
+  IndexedSlices = {class(CompositeTensor)} record
+    private
+       Fvalues     : TFTensor;
+       Findices    : TFTensor;
+       Fdense_shape: TFTensor;
+
+       function GetDevice: string;
+       function GetDtype: TF_DataType;
+       function GetGraph: TFGraph;
+       function GetName: string;
+       function GetOp: TFOperation;
+    public
+        constructor Create(_values: TFTensor; _indices: TFTensor; _dense_shape: TFTensor = nil);
+        class operator implicit(iSlices: IndexedSlices): TFTensor;
+        class operator implicit(tTEnsor: TFTensor): IndexedSlices;
+
+        property values      : TFTensor    read Fvalues;
+        property indices     : TFTensor    read Findices;
+        property dense_shape : TFTensor    read Fdense_shape;
+        property name        : string      read GetName;
+        property device      : string      read GetDevice;
+        property op          : TFOperation read GetOp ;
+        property dtype       : TF_DataType read GetDtype;
+        property graph       : TFGraph     read GetGraph;
+  end;
+
 
    op_def_registry = class
      private
@@ -210,6 +239,51 @@ begin
     Result := Tuple<TFTensor, TFTensor>.Create(_seed, _seed2);
 end;
 
+{ IndexedSlices }
+
+constructor IndexedSlices.Create(_values, _indices, _dense_shape: TFTensor);
+begin
+    Fvalues     := _values;
+    Findices    := _indices;
+    Fdense_shape:= _dense_shape;
+    Fvalues.Tag := TValue.From<IndexedSlices>(Self);
+end;
+
+function IndexedSlices.GetDevice: string;
+begin
+    Result := Fvalues.Device;
+end;
+
+function IndexedSlices.GetDtype: TF_DataType;
+begin
+    Result := Fvalues.Dtype;
+end;
+
+function IndexedSlices.GetGraph: TFGraph;
+begin
+    Result := Fvalues.graph;
+end;
+
+function IndexedSlices.GetName: string;
+begin
+    Result := Fvalues.Name;
+end;
+
+function IndexedSlices.GetOp: TFOperation;
+begin
+    Result := Fvalues.Op;
+end;
+
+class operator IndexedSlices.implicit(iSlices: IndexedSlices): TFTensor;
+begin
+     Result := iSlices.values;
+end;
+
+class operator IndexedSlices.implicit(tTEnsor: TFTensor): IndexedSlices;
+begin
+    Result := tTEnsor.Tag.AsType<IndexedSlices>;
+end;
+
 initialization
 begin
     random_seed.Fgraph_to_seed_dict := TDictionary<string,Integer>.Create;
@@ -221,5 +295,6 @@ begin
 end;
 
 end.
+
 
 

@@ -23,11 +23,11 @@ interface
        Spring.Collections.Stacks,
        Spring,
        Quick.Logger.Provider.Files,
+
        TF4D.Core.CApi,
        TensorFlow.DApiBase,
        TensorFlow.DApi,
        TensorFlow.DApiEager,
-       Tensorflow.Utils,
 
        ProtoGen.Tensor,
        Protogen.tensorShape,
@@ -166,7 +166,17 @@ type
   end;
 
 implementation
-          uses Tensorflow, TensorFlow.Ops, TensorFlow.EagareRunner, Oz.Pb.Classes, Oz.SGL.Collections,oz.Pb.StrBuffer, pbPublic, pbInput, pbOutput;
+          uses Tensorflow,
+               TensorFlow.Ops,
+               TensorFlow.EagareRunner,
+               Tensorflow.Utils,
+
+               Oz.Pb.Classes,
+               Oz.SGL.Collections,
+               Oz.Pb.StrBuffer,
+               pbPublic,
+               pbInput,
+               pbOutput;
 
 { ExecuteOpArgs }
 

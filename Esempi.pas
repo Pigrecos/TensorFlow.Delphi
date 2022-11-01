@@ -51,10 +51,13 @@ type
   end;
 
   EagerModeTestBase = class
+      constructor Create;
       procedure TestInit;
       function  Equal(f1: Single; f2: Single): Boolean; overload;
       function  Equal(f1: TArray<Single>; f2: TArray<Single>): Boolean; overload;
       function  Equal(f1: TArray<Double>; f2: TArray<Double>): Boolean; overload;
+
+      procedure clip_by_global_norm;
   end;
 
   ActivationFunctionTest = class(EagerModeTestBase)
@@ -76,6 +79,18 @@ type
        procedure Invert;
        procedure LeftShift;
        procedure RightShift;
+  end;
+
+  ConstantTest = class(EagerModeTestBase)
+      public
+        constructor Create;
+        procedure ScalarConst;
+        procedure ZerosConst;
+        procedure OnesConst;
+        procedure OnesToHalves;
+        procedure NDimConst;
+        procedure Multiply;
+        procedure Reshape;
   end;
 
 
@@ -183,6 +198,32 @@ function EagerModeTestBase.Equal(f1, f2: Single): Boolean;
 begin
      var tolerance : Single := 000001;
      Result := Abs(f1 - f2) <= tolerance;
+end;
+
+procedure EagerModeTestBase.clip_by_global_norm;
+begin
+    var t_list := TFTensors.Create( [ tf.constant( TArray<Single>.Create( 1, 2, 3, 4 ) ), tf.constant( TArray<Single>.Create( 5, 6, 7, 8 ) ) ] );
+    var clip_norm : Single := 0.8;
+
+    var tNorm := tf.clip_by_global_norm(t_list.ToArray, clip_norm);
+    var res  := tNorm.Value1;
+    var norm := tNorm.Value2;
+
+    var expected  : TArray<Single> := [ 0.0560112074, 0.112022415, 0.16803363, 0.22404483 ];
+    var actual := res[0].ToArray<Single>;
+    Assert.IsTrue(Equal(expected, actual));
+
+    expected  := [ 0.28005603, 0.336067259, 0.392078459, 0.448089659 ];
+    actual    := res[1].ToArray<Single>;
+    Assert.IsTrue(Equal(expected, actual));
+
+    var nNorm : NDArray := norm.numpy;
+    Assert.AreEqual<Single>( nNorm, 14.282857);
+end;
+
+constructor EagerModeTestBase.Create;
+begin
+    TestInit;
 end;
 
 function EagerModeTestBase.Equal(f1, f2: TArray<Double>): Boolean;
@@ -307,6 +348,94 @@ begin
     var expected : TArray<Integer> := [ -2, 64, 101, 32 ];
     var actual := right_shift_result.ToArray<Integer>;
     Assert.IsTrue(TUtils.SequenceEqual<Integer>(expected, actual));
+end;
+
+{ ConstantTest }
+
+constructor ConstantTest.Create;
+begin
+    TestInit;
+end;
+
+procedure ConstantTest.Multiply;
+begin
+    var a : TTensor := tf.constant(Double(3.0));
+    var b : TTensor := tf.constant(Double(2.0));
+    var c : TTensor := a * b;
+
+    Assert.AreEqual<Double>(6.0, Double(c));
+end;
+
+procedure ConstantTest.NDimConst;
+begin
+    var a : TArray<TArray<Integer>>:= [[3,1,1],[2,1,3]];
+    var nd := np.np_array(a);
+
+    var tensor := tf.constant(nd);
+    var data := tensor.numpy.ToArray<Integer>;
+
+    Assert.IsTrue( TUtils.SequenceEqual<Int64>  ([ 2, 3 ], tensor.shape.dims));
+    Assert.IsTrue( TUtils.SequenceEqual<Integer>([ 3, 1, 1, 2, 1, 3 ], data));
+end;
+
+procedure ConstantTest.OnesConst;
+begin
+    var ones := tf.ones(TFShape.Create([3, 2]), tf.float32_t, 'ones');
+    Assert.AreEqual(ones.dtype, tf.float32_t);
+    Assert.AreEqual<Int64>(ones.shape[0], 3);
+    Assert.AreEqual<Int64>(ones.shape[1], 2);
+    Assert.IsTrue( TUtils.SequenceEqual<Single>( [1, 1, 1, 1, 1, 1 ], ones.numpy.ToArray<single>) );
+
+end;
+
+procedure ConstantTest.OnesToHalves;
+begin
+    var ones : TTensor   := tf.ones(TFShape.Create([3, 2]), tf.float64_t, 'ones');
+    var halfes: TFTensor := ones * 0.5;
+    Assert.AreEqual<Int64>(halfes.shape[0], 3);
+    Assert.AreEqual<Int64>(halfes.shape[1], 2);
+    Assert.IsTrue( TUtils.SequenceEqual<Double>( [ 0.5, 0.5, 0.5, 0.5, 0.5, 0.5 ],halfes.numpy.ToArray<double>) );
+end;
+
+procedure ConstantTest.Reshape;
+begin
+    var ones := tf.ones(TFShape.Create([3, 2]), tf.float32_t, 'ones');
+    var reshaped := tf.reshape(ones, TArray<Integer>.Create(2, 3) );
+    Assert.AreEqual(reshaped.dtype, tf.float32_t);
+    Assert.AreEqual<Int64>(reshaped.shape[0], 2);
+    Assert.AreEqual<Int64>(reshaped.shape[1], 3);
+    Assert.IsTrue( TUtils.SequenceEqual<Single>( [ 1, 1, 1, 1, 1, 1 ], ones.numpy.ToArray<Single>) );
+end;
+
+procedure ConstantTest.ScalarConst;
+begin
+    var tensor1 := tf.constant(8); // int
+    Assert.AreEqual(tensor1.dtype, TF_DataType.TF_INT32);
+    var tensor2 := tf.constant(Single(6.0)); // float
+    Assert.AreEqual(tensor2.dtype, TF_DataType.TF_FLOAT);
+    var tensor3 := tf.constant(Double(6.0)); // double
+    Assert.AreEqual(tensor3.dtype, TF_DataType.TF_DOUBLE);
+end;
+
+procedure ConstantTest.ZerosConst;
+begin
+    // small size
+    var tensor := tf.zeros(TArray<Integer>.Create(3, 2), tf.int32_t, 'small');
+
+    Assert.AreEqual<Int64>(tensor.shape[0], 3);
+    Assert.AreEqual<Int64>(tensor.shape[1], 2);
+    Assert.IsTrue( TUtils.SequenceEqual<Integer>( [ 0, 0, 0, 0, 0, 0 ], tensor.numpy.ToArray<Integer>) );
+
+    // big size
+    tensor := tf.zeros(TArray<Integer>.Create(200, 100), tf.int32_t, 'big');
+
+    Assert.AreEqual<Int64>(tensor.shape[0], 200);
+    Assert.AreEqual<Int64>(tensor.shape[1], 100);
+
+    var data := tensor.numpy.ToArray<Integer>;
+    Assert.AreEqual<Integer>(0, data[0]);
+    Assert.AreEqual<Integer>(0, data[500]);
+    Assert.AreEqual<Integer>(0, data[Length(data) - 1]);
 end;
 
 end.

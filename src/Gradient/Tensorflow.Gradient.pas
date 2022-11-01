@@ -181,6 +181,12 @@ type
 
   end;
 
+  gradients_impl  = class
+
+      public
+      class function gradients(ys: TArray<TFTensor>; xs: TArray<TFTensor>; grad_ys: TArray<TFTensor> = nil; name: string = 'gradients'; colocate_gradients_with_ops: Boolean = false; gate_gradients : Boolean= false; aggregation_method : PInteger= nil) : TArray<TFTensor>;
+  end;
+
 implementation
        uses Tensorflow,
             Tensorflow.Utils;
@@ -437,6 +443,14 @@ end;
 
 procedure ITape.RecordOperation(op_type: string; input_tensors: TArray<TFTensor>; output_tensors: TArray<TapeTensor>;
   backward_function: BackwardFunction);
+begin
+
+end;
+
+{ gradients_impl }
+
+class function gradients_impl.gradients(ys, xs, grad_ys: TArray<TFTensor>; name: string; colocate_gradients_with_ops, gate_gradients: Boolean;
+  aggregation_method: PInteger): TArray<TFTensor>;
 begin
 
 end;

@@ -759,13 +759,10 @@ end;
 
 class function math_ops._may_reduce_to_scalar(keepdims: Boolean; axis: TFTensor; _output: TFTensor) : TFTensor;
 begin
-    Result := nil;
     var dims: TArray<TF_int64_t> := [];
     if ( not common_shapes.has_fully_defined_shape(_output) ) and ( not keepdims) and (axis = nil)   then
-    begin
         _output.shape := TFShape.Create(dims);
-        Result := _output;
-    end;
+     Result := _output;
 end;
 
 class function math_ops._may_reduce_to_scalar(keepdims: Boolean; axis: Integer; _output: TFTensor): TFTensor;
@@ -929,14 +926,14 @@ begin
     begin
         shape_a := a.shape.as_int_list;
         // axes
-        axes := Enumerable<Integer>(axes).Select(Selfun).ToArray;
+        axes := Enumerable<Integer>.Create(axes).Select(Selfun).ToArray;
         // free
         var free : TArray<Integer> := TUtils.range(a.shape.ndim).Where(Wherefun).ToArray;
         // free_dims
-        var free_dims : TArray<Integer> := Enumerable<Integer>(free).Select(Selfun1).ToArray;
+        var free_dims : TArray<Integer> := Enumerable<Integer>.Create(free).Select(Selfun1).ToArray;
         var prod_free : Integer := NDArray(np.prod<Integer>(free_dims));
         // prod_axes
-        var prod_axes  : Integer :=  NDArray( np.prod<Integer>( Enumerable<Integer>(axes).Select(Selfun1).ToArray ) );
+        var prod_axes  : Integer :=  NDArray( np.prod<Integer>( Enumerable<Integer>.Create(axes).Select(Selfun1).ToArray ) );
         // perm
         var perm : TList<Integer> := TList<Integer>.Create;
         try
@@ -1212,4 +1209,6 @@ begin
 end;
 
 end.
+
+
 

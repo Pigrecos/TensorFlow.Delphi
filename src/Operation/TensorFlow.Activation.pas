@@ -1,4 +1,16 @@
 unit TensorFlow.Activation;
+(*****************************************************************************
+   Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+******************************************************************************)
 
 interface
     uses System.SysUtils,
@@ -160,7 +172,6 @@ begin
     var res := gen_ops.elu(x);
     if Abs(Falpha - 0.1) < 0.00001 then
      Exit(res);
-
     Result := array_ops.where(TTensor(x) > 0, res, Falpha * TTensor(res));
 end;
 
@@ -234,7 +245,6 @@ begin
             Exit;
         end;
     end;
-
     tX := x;
     var negative_part : TFTensor;
     if Abs(Fthreshold) > 0.000001 then
@@ -244,7 +254,6 @@ begin
     begin
         negative_part := gen_ops.relu(-tX + Fthreshold);
     end;
-
     if Abs(Fthreshold) > 0.000001 then
     begin
         x := TTensor(x) * math_ops.cast(tf.greater(x, Fthreshold), TF_DataType.TF_FLOAT);
@@ -256,7 +265,6 @@ begin
     begin
         x := gen_ops.relu(x);
     end;
-
     var clip_max : Boolean := FmaxValue.HasValue;
     if clip_max then
     begin
@@ -264,13 +272,11 @@ begin
         var zero              := constant_op.constant(Single(0.0),     TDTypes.as_base_dtype(x.dtype), 'Const');
         x := gen_ops.clip_by_value(x, zero, maxval);
     end;
-
     if Abs(Falpha) > 0.00001 then
     begin
         var a := constant_op.constant(Falpha, TDTypes.as_base_dtype(x.dtype), 'Const');
         x := x - (TTensor(a) * negative_part);
     end;
-
     Result := x;
 end;
 

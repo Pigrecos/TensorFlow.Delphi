@@ -454,6 +454,20 @@ begin
         var vArray : TArray<TValue> := obj.ToArray;
 
          ret := array_ops._autopacking_conversion_function(vArray, dtype, name)
+    end
+    else if value.IsType< TArray<TValue> > then
+    begin
+        var obj  := value.AsType< TArray<TValue> >;
+        ret := array_ops._autopacking_conversion_function(obj, dtype, name)
+    end
+    else if value.IsType< TArray<TFTensor> > then
+    begin
+        var obj  := value.AsType< TArray<TFTensor> >;
+        var vArray : TArray<TValue> ;
+        for var i := 0 to Length(obj)-1 do
+            vArray := vArray + [ obj[i] ];
+
+         ret := array_ops._autopacking_conversion_function(vArray, dtype, name)
     end else
     begin
         ret := constant_op.constant(value, dtype, name)

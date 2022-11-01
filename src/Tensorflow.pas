@@ -21,6 +21,7 @@ interface
        Spring.Collections.Dictionaries,
        Spring.Collections.Extensions,
        Spring.Collections.Stacks,
+       Spring.Collections.Lists,
        Spring,
        Quick.Logger.Provider.Files,
 
@@ -428,6 +429,47 @@ end;
       function Variable<T>(data: T;  name : string; dtype: TF_DataType = TF_DataType.DtInvalid):ResourceVariable;  overload;
       // tf.tensor
       function convert_to_tensor(value: TValue; dtype: TF_DataType= DtInvalid; name: string= ''; preferred_dtype: TF_DataType=DtInvalid): TFTensor;
+
+      // tf.ops
+      //
+      procedure add_to_collection<T>(name: string; value: T);
+      procedure add_to_collections<T>(names: TList<string>; value: T);
+      function  clip_by_global_norm(t_list: TArray<TFTensor>; clip_norm: Single; use_norm: TFTensor = nil; name: string = '') : Tuple<TFTensors, TFTensor>;
+      function  assign(ref: IVariableV1; value: TValue; validate_shape: Boolean = true; use_locking: Boolean = true; name: string = ''): TFTensor;
+      procedure device(device_name: string);
+      function  get_collection<T>(key: string; scope: string = ''): TList<T>;
+      /// <summary>
+      /// A context manager that lifts ops out of control-flow scopes and function-building graphs.
+      /// When eager execution is enabled, code inside an init_scope block runs with
+      /// eager execution enabled even when tracing a `tf.function`.
+      /// </summary>
+      /// <summary>
+      /// Returns a context manager that creates hierarchical names for operations.
+      /// </summary>
+      /// <param name="name">The name argument that is passed to the op function.</param>
+      /// <param name="default_name">The default name to use if the name argument is None.</param>
+      /// <param name="values">The list of Tensor arguments that are passed to the op function.</param>
+      /// <returns>The scope name.</returns>
+  //    function name_scope(name: string; default_name: string = ''; values: PValue = nil): NameScope;
+      /// <summary>
+      /// Does nothing. Only useful as a placeholder for control edges.
+      /// </summary>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function no_op(name: string = ''): TFOperation;
+      /// <summary>
+      /// map on the list of tensors unpacked from `elems` on dimension 0.
+      /// </summary>
+      /// <param name="fn"></param>
+      /// <param name="elems"></param>
+      /// <param name="dtype"></param>
+      /// <param name="parallel_iterations"></param>
+      /// <param name="back_prop"></param>
+      /// <param name="swap_memory"></param>
+      /// <param name="infer_shape"></param>
+      /// <param name="name"></param>
+      /// <returns>A tensor or (possibly nested) sequence of tensors.</returns>
+      function map_fn(fn : TFunc<TFTensor, TFTensor> ; elems: TFTensor; dtype : TF_DataType = DtInvalid; parallel_iterations : Integer= -1; back_prop: Boolean = true; swap_memory : Boolean = false; infer_shape : Boolean = true; name: string = ''): TFTensor;
 
       // tf.constant
       //
@@ -922,6 +964,7 @@ implementation
         Tensorflow.gen_array_ops,
         Tensorflow.array_ops,
         TensorFlow.clip_ops,
+        TensorFlow.gen_control_flow_ops,
         tensorflow.gen_sparse_ops,
         TensorFlow.random_ops,
         TensorFlow.gen_nn_ops,
@@ -1081,6 +1124,47 @@ end;
 function TTensorflow.add_n(inputs: TArray<TFTensor>; name: string): TFTensor;
 begin
     Result := math_ops.add_n(inputs, name);
+end;
+
+procedure TTensorflow.device(device_name: string);
+begin
+    get_default_graph.device(device_name);
+end;
+
+procedure TTensorflow.add_to_collection<T>(name: string; value: T);
+begin
+    get_default_graph.add_to_collection<T>(name, value);
+end;
+
+procedure TTensorflow.add_to_collections<T>(names: TList<string>; value: T);
+begin
+    get_default_graph.add_to_collection<T>(names, value);
+end;
+
+function TTensorflow.assign(ref: IVariableV1; value: TValue; validate_shape, use_locking: Boolean; name: string): TFTensor;
+begin
+    Result := state_ops.assign(ref, value, validate_shape, use_locking, name);
+end;
+
+function TTensorflow.map_fn(fn: TFunc<TFTensor, TFTensor>; elems: TFTensor; dtype: TF_DataType; parallel_iterations: Integer; back_prop, swap_memory, infer_shape: Boolean;
+  name: string): TFTensor;
+begin
+
+end;
+
+function TTensorflow.get_collection<T>(key, scope: string): TList<T>;
+begin
+    Result := get_default_graph.get_collection<T>(key, scope);
+end;
+
+function TTensorflow.clip_by_global_norm(t_list: TArray<TFTensor>; clip_norm: Single; use_norm: TFTensor; name: string): Tuple<TFTensors, TFTensor>;
+begin
+   Result := clip_ops.clip_by_global_norm(t_list, clip_norm, use_norm, name);
+end;
+
+function TTensorflow.no_op(name: string): TFOperation;
+begin
+    Result := gen_control_flow_ops.no_op(name);
 end;
 
 function TTensorflow.arg_max(input: TFTensor; dimension: Integer; output_type: TF_DataType; name: string): TFTensor;
@@ -1702,7 +1786,10 @@ end;
 function CompatV1Api.get_variable(name: string; shape: PTFShape; dtype: TF_DataType; initializer: TObject; trainable: PBoolean; collections: TList<string>;
   use_resource: PBoolean; validate_shape: Boolean; synchronization: TVariableSynchronization; aggregation: TVariableAggregation): IVariableV1;
 begin
+    var scope := variable_scope.get_variable_scope();
+    var store := variable_scope._get_default_variable_store();
 
+    Result := scope.get_variable(store, name, shape, dtype, initializer, trainable, collections, use_resource, validate_shape);
 end;
 
 function CompatV1Api.global_variables_initializer: TFOperation;

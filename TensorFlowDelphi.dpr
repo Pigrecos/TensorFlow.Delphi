@@ -58,7 +58,8 @@ uses
   TensorFlow.Activation in 'src\Operation\TensorFlow.Activation.pas',
   TensorFlow.gen_ops in 'src\Operation\TensorFlow.gen_ops.pas',
   TensorFlow.Interfaces in 'src\TensorFlow.Interfaces.pas',
-  TensorFlow.bitwise_ops in 'src\Operation\TensorFlow.bitwise_ops.pas';
+  TensorFlow.bitwise_ops in 'src\Operation\TensorFlow.bitwise_ops.pas',
+  TensorFlow.Training in 'src\TensorFlow.Training.pas';
 
 {$R *.res}
 

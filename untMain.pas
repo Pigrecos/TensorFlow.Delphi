@@ -532,6 +532,12 @@ begin
     mmo1.Lines.Add('Activation Test End....');
     ActTest.Free;
 
+    mmo1.Lines.Add('clip_by_global_norm Test Start....');
+    var Clips := EagerModeTestBase.Create;
+    Clips.clip_by_global_norm;
+    mmo1.Lines.Add('clip_by_global_norm Test End....');
+    Clips.Free;
+
     mmo1.Lines.Add('Bitwise op. Test Start....');
     var Bitwise := BitwiseApiTest.Create;
     Bitwise.BitwiseAnd;
@@ -542,6 +548,18 @@ begin
     Bitwise.RightShift;
     mmo1.Lines.Add('Bitwise op. Activation Test End....');
     Bitwise.Free;
+
+    mmo1.Lines.Add('Constant Test Start....');
+    var Constant := ConstantTest.Create;
+    Constant.ScalarConst;
+    Constant.ZerosConst;
+    Constant.OnesConst ;
+    Constant.OnesToHalves;
+    Constant.NDimConst;
+    Constant.Multiply;
+    Constant.Reshape;
+    mmo1.Lines.Add('Constant Test End....');
+    Constant.Free;
     {$HINTS ON}
 end;
 

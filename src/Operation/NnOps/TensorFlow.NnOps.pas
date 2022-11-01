@@ -1,4 +1,16 @@
 unit TensorFlow.NnOps;
+(*****************************************************************************
+   Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+       http://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+******************************************************************************)
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
@@ -161,7 +173,6 @@ type
         function GetOutShape  : TFShape;
         function GetBatchShape: TFShape;
         function GetDtype     : TF_DataType;
-
         function Apply(inputs: TFTensors; state: TFTensor = nil; is_training: Boolean = false): TFTensors;
         function count_params: Integer;
         function get_config: LayerArgs;
@@ -404,7 +415,6 @@ function RnnCell.get_initial_state(inputs, batch_size: TFTensor; dtype: TF_DataT
 begin
     if inputs <> nil then
       raise Exception.Create('Not Implemented. get_initial_state input is not null');
-
     Result := zero_state(batch_size, dtype);
 end;
 
@@ -431,16 +441,12 @@ begin
         {
             var c = rnn_cell_impl._concat(batch_size, s);
             var size = array_ops.zeros(c, dtype: dtype);
-
             var c_static = rnn_cell_impl._concat(batch_size, s, @static: true);
             size.set_shape(c_static);
-
             return size;
         }, state_size_int);
-
         return output;
     }
-
     throw new NotImplementedException("_zero_state_tensors");
     *)
 end;

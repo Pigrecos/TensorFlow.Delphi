@@ -22,20 +22,154 @@ interface
 
           Spring,
           Spring.Collections.Lists,
-          Spring.Collections.Stacks,
-          TensorFlow.Slice,
 
+          TensorFlow.Slice,
+          TensorFlow.Initializer,
           TF4D.Core.CApi,
           TensorFlow.DApiBase,
           TensorFlow.DApi,
+          Tensorflow.NameScope,
           TensorFlow.EagerTensor,
-          NumPy.NDArray,
 
           ProtoGen.tensorShape,
           ProtoGen.variable,
           ProtoGen.attrValue;
 
 type
+
+   IVariableV1 = interface;
+
+   VariableArgs = record
+      public
+        InitialValue    : TValue;
+        Getter          : TFunc<VariableArgs, IVariableV1>;
+        Name            : string;
+        Shape           : TFShape;
+        DType           : TF_DataType;
+        Initializer     : IInitializer;
+        Trainable       : Boolean;
+        ValidateShape   : Boolean;
+        UseResource     : Boolean;
+        Overwrite       : Boolean;
+        Collections     : TList<string>;
+        CachingDevice   : string;
+        VariableDef     : TVariableDef;
+        ImportScope     : string;
+        Synchronization : TVariableSynchronization;
+        Aggregation     : TVariableAggregation;
+        class operator Initialize (out Dest: VariableArgs);
+   end;
+
+   /// <summary>
+   /// Mode for variable access within a variable scope.
+   /// </summary>
+   _ReuseMode = (
+        NOT_REUSE = 0,
+        // Indicates that variables are to be fetched if they already exist or
+        // otherwise created.
+        AUTO_REUSE = 1);
+
+   /// <summary>
+   /// Variable store that carries a number of named Variables.
+   /// </summary>
+   _VariableStore = class
+
+   end;
+
+   /// <summary>
+   /// Variable scope object to carry defaults to provide to `get_variable`
+   /// </summary>
+   VariableScope = class
+      private
+        Freuse     : _ReuseMode;
+        Fdtype     : TF_DataType;
+        Fname      : string;
+        Fname_scope: string;
+      public
+        use_resource : Boolean;
+        resue        : Boolean;
+      public
+        constructor Create(reuse: Boolean; name: string = ''; name_scope: string = ''; dtype: TF_DataType = TF_FLOAT) ;
+        procedure reuse_variables;
+        function get_variable(var_store: _VariableStore;
+                              name           : string;
+                              shape          : PTFShape = nil;
+                              dtype          : TF_DataType = TF_DataType.DtInvalid;
+                              initializer    : TObject= nil; // IInitializer or Tensor
+                              trainable      : PBoolean = nil;
+                              collections    : TList<string> = nil;
+                              use_resource   : PBoolean = nil;
+                              validate_shape : Boolean = true;
+                              synchronization: TVariableSynchronization =VARIABLE_SYNCHRONIZATION_AUTO;
+                              aggregation    : TVariableAggregation =VARIABLE_AGGREGATION_NONE): IVariableV1;
+
+        property name               : string  read Fname;
+        property original_name_scope: string  read Fname_scope ;
+
+   end;
+
+   _VariableScopeStore  = class
+
+   end;
+
+   PureVariableScope = class(TInterfacedObject, ITensorFlowObject)
+     private
+
+     public
+       procedure _Enter_ ;
+       procedure _Exit_ ;
+   end;
+
+   variable_scope = class(TInterfacedObject, ITensorFlowObject)
+     private
+        Fuse_resource              : Boolean;
+        Fname                      : string;
+        Fscope                     : VariableScope;
+        Fdefault_name              : string;
+        Fvalues                    : TArray<TFTensor>;
+        F_current_name_scope       : TNameScope;
+        Fauxiliary_name_scope      : Boolean;
+        Fcached_pure_variable_scope: PureVariableScope;
+        F_reuse                    : Nullable<Boolean>;
+        Fin_graph_mode             : Boolean;
+        Fgraph                     : TFGraph;
+        F_building_function        : Boolean;
+
+        function _enter_scope_uncached: VariableScope;
+     public
+        const _VARSTORE_KEY         : string  = '__variable_store';
+        const _VARSCOPESTORE_KEY    : string  = '__varscope';
+        const _DEFAULT_USE_RESOURCE : Boolean = true;
+     public
+        constructor Create(name: string;         default_name: string = ''; values: TArray<TFTensor> = nil; reuse: PBoolean = nil; auxiliary_name_scope : Boolean = true);overload;
+        constructor Create(scope: VariableScope; default_name: string = ''; values: TArray<TFTensor> = nil; reuse: PBoolean = nil; auxiliary_name_scope : Boolean = true);overload;
+        class function default_variable_creator(initial_value: TValue;
+                                                name           : string   = '';
+                                                trainable      : PBoolean = nil;
+                                                collections    : TList<string>= nil;
+                                                dtype          : TF_DataType = DtInvalid;
+                                                shape          : TArray<Integer> = nil;
+                                                validate_shape : Boolean = false;
+                                                use_resource   : pBoolean = nil;
+                                                synchronization: TVariableSynchronization = TVariableSynchronization. VARIABLE_SYNCHRONIZATION_AUTO;
+                                                aggregation    : TVariableAggregation     = TVariableAggregation.VARIABLE_AGGREGATION_NONE) :  IVariableV1;
+        procedure _Enter_ ;
+        procedure _Exit_ ;
+        /// <summary>
+        /// Get a name with the given prefix unique in the current variable scope.
+        /// </summary>
+        /// <param name="prefix"></param>
+        /// <returns></returns>
+        class function  _get_unique_variable_scope(prefix: string): string;
+        class function  _get_default_variable_store: _VariableStore;
+        class function  get_variable_scope: VariableScope;
+        class function  get_variable_scope_store : _VariableScopeStore;
+        class function  _get_trainable_value(synchronization: TVariableSynchronization; trainable: Boolean = true): Boolean;
+
+        property UseResource : Boolean read Fuse_resource;
+   end;
+
+
   /// <summary>
   /// A variable maintains state in the graph across calls to `run()`. You add a
   /// variable to the graph by constructing an instance of the class `Variable`.
@@ -143,7 +277,7 @@ type
         /// A `Tensor` that will hold the new value of this variable after
         /// the assignment has completed.
         /// </returns>
-        function assign(value: TValue; use_locking: Boolean = false; name: string = ''; read_value: Boolean = true):TFTensor;
+        function assign<T>(value: T; use_locking: Boolean = false; name: string = ''; read_value: Boolean = true):TFTensor;
         function assign_lazy_load(value: TFTensor; name: string = ''): IVariableV1;
         function ToString: string; override;
 
@@ -225,6 +359,7 @@ type
         property shape        : TFShape     read Fshape;
         property Graph        : TFGraph     read GetGraph;
         property Device       : string      read GetDevice;
+        property tHandle      : TFTensor    read Fhandle;
   end;
 
   /// <summary>
@@ -297,6 +432,7 @@ type
         function  sparse_read(indices: TFTensor; name : string= 'Gather') : TFTensor;
         function  to_proto(export_scope: string): TVariableDef;
         function  eval(session: TFSession = nil): TNDArray;
+        function  ToTensor: TFTensor;
         function  numpy: TNDArray; override;
 
         property Name        : string       read GetName;
@@ -364,6 +500,32 @@ type
       /// <param name="shared_name"></param>
       /// <returns></returns>
       class function variable_op_v2(shape: TArray<Integer>; dtype: TF_DataType; name: string = 'Variable'; container : string= ''; shared_name: string = ''): TFTensor;
+      class function assign<T>(ref: T; value: TValue; validate_shape: Boolean = true; use_locking: Boolean = true; name: string = ''): TFTensor; overload;
+      class function assign(ref: IVariableV1; value: TValue; validate_shape: Boolean = true; use_locking: Boolean = true; name: string = '') : TFTensor; overload;
+      class function assign_sub(ref: IVariableV1; value: TFTensor; use_locking: Boolean = false; name : string= ''): TFTensor;
+      //"""Update 'ref' by adding 'value' to it.
+      //
+      //  This operation outputs "ref" after the update is done.
+      //  This makes it easier to chain operations that need to use the reset value.
+      //
+      //  Args:
+      //    ref: A mutable `Tensor`. Must be one of the following types:
+      //      `float32`, `float64`, `int64`, `int32`, `uint8`, `uint16`, `int16`,
+      //      `int8`, `complex64`, `complex128`, `qint8`, `quint8`, `qint32`, `half`.
+      //      Should be from a `Variable` node.
+      //    value: A `Tensor`. Must have the same type as `ref`.
+      //      The value to be added to the variable.
+      //    use_locking: An optional `bool`. Defaults to `False`.
+      //      If True, the addition will be protected by a lock;
+      //      otherwise the behavior is undefined, but may exhibit less contention.
+      //    name: A name for the operation (optional).
+      //
+      //  Returns:
+      //    Same as "ref".  Returned as a convenience for operations that want
+      //    to use the new value after the variable has been updated.
+      class function assign_add<T>(ref: IVariableV1; value: T; use_locking: Boolean = false; name: string = ''): TFTensor;
+      class function scatter_add(ref: IVariableV1; indices: TFTensor; updates: TFTensor; use_locking: Boolean = false; name: string = '')  : TFTensor;
+      class function is_variable_initialized(ref: RefVariable; name: string = '') : TFTensor;
   end;
 
 /// <summary>
@@ -409,6 +571,7 @@ end;
 
 implementation
      uses Oz.Pb.Classes,
+          Spring.Collections.Stacks,
 
           Tensorflow.Gradient,
           TensorFlow.Tensor,
@@ -416,7 +579,6 @@ implementation
           Tensorflow,
           Tensorflow.Utils,
           TensorFlow.Ops,
-          Tensorflow.NameScope,
           TensorFlow.EagareRunner,
           Tensorflow.array_ops,
           Tensorflow.gen_array_ops,
@@ -429,9 +591,10 @@ implementation
 
 { RefVariable }
 
-function RefVariable.assign(value: TValue; use_locking: Boolean; name: string; read_value: Boolean): TFTensor;
+function RefVariable.assign<T>(value: T; use_locking: Boolean; name: string; read_value: Boolean): TFTensor;
 begin
-    var assign := gen_state_ops.assign(_variable, value, True, use_locking, name);
+    var vValue : TValue := TValue.From<T>(value);
+    var assign := gen_state_ops.assign(_variable, vValue, True, use_locking, name);
     if read_value then
         Exit( assign );
     Result := assign.op.Output;
@@ -858,6 +1021,11 @@ begin
 
 end;
 
+function ResourceVariable.ToTensor: TFTensor;
+begin
+   Result :=  _dense_var_to_tensor
+end;
+
 function ResourceVariable._TensorConversionFunction(dtype: TF_DataType; name: string; as_ref: Boolean): TFTensor;
 begin
     if as_ref then
@@ -1159,6 +1327,66 @@ end;
 
 { state_ops }
 
+class function state_ops.assign(ref: IVariableV1; value: TValue; validate_shape, use_locking: Boolean; name: string): TFTensor;
+begin
+    if TDTypes.is_ref_dtype(ref.dtype) then
+        Result := gen_state_ops.assign(ref, value,  validate_shape, use_locking, name)
+    else begin
+        if      ref is RefVariable          then Result := (ref as RefVariable).assign(value, False , name)
+        else if ref is BaseResourceVariable then Result := (ref as BaseResourceVariable).assign(value, False ,name)
+        else
+           raise Exception.Create('state_ops.assign Error!');
+    end;
+end;
+
+class function state_ops.assign<T>(ref: T; value: TValue; validate_shape, use_locking: Boolean; name: string): TFTensor;
+begin
+    Result := gen_state_ops.assign(ref, value, validate_shape, use_locking, name)
+end;
+
+class function state_ops.assign_add<T>(ref: IVariableV1; value: T; use_locking: Boolean; name: string): TFTensor;
+begin
+    if tf.executing_eagerly then
+    begin
+        if      ref is RefVariable          then Result := (ref as RefVariable).assign_add(value, use_locking , name)
+        else if ref is BaseResourceVariable then Result := (ref as BaseResourceVariable).assign_add(value, use_locking ,name)
+    end
+    else
+        Result := gen_state_ops.assign_add(ref, value, use_locking, name);
+end;
+
+class function state_ops.assign_sub(ref: IVariableV1; value: TFTensor; use_locking: Boolean; name: string): TFTensor;
+begin
+    if TDTypes.is_ref_dtype(ref.dtype) then
+      Result := gen_state_ops.assign_sub(ref, value, use_locking, name)
+    else begin
+      if      ref is RefVariable          then Result := (ref as RefVariable).assign_sub(value, use_locking , name)
+      else if ref is BaseResourceVariable then Result := (ref as BaseResourceVariable).assign_sub(value, use_locking ,name)
+      else
+           raise Exception.Create('state_ops.assign_sub Error!');
+    end;
+end;
+
+class function state_ops.is_variable_initialized(ref: RefVariable; name: string): TFTensor;
+begin
+    if TDTypes.is_ref_dtype(ref.dtype) then
+    begin
+        Result := gen_state_ops.is_variable_initialized(ref, name);
+        Exit;
+    end;
+    raise TFException.Create('Not Implemented - is_variable_initialized');
+end;
+
+class function state_ops.scatter_add(ref: IVariableV1; indices, updates: TFTensor; use_locking: Boolean; name: string): TFTensor;
+begin
+    if TDTypes.is_ref_dtype(ref.dtype) then
+    begin
+        Result := gen_state_ops.scatter_add(ref, indices, updates, use_locking, name);
+        Exit;
+    end;
+    raise TFException.Create('Not Implemented - scatter_add');
+end;
+
 class function state_ops.variable_op_v2(shape: TArray<Integer>; dtype: TF_DataType; name, container, shared_name: string): TFTensor;
 begin
     Result := gen_state_ops.variable_v2(shape, dtype, name, container,shared_name)
@@ -1310,6 +1538,107 @@ end;
 class operator TResourceVariable.Implicit(t: TResourceVariable): TFTensor;
 begin
     Result := t.FResourceHandle._dense_var_to_tensor;
+end;
+
+{ VariableArgs }
+
+class operator VariableArgs.Initialize(out Dest: VariableArgs);
+begin
+    Dest.DType          := TF_DataType.DtInvalid;
+    Dest.ValidateShape  := true;
+    Dest.UseResource    := true;
+    Dest.CachingDevice  := '';
+    Dest.ImportScope    := '';
+    Dest.Synchronization:= TVariableSynchronization.VARIABLE_SYNCHRONIZATION_AUTO;
+    Dest.Aggregation    := TVariableAggregation.VARIABLE_AGGREGATION_NONE;
+end;
+
+{ PureVariableScope }
+
+procedure PureVariableScope._Enter_;
+begin
+
+end;
+
+procedure PureVariableScope._Exit_;
+begin
+
+end;
+
+{ variable_scope }
+
+constructor variable_scope.Create(name, default_name: string; values: TArray<TFTensor>; reuse: PBoolean; auxiliary_name_scope: Boolean);
+begin
+
+end;
+
+constructor variable_scope.Create(scope: VariableScope; default_name: string; values: TArray<TFTensor>; reuse: PBoolean; auxiliary_name_scope: Boolean);
+begin
+
+end;
+
+class function variable_scope.default_variable_creator(initial_value: TValue; name: string; trainable: PBoolean; collections: TList<string>; dtype: TF_DataType;
+  shape: TArray<Integer>; validate_shape: Boolean; use_resource: pBoolean; synchronization: TVariableSynchronization; aggregation: TVariableAggregation): IVariableV1;
+begin
+
+end;
+
+class function variable_scope.get_variable_scope: VariableScope;
+begin
+
+end;
+
+class function variable_scope.get_variable_scope_store: _VariableScopeStore;
+begin
+
+end;
+
+procedure variable_scope._Enter_;
+begin
+
+end;
+
+function variable_scope._enter_scope_uncached: VariableScope;
+begin
+
+end;
+
+procedure variable_scope._Exit_;
+begin
+
+end;
+
+class function variable_scope._get_default_variable_store: _VariableStore;
+begin
+
+end;
+
+class function variable_scope._get_trainable_value(synchronization: TVariableSynchronization; trainable: Boolean): Boolean;
+begin
+
+end;
+
+class function variable_scope._get_unique_variable_scope(prefix: string): string;
+begin
+
+end;
+
+{ VariableScope }
+
+constructor VariableScope.Create(reuse: Boolean; name, name_scope: string; dtype: TF_DataType);
+begin
+
+end;
+
+function VariableScope.get_variable(var_store: _VariableStore; name: string; shape: PTFShape; dtype: TF_DataType; initializer: TObject; trainable: PBoolean;
+  collections: TList<string>; use_resource: PBoolean; validate_shape: Boolean; synchronization: TVariableSynchronization; aggregation: TVariableAggregation): IVariableV1;
+begin
+
+end;
+
+procedure VariableScope.reuse_variables;
+begin
+
 end;
 
 end.

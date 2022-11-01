@@ -162,27 +162,6 @@ type
       class function range(_end: Integer): Enumerable<integer> ;  overload; static;
  end;
 
-  TNullable<T> = class
-  strict private
-    FNullableValue: Nullable<T>;
-
-  strict protected
-
-  public
-    constructor Create(AValue: Nullable<T>);
-
-    function  GetIsNull: Boolean; virtual;
-    function  GetValue: T; virtual;
-    procedure SetValue(const Value: T); virtual;
-    function  GetNullableValue: Nullable<T>; virtual;
-    procedure SetNullableValue(const Value: Nullable<T>); virtual;
-    property  NullableValue: Nullable<T> read GetNullableValue write SetNullableValue;
-
-  published
-    property IsNull: Boolean read GetIsNull ;
-    property Value: T read GetValue write SetValue;
-  end;
-
  function GetArg(sNome: string; vVal : TValue):  TParameter;
 
 implementation
@@ -1165,12 +1144,12 @@ begin
             var vval := values.AsType<Int64>;
             tensor_proto.Int64Vals.AddRange([ vval ]);
         end
-        else if values.IsType<Single> then
+        else if (values.IsType<Single>) and (Values.TypeInfo.Name ='Single') then
         begin
             var vval := values.AsType<Single>;
             tensor_proto.FloatVals.AddRange([ vval ]);
         end
-        else if values.IsType<Double> then
+        else if (values.IsType<Single>) and (Values.TypeInfo.Name ='Double') then
         begin
             var vval := values.AsType<Double>;
             tensor_proto.DoubleVals.AddRange([ vval ]);
@@ -1362,45 +1341,6 @@ end;
 class operator TValueHelp.Implicit(const Value: TArray<Single>): TValue;
 begin
     Result := TValue.From< TArray<Single> >(Value);
-end;
-
-{ TNullable<T> }
-
-constructor TNullable<T>.Create(AValue: Nullable<T>);
-begin
-    FNullableValue := AValue;
-end;
-
-function TNullable<T>.GetIsNull: Boolean;
-begin
-   Result := not Self.NullableValue.HasValue;
-end;
-
-function TNullable<T>.GetNullableValue: Nullable<T>;
-begin
-     Result := FNullableValue;
-end;
-
-function TNullable<T>.GetValue: T;
-begin
-    Result := Self.NullableValue.Value;
-end;
-
-procedure TNullable<T>.SetNullableValue(const Value: Nullable<T>);
-begin
-  if Self.NullableValue <> Value then
-  begin
-    Self.FNullableValue := Value;
-  end;
-end;
-
-procedure TNullable<T>.SetValue(const Value: T);
-var
-  NewNullableValue: Nullable<T>;
-begin
-    NewNullableValue := NullableValue;
-    NewNullableValue := Value;
-    NullableValue    := NewNullableValue;
 end;
 
 end.

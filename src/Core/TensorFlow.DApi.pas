@@ -185,29 +185,6 @@ TFShape = record
 end;
 {$ENDREGION}
 
-{$REGION 'InitializerArgs'}
-InitializerArgs = class
-   private
-     FName       : string;
-     FShape      : TFShape;
-     FDType      : TF_DataType;
-     FVerifyShape: Boolean;
-   public
-     constructor Create(shape: TFShape; dtype : TF_DataType= TF_DataType.DtInvalid;  verify_shape : Boolean = false; name: string = '');
-
-     property Name       : string       read FName        write FName;
-     property Shape      : TFShape      read FShape       write FShape;
-     property DType      : TF_DataType  read FDType       write FDType;
-     property VerifyShape: Boolean      read FVerifyShape write FVerifyShape ;
-end;
-{$ENDREGION}
-
-{$REGION 'IInitializer'}
-IInitializer  = class abstract
-  function Apply(args: InitializerArgs): TFTensor; virtual; abstract;
-end;
-{$ENDREGION}
-
 {$REGION 'TParameter'}
 TParameter = record
   sNome : string;
@@ -565,6 +542,10 @@ TFTensor = class(ITensorOrOperation)
    FGraph                : TFGraph;
    FRank                 : Integer;
    FShape                : TFShape;
+   /// <summary>
+   ///     Used for keep other pointer when do implicit operating
+   /// </summary>
+   FTag : TValue;
 
    function GetByteSize: UInt64;
    function GetDataTypeSize: UInt64;
@@ -682,6 +663,7 @@ TFTensor = class(ITensorOrOperation)
    function  eval(session : TFSession; feed_dict : TArray<FeedItem>= nil) : TNDArray;
    function  _slice(start: Integer): TFTensor;
 
+   property  Tag           : TValue         read FTag write FTag;
    property  bytesize      : UInt64         read GetByteSize;
    property  dtypesize     : UInt64         read GetDataTypeSize;
    property  size          : UInt64         read GetSize;
@@ -850,6 +832,7 @@ TFTensors = class (TList<TFTensor>)
 
  public
    destructor  Destroy; override;
+   constructor Create; overload; override;
    constructor Create(const tensors: array of TFTensor); overload; override;
    constructor Create(tensor: TFTensor); overload;
    constructor Create(t: Tuple<TFTensor,TFTensor>); overload;
@@ -1026,6 +1009,7 @@ TFOperation = class(ITensorOrOperation)
    property NumOutputs: Integer    read GeNumOutputs;
    property NumInputs : Integer    read GeNumInputs;
    property id_value  : Integer    read Fid_value write Fid_value;
+   property id        : Integer    read Fid_value write Fid_value;
    property Output    : TFTensor   read GetOutput;
    property inputs    : TInputList read GetInputList;
    property NodeDef   : TNodeDef   read GetNodeDef;
@@ -1101,6 +1085,7 @@ TFGraph = class(TFDisposable)
    destructor  Destroy; override;
    function    NextId: Integer;
 
+   procedure device(device_name: string);
    function  as_graph_element(obj: TValue; allow_tensor: Boolean = true; allow_operation: Boolean = true): ITensorOrOperation;
    procedure _pop_control_dependencies_controller(controller: TControlDependenciesController);
    procedure _push_control_dependencies_controller(controller: TControlDependenciesController);
@@ -1195,7 +1180,7 @@ TFGraph = class(TFDisposable)
    property name_stack          : string  read Fname_stack;
    property graph_key           : string  read Fgraph_key;
    property last_loss_reduction : string  read Flast_loss_reduction;
-   property is_loss_scaled_by_optimizer : Boolean read Fis_loss_scaled_by_optimizer;
+   property is_loss_scaled_by_optimizer : Boolean read Fis_loss_scaled_by_optimizer write Fis_loss_scaled_by_optimizer;
    property building_function   : Boolean read Fbuilding_function;
    property container           : string  read Fcontainer;
    property seed                : Integer read Fseed write Fseed;
@@ -4059,7 +4044,7 @@ end;
 
 function TFShape.GetIsFullDef: Boolean;
 begin
-    Result := (ndim > -1) and ( Length(FaDims) > 0 );
+    Result := (ndim > -1){ and ( Length(FaDims) > 0 )};
     for var i := 0 to Length(FaDims)-1 do
     begin
       if FaDims[i] < 1 then
@@ -4663,6 +4648,11 @@ begin
 
    inherited Destroy;
 end;
+procedure TFGraph.device(device_name: string);
+begin
+
+end;
+
 procedure TFGraph.NativeDispose(hnd: Pointer);
 begin
  if Assigned(hnd) then
@@ -5012,6 +5002,15 @@ end;
 {$REGION 'TFTensors'}
 { TFTensors }
 
+constructor TFTensors.Create;
+begin
+   inherited Create;
+
+   FItems := TList<TFTensor>.Create;
+
+   FiLength := FItems.Count;
+end;
+
 constructor TFTensors.Create(const tensors: array of TFTensor);
 begin
    inherited Create(tensors);
@@ -5258,13 +5257,6 @@ begin
 end;
 {$ENDREGION}
 
-{ InitializerArgs }
-
-constructor InitializerArgs.Create(shape: TFShape; dtype: TF_DataType; verify_shape: Boolean; name: string);
-begin
-
-end;
-
 Initialization
 begin
 
@@ -5274,5 +5266,6 @@ begin
 
 end;
 end.
+
 
 

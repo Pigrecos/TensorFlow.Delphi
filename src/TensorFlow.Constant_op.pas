@@ -264,12 +264,12 @@ begin
         var vval := Value.AsType<UInt64>;
         Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_UINT64);
     end
-    else if value.IsType<Single> then
+    else if (value.IsType<Single>) and (Value.TypeInfo.Name ='Single') then
     begin
         var vval : Single := Value.AsType<Single>;
         Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_FLOAT);
     end
-    else if value.IsType<Single> then
+    else if value.IsType<Single> and (Value.TypeInfo.Name ='Double') then
     begin
         var vval : Double := Value.AsType<Double>;
         Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_DOUBLE);
