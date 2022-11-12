@@ -18,8 +18,10 @@ unit TensorFlow.Ops;
 interface
      uses System.SysUtils, System.SyncObjs, Winapi.Windows, System.Rtti,
           Spring,
-          Spring.Collections, Spring.Collections.MultiMaps, Spring.Collections.Enumerable,
-          Spring.Collections.Extensions, Spring.Collections.Lists, Spring.Collections.Dictionaries,
+          Spring.Collections,
+          Spring.Collections.MultiMaps,
+          Spring.Collections.Enumerable,
+          System.Generics.Collections,
 
           TF4D.Core.CApi,
           NumPy.NDArray,
@@ -160,6 +162,8 @@ type
       class function  strip_name_scope(name: string; export_scope: string = ''): string;
       class function  get_name_scope: string;
       class function  executing_eagerly_outside_functions: Boolean;
+      class function  get_gradient_function(op: TFOperation): TFunc<TFOperation, TArray<TFTensor>, TArray<TFTensor>>;
+      class procedure RegisterFromAssembly;
 
       // array_ops Class
       class function constant(value: TValue; dtype: TF_DataType= DtInvalid; shape: TArray<TF_int64_t> =[]; name: AnsiString= 'Const'; verify_shape: Boolean=False): TFTensor; static;
@@ -255,6 +259,8 @@ implementation
                 Tensorflow.array_ops,
                 Numpy.Axis, Numpy,
                 TensorFlow.Tensor,
+                Tensorflow.Gradient,
+                TensorFlow.math_grad,
 
                 oz.Pb.Classes,
                 Oz.SGL.Collections,
@@ -424,6 +430,11 @@ begin
     else if value.IsType<ResourceVariable> then
     begin
         var varVal  := value.AsType<ResourceVariable>;
+        ret := varVal._TensorConversionFunction(dtype, name, as_ref)
+    end
+    else if value.IsType<IVariableV1> then
+    begin
+        var varVal  := value.AsType<IVariableV1>;
         ret := varVal._TensorConversionFunction(dtype, name, as_ref)
     end
     else if value.IsType<TAxis> then
@@ -726,6 +737,30 @@ begin
     end
     else
         Result := name;
+end;
+
+class procedure TOps.RegisterFromAssembly;
+begin
+    if Assigned(gradientFunctions) then gradientFunctions.clear
+    else                                gradientFunctions := TDictionary<string, TFunc<TFOperation, TArray<TFTensor>, TArray<TFTensor>> >.create;
+
+    var m_Grad := math_grad.Create;
+    try
+      for var i := 0 to Length(m_Grad.GradFunction) - 1 do
+         gradientFunctions.add(m_Grad.GradFunction[i].Name,m_Grad.GradFunction[i].func)
+
+    finally
+      m_Grad.free;
+    end;
+end;
+
+class function TOps.get_gradient_function(op: TFOperation): TFunc<TFOperation, TArray<TFTensor>, TArray<TFTensor>>;
+begin
+    if op.inputs = nil then Exit(nil);
+
+    if not gradientFunctions.ContainsKey(op.tipo)  then
+      raise TFException.Create('can''t get graident function through get_gradient_function : '+ op.tipo);
+    Result := gradientFunctions[op.tipo];
 end;
 
 class procedure TOps.colocate_with(variable: IVariableV1; ignore_existing: Boolean);

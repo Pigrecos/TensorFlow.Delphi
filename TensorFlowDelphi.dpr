@@ -59,7 +59,10 @@ uses
   TensorFlow.gen_ops in 'src\Operation\TensorFlow.gen_ops.pas',
   TensorFlow.Interfaces in 'src\TensorFlow.Interfaces.pas',
   TensorFlow.bitwise_ops in 'src\Operation\TensorFlow.bitwise_ops.pas',
-  TensorFlow.Training in 'src\TensorFlow.Training.pas';
+  TensorFlow.Training in 'src\TensorFlow.Training.pas',
+  TensorFlow.ControlFlowState in 'src\Operation\TensorFlow.ControlFlowState.pas',
+  TensorFlow.control_flow_util in 'src\Operation\TensorFlow.control_flow_util.pas',
+  TensorFlow.math_grad in 'src\Gradient\TensorFlow.math_grad.pas';
 
 {$R *.res}
 

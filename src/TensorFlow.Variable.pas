@@ -19,9 +19,10 @@ interface
      uses System.SysUtils,
           System.Rtti,
           System.TypInfo,
+          System.Generics.Collections,
 
           Spring,
-          Spring.Collections.Lists,
+          Spring.Collections.Enumerable,
 
           TensorFlow.Slice,
           TensorFlow.Initializer,
@@ -73,7 +74,44 @@ type
    /// Variable store that carries a number of named Variables.
    /// </summary>
    _VariableStore = class
-
+      private
+         Fvars                 : TDictionary<string, TObject>;
+         Fpartitioned_vars     : TDictionary<string, TObject>;
+         Fstore_eager_variables: Boolean ;
+         function  _true_getter(name           : string;
+                                shape          : PTFShape = nil;
+                                dtype          : TF_DataType = TF_DataType.TF_FLOAT;
+                                initializer    : TObject = nil;
+                                trainable      : PBoolean = nil;
+                                collections    : TList<string> = nil;
+                                validate_shape : Boolean = true;
+                                synchronization: TVariableSynchronization = VARIABLE_SYNCHRONIZATION_AUTO;
+                                aggregation    : TVariableAggregation     = VARIABLE_AGGREGATION_NONE): IVariableV1;
+         function _get_single_variable(name           : string;
+                                       shape          : PTFShape = nil;
+                                       dtype          : TF_DataType = TF_DataType.DtInvalid;
+                                       initializer    : IInitializer = nil;
+                                       init_value     : TFTensor = nil;
+                                       reuse          : Boolean = false;
+                                       trainable      : PBoolean = nil;
+                                       collections    : TList<string> = nil ;
+                                       validate_shape : Boolean = false;
+                                       use_resource   : PBoolean = nil;
+                                       synchronization: TVariableSynchronization = VARIABLE_SYNCHRONIZATION_AUTO;
+                                       aggregation    : TVariableAggregation = VARIABLE_AGGREGATION_NONE) : IVariableV1;
+      public
+         constructor Create;
+         destructor Destroy; override;
+         function get_variable(name           : string;
+                               shape          : PTFShape = nil;
+                               dtype          : TF_DataType = TF_DataType.TF_FLOAT;
+                               initializer    : TObject = nil; // IInitializer or Tensor
+                               reuse          : PBoolean = nil;
+                               trainable      : PBoolean = nil;
+                               collections    : TList<string> = nil;
+                               validate_shape : Boolean = true;
+                               synchronization: TVariableSynchronization = VARIABLE_SYNCHRONIZATION_AUTO;
+                               aggregation    : TVariableAggregation= VARIABLE_AGGREGATION_NONE): IVariableV1;
    end;
 
    /// <summary>
@@ -89,7 +127,7 @@ type
         use_resource : Boolean;
         resue        : Boolean;
       public
-        constructor Create(reuse: Boolean; name: string = ''; name_scope: string = ''; dtype: TF_DataType = TF_FLOAT) ;
+        constructor Create(reuse: Boolean; _name: string = ''; name_scope: string = ''; dtype: TF_DataType = TF_FLOAT) ;
         procedure reuse_variables;
         function get_variable(var_store: _VariableStore;
                               name           : string;
@@ -102,20 +140,44 @@ type
                               validate_shape : Boolean = true;
                               synchronization: TVariableSynchronization =VARIABLE_SYNCHRONIZATION_AUTO;
                               aggregation    : TVariableAggregation =VARIABLE_AGGREGATION_NONE): IVariableV1;
-
         property name               : string  read Fname;
         property original_name_scope: string  read Fname_scope ;
 
    end;
 
    _VariableScopeStore  = class
+     private
 
+     public
+        current_scope         : VariableScope;
+        variable_scopes_count : TDictionary<string, Integer>;
+     public
+        constructor Create;
+        destructor Destroy; override;
+        procedure open_variable_scope(scope_name: string);
+        procedure close_variable_subscopes(scope_name: string);
+        function variable_scope_count(scope_name: string) : Integer;
    end;
 
    PureVariableScope = class(TInterfacedObject, ITensorFlowObject)
      private
-
+        Fname                        : string;
+        Fscope                       : VariableScope;
+        Fnew_name                    : string;
+        Fold_name_scope              : string;
+        Freuse                       : Boolean;
+        Fvar_store                   : _VariableStore ;
+        Fold                         : VariableScope;
+        Fvar_scope_store             : _VariableScopeStore;
+        Fcached_variable_scope_object: VariableScope;
+        Fvariable_scope_object         : VariableScope;
+        Flast_variable_scope_object  : VariableScope;
+        Fold_subscopes               : TDictionary<string, Integer>;
      public
+       constructor Create(name:  string;        old_name_scope : string = ''; dtype : TF_DataType = DtInvalid); overload;
+       constructor Create(scope: VariableScope; old_name_scope : string = ''; dtype : TF_DataType = DtInvalid); overload;
+       destructor Destroy; override;
+       function ToVarScope: VariableScope;
        procedure _Enter_ ;
        procedure _Exit_ ;
    end;
@@ -127,14 +189,13 @@ type
         Fscope                     : VariableScope;
         Fdefault_name              : string;
         Fvalues                    : TArray<TFTensor>;
-        F_current_name_scope       : TNameScope;
+        Fcurrent_name_scope        : TNameScope;
         Fauxiliary_name_scope      : Boolean;
         Fcached_pure_variable_scope: PureVariableScope;
-        F_reuse                    : Nullable<Boolean>;
+        Freuse                     : Nullable<Boolean>;
         Fin_graph_mode             : Boolean;
         Fgraph                     : TFGraph;
         F_building_function        : Boolean;
-
         function _enter_scope_uncached: VariableScope;
      public
         const _VARSTORE_KEY         : string  = '__variable_store';
@@ -169,7 +230,6 @@ type
         property UseResource : Boolean read Fuse_resource;
    end;
 
-
   /// <summary>
   /// A variable maintains state in the graph across calls to `run()`. You add a
   /// variable to the graph by constructing an instance of the class `Variable`.
@@ -181,7 +241,6 @@ type
   /// https://tensorflow.org/guide/variables
   /// </summary>
   IVariableV1 = interface
-  ['{DEBD12E5-E613-4F9A-AEDC-99579EFA9798}']
 
       function GetTipo: TF_DataType;
       function GetShape: TFShape;
@@ -194,6 +253,7 @@ type
       function GetName: String;
       function GetHandle:TFTensor;
 
+      function _TensorConversionFunction(dtype: TF_DataType = DtInvalid; name: string = ''; as_ref: Boolean = false): TFTensor;
       function AsTensor(dtype: TF_DataType = TF_DataType.DtInvalid; name : string= ''; as_ref : Boolean= false): TFTensor;
       function numpy: TNDArray;
 
@@ -209,7 +269,7 @@ type
       property dtype       : TF_DataType read GetTipo;
   end;
 
-  RefVariable = class(TInterfacedObject, IVariableV1)
+  RefVariable = class(TInterfacedObject,IVariableV1)
      private
         Fgraph_element    : TFTEnsor;
         Fis_initialized_op: TFTensor;
@@ -239,6 +299,15 @@ type
      public
         _Variable : TFTensor;
 
+        constructor Create(initial_value  : PValue = nil;
+                           trainable      : Boolean = true;
+                           collections    : TList<string> = nil;
+                           validate_shape : Boolean = true;
+                           caching_device : string = '';
+                           name           : string = '';
+                           variable_def   : PVariableDef= nil;
+                           dtype          : TF_DataType = DtInvalid;
+                           import_scope   : string = '');
         function _as_graph_element: TFTEnsor;
         function Eval: TFTensor;
         function AsTensor(dtype: TF_DataType = TF_DataType.DtInvalid; name : string= ''; as_ref : Boolean= false): TFTensor;
@@ -280,6 +349,8 @@ type
         function assign<T>(value: T; use_locking: Boolean = false; name: string = ''; read_value: Boolean = true):TFTensor;
         function assign_lazy_load(value: TFTensor; name: string = ''): IVariableV1;
         function ToString: string; override;
+        function To_VarScopeStore: _VariableScopeStore;
+        function To_Tensor: TFTensor;
 
         property dtype            : TF_DataType read GetTipo;
         property UniqueId         : string      read GetUniqueId;
@@ -366,7 +437,7 @@ type
   /// Represents a future for a read of a variable.
   /// Pretends to be the tensor if anyone looks.
   /// </summary>
-  _UnreadVariable = class( BaseResourceVariable, IVariableV1 )
+  _UnreadVariable = class(BaseResourceVariable, IVariableV1 )
      private
         function GetOP: TFOperation;
         function GetTipo: TF_DataType;
@@ -378,6 +449,7 @@ type
         function GetHandle:TFTensor;
      public
         constructor Create(hHandle: TFTensor; dDtype: TF_DataType; sShape: TFShape; in_graph_mode: Boolean; unique_id: string);
+        function  _TensorConversionFunction(dtype: TF_DataType = DtInvalid; name: string = ''; as_ref: Boolean = false): TFTensor;
 
         property Name  : string  read GetName;
   end;
@@ -571,7 +643,6 @@ end;
 
 implementation
      uses Oz.Pb.Classes,
-          Spring.Collections.Stacks,
 
           Tensorflow.Gradient,
           TensorFlow.Tensor,
@@ -627,6 +698,12 @@ begin
     Result := Fsnapshot;
 end;
 
+constructor RefVariable.Create(initial_value: PValue; trainable: Boolean; collections: TList<string>; validate_shape: Boolean; caching_device, name: string;
+  variable_def: PVariableDef; dtype: TF_DataType; import_scope: string);
+begin
+
+end;
+
 function  RefVariable.GetHandle:TFTensor;
 begin
     Result := _Variable;
@@ -645,6 +722,16 @@ end;
 function RefVariable.ToString: string;
 begin
     Result := Format('tf.RefVariable %s  shape=%s  dtype=%d',[Name, Shape.ToString, Ord(dtype)]);
+end;
+
+function RefVariable.To_Tensor: TFTensor;
+begin
+    Result := self.AsTensor;
+end;
+
+function RefVariable.To_VarScopeStore: _VariableScopeStore;
+begin
+    Result := nil;
 end;
 
 function RefVariable.value: TFTensor;
@@ -1180,7 +1267,7 @@ begin
         var st : TStack<ITape> := tf.GetTapeSet;
         for var i:= 0 to st.Count - 1 do
         begin
-            var tape := st.ElementAt(i) ;
+            var tape := st.List[i] ;
             tape.VariableAccessed(variable as ResourceVariable);
         end;
     end;
@@ -1323,6 +1410,11 @@ end;
 function _UnreadVariable.GetUniqueId: string;
 begin
     Result := Funique_id;
+end;
+
+function _UnreadVariable._TensorConversionFunction(dtype: TF_DataType; name: string; as_ref: Boolean): TFTensor;
+begin
+    result := nil;
 end;
 
 { state_ops }
@@ -1555,92 +1647,446 @@ end;
 
 { PureVariableScope }
 
+constructor PureVariableScope.Create(scope: VariableScope; old_name_scope: string; dtype: TF_DataType);
+begin
+    Fscope          := scope;
+    Fold_name_scope := old_name_scope;
+    Fvar_store      := variable_scope._get_default_variable_store();
+    Fvar_scope_store:= variable_scope.get_variable_scope_store();
+    Fnew_name       := Fscope.name;
+    var name_scope : string := Fscope.Fname_scope;
+    Fvariable_scope_object :=  VariableScope.Create(Freuse, Fnew_name, name_scope);
+    Fcached_variable_scope_object := Fvariable_scope_object;
+end;
+
+constructor PureVariableScope.Create(name, old_name_scope: string; dtype: TF_DataType);
+begin
+    Fname           := name;
+    Fold_name_scope := old_name_scope;
+    Fvar_store      := variable_scope._get_default_variable_store;
+    Fvar_scope_store:= variable_scope.get_variable_scope_store;
+end;
+
+destructor PureVariableScope.Destroy;
+begin
+  if Assigned(Fscope) then Fscope.Free;
+  if Assigned(Fvar_store) then Fvar_store.Free;
+  if Assigned(Fvar_scope_store) then Fvar_scope_store.Free;
+  if Assigned(Fvariable_scope_object) then Fvariable_scope_object.Free;
+  if Assigned(Fcached_variable_scope_object) then Fcached_variable_scope_object.Free;
+
+  inherited;
+end;
+
+function PureVariableScope.ToVarScope: VariableScope;
+begin
+    Result := self.Fvariable_scope_object;
+end;
+
 procedure PureVariableScope._Enter_;
 begin
-
+    Fold := Fvar_scope_store.current_scope;
+    if Fscope <> nil   then
+    begin
+        Fvar_scope_store.open_variable_scope(Fnew_name);
+        Fold_subscopes.Create( Fvar_scope_store.variable_scopes_count );
+        Fvariable_scope_object := Fcached_variable_scope_object;
+    end else
+    begin
+        if string.IsNullOrEmpty(Fold.name)  then  Fnew_name := Fname
+        else                                      Fnew_name := Fold.name + '/' + Fname;
+        Freuse := Freuse or Fold.resue;
+        var name_scope : string ;
+        if Fold_name_scope = '' then name_scope := Fname
+        else                         name_scope := Fold_name_scope;
+        Fvariable_scope_object := VariableScope.Create(Freuse, Fnew_name, name_scope);
+        Fvar_scope_store.open_variable_scope(Fnew_name);
+    end;
+    Fvar_scope_store.current_scope := Fvariable_scope_object;
+    Flast_variable_scope_object    := Fvariable_scope_object;
 end;
 
 procedure PureVariableScope._Exit_;
 begin
-
+    // If jumping out from a non-prolonged scope, restore counts.
+    if Fscope <> nil then  Fvar_scope_store.variable_scopes_count := Fold_subscopes
+    else                   Fvar_scope_store.close_variable_subscopes(Fnew_name);
+    Fvar_scope_store.current_scope := Fold;
 end;
 
 { variable_scope }
 
 constructor variable_scope.Create(name, default_name: string; values: TArray<TFTensor>; reuse: PBoolean; auxiliary_name_scope: Boolean);
 begin
-
+    Fname               := name;
+    Fdefault_name       := default_name;
+    Fvalues             := values;
+    Fcurrent_name_scope := nil;
+    if reuse <> nil then
+       Freuse  := reuse^;
+    Fuse_resource       := false;
+    if (Fdefault_name = '') and (Fname = '') then
+       raise TFException.Create('If default_name is None then name is required');
+    Fauxiliary_name_scope := auxiliary_name_scope;
 end;
 
 constructor variable_scope.Create(scope: VariableScope; default_name: string; values: TArray<TFTensor>; reuse: PBoolean; auxiliary_name_scope: Boolean);
 begin
+    Fscope              := scope;
+    Fdefault_name       := default_name;
+    Fvalues             := values;
+    Fcurrent_name_scope := nil;
+    if reuse <> nil then
+       Freuse  := reuse^;
+    Fuse_resource       := false;
+    if (Fdefault_name = '') and (Fscope = nil) then
+        raise TFException.Create('If default_name is None then scope is required');
+    if Fvalues = nil then
+        FValues := [];
+    Fin_graph_mode := true;
+    if Fin_graph_mode then
+        Fgraph := Tops._get_graph_from_inputs(Fvalues);
 
+    Fauxiliary_name_scope := auxiliary_name_scope;
 end;
 
 class function variable_scope.default_variable_creator(initial_value: TValue; name: string; trainable: PBoolean; collections: TList<string>; dtype: TF_DataType;
   shape: TArray<Integer>; validate_shape: Boolean; use_resource: pBoolean; synchronization: TVariableSynchronization; aggregation: TVariableAggregation): IVariableV1;
 begin
-
+    trainable^ := _get_trainable_value(synchronization, trainable^);
+    if use_resource = nil then
+    begin
+        var bUseRes  := get_variable_scope.use_resource;
+        use_resource := @bUseRes;
+    end;
+    if use_resource = nil then
+        use_resource := @_DEFAULT_USE_RESOURCE;
+    if use_resource^ then
+    begin
+        var sShape  : TFShape := shape;
+        Result := ResourceVariable.Create(@initial_value, trainable^, collections, validate_shape, '', name, nil, dtype, '', VARIABLE_AGGREGATION_NONE, @sShape);
+    end else
+    begin
+        Result := RefVariable.Create(@initial_value, trainable^, collections, validate_shape, '', name, nil, dtype);
+    end;
 end;
 
 class function variable_scope.get_variable_scope: VariableScope;
 begin
-
+    Result := get_variable_scope_store.current_scope;
 end;
 
 class function variable_scope.get_variable_scope_store: _VariableScopeStore;
 begin
-
+    var ret : _VariableScopeStore ;
+    var scope_store: TValue := Tops.get_collection(_VARSCOPESTORE_KEY);
+    if (scope_store.TypeInfo = nil) or (scope_store.IsEmpty) then
+    begin
+        ret := _VariableScopeStore.Create;
+        Tops.add_to_collection(_VARSCOPESTORE_KEY, ret);
+    end else
+    begin
+        if scope_store.IsType< TList<RefVariable> > then
+        begin
+            var values := scope_store.AsType< TList<RefVariable> >;
+            ret := values[0].To_VarScopeStore;
+        end
+        else if scope_store.IsType< TList<_VariableScopeStore> > then
+        begin
+            var values := scope_store.AsType< TList<_VariableScopeStore> >;
+            ret := values[0];
+        end else
+        begin
+           raise TFException.Create('Error! get_variable_scope_store');
+        end;
+    end;
+    Result := ret;
 end;
 
 procedure variable_scope._Enter_;
 begin
-
+    // If the default graph is building a function, then we should not replace it
+    // with the cached graph.
+    if Tops.get_default_graph.building_function then
+        F_building_function := true
+    else
+        F_building_function := false;
+    if (Fin_graph_mode) and (not F_building_function) then
+       Fgraph.as_default;
+    Fscope := _enter_scope_uncached;
 end;
 
 function variable_scope._enter_scope_uncached: VariableScope;
 begin
-
+    var current_name_scope          : TNameScope;
+    var pure_variable_scope         : PureVariableScope ;
+    var entered_pure_variable_scope : VariableScope;
+    if Fauxiliary_name_scope then
+        // Create a new name scope later
+        current_name_scope := nil
+    else begin
+        // Reenter the current name scope
+        var name_scope : string := Tops.get_name_scope;
+        if not string.IsNullOrEmpty(name_scope) then
+            // Hack to reenter
+            name_scope := name_scope + '/';
+        current_name_scope := Tops.name_scope(name_scope);
+    end;
+    if (not string.IsNullOrEmpty(Fname)) or (Fscope <> nil) then
+    begin
+        var name_scope : string;
+        if Fscope = nil then  name_scope := Fname
+        else                  name_scope := Enumerable<String>.Create( Fscope.name.Split(['/']) ).Last;
+        if current_name_scope = nil then
+            current_name_scope := Tops.name_scope(name_scope);
+        current_name_scope._enter_;
+        var current_name_scope_name : string := current_name_scope.ToString;
+        Fcurrent_name_scope := current_name_scope;
+        var old_name_scope : string;
+        if Fscope = nil then  old_name_scope := current_name_scope_name
+        else                  old_name_scope := Fscope.original_name_scope;
+        if Fscope = nil then pure_variable_scope := PureVariableScope.Create(Fname, old_name_scope)
+        else                 pure_variable_scope := PureVariableScope.Create(Fscope, old_name_scope);
+        pure_variable_scope._enter_;
+        entered_pure_variable_scope := pure_variable_scope.ToVarScope;
+        Fcached_pure_variable_scope := pure_variable_scope;
+        Result := entered_pure_variable_scope;
+    end else
+    begin
+        current_name_scope := Tops.name_scope(Fdefault_name);
+        current_name_scope._enter_;
+        var current_name_scope_name : string := current_name_scope.ToString;
+        Fcurrent_name_scope := current_name_scope;
+        var unique_default_name : string := _get_unique_variable_scope(Fdefault_name);
+        pure_variable_scope := PureVariableScope.Create(unique_default_name, current_name_scope_name);
+        pure_variable_scope._enter_;
+        entered_pure_variable_scope := pure_variable_scope.ToVarScope;
+        Fcached_pure_variable_scope := pure_variable_scope;
+        Result := entered_pure_variable_scope;
+    end;
 end;
 
 procedure variable_scope._Exit_;
 begin
-
+    Fcached_pure_variable_scope._exit_;
+    if Fcurrent_name_scope <> nil then
+        Fcurrent_name_scope._exit_;
 end;
 
 class function variable_scope._get_default_variable_store: _VariableStore;
 begin
-
+   var store := Tops.get_collection(_VARSTORE_KEY);
+   if (store.TypeInfo <> nil) and (not store.IsEmpty) then
+   begin
+      Result := (store.AsType< TList<_VariableStore> >)[0];
+      Exit;
+   end;
+   var store1 := _VariableStore.Create;
+   Tops.add_to_collection(_VARSTORE_KEY, store1);
+   Result := store1;
 end;
 
 class function variable_scope._get_trainable_value(synchronization: TVariableSynchronization; trainable: Boolean): Boolean;
 begin
-
+    if synchronization = VARIABLE_SYNCHRONIZATION_ON_READ then
+    begin
+        if trainable then
+           raise TFException.Create('Synchronization value can be set to ' +
+                                    'VariableSynchronization.ON_READ only for non-trainable variables. ' +
+                                    'You have specified trainable=True and ' +
+                                    'synchronization=VariableSynchronization.ON_READ.');
+    end ;
+    { TODO -oMax -c : Verificare "Nullable(record!!) del Ca...o" 02/11/2022 16:46:22 }
+    (*else if (!trainable.HasValue)
+    {
+        trainable = true;
+    }*)
+    Result :=  trainable;
 end;
 
 class function variable_scope._get_unique_variable_scope(prefix: string): string;
 begin
-
+    var var_scope_store := get_variable_scope_store;
+    var current_scope   := get_variable_scope;
+    var name : string;
+    if not string.IsNullOrEmpty(current_scope.name) then name := current_scope.name + '/' + prefix
+    else                                                 name := prefix;
+    if var_scope_store.variable_scope_count(name) = 0 then
+    begin
+        Result := prefix;
+        Exit;
+    end;
+    var idx : Integer := 1;
+    while var_scope_store.variable_scope_count( name+'_'+ IntToStr(idx) ) > 0 do
+        idx := idx + 1;
+    Result := prefix+'_'+ IntToStr(idx);
 end;
 
 { VariableScope }
 
-constructor VariableScope.Create(reuse: Boolean; name, name_scope: string; dtype: TF_DataType);
+constructor VariableScope.Create(reuse: Boolean; _name, name_scope: string; dtype: TF_DataType);
 begin
-
+    Fname       := _name;
+    Fname_scope := name_scope;
+    Freuse      := _ReuseMode.AUTO_REUSE;
+    Fdtype      := dtype;
 end;
 
 function VariableScope.get_variable(var_store: _VariableStore; name: string; shape: PTFShape; dtype: TF_DataType; initializer: TObject; trainable: PBoolean;
   collections: TList<string>; use_resource: PBoolean; validate_shape: Boolean; synchronization: TVariableSynchronization; aggregation: TVariableAggregation): IVariableV1;
 begin
+    var full_name : string;
+    if not string.IsNullOrEmpty(Self.name) then  full_name := Self.name +'/' + name
+    else                                         full_name := name;
 
+     Result := TUtils.tf_with<TNameScope,IVariableV1>( TOps.name_scope(''),
+                  function(v1: TNameScope): IVariableV1
+                    begin
+                        if dtype = TF_DataType.DtInvalid then
+                            dtype := Fdtype;
+                        Result := var_store.get_variable(full_name, shape, dtype, initializer, @resue, trainable, collections, True, synchronization, aggregation);
+                    end );
 end;
 
 procedure VariableScope.reuse_variables;
 begin
+    Freuse := _ReuseMode.AUTO_REUSE;
+end;
 
+{ _VariableStore }
+
+constructor _VariableStore.Create;
+begin
+    Fvars                  := TDictionary<string, TObject>.Create ;
+    Fpartitioned_vars      := TDictionary<string, TObject>.Create ;
+    Fstore_eager_variables := false;
+end;
+
+destructor _VariableStore.Destroy;
+begin
+  Fvars.Free;
+  Fpartitioned_vars.Free;
+
+  inherited;
+end;
+
+function _VariableStore.get_variable(name: string; shape: PTFShape; dtype: TF_DataType; initializer: TObject; reuse, trainable: PBoolean; collections: TList<string>;
+  validate_shape: Boolean; synchronization: TVariableSynchronization; aggregation: TVariableAggregation): IVariableV1;
+begin
+    dtype     := TDtypes.as_base_dtype(dtype);
+    trainable^:= variable_scope._get_trainable_value(synchronization, trainable^);
+    Result := _true_getter(name, shape, dtype, initializer, trainable, collections, validate_shape, synchronization, aggregation);
+end;
+
+function _VariableStore._get_single_variable(name: string; shape: PTFShape; dtype: TF_DataType; initializer: IInitializer; init_value: TFTensor; reuse: Boolean;
+  trainable: PBoolean; collections: TList<string>; validate_shape: Boolean; use_resource: PBoolean; synchronization: TVariableSynchronization;
+  aggregation: TVariableAggregation): IVariableV1;
+begin
+    {$HINTS OFF}
+    var initializing_from_value : Boolean := init_value <> nil;
+    if use_resource = nil then
+        use_resource := @variable_scope._DEFAULT_USE_RESOURCE;
+    if Fvars.ContainsKey(name) then
+    begin
+        if not reuse then
+        begin
+            var _var := Fvars[name];
+        end;
+        raise Exception.Create('Not Implemented _get_single_variable');
+    end;
+    var v : IVariableV1 := nil;
+    // Create the tensor to initialize the variable with default value.
+    if (initializer = nil) and (init_value = nil) then
+    begin
+        if TDTypes.is_floating(dtype) then
+        begin
+            initializer := tf.glorot_uniform_initializer;
+            initializing_from_value := false;
+        end;
+    end;
+    // Create the variable.
+    Tops.init_scope;
+    if initializing_from_value then
+    begin
+        var pinit_value : TValue  := init_value;
+        v := ResourceVariable.Create(@pinit_value, trainable^,nil,validate_shape,'',name);
+    end else
+    begin
+        var init_val := initializer.Apply( InitializerArgs.Create(shape, dtype) );
+        var variable_dtype := TDTypes.as_base_dtype(dtype);
+
+        v := variable_scope.default_variable_creator(init_val, name, trainable, collections, variable_dtype, nil, validate_shape, use_resource, synchronization, aggregation);
+    end;
+
+    Fvars.AddOrSetValue(name, TObject(v));
+    Result := v;
+end;
+
+function _VariableStore._true_getter(name: string; shape: PTFShape; dtype: TF_DataType; initializer: TObject; trainable: PBoolean; collections: TList<string>;
+  validate_shape: Boolean; synchronization: TVariableSynchronization; aggregation: TVariableAggregation): IVariableV1;
+begin
+    if initializer is IInitializer then
+    begin
+        var init := initializer as IInitializer;
+        Result := _get_single_variable (name, shape, dtype, init, nil, False, trainable, collections, validate_shape, nil, synchronization, aggregation);
+    end
+    else if initializer is TFTensor  then
+    begin
+        var tensor : TFTensor := TFTensor(initializer);
+        Result := _get_single_variable(name, shape, dtype, nil, tensor, False, trainable, nil, validate_shape, nil, synchronization, aggregation);
+    end else
+    begin
+        var init1 : IInitializer := nil;
+        Result := _get_single_variable(name, shape, dtype, init1, nil, False, trainable, nil, validate_shape, nil, synchronization, aggregation);
+    end;
+end;
+
+{ _VariableScopeStore }
+
+constructor _VariableScopeStore.Create;
+begin
+    current_scope         := VariableScope.Create(false);
+    variable_scopes_count := TDictionary<string, Integer>.Create;
+end;
+
+destructor _VariableScopeStore.Destroy;
+begin
+    current_scope.Free;
+    variable_scopes_count.Free;
+end;
+
+procedure _VariableScopeStore.close_variable_subscopes(scope_name: string);
+begin
+    var variable_scopes_count_tmp := TDictionary<string, Integer>.Create;
+    try
+      for  var k in variable_scopes_count.Keys do
+          variable_scopes_count_tmp.Add(k, variable_scopes_count[k]);
+      for var k in variable_scopes_count_tmp.Keys do
+          if (scope_name = '') or ( k.StartsWith(scope_name + '/') ) then
+              variable_scopes_count[k] := 0;
+    finally
+      variable_scopes_count_tmp.Free;
+    end;
+end;
+
+procedure _VariableScopeStore.open_variable_scope(scope_name: string);
+begin
+    if variable_scopes_count.ContainsKey(scope_name) then
+        variable_scopes_count[scope_name] := variable_scopes_count[scope_name] + 1
+    else
+        variable_scopes_count[scope_name] := 1;
+end;
+
+function _VariableScopeStore.variable_scope_count(scope_name: string): Integer;
+begin
+    if variable_scopes_count.ContainsKey(scope_name) then
+        Result := variable_scopes_count[scope_name]
+    else
+        Result := 0;
 end;
 
 end.
+
+
 
 

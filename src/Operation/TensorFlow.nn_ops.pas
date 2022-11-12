@@ -16,8 +16,10 @@ unit TensorFlow.nn_ops;
 
 interface
     uses System.SysUtils,
+
          Spring,
          Spring.Collections.Enumerable,
+
          TF4D.Core.CApi,
          TensorFlow.DApi,
          TensorFlow.DApiBase,
@@ -160,7 +162,7 @@ end;
 
 class function nn_ops.l2_loss(t: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('L2Loss', name, ExecuteOpArgs.Create([ t ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('L2Loss', name, ExecuteOpArgs.Create([ t ])).First;
 end;
 
 class function nn_ops.leaky_relu(features: TFTensor; alpha: Single; name: string): TFTensor;
@@ -208,6 +210,7 @@ end;
 
 class function nn_ops.softmax_cross_entropy_with_logits_v2_helper(labels, logits: TFTensor; axis: Integer; name: string): TFTensor;
 begin
+    {$HINTS OFF}
     var newVal : TValue := TValue.From< TArray<TValue> >([logits, labels]);
     Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'softmax_cross_entropy_with_logits', @newVal),
                           function(v1: TNameScope): TFTensor
@@ -239,6 +242,7 @@ end;
 
 class function nn_ops.sparse_softmax_cross_entropy_with_logits(labels, logits: TFTensor; name: string): TFTensor;
 begin
+    {$HINTS OFF}
     var newVal : TValue := TValue.From< TArray<TValue> >([labels, logits]);
     Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'SparseSoftmaxCrossEntropyWithLogits', @newVal),
                           function(v1: TNameScope): TFTensor

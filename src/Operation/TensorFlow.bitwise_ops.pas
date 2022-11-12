@@ -109,12 +109,12 @@ implementation
 
 function bitwise_ops.binary_op(x, y: TFTensor; opName, name: string): TFTensor;
 begin
-   Result := tf.Context.ExecuteOp(opName, name, ExecuteOpArgs.Create([x,y])).FirstOrDefault(nil);
+   Result := tf.Context.ExecuteOp(opName, name, ExecuteOpArgs.Create([x,y])).First;
 end;
 
 function bitwise_ops.unary_op(x: TFTensor; opName, name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp(opName, name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp(opName, name, ExecuteOpArgs.Create([x])).First;
 end;
 
 function bitwise_ops.bitwise_and(x, y: TFTensor; name: string): TFTensor;

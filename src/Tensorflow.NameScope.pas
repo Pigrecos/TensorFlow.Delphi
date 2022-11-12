@@ -111,7 +111,7 @@ begin
         end;
         if g = nil then
             g := TOps.get_default_graph;
-        old_scope_name := g._name_stack;
+        old_scope_name := g.name_stack;
         scope_name     := g.name_scope(_name);
     end;
 end;
@@ -121,7 +121,7 @@ begin
     if tf.Context.executing_eagerly then
         tf.Context.ScopeName := string(old_scope_name)
     else
-        TOps.get_default_graph._name_stack := old_scope_name;
+        TOps.get_default_graph.name_stack := old_scope_name;
 end;
 
 end.

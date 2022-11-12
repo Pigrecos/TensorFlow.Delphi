@@ -16,25 +16,24 @@ unit TensorFlow.Context;
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
 interface
-       uses System.SysUtils, System.Rtti,  System.TypInfo,
-       System.Generics.Collections,
-       Spring.Collections.Dictionaries,
-       Spring.Collections.Extensions,
-       Spring.Collections.Stacks,
-       Spring,
-       Quick.Logger.Provider.Files,
+       uses System.SysUtils,
+            System.Rtti,
+            System.TypInfo,
+            System.Generics.Collections,
 
-       TF4D.Core.CApi,
-       TensorFlow.DApiBase,
-       TensorFlow.DApi,
-       TensorFlow.DApiEager,
+            Spring,
 
-       ProtoGen.Tensor,
-       Protogen.tensorShape,
-       ProtoGen.attrValue,
-       ProtoGen.types,
-       ProtoGen.opDef,
-       protogen.config;
+            TF4D.Core.CApi,
+            TensorFlow.DApiBase,
+            TensorFlow.DApi,
+            TensorFlow.DApiEager,
+
+            ProtoGen.Tensor,
+            Protogen.tensorShape,
+            ProtoGen.attrValue,
+            ProtoGen.types,
+            ProtoGen.opDef,
+            protogen.config;
 
 
 
@@ -319,7 +318,7 @@ begin
     if args.OpAttrs <> nil then
     begin
         for var attr in args.OpAttrs do
-            keywords[attr.Key] := attr.Value;
+            keywords.AddOrSetValue(attr.Key, attr.Value);
     end;
 
     var res := tf.OpDefLib._apply_op_helperDict(OpType, Name, keywords).Outputs;
@@ -602,3 +601,4 @@ begin
 end;
 
 end.
+

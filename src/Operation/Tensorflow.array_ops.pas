@@ -16,12 +16,12 @@ unit Tensorflow.array_ops;
 
 interface
     uses System.SysUtils,
+         System.Generics.Collections,
          rtti,
 
          Spring,
          Spring.Collections,
          Spring.Collections.Enumerable,
-         Spring.Collections.Lists,
 
          TF4D.Core.CApi,
          TensorFlow.DApiBase,
@@ -57,7 +57,7 @@ type
      class function ones(shape: TFTensor; dtype: TF_DataType = TF_FLOAT; name : string= ''): TFTensor; overload; static;
      class function ones(shape: TArray<TFTensor>; dtype: TF_DataType = TF_FLOAT; name : string= ''): TFTensor; overload; static;
      class function ones(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor; overload; static;
-     class function zeros(shape: TFTensor; dtype: TF_DataType; name: AnsiString) : TFTensor; overload; static;
+     class function zeros(shape: TFTensor; dtype: TF_DataType = TF_DataType.TF_FLOAT; name : string = '') : TFTensor; overload; static;
      class function zeros(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_FLOAT; name : string = ''): TFTensor; overload; static;
      class function size<T>(input: T; name: string = ''; optimize: Boolean = true; out_type: TF_DataType = TF_DataType.TF_INT32):TFTensor;static;
      class function stack(values: TValue; axis: Integer = 0; name: string = 'stack'):TFTensor;static;
@@ -310,7 +310,7 @@ begin
         var input_shape := result.op.inputs[0].shape;
 
         var ePaddings_constant := Enumerable<TNDArray>.Create([paddings_constant]);
-        var eInput_shape       := TCollections.CreateList<Integer>(input_shape.as_int_list);
+        var eInput_shape       := TList<Integer>.Create(input_shape.as_int_list);
 
         if (input_shape.ndim > -1) and (not result.shape.IsFullyDefined) and (not(paddings_constant = nil)) then
         begin
@@ -355,7 +355,7 @@ class function array_ops.rank_internal(input: TFTensor; name: string; optimize: 
 begin
     var lst := TList<TFTensor>.Create([input]);
     var vvalue := TValue.From< TList<TFTensor> >(lst);
-    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'Size', @vvalue),
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'Rank', @vvalue),
                           function(v1: TNameScope): TFTensor
                             begin
                                 name := string(v1.ToString);
@@ -557,7 +557,7 @@ begin
                        Result := Result + [ pParam ] ;
                    end;
 
-    Result := tf.Context.ExecuteOp('Mean', name, Args).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Mean', name, Args).First;
 end;
 
 class function array_ops.squeeze(input: TFTensor; axis: TArray<Integer>; name: string): TFTensor;
@@ -576,7 +576,7 @@ end;
 
 class function array_ops.stop_gradient(input: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('StopGradient', name, ExecuteOpArgs.Create([ input ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('StopGradient', name, ExecuteOpArgs.Create([ input ])).First;
 end;
 
 class function array_ops.strided_slice(input_, _begin, _end, strides: TFTensor; begin_mask, end_mask, ellipsis_mask, new_axis_mask, shrink_axis_mask: Integer;
@@ -623,7 +623,7 @@ begin
                        Result := Result + [ pParam ] ;
                    end;
 
-    Result := tf.Context.ExecuteOp('StridedSliceGrad', name, Args).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('StridedSliceGrad', name, Args).First;
 end;
 
 class function array_ops.tile(input, multiples: TFTensor; name: string): TFTensor;
@@ -642,7 +642,7 @@ begin
                        Result := Result + [ pParam ] ;
                    end;
 
-    Result := tf.Context.ExecuteOp('Tile', name, Args).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Tile', name, Args).First;
 end;
 
 class function array_ops.transpose(a, perm: TFTensor; name: string; conjugate: Boolean): TFTensor;
@@ -914,13 +914,13 @@ end;
 class function array_ops.matrix_diag(diagonal: TFTensor; name: string; k, num_rows, num_cols: Integer; padding_value: Single; align: string): TFTensor;
 begin
      Result := tf.Context.ExecuteOp('MatrixDiagV3', name, ExecuteOpArgs.Create([ diagonal, k, num_rows, num_cols, Tops.convert_to_tensor(padding_value, diagonal.dtype) ])
-                           .SetAttributes(['align', align ])).FirstOrDefault(nil);
+                           .SetAttributes(['align', align ])).First;
 end;
 
 class function array_ops.matrix_set_diag(input, diagonal: TFTensor; name: string; k: Integer; align: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('MatrixSetDiagV3', name, ExecuteOpArgs.Create([ input, diagonal, k ])
-                           .SetAttributes(['align', align ])).FirstOrDefault(nil);
+                           .SetAttributes(['align', align ])).First;
 end;
 
 class function array_ops.meshgrid<T>(_array: TArray<T>; copy, sparse: Boolean; indexing: string): TArray<TFTensor>;
@@ -944,7 +944,7 @@ begin
                               for var i:= 0 to Length(_array) do
                               begin
                                   var x := _array[i];
-                                  var shape := s0.Take(i).concat( Tlist<Integer>.Create([-1]) ).concat(s0.Skip(i + 1)).ToArray;
+                                  var shape := s0.Take(i).concat( TCollections.CreateList<Integer>([-1]) ).concat(s0.Skip(i + 1)).ToArray;
                                   output.add(reshape(stack(TValue.From<T>(x)), shape));
                               end;
 
@@ -957,8 +957,8 @@ begin
                               var output_dtype := TDTypes.as_base_dtype(_get_dtype_from_nested_lists<T>(_array) );
                               if (indexing = 'xy') and ( ndim > 1) then
                               begin
-                                  output[0] := reshape(output[0],  Tlist<Integer>.Create( [  1, -1]).concat(TUtils.range(ndim - 2).Select(Selfun) ).ToArray );
-                                  output[1] := reshape(output[1],  Tlist<Integer>.Create( [ -1,  1]).concat(TUtils.range(ndim - 2).Select(Selfun) ).ToArray );
+                                  output[0] := reshape(output[0], TCollections.CreateList<Integer>( [  1, -1]).concat(TUtils.range(ndim - 2).Select(Selfun) ).ToArray );
+                                  output[1] := reshape(output[1], TCollections.CreateList<Integer>( [ -1,  1]).concat(TUtils.range(ndim - 2).Select(Selfun) ).ToArray );
                                   var sw := shapes[0];
                                   shapes[0] := shapes[1];
                                   shapes[1] := sw;
@@ -1112,7 +1112,7 @@ begin
                           end );
 end;
 
-class function array_ops.zeros(shape: TFTensor; dtype: TF_DataType; name: AnsiString) : TFTensor;
+class function array_ops.zeros(shape: TFTensor; dtype: TF_DataType; name: string) : TFTensor;
 begin
     var ddtype := Tdtypes.as_base_dtype(dtype);
     var vShape := TValue.From<TFTensor>(shape) ;

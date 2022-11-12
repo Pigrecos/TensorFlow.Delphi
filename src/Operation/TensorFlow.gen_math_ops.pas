@@ -331,7 +331,9 @@ type
   end;
 
 implementation
-        uses Tensorflow, TensorFlow.Ops, Tensorflow.Utils;
+        uses Tensorflow,
+             TensorFlow.Ops,
+             Tensorflow.Utils;
 
 { gen_math_ops }
 
@@ -343,19 +345,19 @@ end;
 
 class function gen_math_ops.add_n(inputs: TArray<TFTensor>; name: string): TFTensor;
 begin
-     Result := tf.Context.ExecuteOp('AddN', name, ExecuteOpArgs.Create([inputs])).FirstOrDefault(nil);
+     Result := tf.Context.ExecuteOp('AddN', name, ExecuteOpArgs.Create([inputs])).First;
 end;
 
 class function gen_math_ops.arg_max(input: TFTensor; dimension: TAxis; output_type: TF_DataType; name: string): TFTensor;
 begin
     Result :=  tf.Context.ExecuteOp('ArgMax', name, ExecuteOpArgs.Create([input, dimension])
-        .SetAttributes(['output_type', output_type ])).FirstOrDefault(nil);
+        .SetAttributes(['output_type', output_type ])).First;
 end;
 
 class function gen_math_ops.arg_min(input: TFTensor; dimension: Integer; output_type: TF_DataType; name: string): TFTensor;
 begin
     Result := Tf.Context.ExecuteOp('ArgMin', name, ExecuteOpArgs.Create([input, dimension])
-        .SetAttributes(['output_type', output_type ])).FirstOrDefault(nil);
+        .SetAttributes(['output_type', output_type ])).First;
 end;
 
 class function gen_math_ops.digamma(x: TFTensor; name: string): TFTensor;
@@ -365,7 +367,7 @@ end;
 
 class function gen_math_ops.div_no_nan(x: TFTensor; y: TFTensor; name :string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('DivNoNan', name, ExecuteOpArgs.Create([x, y])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('DivNoNan', name, ExecuteOpArgs.Create([x, y])).First;
 end;
 
 class function gen_math_ops.mean(input: TFTensor; axis: Integer; keep_dims: Boolean; name: string): TFTensor;
@@ -394,7 +396,7 @@ begin
                                end;
 
     Result := tf.Context.ExecuteOp('Mean', name, Args
-        .SetAttributes(['keep_dims', keep_dims, 'reduction_indices', axis ])).FirstOrDefault(nil);
+        .SetAttributes(['keep_dims', keep_dims, 'reduction_indices', axis ])).First;
 end;
 
 class function gen_math_ops.mean(inputs: TArray<TFtensor>; axis: TFTensor; keep_dims: Boolean; name: string): TFTensor;
@@ -425,77 +427,77 @@ end;
 class function gen_math_ops.prod<T1, T2>(input: T1; axis: T2; keep_dims : Boolean; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('Prod', name, ExecuteOpArgs.Create([TValue.From<T1>(input), TValue.From<T2>(axis)])
-              .SetAttributes(['keep_dims', keep_dims, 'reduction_indices',  TValue.From<T2>(axis) ])).FirstOrDefault(nil);
+              .SetAttributes(['keep_dims', keep_dims, 'reduction_indices',  TValue.From<T2>(axis) ])).First;
 end;
 
 class function gen_math_ops.acos(x: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Acos', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);;
+    Result := tf.Context.ExecuteOp('Acos', name, ExecuteOpArgs.Create([x])).First;;
 end;
 
 class function gen_math_ops.asin(x: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Asin', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);;
+    Result := tf.Context.ExecuteOp('Asin', name, ExecuteOpArgs.Create([x])).First;;
 end;
 
 class function gen_math_ops.add(x: TFTensor; y: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Add', name, ExecuteOpArgs.Create([x, y])).FirstOrDefault(nil);;
+    Result := tf.Context.ExecuteOp('Add', name, ExecuteOpArgs.Create([x, y])).First;;
 end;
 
 class function gen_math_ops.add<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Add', name, ExecuteOpArgs.Create([TValue.From<Tx>(x), TValue.From<Ty>(y)])).FirstOrDefault(nil);;
+    Result := tf.Context.ExecuteOp('Add', name, ExecuteOpArgs.Create([TValue.From<Tx>(x), TValue.From<Ty>(y)])).First;;
 end;
 
 class function gen_math_ops.add_v2<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('AddV2', name, ExecuteOpArgs.Create([TValue.From<Tx>(x), TValue.From<Ty>(y)])).FirstOrDefault(nil);;
+    Result := tf.Context.ExecuteOp('AddV2', name, ExecuteOpArgs.Create([TValue.From<Tx>(x), TValue.From<Ty>(y)])).First;;
 end;
 
 class function gen_math_ops.atan(x: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Atan', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);;
+    Result := tf.Context.ExecuteOp('Atan', name, ExecuteOpArgs.Create([x])).First;;
 end;
 
 class function gen_math_ops.ceil(x: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Ceil', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);;
+    Result := tf.Context.ExecuteOp('Ceil', name, ExecuteOpArgs.Create([x])).First;;
 end;
 
 class function gen_math_ops.sin(x: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Sin', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Sin', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.sigmoid(x: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Sigmoid', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Sigmoid', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.sigmoid_grad(y: TFTensor; dy: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('SigmoidGrad', name, ExecuteOpArgs.Create([y, dy])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('SigmoidGrad', name, ExecuteOpArgs.Create([y, dy])).First;
 end;
 
 class function gen_math_ops.sign<T>(x: T; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Sign', name, ExecuteOpArgs.Create([ TValue.From<T>(x) ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Sign', name, ExecuteOpArgs.Create([ TValue.From<T>(x) ])).First;
 end;
 
 class function gen_math_ops.sinh(x: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Sinh', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Sinh', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.cos<T>(x: T; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Cos', name, ExecuteOpArgs.Create([ TValue.From<T>(x) ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Cos', name, ExecuteOpArgs.Create([ TValue.From<T>(x) ])).First;
 end;
 
 class function gen_math_ops.cosh(x: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Cosh', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Cosh', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.unsorted_segment_sum(data: TFTensor; segment_ids: TFTensor; num_segments: TFTensor; name : string): TFTensor;
@@ -506,17 +508,17 @@ end;
 
 class function gen_math_ops.tan(x: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Tan', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Tan', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.tanh(x: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Tanh', name,  ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Tanh', name,  ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.tanh_grad(y: TFTensor; dy: TFTensor; name : string) : TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('TanhGrad', name, ExecuteOpArgs.Create([y, dy])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('TanhGrad', name, ExecuteOpArgs.Create([y, dy])).First;
 end;
 
 class function gen_math_ops.floor(x: TFTensor; name : string): TFTensor;
@@ -533,47 +535,47 @@ end;
 
 class function gen_math_ops.greater<Tx, Ty>(x: Tx; y: Ty; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Greater', name,  ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Greater', name,  ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).First;
 end;
 
 class function gen_math_ops.lgamma(x: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Lgamma', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);;
+    Result := tf.Context.ExecuteOp('Lgamma', name, ExecuteOpArgs.Create([x])).First;;
 end;
 
 class function gen_math_ops.greater_equal<Tx, Ty>(x: Tx; y: Ty; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('GreaterEqual', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('GreaterEqual', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).First;
 end;
 
 class function gen_math_ops.less<Tx, Ty>(x: Tx; y: Ty; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Less', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Less', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).First;
 end;
 
 class function gen_math_ops.less_equal<Tx, Ty>(x: Tx; y: Ty; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('LessEqual', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('LessEqual', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).First;
 end;
 
 class function gen_math_ops.log1p(x: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Log1p', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);;
+    Result := tf.Context.ExecuteOp('Log1p', name, ExecuteOpArgs.Create([x])).First;;
 end;
 
 class function gen_math_ops.logical_and<T>(x: T; y: T; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('LogicalAnd', name, ExecuteOpArgs.Create([ TValue.From<T>(x), TValue.From<T>(y) ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('LogicalAnd', name, ExecuteOpArgs.Create([ TValue.From<T>(x), TValue.From<T>(y) ])).First;
 end;
 
 class function gen_math_ops.logical_not(x: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('LogicalNot', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('LogicalNot', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.logical_or(x: TFTensor; y: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('LogicalOr', name, ExecuteOpArgs.Create([ x, y ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('LogicalOr', name, ExecuteOpArgs.Create([ x, y ])).First;
 end;
 
 class function gen_math_ops.logical_xor(x: TFTensor; y: TFTensor; name : string): TFTensor;
@@ -583,84 +585,84 @@ end;
 
 class function gen_math_ops.squared_difference(x: TFTensor; y : TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('SquaredDifference', name, ExecuteOpArgs.Create([ x, y ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('SquaredDifference', name, ExecuteOpArgs.Create([ x, y ])).First;
 end;
 
 class function gen_math_ops.square(x: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Square', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Square', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.is_finite(x: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('IsFinite', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('IsFinite', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.is_nan(x: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('IsNan', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('IsNan', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.exp(x: TFTensor; name : string) : TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Exp', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Exp', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.log(x: TFTensor; name : string) : TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Log', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Log', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.softplus(features: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Softplus', name, ExecuteOpArgs.Create([features])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Softplus', name, ExecuteOpArgs.Create([features])).First;
 end;
 
 class function gen_math_ops.cast(x: TFTensor; DstT: TF_DataType; name: string;Truncate : Boolean): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('Cast', name, ExecuteOpArgs.Create([x])
-       .SetAttributes(['DstT',DstT, 'Truncate',Truncate]) ).FirstOrDefault(nil);
+       .SetAttributes(['DstT',DstT, 'Truncate',Truncate]) ).First;
 end;
 
 class function gen_math_ops.neg(x: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Neg', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Neg', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.sqrt(x: TFTensor; name : string) : TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Sqrt', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Sqrt', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.sub(x: TFTensor; y: TFTensor; name : string) : TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Sub', name, ExecuteOpArgs.Create([x, y])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Sub', name, ExecuteOpArgs.Create([x, y])).First;
 end;
 
 class function gen_math_ops.sub<Tx, Ty>(x: Tx; y: Ty; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Sub', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Sub', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).First;
 end;
 
 class function gen_math_ops.equal<Tx, Ty>(x: Tx; y: Ty; incompatible_shape_error: Boolean; name : string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('Equal', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])
-        .SetAttributes(['incompatible_shape_error',incompatible_shape_error])).FirstOrDefault(nil);
+        .SetAttributes(['incompatible_shape_error',incompatible_shape_error])).First;
 end;
 
 class function gen_math_ops.not_equal<Tx, Ty>(x: Tx; y: Ty; name : string) : TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('NotEqual', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('NotEqual', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).First;
 end;
 
 class function gen_math_ops.atan2(y: TFTensor; x: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Atan2', name, ExecuteOpArgs.Create([x, y])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Atan2', name, ExecuteOpArgs.Create([x, y])).First;
 end;
 
 class function gen_math_ops.mul<Tx, Ty>(x: Tx; y: Ty; name : string) : TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Mul', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Mul', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).First;
 end;
 
 class function gen_math_ops.mul_no_nan<Tx, Ty>(x: Tx; y: Ty; name : string): TFTensor;
@@ -672,48 +674,48 @@ end;
 class function gen_math_ops.real(input: TFTensor; Tout: TF_DataType; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('Real', name, ExecuteOpArgs.Create([input])
-                                          .SetAttributes(['Tout', Tout ]) ).FirstOrDefault(nil);
+                                          .SetAttributes(['Tout', Tout ]) ).First;
 end;
 
 class function gen_math_ops.real_div(x: TFTensor; y: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('RealDiv', name, ExecuteOpArgs.Create([x, y])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('RealDiv', name, ExecuteOpArgs.Create([x, y])).First;
 end;
 
 class function gen_math_ops.reciprocal(x: TFTensor; name : string) : TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Reciprocal', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Reciprocal', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.floor_mod(x: TFTensor; y: TFTensor; name : string) : TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('FloorMod', name,  ExecuteOpArgs.Create([x, y])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('FloorMod', name,  ExecuteOpArgs.Create([x, y])).First;
 end;
 
 class function gen_math_ops.floor_div(x: TFTensor; y: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('FloorDiv', name, ExecuteOpArgs.Create([x, y])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('FloorDiv', name, ExecuteOpArgs.Create([x, y])).First;
 end;
 
 class function gen_math_ops.mat_mul(a: TFTensor; b: TFTensor; transpose_a : Boolean; transpose_b : Boolean; name : string) : TFTensor;
 begin
     Result := tf.Context.ExecuteOp('MatMul', name, ExecuteOpArgs.Create([a, b])
-        .SetAttributes(['transpose_a',transpose_a,'transpose_b',transpose_b])).FirstOrDefault(nil);
+        .SetAttributes(['transpose_a',transpose_a,'transpose_b',transpose_b])).First;
 end;
 
 class function gen_math_ops.maximum<T1, T2>(x: T1; y: T2; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Maximum', name, ExecuteOpArgs.Create([ TValue.From<T1>(x), TValue.From<T2>(y) ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Maximum', name, ExecuteOpArgs.Create([ TValue.From<T1>(x), TValue.From<T2>(y) ])).First;
 end;
 
 class function gen_math_ops.minimum<T1, T2>(x: T1; y: T2; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Minimum', name, ExecuteOpArgs.Create([ TValue.From<T1>(x), TValue.From<T2>(y) ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Minimum', name, ExecuteOpArgs.Create([ TValue.From<T1>(x), TValue.From<T2>(y) ])).First;
 end;
 
 class function gen_math_ops._abs(x: TFTensor; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Abs', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Abs', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops._any<Tx, Ty>(input: Tx; axis: Ty; keep_dims: Boolean; name : string) : TFTensor;
@@ -746,7 +748,7 @@ begin
                                end;
 
     Result := tf.Context.ExecuteOp(methodName, name, Args
-        .SetAttributes(['keep_dims', keep_dims, 'reduction_indices',  TValue.From<Ty>(axis) ])).FirstOrDefault(nil);
+        .SetAttributes(['keep_dims', keep_dims, 'reduction_indices',  TValue.From<Ty>(axis) ])).First;
 end;
 
 class function gen_math_ops._max<Tx, Ty>(input: Tx; axis: Ty; keep_dims: Boolean; name : string) : TFTensor;
@@ -761,33 +763,33 @@ end;
 
 class function gen_math_ops.pow<Tx, Ty>(x: Tx; y: Ty; name : string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Pow', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Pow', name, ExecuteOpArgs.Create([ TValue.From<Tx>(x), TValue.From<Ty>(y) ])).First;
 end;
 
 class function gen_math_ops._sum<Tx, Ty>(input: Tx; axis: Ty; keep_dims: Boolean = false; name : string = '') : TFTensor;
 begin
     Result := tf.Context.ExecuteOp('Sum', name,ExecuteOpArgs.Create([ TValue.From<Tx>(input), TValue.From<Ty>(axis) ])
-        .SetAttributes(['keep_dims', keep_dims, 'reduction_indices',  TValue.From<Ty>(axis) ])).FirstOrDefault(nil);
+        .SetAttributes(['keep_dims', keep_dims, 'reduction_indices',  TValue.From<Ty>(axis) ])).First;
 end;
 
 class function gen_math_ops.range(start: TFTensor; limit: TFTensor; delta: TFTensor; name : string = '') : TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Range', name, ExecuteOpArgs.Create([start, limit,delta])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Range', name, ExecuteOpArgs.Create([start, limit,delta])).First;
 end;
 
 class function gen_math_ops.round(x: TFTensor; name: string) : TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Round', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Round', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.rsqrt(x: TFTensor; name : string) : TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Rsqrt', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Rsqrt', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_math_ops.zero_fraction(value: TFTensor; name : string) : TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('zero_fraction', name, ExecuteOpArgs.Create([value])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('zero_fraction', name, ExecuteOpArgs.Create([value])).First;
 end;
 
 end.

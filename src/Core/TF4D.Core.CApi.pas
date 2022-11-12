@@ -1845,6 +1845,8 @@ function  TF_DeviceListType( const list: PTF_DeviceList; idx: Integer; status: P
 function  TF_DeviceListMemoryBytes(const list: PTF_DeviceList; idx: Integer; status: PTF_Status): TF_int64_t;
     cdecl; external TensorFlowLib;
 
+function TF_OperationOutputConsumers_wrapper(oper_out: TF_Output): TArray<String>;
+
 {$REGION 'Load plugins containing custom ops and kernels'}
 type
   /// <summary>
@@ -2042,6 +2044,29 @@ constructor TF_Input.Create(oper: PTF_Operation; index: Integer);
 begin
     Self.oper := oper;
     Self.index:= index;
+end;
+
+function TF_OperationOutputConsumers_wrapper(oper_out: TF_Output): TArray<String>;
+begin
+{$POINTERMATH ON}
+    var num_consumers := TF_OperationOutputNumConsumers(oper_out);
+    var size : Integer:= SizeOf(TF_Input);
+    var handle        := AllocMem(size * num_consumers);
+    var num : Integer := TF_OperationOutputConsumers(oper_out, handle, num_consumers);
+
+    var consumers : TArray<String> ;
+    SetLength(consumers,num_consumers);
+
+    var inputptr := PTF_Input(handle);
+    for var i : Integer := 0 to num - 1 do
+    begin
+        var oper     := inputptr[i].oper;
+        consumers[i] := string(Ansistring(TF_OperationName(oper)));
+    end;
+    FreeMem(handle) ;
+
+    Result := consumers;
+{$POINTERMATH OFF}
 end;
 
 end.

@@ -46,8 +46,9 @@ type
        n_samples       : Integer;
        train_X, train_Y: NDArray;
 
+       constructor Create;
        procedure PrepareData;
-       function  Run: Boolean;
+       function  Run(mmo1: TMemo): Boolean;
   end;
 
   EagerModeTestBase = class
@@ -99,6 +100,15 @@ implementation
 
 { LinearRegression }
 
+constructor LinearRegression.Create;
+begin
+    training_epochs := 1000;
+
+    // Parameters
+    learning_rate := 0.01;
+    display_step  := 50;
+end;
+
 procedure LinearRegression.PrepareData;
 begin
     train_X := np.np_array<Single>([3.3, 4.4,  5.5,  6.71, 6.93,  4.168, 9.779, 6.182, 7.59, 2.167, 7.042, 10.791, 5.313, 7.997, 5.654, 9.27, 3.1]);
@@ -107,7 +117,7 @@ begin
 
 end;
 
-function LinearRegression.Run: Boolean;
+function LinearRegression.Run(mmo1: TMemo): Boolean;
 begin
     tf.compat.v1.disable_eager_execution;
 
@@ -121,62 +131,74 @@ begin
     // We can set a fixed init value in order to debug
     // var rnd1 = rng.randn<float>();
     // var rnd2 = rng.randn<float>();
-    var W : ResourceVariable := tf.Variable(-0.06, 'weight');
-    var b : ResourceVariable := tf.Variable(-0.73, 'bias');
+    var W  := tf.Variable(Single(-0.06), 'weight');
+    var b  := tf.Variable(Single(-0.73), 'bias');
 
     // Construct a linear model
     var pred : TTensor := tf.add(tf.multiply(X, W), b);
-    var pred1 := (X * W) + b;
-
-    Result := True;
-
+    //var pred1 := (X * W) + b;  OK
 
     // Mean squared error
-    var cost : TTensor := tf.reduce_sum(tf.pow(pred - Y, 2.0));
-    cost := cost / (2.0 * n_samples);
-    (*
+    var cost := TTensor(tf.reduce_sum(tf.pow(pred - Y, 2.0)))  / (2.0 * n_samples) ;
+
     // Gradient descent
     // Note, minimize() knows to modify W and b because Variable objects are trainable=True by default
-    var optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost);
+    var optimizer := tf.train.GradientDescentOptimizer(learning_rate).minimize(cost);
 
     // Initialize the variables (i.e. assign their default value)
-    var init = tf.global_variables_initializer();
+    var init := tf.global_variables_initializer;
 
     // Start training
-    using var sess = tf.Session();
+    var sess := tf.Session;
     // Run the initializer
     sess.run(init);
 
     // Fit all training data
-    for (int epoch = 0; epoch < training_epochs; epoch++)
-    {
-        foreach (var (x, y) in zip<float>(train_X, train_Y))
-            sess.run(optimizer, (X, x), (Y, y));
+    var epoch: Integer ;
+    for epoch := 0 to training_epochs -1 do
+    begin
+        for var zItem in TUtils.zip<Single>(train_X, train_Y) do
+        begin
+            var v_x : Single := zItem.Value1 ;
+            var v_y : Single := zItem.Value2 ;
+            sess.run(optimizer, [ Tuple<TValue,TValue>.Create(X, v_x), Tuple<TValue,TValue>.Create(Y, v_y) ]);
+        end;
 
         // Display logs per epoch step
-        if ((epoch + 1) % display_step == 0)
-        {
-            var c = sess.run(cost, (X, train_X), (Y, train_Y));
-            Console.WriteLine($"Epoch: {epoch + 1} cost={c} " + $"W={sess.run(W)} b={sess.run(b)}");
-        }
-    }
+        if ((epoch + 1) mod display_step) = 0 then
+        begin
+            var fc : Single := NDArray(sess.run(cost, [ Tuple<TValue,TValue>.Create(X, train_X), Tuple<TValue,TValue>.Create(Y, train_Y) ]));
+            var fW : Single := NDArray(sess.run( TResourceVariable(W) ));
+            var fb : Single := NDArray(sess.run( TResourceVariable(b) ));
+            mmo1.Lines.Add( Format('Epoch: %d cost=%.9f + "W=%.9f b=%.9f"',[epoch + 1,fc, fW,fb]) );
+        end;
+    end;
 
-    Console.WriteLine("Optimization Finished!");
-    var training_cost = sess.run(cost, (X, train_X), (Y, train_Y));
-    Console.WriteLine($"Training cost={training_cost} W={sess.run(W)} b={sess.run(b)}");
+    mmo1.Lines.Add('Optimization Finished!');
+    var training_cost : Single := NDArray(sess.run(cost, [ Tuple<TValue,TValue>.Create(X, train_X), Tuple<TValue,TValue>.Create(Y, train_Y) ]));
+    var fW            : Single := NDArray(sess.run(  TResourceVariable(W) ));
+    var fb            : Single := NDArray(sess.run(  TResourceVariable(b) ));
+
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add(Format('Training cost=%.9f W=%.9f b=%.9f',[training_cost, fW, fb]));
 
     // Testing example
-    var test_X = np.array(6.83f, 4.668f, 8.9f, 7.91f, 5.7f, 8.7f, 3.1f, 2.1f);
-    var test_Y = np.array(1.84f, 2.273f, 3.2f, 2.831f, 2.92f, 3.24f, 1.35f, 1.03f);
-    Console.WriteLine("Testing... (Mean square loss Comparison)");
-    var testing_cost = sess.run(tf.reduce_sum(tf.pow(pred - Y, 2.0f)) / (2.0f * test_X.shape[0]),
-        (X, test_X), (Y, test_Y));
-    Console.WriteLine($"Testing cost={testing_cost}");
-    var diff = Math.Abs((float)training_cost - (float)testing_cost);
-    Console.WriteLine($"Absolute mean square loss difference: {diff}");
+    var test_X : NDArray := np.np_array( TArray<Single>.Create(6.83, 4.668, 8.9, 7.91, 5.7, 8.7, 3.1, 2.1) );
+    var test_Y : NDArray := np.np_array( TArray<Single>.Create(1.84, 2.273, 3.2, 2.831, 2.92, 3.24, 1.35, 1.03) );
 
-    return diff < 0.01;
-    *)
+    mmo1.Lines.Add('Testing... (Mean square loss Comparison)');
+
+    var t_cost                 := TTensor(tf.reduce_sum(tf.pow(pred - Y, 2.0)))  / (2.0 * test_X.shape[0]) ;
+    var testing_cost : Single  := NDArray(sess.run(t_cost, [ Tuple<TValue,TValue>.Create(X, test_X), Tuple<TValue,TValue>.Create(Y, test_Y) ]));
+
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add( Format('Testing cost=%.9f',[testing_cost]) );
+    var diff := Abs( training_cost - testing_cost);
+    mmo1.Lines.Add( Format('Absolute mean square loss difference: %.9f',[diff]) );
+    mmo1.Lines.Add('');
+
+    Result := diff < 0.01;
+
 end;
 
 { EagerModeTestBase }
@@ -204,19 +226,15 @@ procedure EagerModeTestBase.clip_by_global_norm;
 begin
     var t_list := TFTensors.Create( [ tf.constant( TArray<Single>.Create( 1, 2, 3, 4 ) ), tf.constant( TArray<Single>.Create( 5, 6, 7, 8 ) ) ] );
     var clip_norm : Single := 0.8;
-
     var tNorm := tf.clip_by_global_norm(t_list.ToArray, clip_norm);
     var res  := tNorm.Value1;
     var norm := tNorm.Value2;
-
     var expected  : TArray<Single> := [ 0.0560112074, 0.112022415, 0.16803363, 0.22404483 ];
     var actual := res[0].ToArray<Single>;
     Assert.IsTrue(Equal(expected, actual));
-
     expected  := [ 0.28005603, 0.336067259, 0.392078459, 0.448089659 ];
     actual    := res[1].ToArray<Single>;
     Assert.IsTrue(Equal(expected, actual));
-
     var nNorm : NDArray := norm.numpy;
     Assert.AreEqual<Single>( nNorm, 14.282857);
 end;
@@ -289,7 +307,6 @@ procedure BitwiseApiTest.BitwiseAnd;
 begin
     var lhs : TFTensor := tf.constant( TArray<Integer>.Create( 0, 5, 3, 14 ) );
     var rhs : TFTensor := tf.constant( TArray<Integer>.Create( 5, 0, 7, 11 ) );
-
     var bitwise_and_result := tf.bitwise.bitwise_and(lhs, rhs);
     var expected : TArray<Integer> := [ 0, 0, 3, 10 ];
     var actual := bitwise_and_result.ToArray<Integer>;
@@ -300,7 +317,6 @@ procedure BitwiseApiTest.BitwiseOr;
 begin
     var lhs : TFTensor := tf.constant( TArray<Integer>.Create( 0, 5, 3, 14 ) );
     var rhs : TFTensor := tf.constant( TArray<Integer>.Create( 5, 0, 7, 11 ) );
-
     var bitwise_or_result := tf.bitwise.bitwise_or(lhs, rhs);
     var expected : TArray<Integer> := [ 5, 5, 7, 15 ];
     var actual := bitwise_or_result.ToArray<Integer>;
@@ -311,7 +327,6 @@ procedure BitwiseApiTest.BitwiseXOR;
 begin
     var lhs : TFTensor := tf.constant( TArray<Integer>.Create( 0, 5, 3, 14 ) );
     var rhs : TFTensor := tf.constant( TArray<Integer>.Create( 5, 0, 7, 11 ) );
-
     var bitwise_xor_result := tf.bitwise.bitwise_xor(lhs, rhs);
     var expected : TArray<Integer> := [ 5, 5, 4, 5 ];
     var actual := bitwise_xor_result.ToArray<Integer>;
@@ -332,7 +347,6 @@ procedure BitwiseApiTest.LeftShift;
 begin
     var lhs : TFTensor := tf.constant( TArray<Integer>.Create( -1, -5, -3, -14 ) );
     var rhs : TFTensor := tf.constant( TArray<Integer>.Create(5, 0, 7, 11 ));
-
     var left_shift_result := tf.bitwise.left_shift(lhs, rhs);
     var expected : TArray<Integer> := [ -32, -5, -384, -28672 ];
     var actual := left_shift_result.ToArray<Integer>;
@@ -343,7 +357,6 @@ procedure BitwiseApiTest.RightShift;
 begin
     var lhs : TFTensor := tf.constant( TArray<Integer>.Create( -2, 64, 101, 32 ) );
     var rhs : TFTensor := tf.constant( TArray<Integer>.Create( -1, -5, -3, -14 ) );
-
     var right_shift_result := tf.bitwise.right_shift(lhs, rhs);
     var expected : TArray<Integer> := [ -2, 64, 101, 32 ];
     var actual := right_shift_result.ToArray<Integer>;
@@ -362,7 +375,6 @@ begin
     var a : TTensor := tf.constant(Double(3.0));
     var b : TTensor := tf.constant(Double(2.0));
     var c : TTensor := a * b;
-
     Assert.AreEqual<Double>(6.0, Double(c));
 end;
 
@@ -373,7 +385,6 @@ begin
 
     var tensor := tf.constant(nd);
     var data := tensor.numpy.ToArray<Integer>;
-
     Assert.IsTrue( TUtils.SequenceEqual<Int64>  ([ 2, 3 ], tensor.shape.dims));
     Assert.IsTrue( TUtils.SequenceEqual<Integer>([ 3, 1, 1, 2, 1, 3 ], data));
 end;
@@ -421,17 +432,13 @@ procedure ConstantTest.ZerosConst;
 begin
     // small size
     var tensor := tf.zeros(TArray<Integer>.Create(3, 2), tf.int32_t, 'small');
-
     Assert.AreEqual<Int64>(tensor.shape[0], 3);
     Assert.AreEqual<Int64>(tensor.shape[1], 2);
     Assert.IsTrue( TUtils.SequenceEqual<Integer>( [ 0, 0, 0, 0, 0, 0 ], tensor.numpy.ToArray<Integer>) );
-
     // big size
     tensor := tf.zeros(TArray<Integer>.Create(200, 100), tf.int32_t, 'big');
-
     Assert.AreEqual<Int64>(tensor.shape[0], 200);
     Assert.AreEqual<Int64>(tensor.shape[1], 100);
-
     var data := tensor.numpy.ToArray<Integer>;
     Assert.AreEqual<Integer>(0, data[0]);
     Assert.AreEqual<Integer>(0, data[500]);

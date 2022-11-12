@@ -148,14 +148,14 @@ end;
 
 procedure TLoadHelper.LoadExperimentalDebugInfo(var Value: TExperimentalDebugInfo);
 var
-  fieldNumber, wireType: integer;
+  fieldNumber: integer;
   tag: TpbTag;
 begin
   Value.Init;
   tag := Pb.readTag;
   while tag.v <> 0 do
   begin
-    wireType := tag.WireType;
+
     fieldNumber := tag.FieldNumber;
     case fieldNumber of
       TExperimentalDebugInfo.ftOriginalNodeNamess:

@@ -16,18 +16,16 @@ unit TensorFlow.Training;
 
 interface
      uses System.SysUtils,
+          System.Generics.Collections,
 
           Spring,
-          Spring.Collections.Lists,
           Spring.Collections.Enumerable,
-          Spring.Collections.Dictionaries,
 
           TF4D.Core.CApi,
           TensorFlow.DApiBase,
           TensorFlow.DApi,
           TensorFlow.Framework,
           TensorFlow.Variable,
-          TensorFlow.Ops,
           Tensorflow.NameScope,
           TensorFlow.Initializer,
           Tensorflow.Utils;
@@ -84,7 +82,6 @@ type
       /// </summary>
       /// <returns></returns>
       function create_slot_with_initializer(primary: IVariableV1; initializer: IInitializer; shape: TFShape; dtype: TF_DataType; name: string; colocate_with_primary : Boolean = true): IVariableV1;
-
  end;
 
   _OptimizableVariable  = class abstract
@@ -161,7 +158,7 @@ type
        /// silently ignored).
        /// </summary>
        /// <param name="var_list"></param>
-       procedure _create_slots(var_list: TArray<IVariableV1>);
+       procedure _create_slots(var_list: TArray<IVariableV1>); virtual;
        /// <summary>
        /// Add an extra variable, not associated with a slot.
        /// </summary>
@@ -260,9 +257,9 @@ type
       /// An `Operation` that applies the specified gradients. If `global_step`
       /// was not None, that operation also increments `global_step`.</returns>
       function apply_gradients(grads_and_vars: TArray< Tuple<TFTensor, IVariableV1> >; global_step: IVariableV1 = nil; name : string= '') : TFOperation;
-      function _finish(update_ops: TArray<TFOperation>; name_scope: string): TFOperation;
-      function _apply_dense(grad: TFTensor; _var: ResourceVariable): TFOperation ; overload;
-      function _apply_dense(grad: TFTensor; _var: RefVariable):TFOperation; overload;
+      function _finish(update_ops: TArray<TFOperation>; name_scope: string): TFOperation; virtual;
+      function _apply_dense(grad: TFTensor; _var: ResourceVariable): TFOperation ; overload; virtual;
+      function _apply_dense(grad: TFTensor; _var: RefVariable):TFOperation; overload;  virtual;
       /// <summary>
       /// Add ops to apply sparse gradients to `var`, with repeated sparse indices.
       /// </summary>
@@ -271,10 +268,10 @@ type
       /// <returns></returns>
       function _apply_sparse_duplicate_indices(grad: IndexedSlices; _var: RefVariable):TFOperation; overload;
       function _apply_sparse_duplicate_indices(grad: IndexedSlices; _var: ResourceVariable):TFOperation; overload;
-      function _apply_sparse(grad: IndexedSlices; _var: ResourceVariable) :TFOperation;  overload;
-      function _apply_sparse(grad: IndexedSlices; _var: RefVariable) :TFOperation; overload;
+      function _apply_sparse(grad: IndexedSlices; _var: ResourceVariable) :TFOperation; overload; virtual;
+      function _apply_sparse(grad: IndexedSlices; _var: RefVariable) :TFOperation; overload; virtual;
       function _deduplicate_indexed_slices(values: TFTensor; indices: TFTensor): Tuple<TFTensor, TFTensor>;
-      procedure _prepare;
+      procedure _prepare; virtual;
       /// <summary>
       /// Compute gradients of `loss` for the variables in `var_list`.
       /// </summary>
@@ -297,8 +294,63 @@ type
 
  end;
 
+ /// <summary>
+ /// Optimizer that implements the gradient descent algorithm.
+ /// </summary>
+ GradientDescentOptimizer = class(Optimizer)
+    private
+      FuseTensor : Boolean;
+    public
+      /// <summary>
+      /// Construct a new gradient descent optimizer.
+      /// </summary>
+      /// <param name="learning_rate">A Tensor or a floating point value.  The learning
+      /// rate to use.</param>
+      /// <param name="use_locking">If true use locks for update operations.</param>
+      /// <param name="name">Optional name prefix for the operations created when applying
+      /// gradients.Defaults to "GradientDescent".</param>
+      /// <remarks>
+      /// When eager execution is enabled, `learning_rate` can be a callable that
+      /// takes no arguments and returns the actual value to use.This can be useful
+      /// for changing these values across different invocations of optimizer
+      /// functions.
+      /// </remarks>
+      constructor Create(_learning_rate: Single;   _use_locking: Boolean = false; _name: string = 'GradientDescent'); overload;
+      constructor Create(_learning_rate: TFTensor; _use_locking: Boolean = false; _name: string = 'GradientDescent'); overload;
+      procedure _prepare; override;
+ end;
+
+ /// <summary>
+ /// Optimizer that implements the Adam algorithm.
+ /// http://arxiv.org/abs/1412.6980
+ /// </summary>
+ AdamOptimizer = class(Optimizer)
+    private
+       Fbeta1    : Single;
+       Fbeta2    : Single;
+       Fepsilon  : Single;
+       Fbeta1_t  : TFTensor;
+       Fbeta2_t  : TFTensor;
+       Fepsilon_t: TFTensor;
+       Fdtype    : TF_DataType;
+
+       function _apply_sparse_shared(grad: TFTensor; _var: IVariableV1; indices: TFTensor; scatter_add: TFunc<IVariableV1, TFTensor, TFTensor, TFTensor>) : TFOperation;
+       procedure _create_slots(var_list: TArray<IVariableV1>); override;
+       function _get_beta_accumulators: Tuple<IVariableV1, IVariableV1>;
+    public
+       constructor Create(_learning_rate: Single;   beta1: Single = 0.9; beta2: Single = 0.999; epsilon: Single = 1e-8; _use_locking: Boolean = false; dtype : TF_DataType = TF_FLOAT; _name : string = 'Adam');overload;
+       constructor Create(_learning_rate: TFTensor; beta1: Single = 0.9; beta2: Single = 0.999; epsilon: Single = 1e-8; _use_locking: Boolean = false; dtype : TF_DataType = TF_FLOAT; _name : string = 'Adam');overload;
+       function _apply_sparse(grad: IndexedSlices; _var: ResourceVariable) : TFOperation; overload; override;
+       function _apply_sparse(grad: IndexedSlices; _var: RefVariable) : TFOperation; overload; override;
+       function _apply_dense(grad: TFTensor; _var: ResourceVariable) : TFOperation; override;
+       function _finish(update_ops: TArray<TFOperation>; name_scope: string): TFOperation; override;
+       procedure _prepare; override;
+ end;
+
 implementation
        uses Tensorflow,
+            TensorFlow.Ops,
+            TensorFlow.Tensor,
             TensorFlow.Context,
             Tensorflow.Gradient,
             TensorFlow.control_flow_ops,
@@ -310,6 +362,7 @@ implementation
 
 function Trackable._add_variable_with_custom_getter(args: VariableArgs): IVariableV1;
 begin
+    {$HINTS OFF}
     TUtils.tf_with<TNameScope>( TOps.init_scope, procedure(v1: TNameScope)
                                                   begin
                                                       var checkpoint_initializer : IInitializer := nil;
@@ -355,7 +408,7 @@ end;
 
 constructor Optimizer.Create(_learning_rate: Single; _use_locking: Boolean; _name: string);
 begin
-    if String.IsNullOrEmpty(name) then
+    if String.IsNullOrEmpty(_name) then
        raise  TFException.Create('Must specify the optimizer name');
     Fname        := _name;
     Fuse_locking := _use_locking;
@@ -370,7 +423,7 @@ end;
 
 constructor Optimizer.Create(_learning_rate: TFTensor; _use_locking: Boolean; _name: string);
 begin
-    if String.IsNullOrEmpty(name) then
+    if String.IsNullOrEmpty(_name) then
         raise  TFException.Create('Must specify the optimizer name');
 
     Fname        := _name;
@@ -398,6 +451,14 @@ begin
 end;
 
 function Optimizer.apply_gradients(grads_and_vars: TArray<Tuple<TFTensor, IVariableV1>>; global_step: IVariableV1; name: string): TFOperation;
+var
+  item                     : Tuple<TFTensor, IVariableV1>;
+  converted_grads_and_vars : TList< Tuple<TFTensor, IVariableV1, _OptimizableVariable> >;
+  Grad,tGrad               : TFTensor;
+  vVar                     : IVariableV1;
+  oProcessor               : _OptimizableVariable;
+  var_list                 : TArray<IVariableV1>;
+  update_ops               : TList<TFOperation>;
 begin
     var wFunc:TPredicate<Tuple<TFTensor, IVariableV1, _OptimizableVariable>> := function(const x: Tuple<TFTensor, IVariableV1, _OptimizableVariable> ) : Boolean
                   begin
@@ -408,55 +469,68 @@ begin
                       Result := Arg1.Value2;
                    end;
     // No DistributionStrategy case.
-    var converted_grads_and_vars := TList< Tuple<TFTensor, IVariableV1, _OptimizableVariable> >.Create;
+    converted_grads_and_vars := TList< Tuple<TFTensor, IVariableV1, _OptimizableVariable> >.Create;
     try
-      for var x in grads_and_vars do
+      for item in grads_and_vars do
       begin
-          var g := x.Value1;
-          var v := x.Value2;
-          if g <> nil then
+          Grad := item.Value1;
+          vVar := item.Value2;
+          if Grad <> nil then
           begin
               // Convert the grad to Tensor or IndexedSlices if necessary.
-              var gR := Tops.convert_to_tensor_or_indexed_slices(g);
-              var p  := T_optimizer._get_processor(v as ResourceVariable);
-              converted_grads_and_vars.Add( Tuple.Create (gR, v, p) );
+              tGrad       := Tops.convert_to_tensor_or_indexed_slices(Grad);
+              oProcessor  := T_optimizer._get_processor(vVar as ResourceVariable);
+              converted_grads_and_vars.Add( Tuple.Create (tGrad, vVar, oProcessor) );
           end;
       end;
-      var e1 := Enumerable< Tuple<TFTensor, IVariableV1, _OptimizableVariable> >( converted_grads_and_vars.Where( wFunc ) );
-      var var_list := e1.Select<IVariableV1>( selFunc ).ToArray;
+      var eConverted_grads_and_vars := Enumerable< Tuple<TFTensor, IVariableV1, _OptimizableVariable> >.Create(converted_grads_and_vars.ToArray);
+      var e1                        := Enumerable< Tuple<TFTensor, IVariableV1, _OptimizableVariable> >( eConverted_grads_and_vars.Where( wFunc ) );
+      var_list := e1.Select<IVariableV1>( selFunc ).ToArray;
+
       if Length(var_list) = 0 then
          raise TFException.Create('No gradients provided for any variable');
+
       Tops.init_scope;
+
       _create_slots(var_list);
-      var update_ops := TList<TFOperation>.Create;
+
+      update_ops := TList<TFOperation>.Create;
       try
         Result := TUtils.tf_with<TNameScope,TFOperation>( TOps.name_scope(name, Self.Name, nil),
                     function(v1: TNameScope): TFOperation
+                    var
+                      t3            : Tuple<TFTensor, IVariableV1, _OptimizableVariable>;
+                      gGrad         : TFTensor;
+                      _var          : IVariableV1;
+                      processor     : _OptimizableVariable;
+                      apply_updates : TFOperation ;
+                      cd            : TArray<TValue>;
                       begin
                           name := v1.ToString;
                           _prepare;
-                          for var t3 in converted_grads_and_vars do
+                          for t3 in converted_grads_and_vars do
                           begin
-                              var grad      := t3.Value1;
-                              var _var      := t3.Value2;
-                              var processor := t3.Value3;
-                              if grad = nil then
+                              gGrad     := t3.Value1;
+                              _var      := t3.Value2;
+                              processor := t3.Value3;
+                              if gGrad = nil then
                                   continue;
                               var scope_name := _var.Op.name;
                               TUtils.tf_with<TNameScope>( Tops.name_scope('update_' + scope_name),
                                 Procedure(v1: TNameScope)
+                                var
+                                  op : TFOperation;
                                    begin
-                                      var op := processor.update_op(Self, grad);
+                                      op := processor.update_op(Self, gGrad);
                                       update_ops.Add(op);
                                    end);
                           end;
-                          var apply_updates : TFOperation := nil;
+                          apply_updates := nil;
                           if global_step = nil then
                           begin
                               apply_updates := _finish(update_ops.ToArray, name);
                           end else
                           begin
-                              var cd : TArray<TValue>;
                               for var i := 0 to update_ops.Count - 1 do
                                  cd := cd + [ TValue.From<TFOperation>(update_ops[i]) ];
                               cd := cd + [ TValue.From<string>('update')  ] ;
@@ -509,17 +583,18 @@ begin
                begin
                   Result := Arg1.target;
                end;
+
     // Scale loss if using a "mean" loss reduction and multiple replicas.
     loss := _scale_loss(loss);
 
     if var_list = nil then
     begin
-        var vars := Tops.get_collection<IVariableV1>(tf.GraphKeys.TRAINABLE_RESOURCE_VARIABLES);
+        var vars := Tops.get_collection<IVariableV1>(tf.GraphKeys.TRAINABLE_RESOURCE_VARIABLES).ToArray;
         var tmp  := variables.trainable_variables;
-        var_list :=TList<IVariableV1>.Create( (tmp.AsType< TList<IVariableV1>> ).Concat(vars) );
+        var_list := TList<IVariableV1>.Create( (tmp.AsType< TList<IVariableV1> >).toArray + vars );
     end;
 
-    var e_var_list := Enumerable<IVariableV1>(var_list.Concat( Tops.get_collection<IVariableV1>(tf.GraphKeys._STREAMING_MODEL_PORTS) ) );
+    var e_var_list := Enumerable<IVariableV1>.Create(var_list.ToArray + Tops.get_collection<IVariableV1>(tf.GraphKeys._STREAMING_MODEL_PORTS).ToArray  );
     var processors := Enumerable<_OptimizableVariable>( e_var_list.Select<_OptimizableVariable>(selFunc) );
     var var_refs   := processors.Select<TFTensor>(selFunc1).ToArray;
 
@@ -544,11 +619,14 @@ end;
 
 function Optimizer.minimize(loss: TFTensor; global_step: IVariableV1; var_list: TList<IVariableV1>; gate_gradients: GateGradientType; aggregation_method: PInteger;
   colocate_gradients_with_ops: Boolean; name: string; grad_loss: TFTensor): TFOperation;
+ var
+   grads_and_vars : TArray<Tuple<TFTensor, IVariableV1>>;
+   vars_with_grad : TArray<IVariableV1>;
 begin
     // TODO: strongly type aggregation_method
-    var grads_and_vars := compute_gradients(loss, var_list, aggregation_method, gate_gradients, colocate_gradients_with_ops, grad_loss);
+    grads_and_vars := compute_gradients(loss, var_list, aggregation_method, gate_gradients, colocate_gradients_with_ops, grad_loss);
 
-    var vars_with_grad : TArray<IVariableV1>;
+    vars_with_grad := [];
     for var  i := 0 to Length(grads_and_vars) - 1 do
     begin
         if grads_and_vars[i].Value1 <> nil then
@@ -637,16 +715,6 @@ begin
     if v = nil then
     begin
         _maybe_initialize_trackable();
-        (* class function default_variable_creator(initial_value: TValue;
-                                                name           : string   = '';
-                                                trainable      : PBoolean = nil;
-                                                collections    : TList<string>= nil;
-                                                dtype          : TF_DataType = DtInvalid;
-                                                shape          : TArray<Integer> = nil;
-                                                validate_shape : Boolean = false;
-                                                use_resource   : pBoolean = nil;
-                                                synchronization: TVariableSynchronization = TVariableSynchronization. VARIABLE_SYNCHRONIZATION_AUTO;
-                                                aggregation    : TVariableAggregation     = TVariableAggregation.VARIABLE_AGGREGATION_NONE) :  IVariableV1;*)
         var bTrain : Boolean := False;
         var bResource :=  resource_variable_ops.is_resource_variable(colocate_with) ;
         v := variable_scope.default_variable_creator(initial_value, name, @bTrain, nil, TDTypes.as_base_dtype(colocate_with.dtype), nil, False, @bResource);
@@ -787,6 +855,7 @@ end;
 
 constructor _DenseResourceVariableProcessor.Create(v: ResourceVariable);
 begin
+    inherited Create;
     Fv := v;
 end;
 
@@ -799,7 +868,7 @@ function _DenseResourceVariableProcessor.update_op(_optimizer: Optimizer; g: TFT
 var
   upd_op : TFOperation;
 begin
-    if g.Tag.IsType<IndexedSlices> then
+    if (g.Tag.TypeInfo<> nil) and (g.Tag.IsType<IndexedSlices>) then
     begin
         Result := _optimizer._apply_sparse_duplicate_indices(g, Fv);
         Exit;
@@ -816,14 +885,14 @@ class function gen_training_ops.resource_apply_adam(_var, m, v, beta1_power, bet
   name: string): TFTensor;
 begin
    Result := tf.Context.ExecuteOp('ResourceApplyAdam', name, ExecuteOpArgs.Create([ _var, m, v, beta1_power, beta2_power, lr, beta1, beta2, epsilon, grad ])
-              .SetAttributes(['use_locking', use_locking, 'use_nesterov',  use_nesterov ])).FirstOrDefault(nil);
+              .SetAttributes(['use_locking', use_locking, 'use_nesterov',  use_nesterov ])).First;
 end;
 
 class function gen_training_ops.apply_adam(_var, m, v, beta1_power, beta2_power, lr, beta1, beta2, epsilon, grad: TFTensor; use_locking, use_nesterov: Boolean;
   name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('ApplyAdam', name, ExecuteOpArgs.Create([ _var, m, v, beta1_power, beta2_power, lr, beta1, beta2, epsilon, grad ])
-              .SetAttributes(['use_locking', use_locking, 'use_nesterov',  use_nesterov ])).FirstOrDefault(nil);
+              .SetAttributes(['use_locking', use_locking, 'use_nesterov',  use_nesterov ])).First;
 end;
 
 class function gen_training_ops.apply_gradient_descent(_var: IVariableV1; alpha, delta: TFTensor; use_locking: Boolean; name: string): TFTensor;
@@ -838,7 +907,7 @@ end;
 class function gen_training_ops.resource_apply_gradient_descent(_var, alpha, delta: TFTensor; use_locking: Boolean; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('ResourceApplyGradientDescent', name, ExecuteOpArgs.Create([ _var, alpha, delta ])
-              .SetAttributes(['use_locking', use_locking ])).FirstOrDefault(nil);
+              .SetAttributes(['use_locking', use_locking ])).First;
 end;
 
 { SlotCreator }
@@ -852,7 +921,6 @@ begin
                     begin
                         Result := _create_slot_var(primary, val, '', validate_shape, nil, TF_DataType.DtInvalid);
                     end );
-
 
 end;
 
@@ -888,11 +956,198 @@ begin
     var use_resource :Boolean  := primary is ResourceVariable;
     if resource_variable_ops.is_resource_variable(primary) then
         use_resource := true;
-
     var bTrainable : Boolean := False;
     var slot := tf.compat.v1.get_variable(scope, @shape, dtype, val, @bTrainable, nil, @use_resource, validate_shape);
-
     Result := slot;
+end;
+
+{ GradientDescentOptimizer }
+
+constructor GradientDescentOptimizer.Create(_learning_rate: Single; _use_locking: Boolean; _name: string);
+begin
+    inherited Create(_learning_rate, _use_locking, _name);
+    Flr        := _learning_rate;
+    FuseTensor := false;
+end;
+
+constructor GradientDescentOptimizer.Create(_learning_rate: TFTensor; _use_locking: Boolean; _name: string);
+begin
+    inherited Create(_learning_rate, _use_locking, _name);
+    Flr_t      := _learning_rate;
+    FuseTensor := True;
+end;
+
+procedure GradientDescentOptimizer._prepare;
+begin
+    if not FuseTensor then
+    Begin
+        var lr := _call_if_callable(Flr);
+        Flr_t  := Tops.convert_to_tensor(single(lr), DtInvalid, 'learning_rate');
+    end;
+end;
+
+{ AdamOptimizer }
+
+constructor AdamOptimizer.Create(_learning_rate, beta1, beta2, epsilon: Single; _use_locking: Boolean; dtype: TF_DataType; _name: string);
+begin
+    inherited Create(_learning_rate, _use_locking, _name);
+    Fbeta1   := beta1;
+    Fbeta2   := beta2;
+    Fepsilon := epsilon;
+    Fdtype   := dtype;
+end;
+
+constructor AdamOptimizer.Create(_learning_rate: TFTensor; beta1, beta2, epsilon: Single; _use_locking: Boolean; dtype: TF_DataType; _name: string);
+begin
+    inherited Create(_learning_rate, _use_locking, _name);
+    Fbeta1   := beta1;
+    Fbeta2   := beta2;
+    Fepsilon := epsilon;
+    Fdtype   := dtype;
+end;
+
+function AdamOptimizer._apply_dense(grad: TFTensor; _var: ResourceVariable): TFOperation;
+begin
+    var m := get_slot(_var, 'm');
+            var v := get_slot(_var, 'v');
+            var tAcc := _get_beta_accumulators;
+            var beta1_power := tAcc.Value1;
+            var beta2_power := tAcc.Value2;
+            Result := gen_training_ops.apply_adam(
+                                          _var.tHandle,
+                                          m.Handle,
+                                          v.Handle,
+                                          math_ops.cast(beta1_power.Handle, TDtypes.as_base_dtype(_var.dtype)),
+                                          math_ops.cast(beta2_power.Handle, TDtypes.as_base_dtype(_var.dtype)),
+                                          math_ops.cast(Flr_t,              TDtypes.as_base_dtype(_var.dtype)),
+                                          math_ops.cast(Fbeta1_t,           TDtypes.as_base_dtype(_var.dtype)),
+                                          math_ops.cast(Fbeta2_t,           TDtypes.as_base_dtype(_var.dtype)),
+                                          math_ops.cast(Fepsilon_t,         TDtypes.as_base_dtype(_var.dtype)),
+                                          grad,
+                                          Fuse_locking).op;
+end;
+
+function AdamOptimizer._apply_sparse(grad: IndexedSlices; _var: ResourceVariable): TFOperation;
+begin
+    Result := _apply_sparse_shared(grad.values, _var, grad.indices,
+                   function (x: IVariableV1; i: TFTensor; v: TFTensor)  : TFTensor
+                    begin
+                        Result := state_ops.scatter_add(x, i, v, Fuse_locking);
+                    end);
+end;
+
+function AdamOptimizer._apply_sparse(grad: IndexedSlices; _var: RefVariable): TFOperation;
+begin
+    Result := _apply_sparse_shared(grad.values, _var, grad.indices,
+                   function (x: IVariableV1; i: TFTensor; v: TFTensor)  : TFTensor
+                    begin
+                        Result := state_ops.scatter_add(x, i, v, Fuse_locking);
+                    end);
+end;
+
+function AdamOptimizer._apply_sparse_shared(grad: TFTensor; _var: IVariableV1; indices: TFTensor; scatter_add: TFunc<IVariableV1, TFTensor, TFTensor, TFTensor>): TFOperation;
+begin
+    var tAcc := _get_beta_accumulators;
+    var beta1_power_v := tAcc.Value1;
+    var beta2_power_v := tAcc.Value2;
+    var beta1_power : TFTensor := math_ops.cast(beta1_power_v, TDtypes.as_base_dtype(_var.dtype));
+    var beta2_power : TFTensor := math_ops.cast(beta2_power_v, TDtypes.as_base_dtype(_var.dtype));
+    var lr_t                   := math_ops.cast(Flr_t,         TDtypes.as_base_dtype(_var.dtype));
+    var beta1_t                := math_ops.cast(Fbeta1_t,      TDtypes.as_base_dtype(_var.dtype));
+    var beta2_t                := math_ops.cast(Fbeta2_t,      TDtypes.as_base_dtype(_var.dtype));
+    var epsilon_t              := math_ops.cast(Fepsilon_t,    TDtypes.as_base_dtype(_var.dtype));
+    var lr := (TTEnsor(lr_t) * math_ops.sqrt(1 - TTensor(beta2_power)) / (1 - TTensor(beta1_power)));
+    var m := get_slot(_var, 'm');
+    var m_scaled_g_values := TTensor(grad) * (1 - TTensor(beta1_t));
+    var m_t := state_ops.assign(m, m.AsTensor * TTensor(beta1_t), Fuse_locking);
+    TUtils.tf_with<TControlDependenciesController>( Tops.control_dependencies([m_t]) ,
+                                Procedure(dep: TControlDependenciesController)
+                                 begin
+                                     m_t := scatter_add(m, indices, m_scaled_g_values);
+                                 end);
+    var v                 := get_slot(_var, 'v');
+    var v_scaled_g_values := (TTensor(grad) * grad) * (1 - TTEnsor(beta2_t));
+    var v_t               := state_ops.assign(v, v.AsTensor * TTensor(beta2_t), Fuse_locking);
+    TUtils.tf_with<TControlDependenciesController>( Tops.control_dependencies([v_t]) ,
+                                Procedure(dep: TControlDependenciesController)
+                                 begin
+                                     v_t := scatter_add(v, indices, v_scaled_g_values);
+                                 end);
+    var v_sqrt     := math_ops.sqrt(v_t);
+    var var_update := state_ops.assign_sub(_var, lr * m_t / (TTensor(v_sqrt) + epsilon_t), Fuse_locking);
+    Result := control_flow_ops.group<TFTensor>( [ var_update, m_t, v_t ]);
+end;
+
+procedure AdamOptimizer._create_slots(var_list: TArray<IVariableV1>);
+begin
+    var first_var := Enumerable<IVariableV1>.Create(var_list)
+                                              .OrderBy<string>( function(x: IVariableV1) : string
+                                                         begin
+                                                             Result := x.Name;
+                                                         end).First;
+
+    _create_non_slot_variable(Fbeta1, 'beta1_power', first_var);
+    _create_non_slot_variable(fbeta2, 'beta2_power', first_var);
+    // Create slots for the first and second moments.
+    for var v in var_list DO
+    BEGIN
+        _zeros_slot(v, 'm', Name);
+        _zeros_slot(v, 'v', Name);
+    end;
+end;
+
+function AdamOptimizer._finish(update_ops: TArray<TFOperation>; name_scope: string): TFOperation;
+begin
+    var operations := TList<ITensorOrOperation>.Create;
+    try
+      for var i := 0 to Length(update_ops)-1 do
+         operations.add(update_ops[i]);
+      var value : TArray<TValue> := [];
+      for var i := 0 to Length(update_ops)-1 do
+        value := value + [ TValue.From<TFOperation>(update_ops[i]) ] ;
+      TUtils.tf_with<TControlDependenciesController>( Tops.control_dependencies(value) ,
+                                Procedure(dep: TControlDependenciesController)
+                                 begin
+                                    var tAcc := _get_beta_accumulators;
+                                    var beta1_power := tAcc.Value1;
+                                    var beta2_power := tAcc.Value2;
+                                    Tops.colocate_with(beta1_power);
+                                    var update_beta1 : TFTensor := nil;
+                                    var update_beta2 : TFTensor := nil;
+                                    if      beta1_power is ResourceVariable then  update_beta1 := (beta1_power as ResourceVariable).assign(beta1_power.AsTensor * TTensor(Fbeta1_t), Fuse_locking)
+                                    else if beta1_power is RefVariable then       update_beta1 := (beta1_power as RefVariable).     assign(beta1_power.AsTensor * TTensor(Fbeta1_t), Fuse_locking);
+
+                                    if      beta2_power is ResourceVariable then  update_beta2 := (beta2_power as ResourceVariable).assign(beta2_power.AsTensor * TTensor(Fbeta1_t), Fuse_locking)
+                                    else if beta2_power is RefVariable then       update_beta2 := (beta2_power as RefVariable).     assign(beta2_power.AsTensor * TTensor(Fbeta1_t), Fuse_locking);
+
+                                    operations.Add(update_beta1);
+                                    operations.Add(update_beta2);
+                                 end);
+      Result := control_flow_ops.group<ITensorOrOperation>(operations.ToArray, name_scope);
+    finally
+      operations.Free;
+    end;
+end;
+
+function AdamOptimizer._get_beta_accumulators: Tuple<IVariableV1, IVariableV1>;
+begin
+    Tops.init_scope;
+    var graph := Tops.get_default_graph;
+    var t1 := _get_non_slot_variable('beta1_power', graph) ;
+    var t2 := _get_non_slot_variable('beta2_power', graph) ;
+    Result := Tuple.Create(t1,t2);
+end;
+
+procedure AdamOptimizer._prepare;
+begin
+    var lr      := _call_if_callable(Flr);
+    var beta1   := _call_if_callable(Fbeta1);
+    var beta2   := _call_if_callable(Fbeta2);
+    var epsilon := _call_if_callable(Fepsilon);
+    if Assigned(Flr_t)      then  Flr_t      := Tops.convert_to_tensor(lr,    Fdtype,  'learning_rate');
+    if Assigned(Fbeta1_t)   then  Fbeta1_t   := Tops.convert_to_tensor(beta1, Fdtype,  'beta1');
+    if Assigned(Fbeta2_t)   then  Fbeta2_t   := Tops.convert_to_tensor(beta2, Fdtype,  'beta2');
+    if Assigned(Fepsilon_t) then  Fepsilon_t := Tops.convert_to_tensor(epsilon, Fdtype,'epsilon');
 end;
 
 end.

@@ -15,9 +15,9 @@ unit TensorFlow.gen_random_ops;
 interface
       uses System.SysUtils,
            rtti,
+
            Spring,
-           Spring.Collections.Enumerable,
-           Spring.Collections.Lists,
+
            TF4D.Core.CApi,
            TensorFlow.DApiBase,
            TensorFlow.DApi,
@@ -93,31 +93,31 @@ implementation
 class function gen_random_ops.random_standard_normal(shape: TFTensor; dtype: TF_DataType; seed, seed2: Integer; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('RandomStandardNormal', name, ExecuteOpArgs.Create([ shape ])
-                                                 .SetAttributes(['dtype', TValue.From<Integer>(Ord(dtype)),'seed', seed, 'seed2',seed2 ]) ).FirstOrDefault(nil);
+                                                 .SetAttributes(['dtype', TValue.From<Integer>(Ord(dtype)),'seed', seed, 'seed2',seed2 ]) ).First;
 end;
 
 class function gen_random_ops.random_uniform_int(shape, minval, maxval: TFTensor; seed, seed2: Integer; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('RandomUniformInt', name, ExecuteOpArgs.Create([ shape, minval, maxval ])
-                                                 .SetAttributes(['seed', seed, 'seed2',seed2 ]) ).FirstOrDefault(nil);
+                                                 .SetAttributes(['seed', seed, 'seed2',seed2 ]) ).First;
 end;
 
 class function gen_random_ops.random_uniform(shape: TFTensor; dtype: TF_DataType; seed, seed2: Integer; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('RandomUniform', name, ExecuteOpArgs.Create([ shape ])
-                                                 .SetAttributes(['dtype', TValue.From<Integer>(Ord(dtype)),'seed', seed, 'seed2',seed2 ]) ).FirstOrDefault(nil);
+                                                 .SetAttributes(['dtype', TValue.From<Integer>(Ord(dtype)),'seed', seed, 'seed2',seed2 ]) ).First;
 end;
 
 class function gen_random_ops.random_shuffle(value: TFTensor; seed, seed2: Integer; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('RandomShuffle', name, ExecuteOpArgs.Create([ value ])
-                                                 .SetAttributes(['seed', seed, 'seed2',seed2 ]) ).FirstOrDefault(nil);
+                                                 .SetAttributes(['seed', seed, 'seed2',seed2 ]) ).First;
 end;
 
 class function gen_random_ops.truncated_normal(shape: TFTensor; dtype: TF_DataType; seed, seed2: Integer; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('TruncatedNormal', name, ExecuteOpArgs.Create([ shape ])
-                                                 .SetAttributes(['dtype', TValue(dtype),'seed', seed, 'seed2',seed2 ]) ).FirstOrDefault(nil);
+                                                 .SetAttributes(['dtype', TValue(dtype),'seed', seed, 'seed2',seed2 ]) ).First;
 end;
 
 class function gen_random_ops.multinomial(logits: TFTensor; num_samples, seed, seed2: Integer; output_dtype: TF_DataType; name: string): TFTensor;

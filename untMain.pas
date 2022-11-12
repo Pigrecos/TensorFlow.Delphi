@@ -322,7 +322,7 @@ procedure TUnitTest_Basic.Variabele_InitVariable ;
 begin
     var aVar : TArray<Integer> := [ 1, 2] ;
     var v    := tf.Variable(aVar);
-    var init := tf.compat.v1.global_variables_initializer;
+    var init : ITensorOrOperation := tf.compat.v1.global_variables_initializer;
     var sess := tf.compat.v1.Session;
     var g := sess.run(init);
     // Usage passing the session explicitly.
@@ -345,7 +345,7 @@ end;
 
 procedure TUnitTest_Basic.Variabele_StringVar;
 begin
-
+    {$HINTS OFF}
     var mammal1 := tf.Variable('Elephant', 'var1', tf.string_t);
     var mammal2 := tf.Variable('Tiger');
 
@@ -455,10 +455,16 @@ procedure TForm1.btnLinRegClick(Sender: TObject);
 var
   lr : LinearRegression;
 begin
+    mmo1.Clear;
+    mmo1.Lines.Add('Linear Regression in Graph Mode Start...');
+    mmo1.Lines.Add('========================================');
+
     lr := LinearRegression.Create;
+    var lOk := lr.Run(mmo1);
+    Assert.IsTrue(lOk,'Linear Regression in Graph Mode') ;
 
-    lr.Run;
-
+    mmo1.Lines.Add('Linear Regression in Graph Mode End');
+    mmo1.Lines.Add('===================================');
 end;
 
 procedure TForm1.btnTestClick(Sender: TObject);
@@ -592,7 +598,7 @@ end;
 procedure ManagedAPI.Slice;
 begin
     // Tests based on example code in TF documentation
-
+    {$HINTS OFF}
     var input_array := tf.constant( np.np_array<Integer>([1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 6, 6, 6 ]).reshape(TFShape.Create( [3,2,3] )) );
     var indices     := tf.constant(np.np_array<Integer>([ 0, 2 ]));
 

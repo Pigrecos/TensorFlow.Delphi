@@ -22,6 +22,7 @@ uses
   System.SysUtils, System.Math;
 
 {$T+}
+{$HINTS OFF}
 
 {$Region 'Forward declarations'}
 

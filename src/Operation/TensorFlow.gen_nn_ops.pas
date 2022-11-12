@@ -181,7 +181,7 @@ begin
                                                           'use_cudnn_on_gpu', parameters.UseCudnnOnGpu,
                                                           'explicit_paddings',parameters.ExplicitPaddings,
                                                           'data_format',      parameters.DataFormat,
-                                                          'dilations',        parameters.Dilations]) ).FirstOrDefault(nil);
+                                                          'dilations',        parameters.Dilations]) ).First;
 end;
 
 class function gen_nn_ops.conv2d_backprop_filter(input, filter_sizes, out_backprop: TFTensor; strides: TArray<Integer>; padding: string; use_cudnn_on_gpu: Boolean;
@@ -196,7 +196,7 @@ begin
                                                           'use_cudnn_on_gpu', use_cudnn_on_gpu,
                                                           'explicit_paddings',explicit_paddings,
                                                           'data_format',      data_format,
-                                                          'dilations',        dilations]) ).FirstOrDefault(nil);
+                                                          'dilations',        dilations]) ).First;
 end;
 
 class function gen_nn_ops.conv2d_backprop_input(input, filter_sizes, out_backprop: TFTensor; strides: TArray<Integer>; padding: string; use_cudnn_on_gpu: Boolean;
@@ -211,7 +211,7 @@ begin
                                                           'use_cudnn_on_gpu', use_cudnn_on_gpu,
                                                           'explicit_paddings',explicit_paddings,
                                                           'data_format',      data_format,
-                                                          'dilations',        dilations]) ).FirstOrDefault(nil);
+                                                          'dilations',        dilations]) ).First;
 end;
 
 class function gen_nn_ops.elu(features: TFTensor; name: string): TFTensor;
@@ -282,13 +282,13 @@ end;
 class function gen_nn_ops.leaky_relu(features: TFTensor; alpha: single; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('LeakyRelu', name, ExecuteOpArgs.Create([features])
-                                                                        .SetAttributes(['alpha', alpha]) ).FirstOrDefault(nil);
+                                                                        .SetAttributes(['alpha', alpha]) ).First;
 end;
 
 class function gen_nn_ops.leaky_relu_grad(gradients, features: TFTensor; alpha: Single; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('LeakyReluGrad', name, ExecuteOpArgs.Create([gradients,features])
-                                                                        .SetAttributes(['alpha', alpha]) ).FirstOrDefault(nil);
+                                                                        .SetAttributes(['alpha', alpha]) ).First;
 end;
 
 class function gen_nn_ops.local_response_normalization(input: TfTensor; depth_radius, bias, alpha: Integer; beta: Single; name: string): TFTensor;
@@ -303,53 +303,53 @@ end;
 
 class function gen_nn_ops.log_softmax(logits: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp( 'LogSoftmax', name, ExecuteOpArgs.Create([logits]) ).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp( 'LogSoftmax', name, ExecuteOpArgs.Create([logits]) ).First;
 end;
 
 class function gen_nn_ops.max_pool(input: TFTensor; ksize, strides: TArray<Integer>; padding, data_format, name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('MaxPool', name, ExecuteOpArgs.Create([input])
-                                                                        .SetAttributes(['ksize', ksize,'strides', strides,'padding', padding,'data_format', data_format ]) ).FirstOrDefault(nil);
+                                                                        .SetAttributes(['ksize', ksize,'strides', strides,'padding', padding,'data_format', data_format ]) ).First;
 end;
 
 class function gen_nn_ops.max_pool_grad(orig_input, orig_output, grad: TFTensor; ksize, strides: TArray<Integer>; padding, data_format, name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('MaxPoolGrad', name, ExecuteOpArgs.Create([orig_input, orig_output, grad])
-                                                                        .SetAttributes(['ksize', ksize,'strides', strides,'padding', padding,'data_format', data_format ]) ).FirstOrDefault(nil);
+                                                                        .SetAttributes(['ksize', ksize,'strides', strides,'padding', padding,'data_format', data_format ]) ).First;
 end;
 
 class function gen_nn_ops.relu(features: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp( 'Relu', name, ExecuteOpArgs.Create([features]) ).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp( 'Relu', name, ExecuteOpArgs.Create([features]) ).First;
 end;
 
 class function gen_nn_ops.relu_grad(gradients, features: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp( 'ReluGrad', name, ExecuteOpArgs.Create([gradients, features]) ).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp( 'ReluGrad', name, ExecuteOpArgs.Create([gradients, features]) ).First;
 end;
 
 class function gen_nn_ops.softmax(logits: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp( 'Softmax', name, ExecuteOpArgs.Create([logits]) ).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp( 'Softmax', name, ExecuteOpArgs.Create([logits]) ).First;
 end;
 
 class function gen_nn_ops.softmax_cross_entropy_with_logits(features, labels: TFTensor; name: string): Tuple<TFTensor, TFTensor>;
 begin
-    var Res := tf.Context.ExecuteOp( 'SoftmaxCrossEntropyWithLogits', name, ExecuteOpArgs.Create([features, labels]) ).FirstOrDefault(nil);
+    var Res := tf.Context.ExecuteOp( 'SoftmaxCrossEntropyWithLogits', name, ExecuteOpArgs.Create([features, labels]) ).First;
 
     Result := Tuple<TFTensor, TFTensor>.Create(Res[0],Res[1]);
 end;
 
 class function gen_nn_ops.sparse_softmax_cross_entropy_with_logits(features, labels: TFTensor; name: string): Tuple<TFTensor, TFTensor>;
 begin
-    var Res := tf.Context.ExecuteOp( 'SparseSoftmaxCrossEntropyWithLogits', name, ExecuteOpArgs.Create([features, labels]) ).FirstOrDefault(nil);
+    var Res := tf.Context.ExecuteOp( 'SparseSoftmaxCrossEntropyWithLogits', name, ExecuteOpArgs.Create([features, labels]) ).First;
 
     Result := Tuple<TFTensor, TFTensor>.Create(Res[0],Res[1]);
 end;
 
 class function gen_nn_ops.tanh(x: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp( 'Tanh', name, ExecuteOpArgs.Create([x]) ).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp( 'Tanh', name, ExecuteOpArgs.Create([x]) ).First;
 end;
 
 class function gen_nn_ops.top_kv2<T>(input: TFTensor; k: T; sorted: Boolean; name: string): TArray<TFTensor>;
@@ -361,7 +361,7 @@ end;
 class function gen_nn_ops.average_pool(input: TFTensor; ksize, strides: TArray<Integer>; padding, data_format, name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('AvgPool', name, ExecuteOpArgs.Create([input])
-                                                                        .SetAttributes(['ksize', ksize,'strides', strides,'padding', padding,'data_format', data_format ]) ).FirstOrDefault(nil);
+                                                                        .SetAttributes(['ksize', ksize,'strides', strides,'padding', padding,'data_format', data_format ]) ).First;
 end;
 
 class function gen_nn_ops.bias_add(value: TFTensor; bias: IVariableV1; data_format, name: string): TFTensor;
@@ -370,7 +370,7 @@ begin
       data_format := 'NHWC';
 
     Result := tf.Context.ExecuteOp('BiasAdd', name, ExecuteOpArgs.Create([value, TValue.From<IVariableV1>(bias)])
-                                                                        .SetAttributes(['data_format', data_format ]) ).FirstOrDefault(nil);
+                                                                        .SetAttributes(['data_format', data_format ]) ).First;
 end;
 
 class function gen_nn_ops.bias_add_grad(out_backprop: TFTensor; data_format, name: string): TFTensor;
@@ -379,7 +379,7 @@ begin
       data_format := 'NHWC';
 
     Result := tf.Context.ExecuteOp('BiasAddGrad', name, ExecuteOpArgs.Create([out_backprop])
-                                                                        .SetAttributes(['data_format', data_format ]) ).FirstOrDefault(nil);
+                                                                        .SetAttributes(['data_format', data_format ]) ).First;
 end;
 
 end.

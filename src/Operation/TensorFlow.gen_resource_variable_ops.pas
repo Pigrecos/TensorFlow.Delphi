@@ -2,13 +2,10 @@ unit TensorFlow.gen_resource_variable_ops;
 {$REGION 'Licence'}
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
-
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,8 +17,6 @@ unit TensorFlow.gen_resource_variable_ops;
 interface
     uses System.SysUtils,
          Spring,
-         spring.Collections.Dictionaries,
-         Spring.Collections.Lists,
 
          TF4D.Core.CApi,
          TensorFlow.DApiBase,
@@ -163,13 +158,13 @@ end;
 class function gen_resource_variable_ops.destroy_resource_op(resource: TFTensor; ignore_lookup_error: Boolean; name: string): TFTensor;
 begin
     Result :=  tf.Context.ExecuteOp('DestroyResourceOp', name, ExecuteOpArgs.Create([resource])
-                                                      .SetAttributes(['ignore_lookup_error', ignore_lookup_error ])).FirstOrDefault(nil);
+                                                      .SetAttributes(['ignore_lookup_error', ignore_lookup_error ])).First;
 end;
 
 class function gen_resource_variable_ops.read_variable_op(resource: TFTensor; dtype: TF_DataType; name: string): TFTensor;
 begin
     Result :=  tf.Context.ExecuteOp('ReadVariableOp', name, ExecuteOpArgs.Create([resource])
-                                                      .SetAttributes(['dtype', dtype ])).FirstOrDefault(nil);
+                                                      .SetAttributes(['dtype', dtype ])).First;
 end;
 
 class function gen_resource_variable_ops.resource_gather(resource, indices: TFTensor; dtype: TF_DataType; batch_dims: Integer; validate_indices: Boolean; name: string): TFTensor;

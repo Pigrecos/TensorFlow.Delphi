@@ -2,13 +2,10 @@ unit TensorFlow.String_ops;
 {$REGION 'Licence'}
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
-
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -60,13 +57,13 @@ implementation
 
 function string_ops.lower(input: TFTensor; encoding, name: String): TFTensor;
 begin
-     Result := tf.Context.ExecuteOp('StringLower', name, ExecuteOpArgs.Create([ input, encoding])).FirstOrDefault(nil);
+     Result := tf.Context.ExecuteOp('StringLower', name, ExecuteOpArgs.Create([ input, encoding])).First;
 end;
 
 function string_ops.regex_replace(input: TFTensor; pattern, rewrite: string; replace_global: Boolean; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('StaticRegexReplace', name, ExecuteOpArgs.Create([ input ])
-                         .SetAttributes(['pattern',pattern,'rewrite',rewrite,'replace_global',replace_global])).FirstOrDefault(nil);
+                         .SetAttributes(['pattern',pattern,'rewrite',rewrite,'replace_global',replace_global])).First;
 end;
 
 function string_ops.string_length(input: TFTensor; name, &unit: string): TFTensor;
@@ -79,12 +76,12 @@ begin
                                end;
 
     Result := tf.Context.ExecuteOp('StringLength', name, Args
-                           .SetAttributes(['unit', &unit ])).FirstOrDefault(nil);
+                           .SetAttributes(['unit', &unit ])).First;
 end;
 
 function string_ops.substr<T>(input: T; pos, len: Integer; uint, name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Substr', name, ExecuteOpArgs.Create([ TValue.From<T>(input), Pos, len]).SetAttributes(['unit',uint])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Substr', name, ExecuteOpArgs.Create([ TValue.From<T>(input), Pos, len]).SetAttributes(['unit',uint])).First;
 end;
 
 end.

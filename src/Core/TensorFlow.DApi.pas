@@ -29,10 +29,8 @@ uses
   Spring,
   Spring.Collections,
   Spring.Collections.Base,
-  Spring.Collections.Dictionaries,
-
   Spring.Collections.Enumerable,
-  Spring.Collections.Lists,
+
 
   TF4D.Core.CApi,
   TensorFlow.DApiEager,
@@ -52,6 +50,8 @@ TFTensor        = class;
 TNDArray        = class;
 TFOperationDesc = class;
 TFSession       = class;
+//
+WhileContext    = class;
 
 {$REGION 'ParsedSliceArgs'}
 ParsedSliceArgs = record
@@ -223,6 +223,23 @@ end;
 {$ENDREGION}
 
 {$REGION 'TControlFlowContext'}
+/// <summary>
+/// The base class for control flow context.
+///
+/// The usage pattern is a sequence of(Enter, Exit) followed by a final
+/// ExitResult.
+///
+/// We maintain the following state for control flow contexts during graph
+/// construction:
+/// 1. graph has _control_flow_context: the current context used to
+/// construct new nodes.Changed by ctxt.Enter() and ctxt.Exit()
+/// 2. op has _control_flow_context: the context to which the op belongs.
+/// Set at the time the op is created.Immutable.
+/// 3. A ControlFlowContext has _outer_context: the context in which this
+/// context is created.Set at the time a context is created.Immutable.
+/// 4. A ControlFlowContext has _context_stack.
+/// Pushed and popped by ctxt.Enter() and ctxt.Exit()
+/// </summary>
 TControlFlowContext = class(TInterfacedObject,ITensorFlowObject)
    private
 
@@ -260,12 +277,100 @@ TControlFlowContext = class(TInterfacedObject,ITensorFlowObject)
      /// Exit this control flow context.
      /// </summary>
      procedure Exit_ ; virtual;
+     function IsWhileContext: Boolean; virtual;
+     function IsCondContext: Boolean; virtual;
+     /// <summary>
+     /// Return the while context containing this context
+     /// </summary>
+     function GetWhileContext : WhileContext ;virtual;
 
      property pivot  : TFTensor read Fpivot;
      property pred   : TFTensor read Fpred;
      property branch : Integer  read Fbranch;
      property Nome   : String   read FName;
      property outer_context  : TControlFlowContext read Fouter_context ;
+end;
+{$ENDREGION}
+
+{$REGION 'GradLoopState'}
+/// <summary>
+/// The state used for constructing the gradient graph for a while loop.
+/// </summary>
+GradLoopState  = class
+   private
+      Fgrad_context : WhileContext ;
+      //    # The loop counter added by AddBackpropLoopCounter. It is the value
+      //    # of the loop counter for the current iteration.
+      //    self._grad_index = None
+      //    # A sync op for backprop.
+      //    self._grad_sync = None
+      //    # Information needed by backprop.
+      //Fhistory_map : THashtable;
+      Fswitch_map : TDictionary<TFOperation, TFTensor>;
+      /// <summary>
+      /// The while loop context for forward.
+      /// </summary>
+      Fforward_context : WhileContext;
+      /// <summary>
+      /// The grad loop state for the outer while loop.
+      /// </summary>
+      Fouter_grad_state  : GradLoopState;
+      Fforward_index     : TFTensor;
+      Fgrad_index        : TFTensor;
+      Fforward_loop_exits: TArray<TFTensor>;
+      Fdeferred_exits    : TList<TFTensor>;
+      Funused_exits      : TList<TFTensor>;
+      Fgrad_sync         : TFOperation;
+   public
+      /// <summary>
+      /// The number of exits we expect to see but haven't.
+      /// </summary>
+      pending_exits_count : Integer;
+
+      constructor Create(forward_ctxt: WhileContext; outer_grad_state_: GradLoopState);
+      destructor  Destroy; override;
+
+      property grad_context    : WhileContext read Fgrad_context;
+      //property Hashtable history_map => _history_map;
+      property switch_map      : TDictionary<TFOperation, TFTensor> read Fswitch_map;
+      property forward_context : WhileContext                       read Fforward_context;
+      property outer_grad_state: GradLoopState                      read Fouter_grad_state;
+      property forward_index   : TFTensor                           read Fforward_index;
+      /// <summary>
+      /// The list of exits of the forward loop.
+      /// </summary>
+      property forward_loop_exits : TArray<TFTensor> read Fforward_loop_exits;
+      property deferred_exits     : TList<TFTensor>  read Fdeferred_exits;
+      property unused_exits       : TList<TFTensor>  read Funused_exits;
+end;
+{$ENDREGION}
+
+{$REGION 'WhileContext'}
+/// <summary>
+/// Creates a `WhileContext`.
+/// </summary>
+WhileContext = class(TControlFlowContext)
+   private
+      Fback_prop          : Boolean ;
+      Fgrad_state         : GradLoopState;
+      Fmaximum_iterations : TFTensor;
+      Fparallel_iterations: Integer;
+      Fswap_memory        : Boolean;
+      Fpivot_for_pred     : TFTensor;
+      Fpivot_for_body     : TFTensor;
+      Floop_exits         : TList<TFTensor>;
+      Floop_enters        : TList<TFTensor>;
+      Fgraph              : TFGraph;
+
+   public
+
+     property   maximum_iterations : TFTensor        read Fmaximum_iterations;
+     property   parallel_iterations: Integer         read Fparallel_iterations;
+     property   swap_memory        : Boolean         read Fswap_memory;
+     property   loop_exits         : TList<TFTensor> read Floop_exits;
+     property   loop_enters        : TList<TFTensor> read Floop_enters;
+     property   grad_state         : GradLoopState   read Fgrad_state;
+     property   back_prop          : Boolean         read Fback_prop;
 end;
 {$ENDREGION}
 
@@ -490,12 +595,13 @@ TFSession = class(TFDisposable)
    constructor Create(g     : TFGraph;         config : PConfigProto= nil; status: TFStatus = nil); overload;
    destructor  Destroy; override;
 
-   procedure   run(op:      TFOperation;        feed_dict: TArray<FeedItem>); overload;
+   procedure   run(op:      TFOperation;        feed_dict: TArray<FeedItem>= []); overload;
    function    run(fetche:  TFTensor;           feed_dict: TArray<FeedItem>): TNDArray ;overload;
-   function    run(fetche:  ITensorOrOperation; feed_dict: TArray<FeedItem>): TNDArray;overload;
-   function    run(fetches: TValue;             feed_dict: TArray<FeedItem>): TArray<TNDArray>;overload;
-   function    run(fetches: TValue)                                         : TArray<TNDArray>;overload;
+   function    run(fetche:  ITensorOrOperation; feed_dict: TArray<FeedItem>=[]): TNDArray;overload;
+   function    run(fetches: TArray<TValue>;     feed_dict: TArray<FeedItem>= []): TArray<TNDArray>;overload;
+   function    run(fetches: TArray<TValue>)                                 : TArray<TNDArray>;overload;
    function    run(fetches: TFTensor)                                       : TNDArray;overload;
+
    function    as_default:  TFSession;
    function    eval(tensor: TFTensor): TFTensor;
    //
@@ -633,6 +739,12 @@ TFTensor = class(ITensorOrOperation)
    destructor  Destroy; override;
 
    /// <summary>
+   ///     Returns a list of Operations that consume this tensor.
+   /// </summary>
+   /// <returns></returns>
+   function consumers: TArray<TFOperation>;
+   function _shape_tuple: TArray<Integer>;
+   /// <summary>
    ///
    /// </summary>
    /// <typeparam name="T"></typeparam>
@@ -699,7 +811,7 @@ end;
 {$ENDREGION}
 
 {$REGION 'TNDArray'}
-TNDArray = class(TFTensor)
+TNDArray = class(TFTensor, IEnumerable )
    private
      procedure NewEagerTensorHandle;
      function  GetItem(indices: TArray<Integer>): TNDArray; overload;
@@ -713,7 +825,29 @@ TNDArray = class(TFTensor)
      function  GetScalar(offset : UInt64 = 0): TNDArray;
      function  GetArrayData(newshape: TFShape; indices: TArray<Integer>): TNDArray;
      function  GetDataPointer: Pointer;
+    private
+     type
+     TEnumerator_NDArray = class(TEnumeratorBase<TNDArray>)
+      private
+        fIndex: Integer;
+        fSource : TNDArray;
+      protected
+        function GetCurrent: TNDArray; override;
+      public
+        constructor Create(source : TNDArray);
+        function MoveNext: Boolean; override;
+      end;
+
+   protected
+    {$REGION 'Property Accessors'}
+    function GetCount: Integer; virtual;
+    function GetElementType: PTypeInfo; virtual;
+    function GetIsEmpty: Boolean; virtual;
+    {$ENDREGION}
    public
+     function AsObject: TObject;
+     function GetEnumerator: IEnumerator;
+
      constructor Create(const value: Boolean); overload; override;
      constructor Create(const value: Byte);    overload; override;
      constructor Create(const value: Word);    overload; override;
@@ -800,16 +934,6 @@ TNDArray = class(TFTensor)
      property Item[slices: TArray<Slice> ]    : TNDArray read GetItem write SetItem; default;
      property data : Pointer read GetDataPointer;
 
-     type
-       TNDArrayEnum = class(TIteratorBase<TNDArray>, IEnumerator<TNDArray>)
-          protected
-             function GetCurrent: TNDArray;
-             function TryMoveNext(var current: TNDArray): Boolean; override;
-          public
-             constructor Create; override;
-             function GetEnumerator: IEnumerator<TNDArray>; override;
-             function MoveNext: Boolean;
-       end;
 
   end;
 {$ENDREGION}
@@ -832,14 +956,14 @@ TFTensors = class (TList<TFTensor>)
 
  public
    destructor  Destroy; override;
-   constructor Create; overload; override;
-   constructor Create(const tensors: array of TFTensor); overload; override;
+   constructor Create; overload;
+   constructor Create(const tensors: array of TFTensor); overload;
    constructor Create(tensor: TFTensor); overload;
    constructor Create(t: Tuple<TFTensor,TFTensor>); overload;
    constructor Create(tensors : TList<TFTensor>); overload;
-   function    Add(const tensor : TFTensor): Integer;  override;
+   function    Add(const tensor : TFTensor): Integer;
    procedure   AddRange(tensors : TArray<TFTensor>);
-   procedure   Insert(idx : Integer ; const tensor : TFTensor);  override;
+   procedure   Insert(idx : Integer ; const tensor : TFTensor);
    function    ToTensor(tensors: TFTensors): TFTensor;
    function    ToArray: TArray<TFTensor>; reintroduce;
    function    ToString: string; override;
@@ -922,7 +1046,7 @@ TInputList = class (TList<TFTensor>)
     function GetLength: Integer;
    public
 
-     constructor Create(const tensors: array of TFTensor); override;
+     constructor Create(const tensors: array of TFTensor);
      destructor  Destroy; override;
 
      property Len    : Integer                 read GetLength;
@@ -958,9 +1082,10 @@ TFOperation = class(ITensorOrOperation)
     function GetType: TF_DataType; override;
     function GetName: string;override;
     function GeNumInputs: Integer;
-    function GetInputList: TInputList;
+    function GetInputList: TInputList; virtual;
     function GetNodeDef: TNodeDef;
     function GetipoOp: string;
+    procedure _assert_same_graph(tensor: TFTensor);
  protected
    procedure NativeDispose(hnd: Pointer); override;
  public
@@ -1001,9 +1126,18 @@ TFOperation = class(ITensorOrOperation)
    procedure _set_control_flow_context(ctx: TControlFlowContext);
    function  _get_control_flow_context: TControlFlowContext;
    procedure run(feed_dict : TArray<FeedItem>= []; session: TFSession = nil);
-   function  get_attr(name:string): TValue; overload;
+   function  get_attr(name:string): TValue; overload; virtual;
    function  get_attr<T>(name: string): T;  overload;
    function  get_attr_list<T>(name: string): TArray<T>;
+   function  GetWhileContext: WhileContext;
+   /// <summary>
+   /// Update the input to this operation at the given index.
+   ///
+   /// NOTE: This is for TF internal use only.Please don't use it.
+   /// </summary>
+   /// <param name="index">the index of the input to update.</param>
+   /// <param name="tensor"> the Tensor to be used as the input at the given index.</param>
+   procedure _update_input(index: Integer; tensor: TFTensor);
    //
    property Graph     : TFGraph    read FGraph;
    property NumOutputs: Integer    read GeNumOutputs;
@@ -1014,6 +1148,27 @@ TFOperation = class(ITensorOrOperation)
    property inputs    : TInputList read GetInputList;
    property NodeDef   : TNodeDef   read GetNodeDef;
    property Tipo      : string     read GetipoOp;
+
+end;
+{$ENDREGION}
+
+{$REGION 'EagerOperation'}
+EagerOperation = class(TFOperation)
+  private
+    F_Inputs          : TArray<TFTensor>;
+    F_Attrs           : TArray<TValue>;
+    F_SkipInputIndices: TArray<Int64>;
+
+    function GetInputList: TInputList; override;
+    function GetOutpts: TArray<TensorFlow.DApi.TFTensor>;
+  public
+    constructor Create;
+    function    get_attr(attr_name:string): TValue; override;
+
+    property SkipInputIndices: TArray<Int64> read F_SkipInputIndices write F_SkipInputIndices;
+    property Outputs: TArray<TensorFlow.DApi.TFTensor>  read GetOutpts;
+    property Inputs : TArray<TFTensor>  read F_Inputs write F_Inputs;
+    property Attrs  : TArray<TValue>    read F_Attrs  write F_Attrs  ;
 end;
 {$ENDREGION}
 
@@ -1074,7 +1229,6 @@ TFGraph = class(TFDisposable)
  protected
    procedure NativeDispose(hnd: Pointer); override;
  public
-   _name_stack        :     TF_TString;
    function name_scope(name: TF_TString) : TF_TString;
    function get_name_scope: TF_TString;
    /// <summary>
@@ -1177,14 +1331,14 @@ TFGraph = class(TFDisposable)
    //
    property nodes_by_name       : TDictionary<string, ITensorOrOperation> read Fnodes_by_name;
    property version             : Integer read Fversion;
-   property name_stack          : string  read Fname_stack;
+   property name_stack          : string  read Fname_stack write Fname_stack;
    property graph_key           : string  read Fgraph_key;
    property last_loss_reduction : string  read Flast_loss_reduction;
    property is_loss_scaled_by_optimizer : Boolean read Fis_loss_scaled_by_optimizer write Fis_loss_scaled_by_optimizer;
    property building_function   : Boolean read Fbuilding_function;
    property container           : string  read Fcontainer;
    property seed                : Integer read Fseed write Fseed;
-   property outer_graph         : TFGraph read Fouter_graph;
+   property OuterGraph          : TFGraph read Fouter_graph;
    property control_flow_context: TControlFlowContext read Fcontrol_flow_context;
    property control_dependencies_stack : TList<TControlDependenciesController> read Fcontrol_dependencies_stack;
 
@@ -1193,6 +1347,7 @@ end;
 
 implementation
    uses System.Math,
+
 
         Oz.Pb.Classes,
         Oz.Pb.StrBuffer,
@@ -1283,7 +1438,8 @@ begin
     begin
         Result := ElementFetchMapper.Create(fetches, function(fetched_vals : TList<TNDArray>): TValue
                                                       begin
-                                                          Result := TValue.From<TNDArray>(fetched_vals[0])
+                                                          if fetched_vals[0] <> nil then
+                                                             Result := TValue.From<TNDArray>(fetched_vals[0])
                                                       end , graph);
     end;
 end;
@@ -1378,7 +1534,7 @@ function ElementFetchMapper.build_results(values: TList<TNDArray>): TArray<TNDAr
 begin
     Result := [];
 
-    if values.Count > 0 then
+    if (values.Count > 0) and (values[0] <> nil) then
     begin
         var ret := Fcontraction_fn(values);
         if ret.IsType<TNDArray> then
@@ -1686,15 +1842,15 @@ begin
     Result := _run(fetches, feed_items)[0];
 end;
 
-function TFSession.run(fetches: TValue): TArray<TNDArray>;
+function TFSession.run(fetches: TArray<TValue>): TArray<TNDArray>;
 begin
     var feed_items : TArray<FeedItem> := [];
-    Result := _run(fetches, feed_items);
+    Result := _run(TValue.From<TArray<TValue>>(fetches), feed_items);
 end;
 
-function TFSession.run(fetches: TValue; feed_dict: TArray<FeedItem>): TArray<TNDArray>;
+function TFSession.run(fetches: TArray<TValue>; feed_dict: TArray<FeedItem>): TArray<TNDArray>;
 begin
-    Result := _run(fetches, feed_dict);
+    Result := _run(TValue.From<TArray<TValue>>(fetches), feed_dict);
 end;
 
 function TFSession.run(fetche: ITensorOrOperation; feed_dict: TArray<FeedItem>): TNDArray;
@@ -1824,13 +1980,13 @@ begin
             else if x.Value.IsType<Single> then
             begin
                 var v := x.Value.AsType<Single>;
-                feeds[i] := TPair<TF_Output, TFTensor>.Create(key._as_tf_output, TFTensor.Create(v));
+                feeds[i] := TPair<TF_Output, TFTensor>.Create(key._as_tf_output, TFTensor.Create(Single(v)));
                 inc(i);
             end
             else if x.Value.IsType<Double> then
             begin
                 var v := x.Value.AsType<Double>;
-                feeds[i] := TPair<TF_Output, TFTensor>.Create(key._as_tf_output, TFTensor.Create(v));
+                feeds[i] := TPair<TF_Output, TFTensor>.Create(key._as_tf_output, TFTensor.Create(Double(v)));
                 inc(i);
             end
             else if x.Value.IsType<TF_TString> then
@@ -1856,7 +2012,7 @@ begin
            raise TFException.Create('Not Implemented');
         end;
     end;
-    var ft := TEnumerable.Select<TFTensor,TF_Output>(fetch_list, function (Arg1: TFTensor): TF_Output
+    var ft := Enumerable<TFTensor>.Create(fetch_list.toArray).Select<TF_Output>(function (Arg1: TFTensor): TF_Output
                                                                        begin
                                                                            Result := Arg1._as_tf_output;
                                                                        end );
@@ -1902,7 +2058,7 @@ begin
       try
         // We only want to really perform the run if fetches or targets are provided,
         // or if the call is a partial run that specifies feeds.
-        var ft := TEnumerable.Select<TValue,TFOperation>(final_targets, function (Arg1: TValue): TFOperation
+        var ft := Enumerable<TValue>.Create(final_targets.ToArray).Select<TFOperation>(function (Arg1: TValue): TFOperation
                                                                            begin
                                                                                Result := Arg1.AsType<TFOperation>;
                                                                            end );
@@ -2349,9 +2505,6 @@ begin
         Exit;
     end;
 
-    //if (ndim[0] > 1) then
-    //   raise TFException.Create('ToArray - ndim[0] > 1  !!!.');
-
     SetLength(res,size);
     l_pVal  := @res[0];
     l_iFullByteSize :=  size * dtypesize;
@@ -2488,6 +2641,16 @@ begin
     Move(l_pData^, l_pVal^, bytesize);
 
     Result := res;
+end;
+
+function TFTensor.consumers: TArray<TFOperation>;
+begin
+    var output         := _as_tf_output;
+    var consumer_names := TF_OperationOutputConsumers_wrapper(output);
+    Result := [];
+    for var i := 0 to Length(consumer_names) - 1 do
+       Result := Result + [ graph.GetOpByName(consumer_names[i]) ];
+
 end;
 
 procedure TFTensor.InitTensor(shape: TFShape; dtype: TF_DataType);
@@ -2727,6 +2890,16 @@ begin
     else
       TF_GraphSetTensorShape(graph.Handle, _as_tf_output, @value.dims[0], value.ndim, tf.Status.Handle);
     tf.Status.RaiseEx;
+end;
+
+function TFTensor._shape_tuple: TArray<Integer>;
+begin
+    if rank < 0 then  Result := []
+    else begin
+        Result := [];
+        for var i := 0 to Length(shape.dims)- 1 do
+          Result := Result + [ dims[i] ];
+    end;
 end;
 
 function TFTensor._slice(start: Integer): TFTensor;
@@ -3351,8 +3524,42 @@ end;
 
 function TNDArray.GetDataPointer: Pointer;
 begin
-   Result := TensorDataPointer;
+    Result := TensorDataPointer;
 end;
+
+function TNDArray.GetIsEmpty: Boolean;
+var
+  enumerator: IEnumerator;
+begin
+   enumerator := GetEnumerator;
+   Result := not enumerator.MoveNext;
+end;
+
+function TNDArray.GetElementType: PTypeInfo;
+begin
+   Result := PTypeInfo(TypeInfo(TNDArray))
+end;
+
+function TNDArray.GetEnumerator: IEnumerator;
+begin
+    Result := TEnumerator_NDArray.Create(Self);
+end;
+
+function TNDArray.GetCount: Integer;
+var
+  enumerator: IEnumerator;
+begin
+   Result := 0;
+   enumerator := GetEnumerator;
+   while enumerator.MoveNext do
+     Inc(Result);
+end;
+
+function TNDArray.AsObject: TObject;
+begin
+    Result := Self;
+end;
+
 
 procedure TNDArray.SetData(slices: TArray<Slice>; aArray: TNDArray);
 begin
@@ -3583,34 +3790,6 @@ begin
     Result :=  BufferToArray;
 end;
 
-{ TNDArray.TNDArrayEnum }
-
-constructor TNDArray.TNDArrayEnum.Create;
-begin
-  inherited;
-
-end;
-
-function TNDArray.TNDArrayEnum.GetCurrent: TNDArray;
-begin
-
-end;
-
-function TNDArray.TNDArrayEnum.GetEnumerator: IEnumerator<TNDArray>;
-begin
-
-end;
-
-function TNDArray.TNDArrayEnum.MoveNext: Boolean;
-begin
-
-end;
-
-function TNDArray.TNDArrayEnum.TryMoveNext(var current: TNDArray): Boolean;
-begin
-
-end;
-
 {$ENDREGION}
 
 {$REGION 'TFOperationDesc'}
@@ -3747,6 +3926,9 @@ begin
    FGraph.Add_op(Self);
 
    FOp := self;
+   GetName;
+   GetType;
+   GetipoOp;
 
    if Handle <> nil then
        _control_flow_post_processing;
@@ -3770,6 +3952,10 @@ begin
      for var i := 0 to NumOutputs - 1 do
       FOutputs[i] := TFTensor.Create(self, i, OutputType(i));
 
+     FOp := self;
+     GetName;
+     GetType;
+     GetipoOp;
 
       // Dict mapping op name to file and line information for op colocation
       // context managers.
@@ -3877,12 +4063,21 @@ function TFOperation.GetOutput: TFTensor;
 begin
     var lst := TList<TFTensor>.Create(FOutputs);
 
-    Result := lst.FirstOrDefault(nil)
+    Result := nil;
+    if lst.Count > 0 then
+       Result := lst.First
 end;
 
 function TFOperation.GetType: TF_DataType;
 begin
-   Result := Output.dtype;
+   Result := DtInvalid;
+   if Assigned(Output)  then
+      Result := Output.dtype;
+end;
+
+function TFOperation.GetWhileContext: WhileContext;
+begin
+    Result := Fcontrol_flow_context as WhileContext;
 end;
 
 function TFOperation.get_attr(name: string): TValue;
@@ -3990,6 +4185,7 @@ procedure TFOperation.NativeDispose(hnd: Pointer);
 begin
  // No Delete!
 end;
+
 function TFOperation.OutputType(index: Integer): TF_DataType;
 begin
     Result := TF_OperationOutputType(_tf_output(index));
@@ -4036,6 +4232,32 @@ function TFOperation._tf_output(output_idx: Integer): TF_Output;
 begin
      Result :=  TF_Output.Create(Handle, output_idx);
 end;
+
+procedure TFOperation._update_input(index: Integer; tensor: TFTensor);
+begin
+    _assert_same_graph(tensor);
+
+    // var input = _tf_input(index);
+    // var output = tensor._as_tf_output();
+    // Reset cached inputs.
+    Finputs_val := nil;
+    // _node_def = null;
+    // after the c_api call next time _inputs is accessed
+    // the updated inputs are reloaded from the c_api
+    // lock (Locks.ProcessWide)
+    // {
+        // disable
+        // c_api.TF_UpdateEdge(_graph, output, input, tf.Status.Handle);
+        //var updated_inputs = inputs;
+        // tf.Status.Check();
+    // }
+end;
+
+procedure TFOperation._assert_same_graph(tensor: TFTensor);
+begin
+    {TODO -oMAs -cGeneral : Implement}
+end;
+
 {$ENDREGION}
 
 {$REGION 'TFShape'}
@@ -4683,7 +4905,7 @@ end;
 
 function TFGraph.get_name_scope: TF_TString;
 begin
-    Result:= _name_stack;
+    Result:= Fname_stack;
 end;
 
 function TFGraph.name_scope(name: TF_TString): TF_TString;
@@ -4696,7 +4918,7 @@ begin
         new_stack := TOps.name_from_scope_name(string(name))
     else
         new_stack := unique_name(name);
-    _name_stack := new_stack;
+    Fname_stack := new_stack;
     if String.IsNullOrEmpty(string(new_stack)) then Result := ''
     else                                            Result := new_stack + '/';
 end;
@@ -4912,18 +5134,14 @@ begin
                 break;
             end;
         end;
-        var x := TList<ITensorOrOperation>.Create(controller.control_inputs);
-        try
-          var x1 := x.Where(function(const aItem : ITensorOrOperation): Boolean
+        var x := TCollections.CreateList<ITensorOrOperation>(controller.control_inputs);
+
+        var x1 := x.Where(function(const aItem : ITensorOrOperation): Boolean
                                begin
                                     Result := not TArray.Contains<ITensorOrOperation>(input_ops,aItem);
                                end);
-          if not dominated then
-              ret.AddRange(x1);
-        finally
-         // x.Free;
-        end;
-
+        if not dominated then
+           ret.AddRange(x1.ToArray);
     end;
     Result := ret.ToArray;
 end;
@@ -5163,6 +5381,24 @@ begin
     var last_context := Fcontext_stack.Pop;
     graph._set_control_flow_context(last_context);
 end;
+
+function TControlFlowContext.GetWhileContext: WhileContext;
+begin
+    if Fouter_context <> nil then
+      Exit ( Fouter_context.GetWhileContext);
+   Result := nil;
+end;
+
+function TControlFlowContext.IsCondContext: Boolean;
+begin
+   Result := False;
+end;
+
+function TControlFlowContext.IsWhileContext: Boolean;
+begin
+   Result := False;
+end;
+
 {$ENDREGION}
 
 {$REGION 'TControlDependenciesController'}
@@ -5257,15 +5493,97 @@ begin
 end;
 {$ENDREGION}
 
-Initialization
-begin
+{ TNDArray.TEnumerator_NDArray }
 
-end;
-finalization
+constructor TNDArray.TEnumerator_NDArray.Create(source : TNDArray);
 begin
-
+   fSource := source;
+   fIndex := 0;
 end;
+
+function TNDArray.TEnumerator_NDArray.GetCurrent: TNDArray;
+begin
+    Result := fSource[findex];
+end;
+
+function TNDArray.TEnumerator_NDArray.MoveNext: Boolean;
+begin
+   Result := fIndex < fSource.dims[0];
+   if Result then
+    Inc(fIndex);
+end;
+
+{$REGION 'GradLoopState'}
+{ GradLoopState }
+
+constructor GradLoopState.Create(forward_ctxt: WhileContext; outer_grad_state_: GradLoopState);
+begin
+    Fgrad_context := nil;
+    Fswitch_map   := TDictionary<TFOperation, TFTensor>.Create;
+end;
+
+destructor GradLoopState.Destroy;
+begin
+   if Assigned(Fgrad_context) then  Fgrad_context.Free ;
+   if Assigned(Fswitch_map) then  Fswitch_map.Free;
+   if Assigned(Fforward_context) then  Fforward_context.Free;
+   if Assigned(Fouter_grad_state) then  Fouter_grad_state.Free;
+   if Assigned(Fforward_index) then  Fforward_index.Free;
+   if Assigned(Fgrad_index) then  Fgrad_index.Free;
+   Fforward_loop_exits := [];
+   if Assigned(Fdeferred_exits) then  Fdeferred_exits.Free;
+   if Assigned(Funused_exits) then  Funused_exits.Free;
+   if Assigned(Fgrad_sync) then  Fgrad_sync.Free;
+
+   inherited;
+end;
+{$ENDREGION}
+
+{$REGION 'EagerOperation'}
+
+{ EagerOperation }
+
+constructor EagerOperation.Create;
+begin
+    inherited Create(nil);
+end;
+
+function EagerOperation.GetInputList: TInputList;
+begin
+    if Finputs_val = nil  then
+    begin
+        Finputs_val := TInputList.Create(inputs);
+    end;
+    Result := Finputs_val;
+end;
+
+function EagerOperation.GetOutpts: TArray<TensorFlow.DApi.TFTensor>;
+begin
+    if Length(FOutputs) < 1 then
+    begin
+        FOutputs := Outputs;
+    end;
+    Result := FOutputs;
+end;
+
+function EagerOperation.get_attr(attr_name: string): TValue;
+begin
+    // var attrType = c_api.TFE_OpNameGetAttrType(tf.Context.Handle, Name, attr_name, ref isList, tf.Status.Handle);
+    var i : Integer := 0 ;
+    while i < Length(Attrs) do
+    begin
+        if ( Attrs[i].AsString = attr_name ) then
+            Exit( Attrs[i + 1] );
+       Inc(i,2);
+    end;
+    Result := nil;
+end;
+{$ENDREGION}
+
+
 end.
+
+
 
 
 

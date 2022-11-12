@@ -16,8 +16,8 @@ unit Tensorflow.math_ops;
 
 interface
     uses System.SysUtils,
+         System.Generics.Collections,
          Spring,
-         Spring.Collections.Lists,
          Spring.Collections.Enumerable,
          TF4D.Core.CApi,
          TensorFlow.DApi,
@@ -350,7 +350,7 @@ begin
                                                  Result := Result + [ pParam ] ;
                                              end;
                                       Args.SetAttributes(['equation',equation]);
-                                      Result := tf.Context.ExecuteOp('Einsum', name, Args).FirstOrDefault(nil);
+                                      Result := tf.Context.ExecuteOp('Einsum', name, Args).First;
                                   end );
 end;
 
@@ -361,12 +361,12 @@ end;
 
 class function math_ops.erf(x: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Erf', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil)
+    Result := tf.Context.ExecuteOp('Erf', name, ExecuteOpArgs.Create([x])).First
 end;
 
 class function math_ops.floor(x: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Floor', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil)
+    Result := tf.Context.ExecuteOp('Floor', name, ExecuteOpArgs.Create([x])).First
 end;
 
 class function math_ops.floordiv(x, y: TFTensor; name: string): TFTensor;
@@ -401,7 +401,7 @@ begin
                                       {$HINTS OFF}
                                       var num_tensor     := array_ops.constant(num, start.dtype);
                                       var broadcast_shape := array_ops.broadcast_dynamic_shape(array_ops.shape(start), array_ops.shape(stop));
-                                      {$HINTS ON}
+
                                       start               := gen_array_ops.broadcast_to(start, broadcast_shape);
                                       stop                := gen_array_ops.broadcast_to(stop,  broadcast_shape);
                                       var expanded_start := array_ops.expand_dims(start, axis);
@@ -459,7 +459,7 @@ begin
                         var x_tensor := Tops.convert_to_tensor(vX, DtInvalid, 'x');
                         var y_tensor := Tops.convert_to_tensor(vY, Tdtypes.as_base_dtype(x_tensor.dtype), 'y');
 
-                        Result := tf.Context.ExecuteOp('Pow', name, ExecuteOpArgs.Create([x_tensor, y_tensor])).FirstOrDefault(nil)
+                        Result := tf.Context.ExecuteOp('Pow', name, ExecuteOpArgs.Create([x_tensor, y_tensor])).First
                     end );
 end;
 
@@ -701,7 +701,7 @@ end;
 
 class function math_ops.scalar_mul<Tscale, Tx>(scale: Tscale; x: Tx; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Mul', name, ExecuteOpArgs.Create([TValue.From<Tscale>(scale), TValue.From<Tx>(x)])).FirstOrDefault(nil)
+    Result := tf.Context.ExecuteOp('Mul', name, ExecuteOpArgs.Create([TValue.From<Tscale>(scale), TValue.From<Tx>(x)])).First
 end;
 
 class function math_ops.sigmoid<T>(x: T; name: string): TFTensor;
@@ -723,7 +723,7 @@ end;
 
 class function math_ops.sin(x: TFTensor; name: string): TFTensor;
 begin
-   Result := tf.Context.ExecuteOp('Sin', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil)
+   Result := tf.Context.ExecuteOp('Sin', name, ExecuteOpArgs.Create([x])).First
 end;
 
 class function math_ops.sqrt(x: TFTensor; name: string): TFTensor;
@@ -832,7 +832,7 @@ end;
 
 class function math_ops.multiply(x, y: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Mul', name, ExecuteOpArgs.Create([x, y])).FirstOrDefault(nil)
+    Result := tf.Context.ExecuteOp('Mul', name, ExecuteOpArgs.Create([x, y])).First
 end;
 
 class function math_ops.multiply<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
@@ -1045,7 +1045,7 @@ end;
 
 class function math_ops.add_v2(x, y: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('AddV2', name, ExecuteOpArgs.Create([x, y])).FirstOrDefault(nil)
+    Result := tf.Context.ExecuteOp('AddV2', name, ExecuteOpArgs.Create([x, y])).First
 end;
 
 class function math_ops.add_v2<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
@@ -1071,7 +1071,7 @@ begin
                         y := Tops.convert_to_tensor(y, DtInvalid, 'b');
 
                         Result := tf.Context.ExecuteOp('BatchMatMul', name, ExecuteOpArgs.Create([x, y])
-                                         .SetAttributes(['adj_x',adj_x,'adj_y',adj_y])).FirstOrDefault(nil);
+                                         .SetAttributes(['adj_x',adj_x,'adj_y',adj_y])).First;
 
                     end );
 end;
@@ -1091,7 +1091,7 @@ begin
                         var i := TArray<Int64>.Create();
                         var weights := constant_op.constant( TValue.From< TArray<Int64> >(i), dtype, 'Const' );
 
-                        Result := tf.Context.ExecuteOp('Bincount', name, ExecuteOpArgs.Create([arr, output_size, weights])).FirstOrDefault(nil);
+                        Result := tf.Context.ExecuteOp('Bincount', name, ExecuteOpArgs.Create([arr, output_size, weights])).First;
 
                     end );
 end;
@@ -1170,7 +1170,7 @@ end;
 
 class function math_ops.cos(x: TFTensor; name: string): TFTensor;
 begin
-   Result := tf.Context.ExecuteOp('Cos', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil)
+   Result := tf.Context.ExecuteOp('Cos', name, ExecuteOpArgs.Create([x])).First
 end;
 
 class function math_ops.cumsum<T>(x: TFTensor; axis: T; exclusive, reverse: Boolean; name: string): TFTensor;
@@ -1182,7 +1182,7 @@ begin
                         begin
                             name := string(v1.ToString);
                             Result := tf.Context.ExecuteOp('Cumsum', name, ExecuteOpArgs.Create([x, TValue.From<T>(axis)])
-                                         .SetAttributes(['exclusive',exclusive,'reverse',reverse])).FirstOrDefault(nil);
+                                         .SetAttributes(['exclusive',exclusive,'reverse',reverse])).First;
                         end );
 end;
 

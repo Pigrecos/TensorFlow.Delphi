@@ -18,11 +18,11 @@ unit TensorFlow.OpDefLibrary;
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
 interface
-    uses   System.SysUtils, System.Generics.Collections,System.Rtti, System.TypInfo,
-           Spring.Collections.Dictionaries,
+    uses   System.SysUtils,
+           System.Generics.Collections,
+           System.Rtti,
+           System.TypInfo,
 
-           Spring.Collections.Stacks,
-           spring.Collections.Enumerable,
            Spring,
 
            TF4D.Core.CApi,

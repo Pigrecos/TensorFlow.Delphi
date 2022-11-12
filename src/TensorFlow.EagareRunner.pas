@@ -18,24 +18,24 @@ unit TensorFlow.EagareRunner;
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
 interface
-     uses System.SysUtils, System.Rtti,  System.TypInfo, Winapi.Windows,
+     uses System.SysUtils,
+          System.Rtti,
+          System.TypInfo,
+          Winapi.Windows,
 
-       System.Generics.Collections,
-       Spring.Collections.Dictionaries,
-       Spring.Collections.Lists,
-       Spring.Collections.Extensions,
-       Spring.Collections.Enumerable,
-       Spring.Collections.Stacks,
-       Spring,
-       Quick.Logger.Provider.Files,
-       TensorFlow.Context,
-       TF4D.Core.CApi,
-       TensorFlow.DApiBase,
-       TensorFlow.DApi,
-       TensorFlow.DApiEager,
-       Tensorflow.Gradient,
+          System.Generics.Collections,
 
-       ProtoGen.OpDef;
+          Spring,
+          Spring.Collections.Enumerable,
+
+          TensorFlow.Context,
+          TF4D.Core.CApi,
+          TensorFlow.DApiBase,
+          TensorFlow.DApi,
+          TensorFlow.DApiEager,
+          Tensorflow.Gradient,
+
+          ProtoGen.OpDef;
 
 type
 

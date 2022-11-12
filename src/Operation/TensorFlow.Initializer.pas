@@ -35,16 +35,15 @@ type
        constructor Create(_shape: TFShape; _dtype: TF_DataType = DtInvalid; _verify_shape: Boolean = false; _name: string = '');
   end;
 
-  IInitializer = interface
-    ['{3A2E973B-FC81-4836-B87B-22F5E41952BB}']
+  IInitializer = class abstract
 
-     function Apply(args: InitializerArgs): TFTensor;
+     function Apply(args: InitializerArgs): TFTensor; virtual;  abstract;
   end;
 
   /// <summary>
   /// Initializer capable of adapting its scale to the shape of weights tensors.
   /// </summary>
-  VarianceScaling = class (TInterfacedObject, IInitializer)
+  VarianceScaling = class (IInitializer)
      private
         {$HINTS OFF}
         Fscale       : Single;
@@ -58,7 +57,7 @@ type
         function _compute_fans(shape: TArray<Integer>): TUple<Integer, Integer>;
      public
         constructor Create(factor: Single = 2.0; mode: string = 'FAN_IN'; uniform : Boolean= false; seed: pInteger = nil; dtype: TF_DataType = TF_FLOAT) ;
-        function Apply(args: InitializerArgs): TFTensor;
+        function Apply(args: InitializerArgs): TFTensor; override;
   end;
 
   GlorotUniform = class(VarianceScaling)
@@ -68,26 +67,26 @@ type
         constructor Create(scale: Single = 1.0; mode: string = 'FAN_AVG'; uniform : Boolean= True; seed: pInteger = nil; dtype: TF_DataType = TF_FLOAT) ;
   end;
 
-  Zeros = class (TInterfacedObject, IInitializer)
+  Zeros = class (IInitializer)
      private
         FShape       : TFShape;
         Fdtype       : TF_DataType;
 
      public
         constructor Create(shape: PTFShape = nil; dtype: TF_DataType = TF_FLOAT) ;
-        function Apply(args: InitializerArgs): TFTensor;
+        function Apply(args: InitializerArgs): TFTensor; override;
   end;
 
-  Ones = class (TInterfacedObject, IInitializer)
+  Ones = class (IInitializer)
      private
         Fdtype       : TF_DataType;
 
      public
         constructor Create(dtype: TF_DataType = DtInvalid) ;
-        function Apply(args: InitializerArgs): TFTensor;
+        function Apply(args: InitializerArgs): TFTensor; override;
   end;
 
-  RandomUniform = class (TInterfacedObject, IInitializer)
+  RandomUniform = class (IInitializer)
      private
         Fseed        : pInteger;
         FMinVal      : Single;
@@ -96,17 +95,17 @@ type
 
      public
         constructor Create(dtype: TF_DataType = TF_FLOAT; minval: Single = -0.05; maxval: Single = 0.05; seed : PInteger= nil) ;
-        function Apply(args: InitializerArgs): TFTensor;
+        function Apply(args: InitializerArgs): TFTensor;override;
   end;
 
-  Orthogonal = class (TInterfacedObject, IInitializer)
+  Orthogonal = class (IInitializer)
      private
 
      public
-        function Apply(args: InitializerArgs): TFTensor;
+        function Apply(args: InitializerArgs): TFTensor; override;
   end;
 
-  Constant<T> = class (TInterfacedObject, IInitializer)
+  Constant<T> = class (IInitializer)
      private
         Fdtype       : TF_DataType;
         FValue       : T;
@@ -114,7 +113,7 @@ type
 
      public
         constructor Create(value :T ; dtype: TF_DataType = TF_FLOAT; verify_shape: Boolean = false) ;
-        function Apply(args: InitializerArgs): TFTensor;
+        function Apply(args: InitializerArgs): TFTensor;override;
   end;
 
 implementation

@@ -104,7 +104,7 @@ end;
 class function gen_state_ops.assign<T>(ref: T; value: TValue; validate_shape, use_locking: Boolean; name: string): TFTensor;
 begin
      Result := tf.Context.ExecuteOp('Assign', name, ExecuteOpArgs.Create([TValue.From<T>(ref),value])
-                            .SetAttributes(['validate_shape', validate_shape,'use_locking',use_locking ])).FirstOrDefault(nil);
+                            .SetAttributes(['validate_shape', validate_shape,'use_locking',use_locking ])).First;
 end;
 
 class function gen_state_ops.assign_add<T>(ref: IVariableV1; value: T; use_locking: Boolean; name: string): TFTensor;

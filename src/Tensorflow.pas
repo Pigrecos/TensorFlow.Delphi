@@ -16,14 +16,10 @@ unit Tensorflow;
 
 interface
   uses System.SysUtils, System.Rtti,  System.TypInfo,
-       quick.Logger,
+
        System.Generics.Collections,
-       Spring.Collections.Dictionaries,
-       Spring.Collections.Extensions,
-       Spring.Collections.Stacks,
-       Spring.Collections.Lists,
        Spring,
-       Quick.Logger.Provider.Files,
+
 
        TF4D.Core.CApi,
        TensorFlow.DApiBase,
@@ -38,6 +34,7 @@ interface
        TensorFlow.Variable,
        TensorFlow.Tensors.Ragged,
        TensorFlow.Initializer,
+       TensorFlow.Training,
        TensorFlow.bitwise_ops,
        Numpy,
        Numpy.Axis,
@@ -359,6 +356,20 @@ nn_internal = class
 end;
 {$ENDREGION}
 
+{$REGION 'train_internal'}
+train_internal = class
+   private
+
+   public
+     function GradientDescentOptimizer(learning_rate: Single): Optimizer; overload;
+     function GradientDescentOptimizer(learning_rate: TFTensor): Optimizer; overload;
+     function AdamOptimizer(learning_rate: Single; epsilon: Single = 1e-8; name: string = 'Adam'): Optimizer; overload;
+     function AdamOptimizer(learning_rate: Single; dtype: TF_DataType ;    name: string = 'Adam'): Optimizer; overload;
+     function AdamOptimizer(learning_rate: IVariableV1;                    name: string = 'Adam'): Optimizer; overload;
+     function AdamOptimizer(learning_rate: TFTensor;                       name: string = 'Adam'): Optimizer; overload;
+end;
+{$ENDREGION}
+
 {$REGION 'TTensorflow'}
   TTensorflow = class(TFDisposable)
     private
@@ -398,6 +409,7 @@ end;
       math   : MathApi;
       nn     : nn_internal;
       bitwise: bitwise_ops;
+      train  : train_internal;
       // Inizializer
       glorot_uniform_initializer : IInitializer;
       zeros_initializer          : IInitializer;
@@ -1013,12 +1025,15 @@ begin
     compat    := CompatApi.Create;
     strings   := StringsApi.Create;
     GraphKeys := TGraphKeys.Create;
+    // Get gradient Function
+    TOps.RegisterFromAssembly;
     //
     random    := TRandom.Create;
     numpy     := NumPyImpl.Create;
     math      := MathApi.Create;
     nn        := nn_internal.Create;
     bitwise   := bitwise_ops.Create;
+    train     := train_internal.Create;
     //
     glorot_uniform_initializer := GlorotUniform.Create;
     zeros_initializer          := TensorFlow.Initializer.Zeros.Create;
@@ -1026,7 +1041,7 @@ begin
     random_uniform_initializer := RandomUniform.Create;
     orthogonal_initializer     := Orthogonal.Create;
 
-    Logger.Providers.Add(GlobalLogFileProvider);
+    (*Logger.Providers.Add(GlobalLogFileProvider);
     with GlobalLogFileProvider do
     begin
       FileName := '.\Logs.log';
@@ -1037,7 +1052,7 @@ begin
       RotatedFilesPath := '.\RotatedLogs';
       CompressRotatedFiles := False;
       Enabled := True;
-    end;
+    end; *)
 end;
 
 destructor TTensorflow.Destroy;
@@ -1057,7 +1072,9 @@ begin
   math.Free;
   nn.Free;
   bitwise.Free;
-
+  train.Free;
+  //
+  if Assigned(gradientFunctions) then  gradientFunctions.Free;
 end;
 
 function TTensorflow.convert_to_tensor(value: TValue; dtype: TF_DataType; name: string; preferred_dtype: TF_DataType): TFTensor;
@@ -1788,7 +1805,6 @@ function CompatV1Api.get_variable(name: string; shape: PTFShape; dtype: TF_DataT
 begin
     var scope := variable_scope.get_variable_scope();
     var store := variable_scope._get_default_variable_store();
-
     Result := scope.get_variable(store, name, shape, dtype, initializer, trainable, collections, use_resource, validate_shape);
 end;
 
@@ -1925,7 +1941,7 @@ begin
     var keep: TFTensor := nil;
     if keep_prob <> nil then
         keep := 1.0 - TTensor(keep_prob);
-    var rate_tensor : TFTensor := nil;
+    var rate_tensor : TFTensor ;
     if rate <> nil  then rate_tensor := tf.constant(rate^,'')
     else                 rate_tensor := keep;
     Result := nn_ops.dropout_v2(x, rate_tensor, noise_shape, seed,  name);
@@ -1946,6 +1962,38 @@ begin
     Result := gen_nn_ops.tanh(x, name);
 end;
 
+{ train_internal }
+
+function train_internal.AdamOptimizer(learning_rate: IVariableV1; name: string): Optimizer;
+begin
+    Result := TensorFlow.Training.AdamOptimizer.Create(learning_rate.AsTensor, 0.9, 0.999, 1e-8, False, TF_FLOAT,name);
+end;
+
+function train_internal.AdamOptimizer(learning_rate: Single; dtype: TF_DataType; name: string): Optimizer;
+begin
+    Result := TensorFlow.Training.AdamOptimizer.Create(learning_rate, 0.9, 0.999, 1e-8, False, dtype,name);
+end;
+
+function train_internal.AdamOptimizer(learning_rate, epsilon: Single; name: string): Optimizer;
+begin
+    Result := TensorFlow.Training.AdamOptimizer.Create(learning_rate, 0.9, 0.999, epsilon, False, TF_FLOAT,name);
+end;
+
+function train_internal.AdamOptimizer(learning_rate: TFTensor; name: string): Optimizer;
+begin
+    Result := TensorFlow.Training.AdamOptimizer.Create(learning_rate, 0.9, 0.999, 1e-8, False, TF_FLOAT,name);
+end;
+
+function train_internal.GradientDescentOptimizer(learning_rate: TFTensor): Optimizer;
+begin
+   Result := TensorFlow.Training.GradientDescentOptimizer.Create(learning_rate);
+end;
+
+function train_internal.GradientDescentOptimizer(learning_rate: Single): Optimizer;
+begin
+    Result := TensorFlow.Training.GradientDescentOptimizer.Create(learning_rate);
+end;
+
 initialization
 begin
     tf := TTensorflow.Create;
@@ -1957,6 +2005,8 @@ begin
 end;
 
 end.
+
+
 
 
 

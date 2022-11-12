@@ -15,8 +15,10 @@ unit TensorFlow.gen_ops;
 interface
     uses System.SysUtils,
          System.Math,
+         System.Generics.Collections,
+
          Spring,
-         Spring.Collections.Dictionaries,
+
          TF4D.Core.CApi,
          TensorFlow.DApi,
          TensorFlow.DApiBase,

@@ -15,9 +15,13 @@ unit TensorFlow.Constant_op;
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
 interface
-     uses System.SysUtils, System.Rtti,  System.TypInfo,
+     uses System.SysUtils,
+          System.Rtti,
+          System.TypInfo,
+          System.Generics.Collections,
+
           Spring,
-          Spring.Collections.Dictionaries,
+
           TF4D.Core.CApi,
           TensorFlow.DApi,
           TensorFlow.Context,
@@ -72,7 +76,8 @@ end;
 
 class function constant_op.constant(value: TValue; dtype: TF_DataType; shape: PTFShape; verify_shape, allow_broadcast: Boolean; name: AnsiString): TFTensor;
 begin
-    if value.IsEmpty then
+    { TODO -oMax -c : verificare 06/11/2022 14:15:17 }
+    if value.typeInfo = nil then
         Exit(nil);
 
     if tf.executing_eagerly then

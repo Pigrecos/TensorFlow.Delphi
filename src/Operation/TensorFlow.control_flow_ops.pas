@@ -19,16 +19,16 @@ unit TensorFlow.control_flow_ops;
 
 interface
    uses  System.SysUtils,
+         System.Generics.Collections,
+
          Spring,
          Spring.Collections.Enumerable,
-         Spring.Collections.Dictionaries,
-         Spring.Collections.Lists,
 
          TensorFlow.DApiBase,
          TF4D.Core.CApi,
          TensorFlow.DApi,
          Numpy.Axis,
-
+         TensorFlow.ControlFlowState,
          TensorFlow.Context ;
 
 type
@@ -62,6 +62,24 @@ type
        /// <returns></returns>
        class function no_op(name : string= ''): TFOperation; static;
        class function _Identity(data: TFTensor;  name : string = ''): TFTensor; static;
+       class function ZerosLikeOutsideLoop(op: TFOperation; index: Integer): TFTensor ; static;
+       /// <summary>
+       /// Forwards `data` to an output determined by `pred`.
+       /// </summary>
+       /// <param name="data"></param>
+       /// <param name="pred"></param>
+       /// <param name="dtype"></param>
+       /// <param name="name"></param>
+       class function switch(data: TFTensor; pred: TFTensor; dtype : TF_DataType = DtInvalid; name: string = ''): TArray<TFTensor>; static;
+       /// <summary>
+       /// Create the state for all the while loops involved in one gradients().
+       /// </summary>
+       /// <param name="between_op_list"></param>
+       /// <param name="between_ops"></param>
+       /// <param name="colocate_gradients_with_ops"></param>
+       class function MaybeCreateControlFlowState(between_op_list: TList<TFOperation>; between_ops: TList<TFOperation>; colocate_gradients_with_ops: Boolean) : ControlFlowState;Static;
+       class function IsLoopExit(op: TFOperation): Boolean; static;
+       class function  _NextIteration(data: TFTensor; name: string = ''): TFTensor; static;
   end;
 
 implementation
@@ -70,7 +88,9 @@ implementation
            TensorFlow.Ops,
            Tensorflow.NameScope,
            Tensorflow.gen_array_ops,
-           TensorFlow.gen_control_flow_ops ;
+           Tensorflow.array_ops,
+           TensorFlow.gen_control_flow_ops,
+           TensorFlow.control_flow_util ;
 
 { control_flow_ops }
 
@@ -84,7 +104,7 @@ begin
                       name := v1.ToString;
 
                       // Sorts *inputs according to their devices.
-                      var ops_on_device := TDictionary<string, TList<T>>.Create;
+                      var ops_on_device := TDictionary< string, TList<T> >.Create;
                       for var inp in inputs do
                       begin
                           if ops_on_device.ContainsKey(inp.Device) then
@@ -95,8 +115,8 @@ begin
                       // 1-level tree. The root node is the returned NoOp node.
                       if ops_on_device.Count = 1 then
                       begin
-                          var dev  := ops_on_device.Keys.First;
-                          var deps := ops_on_device.Values.First;
+                          var dev  := ops_on_device.Keys.ToArray[0];
+                          var deps := ops_on_device.Values.ToArray[0];
                           var aOp : TArray<TFOperation> := [];
                           for var i := 0 to deps.Count - 1 do
                              aOp := aOp + [ deps[i].op ];
@@ -111,9 +131,51 @@ begin
 
 end;
 
+class function control_flow_ops.IsLoopExit(op: TFOperation): Boolean;
+begin
+    Result := (op.tipo = 'Exit') or (op.Tipo = 'RefExit');
+end;
+
+class function control_flow_ops.MaybeCreateControlFlowState(between_op_list, between_ops: TList<TFOperation>; colocate_gradients_with_ops: Boolean): ControlFlowState;
+begin
+    var loop_state : ControlFlowState := nil;
+    var pos : Integer := 0;
+    while pos < between_op_list.Count do
+    begin
+        var op := between_op_list[pos];
+        if IsLoopExit(op) then
+        begin
+            if loop_state = nil then
+            begin
+                loop_state := ControlFlowState.Create;
+            end;
+            if colocate_gradients_with_ops then
+                Tops.colocate_with(op);
+            loop_state.AddWhileContext(op, between_op_list, between_ops);
+        end;
+        Inc(pos);
+    end;
+    Result := loop_state;
+end;
+
 class function control_flow_ops.no_op(name: string): TFOperation;
 begin
     Result := gen_control_flow_ops.no_op(name)
+end;
+
+class function control_flow_ops.switch(data, pred: TFTensor; dtype: TF_DataType; name: string): TArray<TFTensor>;
+begin
+    var vInputs := TValue.From< TArray<TFTensor> >([data, pred]) ;
+
+    Result := TUtils.tf_with<TNameScope,TArray<TFTensor>>( TOps.name_scope(name, 'Switch', @vInputs),
+                function(v1: TNameScope): TArray<TFTensor>
+                  begin
+                      name := v1.ToString;
+                      data := Tops.internal_convert_to_tensor_or_indexed_slices(data, dtype, 'data', true);
+
+                      pred := Tops.convert_to_tensor(pred, DtInvalid, 'pred');
+                      Result := gen_control_flow_ops.switch(data, pred, name);
+                  end );
 end;
 
 class function control_flow_ops.tuple(tensors: TArray<TFTensor>; name: string; control_inputs: TArray<TFOperation>): TArray<TFTensor>;
@@ -189,6 +251,42 @@ begin
                   end );
 end;
 
+class function control_flow_ops.ZerosLikeOutsideLoop(op: TFOperation; index: Integer): TFTensor;
+begin
+    var val := op.outputs[index];
+    if not control_flow_util.IsSwitch(op) then
+    begin
+        if val.dtype = TF_DataType.TF_RESOURCE then
+           raise TFException.Create('Not Implemented - ("ZerosLikeOutsideLoop")');
+        Result := array_ops.zeros_like(val, DtInvalid,'', false);
+    end else
+    begin
+        var op_ctxt := op._get_control_flow_context;
+        if op_ctxt <> nil then
+        begin
+            // We are in a cond context. Use a switch to create zeros only when needed.
+            var pred   := op_ctxt.pred;
+            var branch := op_ctxt.branch;
+            var switch_val := switch(op.inputs[0], pred)[1 - branch];
+            var pivot      := array_ops.identity(switch_val);
+            if val.dtype = TDtypes.cresource then
+               raise TFException.Create('Not Implemented');
+            var zeros_shape := array_ops.shape_internal(switch_val,'', false);
+            // Ensure ops created within array_ops.zeros are dominated by switch in
+            // cond context.
+            var aValue : TArray<TValue> := [pivot];
+            Result := TUtils.tf_with<TControlDependenciesController,TFTensor>( Tops.control_dependencies(aValue),
+                          function(v1: TControlDependenciesController): TFTensor
+                            begin
+                                Result := array_ops.zeros(zeros_shape, val.dtype);
+                            end );
+        end else
+        begin
+            Result := array_ops.zeros_like(val, DtInvalid,'', false);
+        end;
+    end;
+end;
+
 class function control_flow_ops._GroupControlDeps(dev: string; deps: TArray<TFOperation>; name: string): TFOperation;
 begin
    var aValue : TArray<TValue> := [];
@@ -212,6 +310,14 @@ begin
        raise TFException.Create('Not Implemented "_Identity"')
     else
         Result := gen_array_ops.identity(data, name);
+end;
+
+class function control_flow_ops._NextIteration(data: TFTensor; name: string): TFTensor;
+begin
+    data := Tops.internal_convert_to_tensor_or_indexed_slices(data, DtInvalid, '', true);
+
+    if TDTypes.is_ref_dtype(data.dtype) then  Result := gen_control_flow_ops.ref_next_iteration(data, name)
+    else                                      Result := gen_control_flow_ops.next_iteration(data, name);
 end;
 
 end.

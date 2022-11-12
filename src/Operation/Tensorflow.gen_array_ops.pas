@@ -202,24 +202,24 @@ end;
 class function gen_array_ops.expand_dims(input: TFTensor; axis: integer; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('ExpandDims', name, ExecuteOpArgs.Create([ input, axis ])
-                                                 .SetAttributes(['axis', TValue.From<Integer>(axis) ]) ).FirstOrDefault(nil);
+                                                 .SetAttributes(['axis', TValue.From<Integer>(axis) ]) ).First;
 end;
 
 class function gen_array_ops.fill<T>(dims: TFTensor; value: T; name: string): TFTensor;
 begin
     var v := TValue.From<T>(value);
-    Result := tf.Context.ExecuteOp('Fill', name, ExecuteOpArgs.Create([dims, v])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Fill', name, ExecuteOpArgs.Create([dims, v])).First;
 end;
 
 class function gen_array_ops.gather_v2<T1, T2>(params: T1; indices: T2; axis, batch_dims: Integer; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('GatherV2', name, ExecuteOpArgs.Create([ TValue.From<T1>(params), TValue.From<T2>(indices), axis ])
-                                                      .SetAttributes(['batch_dims', batch_dims ]) ).FirstOrDefault(nil);
+                                                      .SetAttributes(['batch_dims', batch_dims ]) ).First;
 end;
 
 class function gen_array_ops.identity(input: TFTensor; name: string): TFTensor;
 begin
-   Result := tf.Context.ExecuteOp('Identity', name, ExecuteOpArgs.Create([input])).FirstOrDefault(nil);
+   Result := tf.Context.ExecuteOp('Identity', name, ExecuteOpArgs.Create([input])).First;
 end;
 
 class function gen_array_ops.invert_permutation(x: TFTensor; name: string): TFTensor;
@@ -230,24 +230,24 @@ end;
 
 class function gen_array_ops.log(x: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Log', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Log', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_array_ops.ones_like(x: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('OnesLike', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('OnesLike', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_array_ops.one_hot(indices, depth, on_value, off_value: TFTensor; dtype: TF_DataType; axis: Integer; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('OneHot', name, ExecuteOpArgs.Create([indices, depth, on_value, off_value])
-                                          .SetAttributes(['axis', axis ]) ).FirstOrDefault(nil);
+                                          .SetAttributes(['axis', axis ]) ).First;
 end;
 
 class function gen_array_ops.pack(values: TArray<TFTensor>; axis: Integer; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('Pack', name, ExecuteOpArgs.Create([ TValue.From< TArray<TFTensor> >(values) ])
-                                                 .SetAttributes(['axis', TValue.From<Integer>(axis) ]) ).FirstOrDefault(nil);
+                                                 .SetAttributes(['axis', TValue.From<Integer>(axis) ]) ).First;
 end;
 
 class function gen_array_ops.pad(input, paddings: TFTensor; name: string): TFTensor;
@@ -297,17 +297,17 @@ end;
 
 class function gen_array_ops.rank(input: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Rank', name, ExecuteOpArgs.Create([input])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Rank', name, ExecuteOpArgs.Create([input])).First;
 end;
 
 class function gen_array_ops.reshape(tensor: TFTensor; shape: TArray<TValue>; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Reshape', name, ExecuteOpArgs.Create([tensor, TValue.From< TArray<TValue> >(shape)]) ).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Reshape', name, ExecuteOpArgs.Create([tensor, TValue.From< TArray<TValue> >(shape)]) ).First;
 end;
 
 class function gen_array_ops.reshape<T>(tensor: TFTensor; shape: T; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Reshape', name, ExecuteOpArgs.Create([tensor, TValue.From<T>(shape)])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Reshape', name, ExecuteOpArgs.Create([tensor, TValue.From<T>(shape)])).First;
 end;
 
 class function gen_array_ops.resource_strided_slice_assign(input, tBegin, tEnd, tStrides, tVvalue: TFTensor; begin_mask: Integer; end_mask: Integer; ellipsis_mask: Integer;new_axis_mask: Integer; shrink_axis_mask: Integer; name: string): TFTensor;
@@ -317,7 +317,7 @@ begin
                                                                  'end_mask',        end_mask,
                                                                  'ellipsis_mask',   ellipsis_mask,
                                                                  'new_axis_mask',   new_axis_mask,
-                                                                 'shrink_axis_mask',shrink_axis_mask ]) ).FirstOrDefault(nil);
+                                                                 'shrink_axis_mask',shrink_axis_mask ]) ).First;
 end;
 
 class function gen_array_ops.reverse<T>(tensor: TFTensor; axis: T; name: string): TFTensor;
@@ -328,7 +328,7 @@ end;
 
 class function gen_array_ops.shape(input: TFTensor; out_type: TF_DataType; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Shape', name, ExecuteOpArgs.Create([ input ]).SetAttributes(['out_type', out_type ]) ).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Shape', name, ExecuteOpArgs.Create([ input ]).SetAttributes(['out_type', out_type ]) ).First;
 end;
 
 class function gen_array_ops.shape_n(input: TArray<TFTensor>; out_type: TF_DataType; name: string): TArray<TFTensor>;
@@ -397,7 +397,7 @@ end;
 
 class function gen_array_ops.squeeze(input: TFTensor; axis: TArray<Integer>; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Squeeze', name, ExecuteOpArgs.Create([ input ]).SetAttributes([ 'squeeze_dims',TValue.From< TArray<Integer> >(axis) ] ) ).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Squeeze', name, ExecuteOpArgs.Create([ input ]).SetAttributes([ 'squeeze_dims',TValue.From< TArray<Integer> >(axis) ] ) ).First;
 end;
 
 class function gen_array_ops.stop_gradient(x: TFTensor; name: string): TFTensor;
@@ -414,7 +414,7 @@ begin
                                                                  'end_mask',        end_mask,
                                                                  'ellipsis_mask',   ellipsis_mask,
                                                                  'new_axis_mask',   new_axis_mask,
-                                                                 'shrink_axis_mask',shrink_axis_mask]) ).FirstOrDefault(nil);
+                                                                 'shrink_axis_mask',shrink_axis_mask]) ).First;
 end;
 
 class function gen_array_ops.strided_slice<T>(input: TFTensor; tBegin, tEnd, strides: TArray<T>; begin_mask, end_mask, ellipsis_mask, new_axis_mask, shrink_axis_mask: Integer;
@@ -435,17 +435,17 @@ end;
 
 class function gen_array_ops.tile(input, multiples: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Tile', name, ExecuteOpArgs.Create([input, multiples])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Tile', name, ExecuteOpArgs.Create([input, multiples])).First;
 end;
 
 class function gen_array_ops.tile(input: TFTensor; multiples: TArray<TValue>; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Tile', name, ExecuteOpArgs.Create([ input, TValue.From< TArray<TValue> >(multiples) ])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Tile', name, ExecuteOpArgs.Create([ input, TValue.From< TArray<TValue> >(multiples) ])).First;
 end;
 
 class function gen_array_ops.transpose<T1>(x: TFTensor; perm: T1; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Transpose', name, ExecuteOpArgs.Create([x, TValue.From<T1>(perm)])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Transpose', name, ExecuteOpArgs.Create([x, TValue.From<T1>(perm)])).First;
 end;
 
 class function gen_array_ops.unique(x: TFTensor; out_idx: TF_DataType; name: string): Tuple<TFTensor, TFTensor>;
@@ -476,22 +476,22 @@ end;
 
 class function gen_array_ops.zeros_like(x: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('ZerosLike', name, ExecuteOpArgs.Create([x])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('ZerosLike', name, ExecuteOpArgs.Create([x])).First;
 end;
 
 class function gen_array_ops.select<Tx, Ty>(condition: TFTensor; x: Tx; y: Ty; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Select', name, ExecuteOpArgs.Create([ condition, TValue.From<Tx>(x), TValue.From<Ty>(y) ]) ).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Select', name, ExecuteOpArgs.Create([ condition, TValue.From<Tx>(x), TValue.From<Ty>(y) ]) ).First;
 end;
 
 class function gen_array_ops.select_v2<Tx, Ty>(condition: TFTensor; x: Tx; y: Ty; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('SelectV2', name, ExecuteOpArgs.Create([ condition, TValue.From<Tx>(x), TValue.From<Ty>(y) ]) ).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('SelectV2', name, ExecuteOpArgs.Create([ condition, TValue.From<Tx>(x), TValue.From<Ty>(y) ]) ).First;
 end;
 
 class function gen_array_ops.broadcast_args(s0, s1: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('BroadcastArgs', name, ExecuteOpArgs.Create([s0, s1])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('BroadcastArgs', name, ExecuteOpArgs.Create([s0, s1])).First;
 end;
 
 class function gen_array_ops.broadcast_gradient_args(s0, s1: TFTensor; name: string): Tuple<TFTensor, TFTensor>;
@@ -502,7 +502,7 @@ end;
 
 class function gen_array_ops.broadcast_to<T>(input: TFTensor; shape: T; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('BroadcastTo', name, ExecuteOpArgs.Create([input, TValue.From<T>(shape)])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('BroadcastTo', name, ExecuteOpArgs.Create([input, TValue.From<T>(shape)])).First;
 end;
 
 class function gen_array_ops.check_numerics(tensor: TFTensor; _message, name: string): TFTensor;
@@ -519,7 +519,7 @@ end;
 
 class function gen_array_ops.concat_v2<T, Ta>(values: TArray<T>; axis: Ta; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('ConcatV2', name, ExecuteOpArgs.Create([ TValue.From< TArray<T> >(values), TValue.From<Ta>(axis)])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('ConcatV2', name, ExecuteOpArgs.Create([ TValue.From< TArray<T> >(values), TValue.From<Ta>(axis)])).First;
 end;
 
 class function gen_array_ops.concat_v2(values: TArray<TFTensor>; axis: TFTensor; name: string): TFTensor;
@@ -529,12 +529,12 @@ begin
         Result := concat_v2_eager_fallback<TFTensor,TFTensor>(values, axis, name, tf.Context);
         Exit;
     end;
-    Result := tf.Context.ExecuteOp('ConcatV2', name, ExecuteOpArgs.Create([values, axis])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('ConcatV2', name, ExecuteOpArgs.Create([values, axis])).First;
 end;
 
 class function gen_array_ops.concat_v2(values: TArray<TFTensor>; axis: Integer; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('ConcatV2', name, ExecuteOpArgs.Create([ TValue.From< TArray<TFTensor> >(values), axis])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('ConcatV2', name, ExecuteOpArgs.Create([ TValue.From< TArray<TFTensor> >(values), axis])).First;
 end;
 
 class function gen_array_ops.concat_v2_eager_fallback<T1, T2>(values: TArray<T1>; axis: T2; name: string; ctx: TContext): TFTensor;
@@ -560,7 +560,7 @@ end;
 
 class function gen_array_ops.diag(diagonal: TFTensor; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('Diag', name, ExecuteOpArgs.Create([diagonal])).FirstOrDefault(nil);
+    Result := tf.Context.ExecuteOp('Diag', name, ExecuteOpArgs.Create([diagonal])).First;
 end;
 
 end.

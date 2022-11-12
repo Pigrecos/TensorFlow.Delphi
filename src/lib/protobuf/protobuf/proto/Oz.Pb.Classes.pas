@@ -21,6 +21,8 @@ uses
   System.Classes, System.SysUtils, System.Math, System.Rtti, System.TypInfo,
   Oz.Pb.StrBuffer, Oz.SGL.Heap, Oz.SGL.Collections;
 {$T+}
+{$HINTS OFF}
+
 const
   TAG_TYPE_BITS = 3;
   TAG_TYPE_MASK = (1 shl TAG_TYPE_BITS) - 1;
