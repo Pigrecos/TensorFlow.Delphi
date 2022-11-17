@@ -18,6 +18,7 @@ interface
        uses System.SysUtils,
             System.Generics.Defaults,
             System.Generics.Collections,
+            System.TypInfo,
 
             Spring,
             Spring.Collections.Enumerable,
@@ -205,7 +206,7 @@ end;
 
 function DeviceDType.ToString: string;
 begin
-    Result := Device +', '+ TEnum.GetName<TF_DataType>(DType);
+    Result := Device +', '+ Tdtypes.ToString(DType);
 end;
 
 { OptimizerV2 }
@@ -330,6 +331,7 @@ begin
     begin
         var dt := DeviceDType.Create ;
         dt.Device := var_list[i].Device;
+        var n := var_list[i].name;
         dt.DType  := TDtypes.as_base_dtype(var_list[i].dtype);
         aDev := aDev + [ dt ] ;
     end;

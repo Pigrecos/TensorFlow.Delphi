@@ -512,21 +512,24 @@ begin
         var loss := TTensor(s) / (2 * n_samples);
         // should stop recording
         // Compute gradients.
-        var t := Tuple<ResourceVariable, ResourceVariable>.Create(W, b);
-        var gradients : Tuple<TFTensor,TFTensor> := g.gradient(loss, t);
-
+        var gradients : Tuple<TFTensor,TFTensor> := g.gradient(loss, Tuple<ResourceVariable, ResourceVariable>.Create(W, b));
         // Update W and b following gradients.
-        //var n := ResourceVariable(W).name;
         optimizer.apply_gradients(TUtils.zip<TFTensor,ResourceVariable>(gradients, Tuple<ResourceVariable,ResourceVariable>.Create(W, b)));
 
         if step mod display_step = 0 then
         begin
             pred := W * train_X + b;
             loss := TTensor( tf.reduce_sum(tf.pow(pred - train_Y, 2)) ) / (2 * n_samples);
-            Format('step: %d, loss: %.9f, W: %.9f, b: %.9f',[step, Single(loss.numpy),  W.numpy,  b.numpy]);
+
+            var fc : NDArray := loss.numpy;
+            var fW : NDArray := W.numpy;
+            var fb : NDArray := b.numpy;
+            mmo1.Lines.Add('');
+            mmo1.Lines.Add( Format('step: %d, loss: %.9f, W: %.9f, b: %.9f',[step, Single(fc),  Single(fW), Single(fb)]) );
 
         end;
     end;
+    mmo1.Lines.Add('');
 end;
 
 end.

@@ -99,6 +99,7 @@ type
        class function is_ref_dtype(tipo: TF_DataType ): Boolean; static;
        class function min(tipo: TF_DataType ): Int64; static;
        class function max(tipo: TF_DataType ): Int64; static;
+       class function ToString(tipo: TF_DataType): string; static ;
 
        /// <summary>
        ///
@@ -211,6 +212,60 @@ begin
     Result := [];
     for var i:= 0 to Length(value)-1 do
        Result := Result + [Ord(value[i]) ] ;
+end;
+
+class function Tdtypes.ToString(tipo: TF_DataType): string;
+begin
+    case tipo of
+      DtInvalid    :  Result := 'DtInvalid';
+      TF_FLOAT     :  Result := 'TF_FLOAT';
+      TF_DOUBLE    :  Result := 'TF_DOUBLE';
+      TF_INT32     :  Result := 'TF_INT32';
+      TF_UINT8     :  Result := 'TF_UINT8';
+      TF_INT16     :  Result := 'TF_INT16';
+      TF_INT8      :  Result := 'TF_INT8';
+      TF_STRING    :  Result := 'TF_STRING';
+      TF_COMPLEX   :  Result := 'TF_COMPLEX';
+      TF_INT64     :  Result := 'TF_INT64';
+      TF_BOOL      :  Result := 'TF_BOOL';
+      TF_QINT8     :  Result := 'TF_QINT8';
+      TF_QUINT8    :  Result := 'TF_QUINT8';
+      TF_QINT32    :  Result := 'TF_QINT32';
+      TF_BFLOAT16  :  Result := 'TF_BFLOAT16';
+      TF_QINT16    :  Result := 'TF_QINT16';
+      TF_QUINT16   :  Result := 'TF_QUINT16';
+      TF_UINT16    :  Result := 'TF_UINT16';
+      TF_COMPLEX128:  Result := 'TF_COMPLEX128';
+      TF_HALF      :  Result := 'TF_HALF';
+      TF_RESOURCE  :  Result := 'TF_RESOURCE';
+      TF_VARIANT   :  Result := 'TF_VARIANT';
+      TF_UINT32    :  Result := 'TF_UINT32';
+      TF_UINT64    :  Result := 'TF_UINT64';
+
+      DtFloatRef     :  Result := 'DtFloatRef';
+      DtDoubleRef    :  Result := 'DtDoubleRef';
+      DtInt32Ref     :  Result := 'DtInt32Ref';
+      DtUint8Ref     :  Result := 'DtUint8Ref';
+      DtInt16Ref     :  Result := 'DtInt16Ref';
+      DtInt8Ref      :  Result := 'DtInt8Ref';
+      DtStringRef    :  Result := 'DtStringRef';
+      DtComplex64Ref :  Result := 'DtComplex64Ref';
+      DtInt64Ref     :  Result := 'DtInt64Ref';
+      DtBoolRef      :  Result := 'DtBoolRef';
+      DtQint8Ref     :  Result := 'DtQint8Ref';
+      DtQuint8Ref    :  Result := 'DtQuint8Ref';
+      DtQint32Ref    :  Result := 'DtQint32Ref';
+      DtBfloat16Ref  :  Result := 'DtBfloat16Ref';
+      DtQint16Ref    :  Result := 'DtQint16Ref';
+      DtQuint16Ref   :  Result := 'DtQuint16Ref';
+      DtUint16Ref    :  Result := 'DtUint16Ref';
+      DtComplex128Ref:  Result := 'DtComplex128Ref';
+      DtHalfRef      :  Result := 'DtHalfRef';
+      DtResourceRef  :  Result := 'DtResourceRef';
+      DtVariantRef   :  Result := 'DtVariantRef';
+      DtUint32Ref    :  Result := 'DtUint32Ref';
+      DtUint64Ref    :  Result := 'DtUint64Ref';
+    end;
 end;
 
 class function Tdtypes.as_base_dtype(value: TF_DataType): TF_DataType;

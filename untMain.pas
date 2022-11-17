@@ -172,7 +172,7 @@ begin
     var sess := tf.Session.as_default;
     var operation : ITensorOrOperation := tf.global_variables_initializer;
     // the cast to ITensorOrOperation is essential for the test of this method signature
-    var ret := sess.run(operation);
+    sess.run(operation);
 end;
 
 procedure TUnitTest_Basic.Session_Autocast_Case1;
@@ -333,7 +333,7 @@ begin
     var v    := tf.Variable(aVar);
     var init : ITensorOrOperation := tf.compat.v1.global_variables_initializer;
     var sess := tf.compat.v1.Session;
-    var g := sess.run(init);
+    sess.run(init);
     // Usage passing the session explicitly.
     v.eval(sess);
     // Usage with the default session.  The 'with' block

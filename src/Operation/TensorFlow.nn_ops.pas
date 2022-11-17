@@ -133,7 +133,7 @@ begin
                                 var keep_prob := 1 - TTEnsor(rate);
                                 var scale     := 1 / keep_prob;
                                 var scale_tensor := Tops.convert_to_tensor(scale, x.dtype);
-                                var ret          := gen_math_ops.mul(x, scale_tensor);
+                                gen_math_ops.mul(x, scale_tensor);
                                 noise_shape := _get_noise_shape(x, noise_shape);
                                 // Sample a uniform distribution on [0.0, 1.0) and select values larger than
                                 // rate.
@@ -144,7 +144,7 @@ begin
                                 // NOTE: if (1.0 + rate) - 1 is equal to rate, then we want to consider that
                                 // float to be selected, hence we use a >= comparison.
                                 var keep_mask := TTEnsor(random_tensor) >= rate;
-                                ret           := x * scale * math_ops.cast(keep_mask, x.dtype);
+                                var ret : TFTensor := x * scale * math_ops.cast(keep_mask, x.dtype);
                                 if  not tf.executing_eagerly then
                                     ret.shape := x.shape;
                                 Result := ret;

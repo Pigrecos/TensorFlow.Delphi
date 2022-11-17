@@ -331,6 +331,8 @@ begin
     opExecInfo.attrs := args.OpAttrs;
 
     var ts := tf.Runner.TFE_FastPathExecute(opExecInfo);
+    if ts = nil then  Exit(TFTensors.Create(TFTensor(nil)));
+
     Result := TFTensors.Create(ts);
 end;
 

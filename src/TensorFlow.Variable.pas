@@ -913,6 +913,9 @@ begin
                           Finitializer_op := nil;
                           Fgraph_element  := nil;
                           Fdtype          := Tdtypes.as_base_dtype(Finitial_value.dtype);
+                          {TODO -oMax -c Test for free variable resource : Variable}
+                          var collections_ := TList<string>.Create( tf.GraphKeys.GLOBAL_STEP );
+                          Tops.Add_to_collection<IVariableV1>(collections_, Self);
                           // initial_value = _in_graph_mode ? initial_value : null;
                       end;
 
@@ -1365,7 +1368,7 @@ constructor _UnreadVariable.Create(hHandle: TFTensor; dDtype: TF_DataType; sShap
 begin
     Fdtype         := dDtype;
     Fshape         := sShape;
-    //Handle         := hHandle;
+    Handle         := hHandle;
     Funique_id     := unique_id;
     Fin_graph_mode := in_graph_mode;
     if hHandle is TEagerTensor then  Fhandle_name := ''

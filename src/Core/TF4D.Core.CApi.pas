@@ -2053,10 +2053,8 @@ begin
     var size : Integer:= SizeOf(TF_Input);
     var handle        := AllocMem(size * num_consumers);
     var num : Integer := TF_OperationOutputConsumers(oper_out, handle, num_consumers);
-
     var consumers : TArray<String> ;
     SetLength(consumers,num_consumers);
-
     var inputptr := PTF_Input(handle);
     for var i : Integer := 0 to num - 1 do
     begin
@@ -2064,7 +2062,6 @@ begin
         consumers[i] := string(Ansistring(TF_OperationName(oper)));
     end;
     FreeMem(handle) ;
-
     Result := consumers;
 {$POINTERMATH OFF}
 end;

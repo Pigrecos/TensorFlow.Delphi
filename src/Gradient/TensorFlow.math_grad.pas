@@ -609,11 +609,11 @@ begin
     var broads := SmartBroadcastGradientArgs(x, y, grad);
     var sx            := broads[0].Value1;
     var rx            := broads[0].Value2;
-    var must_reduce_x := broads[0].Value3;
+    //var must_reduce_x := broads[0].Value3;
 
     var sy            := broads[1].Value1;
     var ry            := broads[1].Value2;
-    var must_reduce_y := broads[1].Value3;
+    //var must_reduce_y := broads[1].Value3;
 
     var gx := array_ops.reshape(math_ops.reduce_sum(grad, rx), sx);
     var gy := array_ops.reshape(math_ops.reduce_sum(- TTensor(grad), ry), sy);
@@ -896,11 +896,11 @@ begin
     var broads := SmartBroadcastGradientArgs(x, y, grad);
     var sx            := broads[0].Value1;
     var rx            := broads[0].Value2;
-    var must_reduce_x := broads[0].Value3;
+    //var must_reduce_x := broads[0].Value3;
 
     var sy            := broads[1].Value1;
     var ry            := broads[1].Value2;
-    var must_reduce_y := broads[1].Value3;
+    //var must_reduce_y := broads[1].Value3;
 
     x := math_ops.conj(x);
     y := math_ops.conj(y);

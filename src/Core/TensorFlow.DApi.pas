@@ -5323,16 +5323,29 @@ begin
 
    var fFirst := FItems.First;
 
-   Fdtype := fFirst.Dtype;
-   Fshape := fFirst.Shape;
-   FRank  := fFirst.rank;
-   Fgraph := fFirst.graph;
-   FIsCreatedInGraphMode := fFirst.isCreatedInGraphMode;
-   FiLength := FItems.Count;
+   if fFirst.Handle <> nil then
+   begin
+     FiLength := FItems.Count;
+     Fdtype := fFirst.Dtype;
+     Fshape := fFirst.Shape;
+     FRank  := fFirst.rank;
+     Fgraph := fFirst.graph;
+     FIsCreatedInGraphMode := fFirst.isCreatedInGraphMode;
+   end;
+
 end;
 
 constructor TFTensors.Create(tensor: TFTensor);
 begin
+    if tensor = nil then
+    begin
+         tensor := TFTensor.Create;
+
+         Create([tensor]);
+
+         FiLength := 0;
+         Exit;
+    end;
     Create([tensor])
 end;
 
