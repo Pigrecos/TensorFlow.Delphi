@@ -411,12 +411,12 @@ end;
 class function gen_math_ops.mean_eager_fallback(inputs: TArray<TFTensor>; axis: TFTensor; keep_dims: Boolean; name: string; ctx: TContext): TFTensor;
 begin
     var t1 :Tuple<TF_DataType, TArray<TFTensor>>;
-    tf.Runner.ArgsToMatchingEager(ctx, t1, TF_Datatype.DtInvalid, [ inputs ]);
+    t1 :=tf.Runner.ArgsToMatchingEager(ctx, TF_Datatype.DtInvalid, [ inputs ]);
     var _attr_T := t1.Value1;
     var input   := t1.Value2;
 
     var t2 :Tuple<TF_DataType, TArray<TFTensor>>;
-    tf.Runner.ArgsToMatchingEager(ctx, t2,tf.int32_t, [ axis ]);
+    t2 := tf.Runner.ArgsToMatchingEager(ctx, tf.int32_t, [ axis ]);
     var _attr_Tidx := t2.Value1;
     var axis1      := t2.Value2;
     var _inputs_flat := input + axis1;

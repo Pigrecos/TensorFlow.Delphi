@@ -30,6 +30,8 @@ interface
           Tensorflow.NameScope,
           TensorFlow.EagerTensor,
 
+          Keras.KerasApi,
+
           TensorFlow.Variable,
           TensorFlow.Tensor,
           NumPy.NDArray;
@@ -45,6 +47,23 @@ type
 
        n_samples       : Integer;
        train_X, train_Y: NDArray;
+
+       constructor Create;
+       procedure PrepareData;
+       function  Run(mmo1: TMemo): Boolean;
+  end;
+
+  LinearRegressionEager = class
+    private
+
+    public
+       training_epochs : Integer;
+       training_steps  : Integer;
+       learning_rate   : Single;
+       display_step    : Integer;
+
+       n_samples       : Integer;
+       train_X, train_Y: TNDArray;
 
        constructor Create;
        procedure PrepareData;
@@ -443,6 +462,71 @@ begin
     Assert.AreEqual<Integer>(0, data[0]);
     Assert.AreEqual<Integer>(0, data[500]);
     Assert.AreEqual<Integer>(0, data[Length(data) - 1]);
+end;
+
+{ LinearRegressionEager }
+
+constructor LinearRegressionEager.Create;
+begin
+    training_epochs := 1000;
+    training_steps  := 1000;
+
+    // Parameters
+    learning_rate := 0.01;
+    display_step  := 50;
+end;
+
+procedure LinearRegressionEager.PrepareData;
+begin
+    train_X := np.np_array<Single>([3.3, 4.4,  5.5,  6.71, 6.93,  4.168, 9.779, 6.182, 7.59, 2.167, 7.042, 10.791, 5.313, 7.997, 5.654, 9.27, 3.1]);
+    train_Y := np.np_array<Single>([1.7, 2.76, 2.09, 3.19, 1.694, 1.573, 3.366, 2.596, 2.53, 1.221, 2.827, 3.465,  1.65,  2.904, 2.42,  2.94, 1.3]);
+    n_samples := train_X.shape[0];
+end;
+
+function LinearRegressionEager.Run(mmo1: TMemo): Boolean;
+begin
+    tf.enable_eager_execution;
+
+    PrepareData;
+
+    // Set model weights
+    // We can set a fixed init value in order to debug
+    // var rnd1 = rng.randn<float>();
+    // var rnd2 = rng.randn<float>();
+    var W : TResourceVariable := tf.Variable(Single(-0.06), 'weight');
+    var b : TResourceVariable := tf.Variable(Single(-0.73), 'bias');
+    var optimizer := kKeras.optimizers.SGD(learning_rate);
+
+    // Run training for the given number of steps.
+    for var step in TUtils.range(1, training_steps + 1) do
+    begin
+        // Run the optimization to update W and b values.
+        // Wrap computation inside a GradientTape for automatic differentiation.
+        var g := tf.GradientTape;
+        // Linear regression (Wx + b).
+        var pred : TTensor := (W * train_X) + b;
+        // Mean square error.
+        var sub  := pred - train_Y;
+        var p    := tf.pow(sub, 2);
+        var s    := tf.reduce_sum(p);
+        var loss := TTensor(s) / (2 * n_samples);
+        // should stop recording
+        // Compute gradients.
+        var t := Tuple<ResourceVariable, ResourceVariable>.Create(W, b);
+        var gradients : Tuple<TFTensor,TFTensor> := g.gradient(loss, t);
+
+        // Update W and b following gradients.
+        //var n := ResourceVariable(W).name;
+        optimizer.apply_gradients(TUtils.zip<TFTensor,ResourceVariable>(gradients, Tuple<ResourceVariable,ResourceVariable>.Create(W, b)));
+
+        if step mod display_step = 0 then
+        begin
+            pred := W * train_X + b;
+            loss := TTensor( tf.reduce_sum(tf.pow(pred - train_Y, 2)) ) / (2 * n_samples);
+            Format('step: %d, loss: %.9f, W: %.9f, b: %.9f',[step, Single(loss.numpy),  W.numpy,  b.numpy]);
+
+        end;
+    end;
 end;
 
 end.

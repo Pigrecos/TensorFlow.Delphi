@@ -261,6 +261,8 @@ implementation
                 TensorFlow.Tensor,
                 Tensorflow.Gradient,
                 TensorFlow.math_grad,
+                TensorFlow.resource_variable_grad,
+                TensorFlow.array_grad,
 
                 oz.Pb.Classes,
                 Oz.SGL.Collections,
@@ -744,13 +746,23 @@ begin
     if Assigned(gradientFunctions) then gradientFunctions.clear
     else                                gradientFunctions := TDictionary<string, TFunc<TFOperation, TArray<TFTensor>, TArray<TFTensor>> >.create;
 
-    var m_Grad := math_grad.Create;
+    var m_Grad       := math_grad.Create;
+    var res_var_Grad := resource_variable_grad.Create;
+    var a_Grad       := array_grad.Create;
     try
       for var i := 0 to Length(m_Grad.GradFunction) - 1 do
-         gradientFunctions.add(m_Grad.GradFunction[i].Name,m_Grad.GradFunction[i].func)
+         gradientFunctions.add(m_Grad.GradFunction[i].Name,m_Grad.GradFunction[i].func);
+
+      for var i := 0 to Length(res_var_Grad.GradFunction) - 1 do
+         gradientFunctions.add(res_var_Grad.GradFunction[i].Name,res_var_Grad.GradFunction[i].func) ;
+
+      for var i := 0 to Length(a_Grad.GradFunction) - 1 do
+         gradientFunctions.add(a_Grad.GradFunction[i].Name,a_Grad.GradFunction[i].func)
 
     finally
       m_Grad.free;
+      res_var_Grad.free;
+      a_Grad.free;
     end;
 end;
 

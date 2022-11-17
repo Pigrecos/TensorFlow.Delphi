@@ -20,9 +20,12 @@ unit Tensorflow.Gradient;
 interface
     uses System.SysUtils,
          System.Generics.Collections,
+         System.Rtti,
+         System.TypInfo,
          Generics.Defaults,
 
          Spring,
+         Spring.Collections,
          Spring.Collections.Enumerable,
 
 
@@ -66,7 +69,7 @@ type
        property shape  : TFShape     read GetShape;
   end;
 
-  ITape = class
+  ITape = class abstract
      private
      public
         F_persistent : Boolean;
@@ -75,11 +78,11 @@ type
         function  ShouldRecord(tensors: TArray<TFTensor>): Boolean;virtual; abstract;
         procedure StartRecord;virtual; abstract;
         procedure StopRecord;virtual; abstract;
-        procedure RecordOperation(op_type: string; input_tensors: TArray<TFTensor>; output_tensors: TArray<TapeTensor>; backward_function: BackwardFunction);virtual;
+        procedure RecordOperation(op_type: string; input_tensors: TArray<TFTensor>; output_tensors: TArray<TapeTensor>; backward_function: BackwardFunction);virtual; abstract;
         procedure VariableAccessed(variable: ResourceVariable);virtual; abstract;
         procedure Watch(x: TFTensor);virtual; abstract;
         function  WatchedVariables: TArray<ResourceVariable>;virtual; abstract;
-        function  ComputeGradient(target_tensor_ids: TArray<TFTensor>; source_tensor_ids: TArray<TFTensor>;  sources_that_are_targets: TDictionary<TFTensor, TapeTensor>; output_gradients: TArray<TFTensor>): TArray<TFTensor>;virtual;
+        function  ComputeGradient(target_tensor_ids: TArray<TFTensor>; source_tensor_ids: TArray<TFTensor>;  sources_that_are_targets: TDictionary<TFTensor, TapeTensor>; output_gradients: TArray<TFTensor>): TArray<TFTensor>;virtual; abstract;
 
         property Persistente : Boolean read F_persistent;
   end;
@@ -88,7 +91,7 @@ type
   /// Represents an entry in the tape.
   /// </summary>
   OpTapeEntry = record
-      op_type : string;
+      op_type            : string;
       output_tensor_info : TArray<TapeTensor> ;
       input_tensor_id    : TArray<TFTensor>;
       backward_function  : BackwardFunction;
@@ -105,6 +108,27 @@ type
   /// </summary>
   TensorTape = TDictionary<TFTensor, Int64>;
 
+
+   BackpropInitialState = class
+      private
+
+      public
+        op_tape : OpTape;
+        /// <summary>
+        /// Map from tensor to how many references still exist for this tensor in
+        /// the tape.
+        /// </summary>
+        tensor_usage_counts : TDictionary<TFTensor, Int64>;
+        /// <summary>
+        /// Maps from op ID to how many output tensors of this op still need to have
+        /// their gradients computed.
+        /// </summary>
+        op_missing_tensor : TDictionary<Int64, Int64>;
+
+        constructor Create;
+        destructor Destroy; override;
+   end;
+
   /// <summary>
   /// Gradient Tape Set
   /// Record operations for automatic differentiation.
@@ -120,7 +144,6 @@ type
   TGradientTape = class(TFDisposable)
     private
        FnextTapeId : Integer;
-       Ftape       : ITape;
        FtapeSet    : TStack<ITape>;
        function GetTape: ITape;
     protected
@@ -144,17 +167,17 @@ type
       /// <param name="target"></param>
       /// <param name="source"></param>
       /// <returns></returns>
-      function gradient(target: TFTensor; source: TFTensor): TFTensor;overload;
-      function gradient(target: TFTensor; source: ResourceVariable): TFTensor;overload;
-      function gradient(target: TFTensor; sources: Tuple<ResourceVariable, ResourceVariable>): Tuple<TFTensor,TFTensor> overload;
-      function gradient(target: TFTensor; sources: TArray<IVariableV1>): TArray<TFTensor>;overload;
+      function gradient(target: TFTensor; const source: TFTensor): TFTensor;overload;
+      function gradient(target: TFTensor; const source: ResourceVariable): TFTensor;overload;
+      function gradient(target: TFTensor; const sources: Tuple<ResourceVariable, ResourceVariable>): Tuple<TFTensor,TFTensor> overload;
+      function gradient(target: TFTensor; const sources: TArray<IVariableV1>): TArray<TFTensor>;overload;
       /// <summary>
       /// Temporarily stops recording operations on this tape.
       /// </summary>
       function stop_recording: ITape;
       function GetTapeSet: TStack<ITape>;
 
-      property tape: ITape read GetTape;
+      property Ftape: ITape read GetTape;
   end;
 
   TTape = class(ITape)
@@ -167,6 +190,7 @@ type
         Fop_tape_        : OpTape;
         Ftensor_usage_   : TDictionary<TFTensor, Int64>;
      public
+        next_op_id_ : Integer;
         /// <summary>
         /// A deque-backed stack, whose element references are not invalidated by
         /// pushes and pops at the back.
@@ -174,6 +198,13 @@ type
         // Stack<AccumulatorCallState> call_state_;
         constructor Create(persistent: Boolean; watch_accessed_variables: Boolean);
         destructor Destroy;override;
+
+        function  InitialStack(op_tape: OpTape; op_missing_tensor: TDictionary<Int64, Int64>): IQueue<Int64>;
+        function  InitialGradients(target_tensor_ids: TArray<TFTensor>; sources_that_are_targets: TDictionary<TFTensor, TapeTensor>; output_gradients : TArray<TFTensor>; tensor_tape: TensorTape; op_tape: OpTape): TDictionary<TFTensor, TList<TFTensor>>;
+        function  FunctionsAcceptingNoneForIndicesMap : TDictionary<string, ISet<Integer>> ;
+        function  PrepareBackprop(target: TArray<TFTensor>; tensor_tape: TensorTape; op_tape: OpTape; sources_set: ISet<TFTensor>; persistent_tape: Boolean) : BackpropInitialState;
+        function  ComputeGradient(target_tensor_ids: TArray<TFTensor>; source_tensor_ids: TArray<TFTensor>;  sources_that_are_targets: TDictionary<TFTensor, TapeTensor>; output_gradients: TArray<TFTensor>): TArray<TFTensor>;override;
+        procedure RecordOperation(op_type: string; input_tensors: TArray<TFTensor>; output_tensors: TArray<TapeTensor>; backward_function: BackwardFunction);override;
         /// <summary>
         /// Marks this tensor to be watched by the given tape.
         /// </summary>
@@ -304,6 +335,7 @@ implementation
             TensorFlow.Constant_op,
             Tensorflow.NameScope,
             Tensorflow.math_ops,
+            TensorFlow.gen_math_ops,
             Tensorflow.array_ops,
             Tensorflow.gen_array_ops,
             TensorFlow.control_flow_ops,
@@ -359,15 +391,19 @@ end;
 
 destructor TGradientTape.Destroy;
 begin
+  if Assigned(Ftape) then
+      Ftape.Free;
   FtapeSet.Clear;
   FtapeSet.Free;
-  Ftape.Free;
+
   inherited;
 end;
 
 function TGradientTape.GetTape: ITape;
 begin
-    Result :=  FtapeSet.Peek;
+    Result := nil;
+    if Assigned(FtapeSet) and (FtapeSet.Count > 0) then
+      Result :=  FtapeSet.Peek;
 end;
 
 function TGradientTape.GetTapeSet: TStack<ITape>;
@@ -375,13 +411,13 @@ begin
     Result :=  FtapeSet;
 end;
 
-function TGradientTape.gradient(target: TFTensor; source: ResourceVariable): TFTensor;
+function TGradientTape.gradient(target: TFTensor; const source: ResourceVariable): TFTensor;
 begin
      var res := gradient(target, [ source ]);
      Result := res[0];
 end;
 
-function TGradientTape.gradient(target, source: TFTensor): TFTensor;
+function TGradientTape.gradient(target: TFTensor; const source: TFTensor): TFTensor;
 begin
     var tape : ITape := stop_recording;
 
@@ -389,20 +425,20 @@ begin
     Result := res[0];
 end;
 
-function TGradientTape.gradient(target: TFTensor; sources: Tuple<ResourceVariable, ResourceVariable>): Tuple<TFTensor, TFTensor>;
+function TGradientTape.gradient(target: TFTensor; const sources: Tuple<ResourceVariable, ResourceVariable>): Tuple<TFTensor, TFTensor>;
 begin
     var res := gradient(target, [ sources.Value1, sources.Value2 ]);
-
     Result := Tuple<TFTensor, TFTensor>.Create(res[0], res[1]);
 end;
 
-function TGradientTape.gradient(target: TFTensor; sources: TArray<IVariableV1>): TArray<TFTensor>;
+function TGradientTape.gradient(target: TFTensor; const sources: TArray<IVariableV1>): TArray<TFTensor>;
 begin
     var tape := stop_recording;
 
     var aSource: TArray<TFTensor> := [];
     for var i := 0 to Length(sources)-1  do
-      aSource := aSource + [ sources[i].Handle ];
+      aSource := aSource + [ sources[i].tHandle ];
+
     var res := tf.Runner.TFE_TapeGradient(tape,[ target ], aSource, nil);
     if not tape.Persistente then
     begin
@@ -458,6 +494,7 @@ constructor TTape.Create(persistent, watch_accessed_variables: Boolean);
 begin
     inherited Create;
 
+    next_op_id_       := 0;
     F_persistent      := persistent;
     F_created_eagerly := tf.Context.executing_eagerly;
     Ftensor_tape_     := TDictionary<TFTensor, Int64>.Create;
@@ -491,6 +528,303 @@ begin
     else
       Result := False;
     end;
+end;
+
+function TTape.InitialGradients(target_tensor_ids: TArray<TFTensor>; sources_that_are_targets: TDictionary<TFTensor, TapeTensor>; output_gradients: TArray<TFTensor>;
+  tensor_tape: TensorTape; op_tape: OpTape): TDictionary<TFTensor, TList<TFTensor>>;
+begin
+    var res := TDictionary<TFTensor, TList<TFTensor>>.Create;
+    for var i : Integer := 0 to Length(target_tensor_ids) - 1 do
+    begin
+        var id := target_tensor_ids[i];
+        if (Length(output_gradients) = 0) or (output_gradients[i] = nil) then
+        begin
+            if (tensor_tape.ContainsKey(id)) and (id <> nil) then
+            begin
+                if not op_tape.ContainsKey(tensor_tape[id]) then
+                    raise TFException.Create('Iternal state of the gradient tape is invalid: failed to find operation producing a tensor');
+                var op_it := op_tape[ tensor_tape[id] ];
+                var found : Boolean := false;
+                for var j := 0 to Length(op_it.output_tensor_info) - 1 do
+                begin
+                    if op_it.output_tensor_info[j].GetTensor = id then
+                    begin
+                        found    := true;
+                        var ones := op_it.output_tensor_info[j].OnesLike;
+                        if res.ContainsKey(id) then res[id].Add(ones)
+                        else                        res.AddOrSetValue(id, TList<TFTensor>.Create([ones]));
+                        break;
+                    end;
+                end;
+                if not found then
+                begin
+                    raise TFException.Create('Internal state of the gradient tape is invalid: none of operations outputs match expected tensor');
+                end;
+            end else
+            begin
+                if sources_that_are_targets.ContainsKey(id) then
+                begin
+                    var source_tensor := sources_that_are_targets[id];
+                    if res.ContainsKey(id) then res[id].Add(source_tensor.OnesLike)
+                    else                        res.AddOrSetValue(id, TList<TFTensor>.Create([source_tensor.OnesLike]));
+                end;
+            end;
+        end else
+        begin
+            if res.ContainsKey(id) then res[id].Add(output_gradients[i])
+            else                        res.AddOrSetValue(id, TList<TFTensor>.Create([ output_gradients[i] ]));
+        end;
+    end;
+    result := res;
+end;
+
+function TTape.InitialStack(op_tape: OpTape; op_missing_tensor: TDictionary<Int64, Int64>): IQueue<Int64>;
+begin
+    var res := TCollections.CreateQueue<Int64>;
+    for var op_entry in op_tape do
+    begin
+        if not op_missing_tensor.ContainsKey(op_entry.Key) then
+            res.Enqueue(op_entry.Key);
+    end;
+    Result := res;
+end;
+
+function TTape.FunctionsAcceptingNoneForIndicesMap: TDictionary<string, ISet<Integer>>;
+begin
+    var m := TDictionary<string, ISet<integer>>.Create;
+    m.Add('SoftmaxCrossEntropyWithLogits',       TCollections.CreateSet<integer>([ 1 ]));
+    m.Add('SparseSoftmaxCrossEntropyWithLogits', TCollections.CreateSet<integer>([ 1 ]));
+    m.Add('FusedBatchNorm',                      TCollections.CreateSet<integer>([ 1, 2, 3, 4 ]));
+    Result := m;
+end;
+
+function TTape.PrepareBackprop(target: TArray<TFTensor>; tensor_tape: TensorTape; op_tape: OpTape; sources_set: ISet<TFTensor>; persistent_tape: Boolean): BackpropInitialState;
+begin
+    var res : BackpropInitialState :=  BackpropInitialState.Create;
+    var tensor_stack := TCollections.CreateQueue<TFTensor>(target);
+    while tensor_stack.Count > 0 do
+    begin
+        var tensor_id := tensor_stack.Dequeue;
+        if not tensor_tape.ContainsKey(tensor_id) then Continue;
+        var op_id := tensor_tape[tensor_id] ;
+        if (op_id = -1) or ( not op_tape.ContainsKey(op_id)) or (res.op_tape.ContainsKey(op_id) ) then Continue;
+        var op_it        := op_tape[op_id] ;
+        //var result_op_it := result.op_tape[op_id] ;
+        res.op_tape.AddOrSetValue(op_id, op_it);
+        for var it in op_it.input_tensor_id do
+        begin
+            if res.tensor_usage_counts.ContainsKey(it) then
+               res.tensor_usage_counts[it] := res.tensor_usage_counts[it] + 1
+            else begin
+               res.tensor_usage_counts.AddOrSetValue(it, 1);
+               if tensor_tape.ContainsKey(it) then
+                    tensor_stack.Enqueue(it);
+            end;
+        end;
+        if not persistent_tape then
+            op_tape.Remove(op_id);
+    end;
+    for var pair in res.tensor_usage_counts do
+    begin
+        if (tensor_tape.ContainsKey(pair.Key)) and (tensor_tape[pair.Key] <> -1) then
+        begin
+           var it := tensor_tape[pair.Key];
+           if res.op_missing_tensor.ContainsKey(it) then  res.op_missing_tensor[it] := res.op_missing_tensor[it] + 1
+           else                                           res.op_missing_tensor.Add(it,1);
+        end;
+    end;
+    if not persistent_tape then
+    begin
+        // Call destructors for all unneeded gradient functions and
+        // clear the op_tape. We can clear the tape because ownership of
+        // backward functions that will be used for gradient computation
+        // has been transferred to `result`.
+        (*for (const auto&op_pair : *op_tape) {
+            op_pair.second.backward_function_deleter(
+                op_pair.second.backward_function);
+        } *)
+        op_tape.Clear;
+    end;
+    Result := res;
+end;
+
+
+function TTape.ComputeGradient(target_tensor_ids, source_tensor_ids: TArray<TFTensor>; sources_that_are_targets: TDictionary<TFTensor, TapeTensor>;
+  output_gradients: TArray<TFTensor>): TArray<TFTensor>;
+var
+  sources_set                     : ISet<TFTensor>;
+  func_AcceptingNoneForIndicesMap : TDictionary<string, ISet<Integer>> ;
+  state                           : BackpropInitialState;
+  op_stack                        : IQueue<Int64>;
+  gradients                       : TDictionary<TFTensor, TList<TFTensor>>;
+  trace                           : OpTapeEntry;
+  out_gradients                   : TList<TFTensor>;
+  unneeded_gradients              : TList<Int64>;
+  zero_indices                    : TList<Integer>;
+  in_gradients                    : TArray<TFTensor>;
+begin
+    sources_set := TCollections.CreateSet<TFTensor>(source_tensor_ids);
+    // var gradients_size = new UnorderedMap<Tensor, long>();
+    func_AcceptingNoneForIndicesMap := FunctionsAcceptingNoneForIndicesMap;
+    state    := PrepareBackprop(target_tensor_ids, Ftensor_tape_, Fop_tape_, sources_set, F_persistent);
+    op_stack := InitialStack(state.op_tape, state.op_missing_tensor);
+    gradients:= InitialGradients(target_tensor_ids, sources_that_are_targets, output_gradients, Ftensor_tape_, state.op_tape);
+    while op_stack.Count > 0 do
+    begin
+        var op := op_stack.Dequeue;
+        if not state.op_tape.ContainsKey(op) then
+            continue;
+        trace := state.op_tape[op];
+        // Console.WriteLine($"ComputeGradient: {state.op_tape[op].op_type}");
+        state.op_tape.Remove(op);
+        out_gradients          := TList<TFTensor>.Create;
+        out_gradients.Capacity := Length(trace.output_tensor_info);
+        unneeded_gradients := TList<Int64>.Create;
+        for var i := 0 to Length(trace.input_tensor_id)- 1 do
+        begin
+            var in_tensor_id := trace.input_tensor_id[i];
+            if (not Ftensor_tape_.ContainsKey(in_tensor_id)) and (not sources_set.Contains(in_tensor_id)) then
+                unneeded_gradients.Add(i);
+        end;
+        var any_gradient_nonzero : boolean := false;
+        zero_indices := TList<Integer>.Create;
+        for var i := 0 to Length(trace.output_tensor_info)-1 do
+        begin
+            var id := trace.output_tensor_info[i].GetTensor;
+            if  not gradients.ContainsKey(id) then
+            begin
+                if (func_AcceptingNoneForIndicesMap.ContainsKey(trace.op_type)) and  (func_AcceptingNoneForIndicesMap[trace.op_type].Contains(i)) then
+                begin
+                    out_gradients.Add(nil);
+                end else
+                begin
+                    out_gradients.Add(nil);
+                    zero_indices.Add(i);
+                end;
+            end else
+            begin
+                any_gradient_nonzero := true;
+                var grad_it := gradients[id];
+                var new_gradients : TFTensor ;
+                if grad_it.Count = 1 then new_gradients := grad_it[0]
+                else                      new_gradients := gen_math_ops.add_n(grad_it.ToArray);  // vspace.AggregateGradients
+                if not sources_set.Contains(id) then
+                    gradients.Remove(id)
+                else begin
+                    // grad_it.Clear();
+                    // grad_it.Add(new_gradients);
+                    // vspace.MarkAsResult(new_gradients);
+                end;
+                out_gradients.Add(new_gradients);
+            end;
+        end;
+        in_gradients := [];
+        if any_gradient_nonzero then
+        begin
+            // foreach (var i in zero_indices)
+            //     out_gradients[i] = trace.output_tensor_info[i].ZerosLike();
+            in_gradients := trace.backward_function(out_gradients.ToArray, unneeded_gradients.ToArray);
+            if Length(in_gradients) <> Length(trace.input_tensor_id) then
+                raise TFException.Create( Format('Recorded operation "%s" returned too few gradients. Expected %d but received %d',[trace.op_type, Length(trace.input_tensor_id), Length(in_gradients)]) );
+            if not F_persistent then
+            begin
+                // trace.backward_function_deleter(trace.backward_function);
+                trace.backward_function := nil;
+            end;
+        end else
+        begin
+            SetLength(in_gradients, Length(trace.input_tensor_id));
+        end;
+        for var i := 0 to Length(in_gradients) - 1 do
+        begin
+            var id := trace.input_tensor_id[i];
+            if in_gradients[i] <> nil then
+            begin
+                if not gradients.ContainsKey(id) then
+                      gradients.Add(id,TList<TFTensor>.Create );
+
+                var unaggregated_grads := gradients[id];
+                unaggregated_grads.Add(in_gradients[i]);
+                (*if (unaggregated_grads.Count > kMinAggregateCount)
+                {
+                    if (!gradients_size.find(id, out var size))
+                    {
+                        size = (long)unaggregated_grads[0].size;
+                        gradients_size.emplace(id, size);
+                    }
+                    if (unaggregated_grads.Count * size * 4 > kMinAggregateBytes)
+                    {
+                        throw new NotImplementedException("");
+                    }
+                }*)
+            end;
+            if not state.tensor_usage_counts.ContainsKey(id) then
+                continue;
+            state.tensor_usage_counts[id] := state.tensor_usage_counts[id] - 1;
+            if state.tensor_usage_counts[id] > 0 then
+                continue;
+            if not Ftensor_tape_.ContainsKey(id) then
+            begin
+                if gradients.ContainsKey(id) then
+                begin
+                    // foreach (var g in grad_it)
+                    // DeleteGradient(g);
+                    gradients.Remove(id);
+                end;
+                continue;
+            end;
+            var tape_it := Ftensor_tape_[id] ;
+            var op_id   := tape_it;
+            if op_id = -1 then
+                continue;
+            if state.op_missing_tensor.ContainsKey(op_id) then
+            begin
+                state.op_missing_tensor[op_id] := state.op_missing_tensor[op_id] - 1;
+                if state.op_missing_tensor[op_id] = 0 then
+                    op_stack.Enqueue(op_id);
+            end;
+        end;
+    end;
+    if state.op_tape.Count > 0 then
+       raise Exception.Create('Invalid tape state.');
+    var res : TArray<TFTensor>; SetLength(res, Length(source_tensor_ids) );
+    var j : Integer := 0;
+    for var id in source_tensor_ids do
+    begin
+        if gradients.ContainsKey(id) then
+        begin
+            var grad_it := gradients[id];
+            if grad_it.Count > 1 then  res[j] := gen_math_ops.add_n(grad_it.ToArray)
+            else                       res[j] := grad_it[0];
+        end;
+        Inc(j);
+    end;
+    Result := res;
+end;
+
+procedure TTape.RecordOperation(op_type: string; input_tensors: TArray<TFTensor>; output_tensors: TArray<TapeTensor>; backward_function: BackwardFunction);
+begin
+    if not ShouldRecord(input_tensors) then
+        Exit;
+    var op_id := next_op_id_;
+    Inc(next_op_id_);
+    for var i in input_tensors do
+    begin
+        if Ftensor_usage_.ContainsKey(i) then  Ftensor_usage_[i] := Ftensor_usage_[i] + 1
+        else                                   Ftensor_usage_.AddOrSetValue(i,0);
+    end;
+    for var o in output_tensors do
+    begin
+        //tf.Logger.Debug($"RecordOperation: tensor_tape_[{o.GetID()}] = {op_id}");
+        Ftensor_tape_.AddOrSetValue(o.GetTensor, op_id);
+        Ftensor_usage_.AddOrSetValue(o.GetTensor, 1);
+    end;
+    var opT : OpTapeEntry;
+    opT.op_type            := op_type;
+    opT.output_tensor_info := output_tensors;
+    opT.input_tensor_id    := input_tensors;
+    opT.backward_function  := backward_function;
+    Fop_tape_.AddOrSetValue(op_id,opT);
 end;
 
 procedure TTape.SetTapeId(id: Integer);
@@ -537,7 +871,7 @@ end;
 
 procedure TTape.VariableAccessed(variable: ResourceVariable);
 begin
-    Watch(variable.Handle);
+    Watch(variable.tHandle);
 end;
 
 procedure TTape.Watch(x: TFTensor);
@@ -549,20 +883,6 @@ end;
 function TTape.WatchedVariables: TArray<ResourceVariable>;
 begin
     Result := nil;
-end;
-
-{ ITape }
-
-function ITape.ComputeGradient(target_tensor_ids, source_tensor_ids: TArray<TFTensor>;
-  sources_that_are_targets: TDictionary<TFTensor, TapeTensor>; output_gradients: TArray<TFTensor>): TArray<TFTensor>;
-begin
-
-end;
-
-procedure ITape.RecordOperation(op_type: string; input_tensors: TArray<TFTensor>; output_tensors: TArray<TapeTensor>;
-  backward_function: BackwardFunction);
-begin
-
 end;
 
 { gradients_impl }
@@ -1263,5 +1583,21 @@ begin
     Self.func := _func;
 end;
 
+
+{ BackpropInitialState }
+
+constructor BackpropInitialState.Create;
+begin
+   op_tape             := OpTape.Create;
+   tensor_usage_counts := TDictionary<TFTensor, Int64>.Create;
+   op_missing_tensor   := TDictionary<Int64, Int64>.Create;
+end;
+
+destructor BackpropInitialState.Destroy;
+begin
+   op_tape.Free;
+   tensor_usage_counts.Free;
+   op_missing_tensor.Free;
+end;
 
 end.

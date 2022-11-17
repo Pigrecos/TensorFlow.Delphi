@@ -104,6 +104,13 @@ TEagerRunner = class(TFDisposable)
     function  GetOp(ctx: TContext; op_or_function_name: AnsiString; status: TFStatus): PTFE_Op;
     procedure SetOpAttrs(op: PTFE_Op; attrs: TArray<TValue>);
 
+    function CouldForwardprop : Boolean;
+    function CouldBackprop : Boolean;
+    function TapeSetRecordOperation(op_type: string; input_tensors: TArray<TFTensor>; output_tensors: TArray<TFTensor>; backward_function: BackwardFunction): Boolean;
+    function TapeSetRecordForwardprop(op_type: string; input_tensors: TArray<TFTensor>; output_tensors: TArray<TapeTensor>; backward_function_getter: BackwardFunction): Boolean;
+    procedure TapeSetRecordBackprop(   op_type: string; input_tensors: TArray<TFTensor>; output_tensors: TArray<TapeTensor>; backward_function: BackwardFunction);
+
+    function GetGradientFunction(op_name: string; op_inputs: TArray<TFTensor>; attrs: TArray<TValue>; op_outputs: TArray<TFTensor>) : BackwardFunction;
     function RunCallbacks(op_exec_info: TFastPathOpExecInfo; num_inferred_attrs: Integer; inputs: TArray<TFTensor>;attrs: TArray<TValue>; flattened_result: TArray<TFTensor>): Boolean;
     function RecordGradient(op_name: string; inputs: TArray<TFTensor>; attrs: TArray<TValue>; results: TArray<TFTensor>; backward_Function: BackwardFunction = nil) : Boolean;
     function MustRecordGradient: Boolean;
@@ -133,11 +140,15 @@ TEagerRunner = class(TFDisposable)
     /// <param name="name">Customized name for the operation.</param>
     /// <returns>List of output Tensor objects. The list is empty if there are no outputs</returns>
     function Execute(ctx: TContext; op_name: AnsiString; num_outputs: Integer; inputs: TArray<TFTensor>; attrs: TArray<TValue>;name: AnsiString = '') : TArray<TFTensor>;
-    procedure ArgsToMatchingEager(ctx: TContext; var vRes : Tuple<TF_DataType, TArray<TFTensor>>; default_dtype: TF_DataType = TF_DataType.DtInvalid; args: TArray<TValue> = nil);
+    function ArgsToMatchingEager(ctx: TContext; default_dtype: TF_DataType = TF_DataType.DtInvalid; args: TArray<TValue> = nil):  Tuple<TF_DataType, TArray<TFTensor>> ;
 end;
 
 implementation
-      uses Tensorflow, TensorFlow.EagerTensor, TensorFlow.Ops, Tensorflow.Utils, Oz.SGL.Collections;
+      uses Tensorflow,
+           TensorFlow.EagerTensor,
+           TensorFlow.Ops,
+           Tensorflow.Utils,
+           Oz.SGL.Collections;
 
 { TEagerRunner }
 
@@ -171,6 +182,21 @@ procedure TEagerRunner.NativeDispose(hnd: Pointer);
 begin
    if Assigned(hnd) then
      TFE_DeleteTensorHandle(hnd);
+end;
+
+function TEagerRunner.RunCallbacks(op_exec_info: TFastPathOpExecInfo; num_inferred_attrs: Integer; inputs: TArray<TFTensor>;
+  attrs: TArray<TValue>; flattened_result: TArray<TFTensor>): Boolean;
+begin
+    if op_exec_info.run_gradient_callback then
+    begin
+        if not RecordGradient(op_exec_info.op_name, inputs, attrs, flattened_result) then
+          Exit(false);
+    end;
+    if op_exec_info.run_post_exec_callbacks then
+    begin
+
+    end;
+    Result := true;
 end;
 
 function TEagerRunner.RecordGradient(op_name: string; inputs: TArray<TFTensor>; attrs: TArray<TValue>; results: TArray<TFTensor>;
@@ -217,26 +243,73 @@ begin
     }
     else
         op_inputs = inputs;*)
-    {TODO -oMax -cGradient : Add Gradient Function}
-    (*if backward_Function <> nil then  backward_Function
-    else                              GetGradientFunction(op_name, inputs, attrs, results);
-    TapeSetRecordOperation(op_name, inputs, results, backwardFunction) *)
+
+    if not Assigned(backward_Function) then
+      backward_Function := GetGradientFunction(op_name, inputs, attrs, results);
+
+    TapeSetRecordOperation(op_name, inputs, results, backward_Function);
     Result := true;
 end;
 
-function TEagerRunner.RunCallbacks(op_exec_info: TFastPathOpExecInfo; num_inferred_attrs: Integer; inputs: TArray<TFTensor>;
-  attrs: TArray<TValue>; flattened_result: TArray<TFTensor>): Boolean;
+function TEagerRunner.GetGradientFunction(op_name: string; op_inputs: TArray<TFTensor>; attrs: TArray<TValue>; op_outputs: TArray<TFTensor>): BackwardFunction;
 begin
-    if op_exec_info.run_gradient_callback then
-    begin
-        if not RecordGradient(op_exec_info.op_name, inputs, attrs, flattened_result) then
-          Exit(false);
-    end;
-    if op_exec_info.run_post_exec_callbacks then
-    begin
+    Result := function(out_grads : TArray<TFTensor>; unneeded_gradients: TArray<Int64>): TArray<TFTensor>
+               begin
+                   if not gradientFunctions.ContainsKey(op_name) then
+                   begin
+                       SetLength( Result,Length(op_inputs) );
+                   end;
+                   var oper := EagerOperation.Create;
+                   oper.Name            := op_name;
+                   oper.NumInputs       := Length(op_inputs);
+                   oper.Inputs          := op_inputs;
+                   oper.NumOutputs      := Length(op_outputs);
+                   oper.Outputs         := op_outputs;
+                   oper.SkipInputIndices:= unneeded_gradients;
+                   oper.Attrs           := attrs;
 
+                   Result := gradientFunctions[op_name](oper, out_grads);
+               end;
+end;
+
+function TEagerRunner.TapeSetRecordOperation(op_type: string; input_tensors, output_tensors: TArray<TFTensor>; backward_function: BackwardFunction): Boolean;
+begin
+    var output_info : TArray<TapeTensor> := [];
+    for var i := 0 to Length(output_tensors)-1  do
+    begin
+        output_info :=  output_info + [ TapeTensor.Create(output_tensors[i]) ]
     end;
+
+    if not TapeSetRecordForwardprop(op_type, input_tensors, output_info, backward_function) then
+        Exit(false);
+    TapeSetRecordBackprop(op_type, input_tensors, output_info, backward_function);
     Result := true;
+end;
+
+procedure TEagerRunner.TapeSetRecordBackprop(op_type: string; input_tensors: TArray<TFTensor>; output_tensors: TArray<TapeTensor>; backward_function: BackwardFunction);
+begin
+    if not CouldBackprop then
+       Exit;
+    for var tape in tf.GetTapeSet do
+    begin
+        tape.RecordOperation(op_type, input_tensors, output_tensors, backward_function);
+    end
+end;
+
+function TEagerRunner.TapeSetRecordForwardprop(op_type: string; input_tensors: TArray<TFTensor>; output_tensors: TArray<TapeTensor>; backward_function_getter: BackwardFunction): Boolean;
+begin
+    if not CouldForwardprop then
+       Exit(true);
+    raise TFException.Create('Not Implemented');
+end;
+
+function TEagerRunner.CouldForwardprop : Boolean;
+begin
+    Result := HasAccumulator;
+end;
+function TEagerRunner.CouldBackprop : Boolean;
+begin
+     Result := HasGradientTape;
 end;
 
 procedure TEagerRunner.SetOpAttrs(op: PTFE_Op; attrs: TArray<TValue>);
@@ -244,7 +317,7 @@ begin
     var status := tf.Status;
     var len := Length(attrs);
     var i : Integer := 0;
-    while i <= len do
+    while i < len do
     begin
         var key   := attrs[i].AsString;
         var value := attrs[i + 1];
@@ -390,7 +463,7 @@ end;
 function TEagerRunner.TFE_Execute(ctx: TContext; device_name, op_name: AnsiString; inputs: TArray<TFTensor>; attrs: TArray<TValue>;
   num_outputs: Integer): TArray<TFTensor>;
 begin
-    TFE_ExecuteCancelable(ctx, device_name, op_name, inputs, attrs, num_outputs);
+    Result := TFE_ExecuteCancelable(ctx, device_name, op_name, inputs, attrs, num_outputs);
 end;
 
 function TEagerRunner.TFE_ExecuteCancelable(ctx: TContext; device_name, op_name: AnsiString; inputs: TArray<TFTensor>;
@@ -441,7 +514,6 @@ begin
         else
             SetOpAttrScalar(ctx, op, PAnsiChar(AnsiString(attr_name)), attr_value, tipo, attr_list_sizes, status);
     end;
-
 end;
 
 function TEagerRunner.ShouldRecord(inputs: TArray<TFTensor>): Boolean;
@@ -615,8 +687,7 @@ begin
     Result := flat_result;
 end;
 
-procedure TEagerRunner.ArgsToMatchingEager(ctx: TContext; var vRes : Tuple<TF_DataType, TArray<TFTensor>>; default_dtype: TF_DataType;
-  args: TArray<TValue>);
+function TEagerRunner.ArgsToMatchingEager(ctx: TContext; default_dtype: TF_DataType; args: TArray<TValue>):  Tuple<TF_DataType, TArray<TFTensor>>;
 begin
     var res : Tuple<TF_DataType, TArray<TFTensor>>;
 
@@ -639,6 +710,8 @@ begin
                                  end).ToArray;
 
         res := Tuple<TF_DataType, TArray<TFTensor>>.create(sel[0].Dtype, sel);
+        Result := res;
+        exit;
     end;
 
     var dtype := TF_DataType.DtInvalid;
@@ -657,6 +730,8 @@ begin
                 dtype := ret.Last.dtype;
         end;
         res := Tuple<TF_DataType, TArray<TFTensor>>.create(dtype, ret.ToArray) ;
+        Result := res;
+        exit;
     end else
     begin
         raise Exception.Create('Not Implemented');

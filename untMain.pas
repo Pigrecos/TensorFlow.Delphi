@@ -37,7 +37,8 @@ uses
 
   TensorFlow.Variable,
   TensorFlow.Tensor,
-  NumPy.NDArray;
+  NumPy.NDArray,
+  Numpy.Axis;
 
 type
   GraphModeTestBase = class
@@ -95,15 +96,23 @@ type
 
        procedure Slice;
        procedure Gather;
+       // Gradient
+       procedure GradientFloatTest;
+       procedure GradientDefaultTest;
+       procedure GradientConcatTest;
+       procedure GradientOperatorMulTest;
+       procedure GradientSliceTest;
   end;
 
   TForm1 = class(TForm)
     btnTest: TBitBtn;
     mmo1: TMemo;
     btnLinReg: TBitBtn;
+    btnLinReg1: TBitBtn;
     procedure btnTestClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure btnLinRegClick(Sender: TObject);
+    procedure btnLinReg1Click(Sender: TObject);
   private
     procedure EnableEager;
 
@@ -451,9 +460,26 @@ type
 
   end;
 
+procedure TForm1.btnLinReg1Click(Sender: TObject);
+var
+  lr_Eager : LinearRegressionEager;
+begin
+    mmo1.Clear;
+    mmo1.Lines.Add('Linear Regression in Eager Mode Start...');
+    mmo1.Lines.Add('========================================');
+
+    lr_Eager := LinearRegressionEager.Create;
+    lr_Eager.Run(mmo1);
+
+    lr_Eager.Free;
+    mmo1.Lines.Add('Linear Regression in Eager Mode End');
+    mmo1.Lines.Add('===================================');
+end;
+
 procedure TForm1.btnLinRegClick(Sender: TObject);
 var
-  lr : LinearRegression;
+  lr       : LinearRegression;
+  lr_Eager : LinearRegressionEager;
 begin
     mmo1.Clear;
     mmo1.Lines.Add('Linear Regression in Graph Mode Start...');
@@ -462,7 +488,7 @@ begin
     lr := LinearRegression.Create;
     var lOk := lr.Run(mmo1);
     Assert.IsTrue(lOk,'Linear Regression in Graph Mode') ;
-
+    lr.Free;
     mmo1.Lines.Add('Linear Regression in Graph Mode End');
     mmo1.Lines.Add('===================================');
 end;
@@ -526,6 +552,13 @@ begin
 
     ma.Slice;
     ma.Gather ;
+    //gradient
+    mmo1.Lines.Add('Gradient Test');
+    ma.GradientFloatTest;
+    ma.GradientDefaultTest;
+    ma.GradientOperatorMulTest;
+    ma.GradientSliceTest;
+    ma.GradientConcatTest;
 
     mmo1.Lines.Add('Test ManagedAPI Test End....');
     ma.Free;
@@ -654,6 +687,69 @@ begin
 
     var r3 := tf.gather(p2, i2, '', 1);
     Assert.IsTrue(TFShape.Create([4,1,2]) = r3.shape);
+end;
+
+procedure ManagedAPI.GradientFloatTest;
+begin
+    var x : TResourceVariable := tf.Variable(3.0, '', tf.float32_t);
+    var tape := tf.GradientTape;
+    var y : TTensor:= tf.square(x);
+    var y_grad := tape.gradient(TFTensor(y), ResourceVariable(x));
+    Assert.AreEqual<Single>(9.0, Single(y));
+end;
+
+procedure ManagedAPI.GradientDefaultTest ;
+begin
+    var x : TResourceVariable := tf.Variable(3.0);
+    var tape := tf.GradientTape;
+    var y : TTensor:= tf.square(x);
+    var y_grad := tape.gradient(TFTensor(y), ResourceVariable(x));
+    Assert.AreEqual<Double>(9.0, Double(y));
+end;
+
+procedure ManagedAPI.GradientOperatorMulTest;
+begin
+    var x : TTensor := tf.constant(Single(0));
+    var w := tf.Variable( TArray<Single>.Create( 1, 1 ) );
+    var gt:= tf.GradientTape;
+    var y := x * w;
+    var cc := TFtensor(y).numpy.ToArray<Single>;
+    var gr := gt.gradient(y, w);
+    Assert.AreEqual<TArray<Single>>([ 0, 0 ], gr.numpy.ToArray<Single>);
+end;
+
+procedure ManagedAPI.GradientSliceTest;
+begin
+    var X : TTensor           := tf.zeros(10);
+    var W : TResourceVariable := tf.Variable(Single(-0.06), 'weight');
+    var b : TResourceVariable := tf.Variable(Single(-0.73), 'bias');
+    var g := tf.GradientTape;
+    var pred := W * X + b;
+    var test := tf.slice<Integer,Integer>(pred, [ 0 ], pred.shape);
+    var gradients : Tuple<TFTensor,TFTensor> := g.gradient(test, Tuple<ResourceVariable, ResourceVariable>.Create(W, b));
+
+    Assert.AreEqual<Single>( Single(ttensor(gradients.Value1)), 0);
+    Assert.AreEqual<Single>( Single(ttensor(gradients.Value2)), 10);
+end;
+
+procedure ManagedAPI.GradientConcatTest;
+var
+ pA : TAxis;
+begin
+    var w1 := tf.Variable( TArray< Tarray<Single> >.Create(Tarray<Single>.Create(1) ) );
+    var w2 := tf.Variable( TArray< Tarray<Single> >.Create(Tarray<Single>.Create(3) ) );
+    var g  := tf.GradientTape;
+    var w  := tf.concat([ w1.toTensor, w2.toTensor ], 0);
+    var x  := tf.ones(tfshape.Create([1, 2]));
+
+    pA := 1;
+    var y  := tf.reduce_sum(x, @pA);
+    var r  := tf.matmul(w, x);
+    var gradients := g.gradient(r, w);
+    var t1 : TTensor := gradients[0][0];
+    var t2 : TTensor := gradients[1][0];
+    Assert.AreEqual<Single>(Single(t1), 2);
+    Assert.AreEqual<Single>(Single(t2), 2);
 end;
 
 end.

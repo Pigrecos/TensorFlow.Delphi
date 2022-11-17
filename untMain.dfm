@@ -3,7 +3,7 @@ object Form1: TForm1
   Top = 0
   Caption = 'TensorFlow for Delphi'
   ClientHeight = 299
-  ClientWidth = 635
+  ClientWidth = 671
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -15,7 +15,7 @@ object Form1: TForm1
   object btnTest: TBitBtn
     Left = 495
     Top = 266
-    Width = 132
+    Width = 168
     Height = 25
     Caption = 'Test'
     TabOrder = 0
@@ -33,10 +33,19 @@ object Form1: TForm1
   object btnLinReg: TBitBtn
     Left = 495
     Top = 224
-    Width = 132
+    Width = 168
     Height = 25
-    Caption = 'Linear Regression'
+    Caption = 'Linear Regression -Graph mode-'
     TabOrder = 2
     OnClick = btnLinRegClick
+  end
+  object btnLinReg1: TBitBtn
+    Left = 495
+    Top = 184
+    Width = 168
+    Height = 25
+    Caption = 'Linear Regression -Eager mode-'
+    TabOrder = 3
+    OnClick = btnLinReg1Click
   end
 end

@@ -62,7 +62,13 @@ uses
   TensorFlow.Training in 'src\TensorFlow.Training.pas',
   TensorFlow.ControlFlowState in 'src\Operation\TensorFlow.ControlFlowState.pas',
   TensorFlow.control_flow_util in 'src\Operation\TensorFlow.control_flow_util.pas',
-  TensorFlow.math_grad in 'src\Gradient\TensorFlow.math_grad.pas';
+  TensorFlow.math_grad in 'src\Gradient\TensorFlow.math_grad.pas',
+  Keras.Optimizer in 'src\Keras\Keras.Optimizer.pas',
+  Keras.Utils in 'src\Keras\Keras.Utils.pas',
+  Keras.KerasApi in 'src\Keras\Keras.KerasApi.pas',
+  TensorFlow.resource_variable_grad in 'src\Gradient\TensorFlow.resource_variable_grad.pas',
+  TensorFlow.linalg_ops in 'src\Operation\TensorFlow.linalg_ops.pas',
+  TensorFlow.array_grad in 'src\Gradient\TensorFlow.array_grad.pas';
 
 {$R *.res}
 

@@ -524,7 +524,7 @@ begin
     var aValue : TArray<TValue> := [TValue.From<Tv>(value)];
 
     var tup1 :Tuple<TF_DataType, TArray<TFTensor>>;
-    tf.Runner.ArgsToMatchingEager(ctx, tup1, TF_Datatype.DtInvalid, aValue);
+    tup1 :=tf.Runner.ArgsToMatchingEager(ctx, TF_Datatype.DtInvalid, aValue);
     var _attr_T := tup1.Value1;
     var input   := tup1.Value2;
 

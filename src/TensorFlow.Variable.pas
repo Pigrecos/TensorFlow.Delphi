@@ -259,7 +259,7 @@ type
 
       property UniqueId    : string      read GetUniqueId;
       property Name        : string      read GetName;
-      property Handle      : TFTensor    read GetHandle;
+      property tHandle     : TFTensor    read GetHandle;
       property Device      : String      read GetDevice;
       property Initializer : TFOperation read GetInitializer;
       property Op          : TFOperation read GetOP;
@@ -622,6 +622,7 @@ TResourceVariable = record
       class operator Add(x: TResourceVariable; y: Double) : TFTensor;
       class operator Add(x: TResourceVariable; y: TResourceVariable) : TFTensor;
       class operator Add(x: TResourceVariable; y: TFTensor) : TFTensor;
+      class operator Add(x: TFTensor;          y: TResourceVariable) : TFTensor;
       //
       class operator Subtract(x: TResourceVariable; y: Integer) : TFTensor;
       class operator Subtract(x: TResourceVariable; y: Single): TFTensor;
@@ -638,6 +639,7 @@ TResourceVariable = record
       //
       class operator LessThan(x: TResourceVariable; y: TFTensor) : TFTensor;
       class operator GreaterThan(x: TResourceVariable; y: TFTensor) : TFTensor;
+
 end;
 
 
@@ -1045,7 +1047,7 @@ end;
 
 function ResourceVariable.GetDevice: String;
 begin
-     Result := FHandle.Device;
+     Result  := FHandle.Device;
 end;
 
 function ResourceVariable.GetGraph: TFGraph;
@@ -1132,14 +1134,13 @@ end;
 
 destructor BaseResourceVariable.Destroy;
 begin
-
-  inherited Destroy;
+   inherited Destroy;
 end;
 
 procedure BaseResourceVariable.NativeDispose(hnd: Pointer);
 begin
     if Fhandle is TEagerTensor then
-      tf.Runner.TFE_Execute(tf.Context, AnsiString(Fhandle.Device), '"DestroyResourceOp',[ FHandle ], ['ignore_lookup_error', true ], 0);
+      tf.Runner.TFE_Execute(tf.Context, AnsiString(Fhandle.Device), 'DestroyResourceOp',[ FHandle ], ['ignore_lookup_error', true ], 0);
 end;
 
 
@@ -1245,7 +1246,7 @@ end;
 
 function BaseResourceVariable.GetDevice: string;
 begin
-   Result := Fhandle.Device;
+   Result  :=  Fhandle.Device;
 end;
 
 function BaseResourceVariable.GetGraph: TFGraph;
@@ -1364,7 +1365,7 @@ constructor _UnreadVariable.Create(hHandle: TFTensor; dDtype: TF_DataType; sShap
 begin
     Fdtype         := dDtype;
     Fshape         := sShape;
-    Handle         := hHandle;
+    //Handle         := hHandle;
     Funique_id     := unique_id;
     Fin_graph_mode := in_graph_mode;
     if hHandle is TEagerTensor then  Fhandle_name := ''
@@ -1535,6 +1536,12 @@ class operator TResourceVariable.Add(x: TResourceVariable; y: TFTensor): TFTenso
 begin
     var t  : TTensor := x.value;
     Result := t + y;
+end;
+
+class operator TResourceVariable.Add(x: TFTensor; y: TResourceVariable): TFTensor;
+begin
+    var t  : TTensor := y.value;
+    Result := t + x;
 end;
 
 class operator TResourceVariable.Subtract(x: TResourceVariable; y: Integer): TFTensor;

@@ -164,6 +164,7 @@ type
       class function zip<T1, T2>(e1 : Enumerable<T1>; e2 : TEnumerable<T2>): Enumerable<Tuple<T1,T2>> ; overload;
       class function zip<T>(e1 : TNDArray; e2 : TNDArray; axis: PAxis = nil):  Enumerable<Tuple<T,T>> ; overload;
       class function zip<T>(e1 : TList<T>; e2 : TList<T>):  Enumerable<Tuple<T,T>> ; overload;
+      class function zip<T1, T2>(tu1 : Tuple<T1,T1>; tu2 : Tuple<T2,T2>):  TArray< Tuple<T1,T2> > ; overload;
 
       class function range(start, _end: Integer): Enumerable<integer>;  overload; static;
       class function range(_end: Integer): Enumerable<integer> ;  overload; static;
@@ -928,6 +929,17 @@ begin
                                                     Result := Tuple<T1,T2>.Create(first,second)
                                                 end );
     Result := r;
+end;
+
+class function TUtils.zip<T1, T2>(tu1 : Tuple<T1,T1>; tu2 : Tuple<T2,T2>):  TArray< Tuple<T1,T2> > ;
+begin
+    var aArray : TArray< Tuple<T1,T2> > := [];
+    for var i: Integer := 0 to  2 - 1 do
+    begin
+        if i = 0 then aArray := aArray + [ Tuple<T1,T2>.Create(tu1.Value1,tu2.Value1) ]
+        else          aArray := aArray + [ Tuple<T1,T2>.Create(tu1.Value2,tu2.Value2) ]
+    end;
+    Result := aArray;
 end;
 
 class function TUtils.zip<T>(e1 : TNDArray; e2 : TNDArray; axis: PAxis = nil):  Enumerable<Tuple<T,T>> ;

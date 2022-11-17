@@ -36,6 +36,7 @@ interface
        TensorFlow.Initializer,
        TensorFlow.Training,
        TensorFlow.bitwise_ops,
+       TensorFlow.linalg_ops,
        Numpy,
        Numpy.Axis,
 
@@ -370,6 +371,27 @@ train_internal = class
 end;
 {$ENDREGION}
 
+{$REGION 'LinalgApi'}
+  LinalgApi = class
+     public
+       ops : linalg_ops;
+
+       constructor Create;
+       destructor  Destroy; override;
+
+       function einsum(equation: string; inputs: TFTensors; name: string = ''): TFTensor;
+       function eye(num_rows: Integer; num_columns: Integer = -1; batch_shape : PTFShape= nil; dtype: TF_DataType = TF_DOUBLE; name: string = ''): TFTensor;
+       function diag(diagonal: TFTensor; name: string = ''): TFTensor;
+       function norm(tensor: TFTensor; _ord: string = 'euclidean'; axis: PAxis = nil; name: string = ''; keepdims: Boolean = true): TFTensor;
+       function inv(input: TFTensor; adjoint: Boolean = false; name : string= ''): TFTensor;
+       function global_norm(t_list: TArray<TFTensor>; name : string= ''): TFTensor;
+       function lstsq(matrix: TFTensor; rhs: TFTensor; l2_regularizer : TNDArray= nil; fast: Boolean = true; name: string = '') : TFTensor;
+       function tensordot(x: TFTensor; y: TFTensor; axes: TNDArray; name : string= '') : TFTensor;
+       function matmul(a: TFTensor; b: TFTensor) : TFTensor;overload;
+
+  end;
+{$ENDREGION}
+
 {$REGION 'TTensorflow'}
   TTensorflow = class(TFDisposable)
     private
@@ -410,6 +432,7 @@ end;
       nn     : nn_internal;
       bitwise: bitwise_ops;
       train  : train_internal;
+      linalg : LinalgApi;
       // Inizializer
       glorot_uniform_initializer : IInitializer;
       zeros_initializer          : IInitializer;
@@ -441,6 +464,37 @@ end;
       function Variable<T>(data: T;  name : string; dtype: TF_DataType = TF_DataType.DtInvalid):ResourceVariable;  overload;
       // tf.tensor
       function convert_to_tensor(value: TValue; dtype: TF_DataType= DtInvalid; name: string= ''; preferred_dtype: TF_DataType=DtInvalid): TFTensor;
+
+      // tf.linalg
+      //
+      function diag(diagonal: TFTensor; name: string = ''): TFTensor;
+      function matmul(a: TFTensor; b: TFTensor; transpose_a : Boolean= false; transpose_b : Boolean= false) : TFTensor; overload;
+      /// <summary>
+      /// Multiply slices of the two matrices "x" and "y".
+      /// </summary>
+      /// <remarks>
+      /// The `BatchMatMul` operation is embedded into the
+      /// `MatMul` operation on the DLL side. However the expected
+      /// attributes are not the same, hence we need to expose this
+      /// method to have the right args list on the `_apply_op_helper`
+      /// function.
+      ///
+      /// For each rank > 2 the first rank - 2 dimensions are considered
+      /// as fixed, and have to be consistent across the two matrices. A
+      /// common matrix multiplication is then applied over the residual
+      /// 2 dimensions.
+      ///
+      /// e.g.
+      ///     x is (3, 6, 12); y is (3, 12, 6)
+      ///     batch_matmul(x, y) ==> (3, 6, 6)
+      /// </remarks>
+      /// <param name="x"></param>
+      /// <param name="y"></param>
+      /// <param name="adj_x"></param>
+      /// <param name="adj_y"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function batch_matmul(x: TFTensor; y: TFTensor; adj_x : Boolean = false; adj_y : Boolean= false; name : string= ''): TFTensor;
 
       // tf.ops
       //
@@ -587,6 +641,15 @@ end;
       /// <param name="axis"></param>
       /// <returns></returns>
       function gather(params: TFTensor; indices: TFTensor; name: string = ''; axis: Integer = 0): TFTensor;
+      /// <summary>
+      /// Extracts a slice from a tensor.
+      /// </summary>
+      /// <param name="input">A `Tensor`.</param>
+      /// <param name="begin">An `int32` or `int64` `Tensor`.</param>
+      /// <param name="size">An `int32` or `int64` `Tensor`.</param>
+      /// <param name="name">A name for the operation (optional).</param>
+      /// <returns>A `Tensor` the same type as `input`.</returns>
+      function slice<Tb, Ts>(input: TFTensor; _begin : TArray<Tb>; size : TArray<Ts>; name: string = ''): TFTensor;
 
       // tf.sparse
       //
@@ -1034,6 +1097,7 @@ begin
     nn        := nn_internal.Create;
     bitwise   := bitwise_ops.Create;
     train     := train_internal.Create;
+    linalg    := LinalgApi.Create;
     //
     glorot_uniform_initializer := GlorotUniform.Create;
     zeros_initializer          := TensorFlow.Initializer.Zeros.Create;
@@ -1073,8 +1137,24 @@ begin
   nn.Free;
   bitwise.Free;
   train.Free;
+  linalg.Free;
   //
   if Assigned(gradientFunctions) then  gradientFunctions.Free;
+end;
+
+function TTensorflow.diag(diagonal: TFTensor; name: string): TFTensor;
+begin
+   Result := gen_array_ops.diag(diagonal, name);
+end;
+
+function TTensorflow.matmul(a, b: TFTensor; transpose_a, transpose_b: Boolean): TFTensor;
+begin
+   Result := math_ops.matmul(a, b, transpose_a, transpose_b);
+end;
+
+function TTensorflow.batch_matmul(x, y: TFTensor; adj_x, adj_y: Boolean; name: string): TFTensor;
+begin
+    Result := math_ops.batch_matmul(x, y, adj_x, adj_y, name);
 end;
 
 function TTensorflow.convert_to_tensor(value: TValue; dtype: TF_DataType; name: string; preferred_dtype: TF_DataType): TFTensor;
@@ -1634,6 +1714,11 @@ begin
     Result := array_ops.size(input, name, true, out_type);
 end;
 
+function TTensorflow.slice<Tb, Ts>(input: TFTensor; _begin: TArray<Tb>; size: TArray<Ts>; name: string): TFTensor;
+begin
+    Result := array_ops.slice(input, _begin, size, name);
+end;
+
 function TTensorflow.SparseTensor(indices: TArray<TArray<Int64>>; values: TValue; dense_shape: TArray<Int64>): TSparseTensor;
 begin
     Result := TSparseTensor.Create(indices, values, dense_shape);
@@ -1934,6 +2019,7 @@ begin
 end;
 {$ENDREGION}
 
+{$REGION 'nn_internal'}
 { nn_internal }
 
 class function nn_internal.dropout(x, keep_prob, noise_shape: TFTensor; seed: PInteger; name: string; rate: PSingle): TFTensor;
@@ -1961,7 +2047,9 @@ class function nn_internal.tanh(x: TFTensor; name: string): TFTensor;
 begin
     Result := gen_nn_ops.tanh(x, name);
 end;
+{$ENDREGION}
 
+{$REGION 'train_internal'}
 { train_internal }
 
 function train_internal.AdamOptimizer(learning_rate: IVariableV1; name: string): Optimizer;
@@ -1993,6 +2081,69 @@ function train_internal.GradientDescentOptimizer(learning_rate: Single): Optimiz
 begin
     Result := TensorFlow.Training.GradientDescentOptimizer.Create(learning_rate);
 end;
+{$ENDREGION}
+
+{$REGION 'LinalgApi'}
+
+{ LinalgApi }
+
+constructor LinalgApi.Create;
+begin
+    ops := linalg_ops.Create;
+end;
+
+destructor LinalgApi.Destroy;
+begin
+  ops.Free;
+  inherited;
+end;
+
+function LinalgApi.diag(diagonal: TFTensor; name: string): TFTensor;
+begin
+   Result := gen_array_ops.diag(diagonal, name);
+end;
+
+function LinalgApi.einsum(equation: string; inputs: TFTensors; name: string): TFTensor;
+begin
+    Result := math_ops.einsum(equation, inputs, name);
+end;
+
+function LinalgApi.eye(num_rows, num_columns: Integer; batch_shape: PTFShape; dtype: TF_DataType; name: string): TFTensor;
+begin
+    Result := ops.eye(num_rows, num_columns, batch_shape, dtype, name);
+end;
+
+function LinalgApi.global_norm(t_list: TArray<TFTensor>; name: string): TFTensor;
+begin
+   Result := clip_ops.global_norm(t_list, name);
+end;
+
+function LinalgApi.inv(input: TFTensor; adjoint: Boolean; name: string): TFTensor;
+begin
+    Result := ops.matrix_inverse(input, adjoint, name);
+end;
+
+function LinalgApi.lstsq(matrix, rhs: TFTensor; l2_regularizer: TNDArray; fast: Boolean; name: string): TFTensor;
+begin
+    Result := ops.matrix_solve_ls(matrix, rhs, l2_regularizer, fast, name);
+end;
+
+function LinalgApi.matmul(a, b: TFTensor): TFTensor;
+begin
+   Result := math_ops.matmul(a, b);
+end;
+
+function LinalgApi.norm(tensor: TFTensor; _ord: string; axis: PAxis; name: string; keepdims: Boolean): TFTensor;
+begin
+    Result := ops.norm(tensor, _ord, axis, name);
+end;
+
+function LinalgApi.tensordot(x, y: TFTensor; axes: TNDArray; name: string): TFTensor;
+begin
+    Result := math_ops.tensordot(x, y, axes, name);
+end;
+
+{$ENDREGION}
 
 initialization
 begin

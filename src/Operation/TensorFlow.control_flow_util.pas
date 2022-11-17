@@ -75,7 +75,6 @@ begin
     begin
         var while_ctxt       := GetContainingWhileContext(op_ctxt);
         var input_while_ctxt := GetContainingWhileContext(input_ctxt);
-
         if while_ctxt = nil then
         begin
             // Neither op nor input_op is in a while loop, but one or both are in
@@ -104,7 +103,6 @@ begin
         else
            raise TFException.Create('CheckInputFromValidContext');
     end;
-
     if not valid then
        raise TFException.Create('CheckInputFromValidContext');
 
@@ -125,7 +123,6 @@ class function control_flow_util.GetLoopConstantEnter(value: TFTEnsor): TFOperat
 begin
     var id_ops : TArray<String> := [ 'Switch', 'RefSwitch', 'Identity', 'RefIdentity' ];
     var op := value.op;
-
     while TArray.Contains<String>(id_ops, op.tipo) do
         op := op.inputs[0].op;
 
@@ -156,7 +153,6 @@ begin
         Exit( false );
     if (op.outputs = nil) or (Length(op.outputs) = 0) then
         Exit( false );
-
     // Switch nodes are not part of the cond control flow context that they
     // represent, so consider the consumers of its outputs to determine if it is
     // cond switch or not. A switch is a cond switch iff all its consumers are in
@@ -172,7 +168,6 @@ begin
             is_cond_switch := (is_cond_switch) and ( (ctxt <> nil) and (ctxt.IsCondContext) );
         end;
     end;
-
     Result := is_cond_switch;
 end;
 

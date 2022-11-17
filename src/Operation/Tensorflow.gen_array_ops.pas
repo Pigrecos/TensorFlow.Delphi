@@ -269,12 +269,12 @@ end;
 class function gen_array_ops.pad_eager_fallback(inputs, padding: TFTensor; name: string; ctx: TContext): TFTensor;
 begin
     var t1 :Tuple<TF_DataType, TArray<TFTensor>>;
-    tf.Runner.ArgsToMatchingEager(ctx, t1, TF_Datatype.DtInvalid, [ inputs ]);
+    t1 := tf.Runner.ArgsToMatchingEager(ctx, TF_Datatype.DtInvalid, [ inputs ]);
     var _attr_T := t1.Value1;
     var input   := t1.Value2;
 
     var t2 :Tuple<TF_DataType, TArray<TFTensor>>;
-    tf.Runner.ArgsToMatchingEager(ctx, t2,tf.int32_t, [ padding ]);
+    t2 := tf.Runner.ArgsToMatchingEager(ctx, tf.int32_t, [ padding ]);
     var _attr_Tpaddings := t2.Value1;
     var paddings        := t2.Value2;
 
@@ -370,12 +370,12 @@ end;
 class function gen_array_ops.slice_eager_fallback(inputs: TFTensor; _begin, size: TArray<TFTensor>; name: string; ctx: TContext): TFTensor;
 begin
     var t1 :Tuple<TF_DataType, TArray<TFTensor>>;
-    tf.Runner.ArgsToMatchingEager(ctx, t1, TF_Datatype.DtInvalid, [ inputs ]);
+    t1 := tf.Runner.ArgsToMatchingEager(ctx, TF_Datatype.DtInvalid, [ inputs ]);
     var _attr_T := t1.Value1;
     var input   := t1.Value2;
 
     var t2 :Tuple<TF_DataType, TArray<TFTensor>>;
-    tf.Runner.ArgsToMatchingEager(ctx, t2, TF_Datatype.DtInvalid, [  _begin, size ]);
+    t2 := tf.Runner.ArgsToMatchingEager(ctx, TF_Datatype.DtInvalid, [  _begin, size ]);
     var _attr_Tidx    := t2.Value1;
     var _inputs_Index := t2.Value2;
 
@@ -545,11 +545,11 @@ begin
         aValue := aValue + [ TValue.From<T1>(values[i]) ];
 
     var tup1 :Tuple<TF_DataType, TArray<TFTensor>>;
-    tf.Runner.ArgsToMatchingEager(ctx, tup1, TF_Datatype.DtInvalid, aValue);
+    tup1 := tf.Runner.ArgsToMatchingEager(ctx, TF_Datatype.DtInvalid, aValue);
     var _attr_T := tup1.Value1;
     var input   := tup1.Value2;
     var tup2 :Tuple<TF_DataType, TArray<TFTensor>>;
-    tf.Runner.ArgsToMatchingEager(ctx, tup2, tf.int32_t, [ TValue.From<T2>(axis) ]);
+    tup2 := tf.Runner.ArgsToMatchingEager(ctx, tf.int32_t, [ TValue.From<T2>(axis) ]);
     var _attr_Tidx := tup2.Value1;
     var axis1      := tup2.Value2;
 

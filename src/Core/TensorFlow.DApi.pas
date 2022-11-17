@@ -200,7 +200,6 @@ end;
 ITensorOrOperation = class abstract(TFDisposable)
   private
     FDtype  : TF_DataType;
-    FName   : string;
     FDevice : string;
     FOp     : TFOperation;
     FOutputs: TArray<TFTensor>;
@@ -215,7 +214,7 @@ ITensorOrOperation = class abstract(TFDisposable)
      //function numpy:TNDArray; virtual ; abstract;
 
      property Dtype  : TF_DataType  read GetType;
-     property Name   : string       read GetName;
+     property Name   : string       read GetName ;
      property Device : string       read GetDevice;
      property Op     : TFOperation  read FOp;
      property Outputs: TArray<TensorFlow.DApi.TFTensor>  read FOutputs;
@@ -661,7 +660,7 @@ TFTensor = class(ITensorOrOperation)
    function GetShape: TFShape;
    procedure Setshape(const Value: TFShape);
    // inherited from ITensorOrOperation
-   function GetName: string; override;
+   function  GetName: string; override;
    function GetType: TF_DataType; override;
    function GetDevice: string; override;
 
@@ -678,6 +677,7 @@ TFTensor = class(ITensorOrOperation)
    function GetItem(slices: TArray<Slice>): TFTensor;overload;
    function GetItem(idx: Integer): TFTensor;overload;
    function GetItem(slices: TArray<string>): TFTensor;overload;
+   function GetItem(_slice: string): TFTensor;overload;
    function GetnDim: Integer;
  protected
    procedure NativeDispose(hnd: Pointer); override;
@@ -773,7 +773,8 @@ TFTensor = class(ITensorOrOperation)
    /// <param name="session">The `Session` to be used to evaluate this tensor.</param>
    /// <returns>A <see cref="NumPy"/> array corresponding to the value of this tensor.</returns>
    function  eval(session : TFSession; feed_dict : TArray<FeedItem>= nil) : TNDArray;
-   function  _slice(start: Integer): TFTensor;
+   function  _slice(start: Integer): TFTensor; overload;
+   function  _slice(_sl: slice): TFTensor; overload;
 
    property  Tag           : TValue         read FTag write FTag;
    property  bytesize      : UInt64         read GetByteSize;
@@ -806,6 +807,7 @@ TFTensor = class(ITensorOrOperation)
    property  Item[slices: TArray<Slice> ]: TFTensor read GetItem ; default;
    property  Item[idx: Integer ]         : TFTensor read GetItem ; default;
    property  Item[slices: TArray<string>]: TFTensor read GetItem ; default;
+   property  Item[slice: string]: TFTensor          read GetItem ; default;
 
 end;
 {$ENDREGION}
@@ -1070,7 +1072,6 @@ TFOperation = class(ITensorOrOperation)
     FGraph                : TFGraph;
     FInputs_val           : TInputList;
     Fcontrol_flow_context : TControlFlowContext;
-    Fname                 : string;
     Fid_value             : Integer;
     Fis_stateful          : Boolean;
 
@@ -1086,6 +1087,7 @@ TFOperation = class(ITensorOrOperation)
     function GetNodeDef: TNodeDef;
     function GetipoOp: string;
     procedure _assert_same_graph(tensor: TFTensor);
+   
  protected
    procedure NativeDispose(hnd: Pointer); override;
  public
@@ -1142,8 +1144,8 @@ TFOperation = class(ITensorOrOperation)
    property Graph     : TFGraph    read FGraph;
    property NumOutputs: Integer    read GeNumOutputs;
    property NumInputs : Integer    read GeNumInputs;
-   property id_value  : Integer    read Fid_value write Fid_value;
-   property id        : Integer    read Fid_value write Fid_value;
+   property id_value  : Integer    read Fid_value    write Fid_value;
+   property id        : Integer    read Fid_value    write Fid_value;
    property Output    : TFTensor   read GetOutput;
    property inputs    : TInputList read GetInputList;
    property NodeDef   : TNodeDef   read GetNodeDef;
@@ -1158,17 +1160,24 @@ EagerOperation = class(TFOperation)
     F_Inputs          : TArray<TFTensor>;
     F_Attrs           : TArray<TValue>;
     F_SkipInputIndices: TArray<Int64>;
+    FName             : string;
+    FNumInputs        : Integer;
+    FNumOutputs       : Integer;
 
     function GetInputList: TInputList; override;
     function GetOutpts: TArray<TensorFlow.DApi.TFTensor>;
+    procedure SetOutputs(const Value: TArray<TensorFlow.DApi.TFTensor>);
   public
     constructor Create;
     function    get_attr(attr_name:string): TValue; override;
 
     property SkipInputIndices: TArray<Int64> read F_SkipInputIndices write F_SkipInputIndices;
-    property Outputs: TArray<TensorFlow.DApi.TFTensor>  read GetOutpts;
-    property Inputs : TArray<TFTensor>  read F_Inputs write F_Inputs;
-    property Attrs  : TArray<TValue>    read F_Attrs  write F_Attrs  ;
+    property Outputs   : TArray<TensorFlow.DApi.TFTensor>  read GetOutpts write SetOutputs;
+    property Inputs    : TArray<TFTensor>  read F_Inputs    write F_Inputs;
+    property Attrs     : TArray<TValue>    read F_Attrs     write F_Attrs  ;
+    property name      : String            read FName       write FName;
+    property NumInputs : Integer           read FNumInputs  write FNumInputs;
+    property NumOutputs: Integer           read FNumOutputs write FNumOutputs;
 end;
 {$ENDREGION}
 
@@ -2502,6 +2511,7 @@ begin
         l_iFullByteSize := dtypesize;
 
         Move(l_pData^, l_pVal^, l_iFullByteSize);
+        Result := res;
         Exit;
     end;
 
@@ -2787,6 +2797,17 @@ begin
    Result := shape.Dims;
 end;
 
+function TFTensor.GetItem(_slice: string): TFTensor;
+begin
+    var slices: TArray<string> := [_slice];
+    var sl    : TArray<Slice>  := [];
+    for var i := 0 to Length(slices) -1 do
+    begin
+        sl := sl + [ Slice.Create( slices[i] ) ]
+    end;
+    Result := item[sl];
+end;
+
 function TFTensor.GetItem(slices: TArray<string>): TFTensor;
 begin
     var sl: TArray<Slice> := [];
@@ -2840,8 +2861,7 @@ begin
     if Fop <> nil then
       opname := Fop.name;
 
-    FName := Format('%s:%d',[opname,value_index]);
-    Result := FName
+   Result := Format('%s:%d',[opname,value_index]);
 end;
 
 function TFTensor.GetRank: Integer;
@@ -2899,6 +2919,72 @@ begin
         Result := [];
         for var i := 0 to Length(shape.dims)- 1 do
           Result := Result + [ dims[i] ];
+    end;
+end;
+
+function TFTensor._slice(_sl: slice): TFTensor;
+begin
+    var slice_spec : TArray<Integer> := [ _sl.start ];
+    var aBegin   := TList<Integer>.Create;
+    var aEnd     := TList<Integer>.Create;
+    var strides  := TList<Integer>.Create;
+    try
+      var index            : Integer := 0;
+      var new_axis_mask    : Integer := 0;
+      var shrink_axis_mask : Integer := 0;
+      var begin_mask       : Integer := 0;
+      var end_mask         : Integer := 0;
+      var ellipsis_mask    : Integer := 0;
+      for var s in slice_spec do
+      begin
+          aBegin.Add(s);
+          if _sl.Stop.HasValue then
+          begin
+              aEnd.Add(_sl.Stop.Value);
+          end else
+          begin
+              aEnd.Add(0);
+              end_mask := end_mask or (1 shl index);
+          end;
+
+          strides.Add(_sl.Step);
+
+          Inc(index);
+      end;
+
+      var vValues : TArray<TValue>;
+      vValues := vValues + [ TValue.From< TList<Integer> >(aBegin) ];
+      vValues := vValues + [ TValue.From< TList<Integer> >(aEnd) ];
+      vValues := vValues + [ TValue.From< TList<Integer> >(strides) ];
+      var newVal : TValue := TValue.From<TArray<TValue>>(vValues);
+
+      Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope('', 'strided_slice', @newVal),
+                                            function(v1: TNameScope): TFTensor
+                                              begin
+                                                  var name : string := v1.ToString;
+                                                  if aBegin <> nil then
+                                                  begin
+                                                      var packed_begin  := array_ops.stack( TValue.from< TArray<Integer> >(aBegin.ToArray) );
+                                                      var packed_end    := array_ops.stack( TValue.from< TArray<Integer> >(aEnd.ToArray) );
+                                                      var packed_strides:= array_ops.stack( TValue.from< TArray<Integer> >(strides.ToArray) );
+                                                      Result := gen_array_ops.strided_slice(self,
+                                                                                            packed_begin,
+                                                                                            packed_end,
+                                                                                            packed_strides,
+                                                                                            begin_mask,
+                                                                                            end_mask,
+                                                                                            ellipsis_mask,
+                                                                                            new_axis_mask,
+                                                                                            shrink_axis_mask,
+                                                                                            name);
+                                                      Exit;
+                                                  end;
+                                                  raise  TFException.Create('Not Implemented');
+                                              end );
+    finally
+      aBegin.Free;
+      aEnd.Free;
+      strides.Free;
     end;
 end;
 
@@ -2969,6 +3055,7 @@ end;
 {$ENDREGION}
 
 {$REGION 'TNDArray'}
+
 { TNDArray }
 
 constructor TNDArray.Create(const value: Integer);
@@ -3974,7 +4061,6 @@ begin
 
     if Assigned(Handle) then
       Result := TF_OperationNumOutputs(Handle)
-
 end;
 
 function TFOperation.GetDevice: string;
@@ -4037,11 +4123,9 @@ end;
 
 function TFOperation.Getname: string;
 begin
-    Fname := '';
+    Result := '';
     if Assigned(Handle) then
-      Fname := string( AnsiString(TF_OperationName(Handle)) ) ;
-
-    Result := Fname;
+      Result := string( AnsiString(TF_OperationName(Handle)) ) ;
 end;
 
 function TFOperation.GetOperation(h: Pointer): TFOperation;
@@ -5564,6 +5648,11 @@ begin
         FOutputs := Outputs;
     end;
     Result := FOutputs;
+end;
+
+procedure EagerOperation.SetOutputs(const Value: TArray<TensorFlow.DApi.TFTensor>);
+begin
+    FOutputs := Value;
 end;
 
 function EagerOperation.get_attr(attr_name: string): TValue;

@@ -81,6 +81,31 @@ type
         Constructor Create;
   end;
 
+  OptimizerV2Args = class
+    private
+
+    public
+        Name         : string;
+        LearningRate : Single;
+        InitialDecay : Single;
+        ClipNorm     : Single;
+        ClipValue    : Single;
+
+        Constructor Create;
+  end;
+
+  RMSpropArgs = class(OptimizerV2Args)
+    private
+
+    public
+        RHO      : Single;
+        Momentum : Single;
+        Epsilon  : Single;
+        Centered : Boolean;
+
+        Constructor Create;
+  end;
+
 
 implementation
           uses Tensorflow;
@@ -116,6 +141,29 @@ begin
     Unroll          := false;
     TimeMajor       := false;
     Kwargs          := nil;
+end;
+
+{ OptimizerV2Args }
+
+constructor OptimizerV2Args.Create;
+begin
+    Name         := '';
+    LearningRate := 0.001;
+    InitialDecay := 0.0;
+    ClipNorm     := 0.0;
+    ClipValue    := 0.0;
+end;
+
+{ RMSpropArgs }
+
+constructor RMSpropArgs.Create;
+begin
+    inherited Create;
+
+    RHO       := 0.9;
+    Momentum  := 0.0;
+    Epsilon   := 1e-7;
+    Centered  := false;
 end;
 
 end.

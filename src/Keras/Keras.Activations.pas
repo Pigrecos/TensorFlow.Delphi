@@ -14,10 +14,6 @@ unit Keras.Activations;
 
 interface
        uses System.SysUtils,
-            Spring,
-            Spring.Collections,
-            Spring.Collections.Lists,
-            Spring.Collections.Dictionaries,
 
             TF4D.Core.CApi,
             TensorFlow.DApi,

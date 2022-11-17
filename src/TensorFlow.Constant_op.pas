@@ -62,6 +62,7 @@ type
       /// <param name="as_ref"></param>
       /// <returns></returns>
       class function _tensor_shape_tensor_conversion_function(s: TFShape; dtype: TF_DataType = TF_DataType.DtInvalid; name: string = ''; as_ref : Boolean = false) : TFTensor;
+      class function is_constant(tensor_or_op: ITensorOrOperation) : Boolean;
  end;
 
 implementation
@@ -121,6 +122,22 @@ begin
         attrs);
 
     Result := oper.outputs[0];
+end;
+
+class function constant_op.is_constant(tensor_or_op: ITensorOrOperation): Boolean;
+begin
+    if (tensor_or_op is TFTensor ) then
+    begin
+        var tensor : TFTensor := tensor_or_op as TFTensor;
+        Result := tensor.op.Tipo = 'Const';
+    end
+    else if (tensor_or_op is TFOperation) then
+    begin
+        var op : TFOperation := tensor_or_op as TFOperation;
+        Result := op.Tipo = 'Const';
+    end
+    else
+       raise Exception.Create('is_constant');
 end;
 
 class function constant_op._eager_reshape(tensor: TFTensor; shape: TArray<Integer>; ctx: TContext): TFTensor;
@@ -274,7 +291,7 @@ begin
         var vval : Single := Value.AsType<Single>;
         Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_FLOAT);
     end
-    else if value.IsType<Single> and (Value.TypeInfo.Name ='Double') then
+    else if value.IsType<Double> and (Value.TypeInfo.Name ='Double') then
     begin
         var vval : Double := Value.AsType<Double>;
         Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_DOUBLE);
@@ -285,7 +302,28 @@ begin
         Result := TEagerTensor.Create(value, @sShape);
     end else
     begin
-       raise Exception.Create('NotImplemented convert_to_eager_tensor Type: '+ Value.TypeInfo.Name);
+       var tData := GetTypeData(Value.TypeInfo)^;
+       case tData.floatType of
+         ftSingle: begin
+           var vval : Single := Value.AsType<Single>;
+           Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_FLOAT);
+         end;
+         ftDouble: begin
+           var vval : Double := Value.AsType<Double>;
+           Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_DOUBLE);
+         end;
+         ftExtended: begin
+           var vval : Double := Value.AsType<Double>;
+           Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_DOUBLE);
+         end;
+         (*ftComp:  begin
+         end;
+         ftCurr:  begin
+         end;
+         *)
+       else
+         raise Exception.Create('NotImplemented convert_to_eager_tensor Type: '+ Value.TypeInfo.Name);
+       end;
     end;
 end;
 

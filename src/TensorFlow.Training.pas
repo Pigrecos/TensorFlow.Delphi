@@ -119,7 +119,7 @@ type
  Trackable = class abstract
     private
        Fself_update_uid : Integer;
-    protected
+    public
        /// <summary>
        /// Restore-on-create for a variable be saved with this `Checkpointable`.
        /// </summary>
@@ -1015,10 +1015,10 @@ begin
             var beta2_power := tAcc.Value2;
             Result := gen_training_ops.apply_adam(
                                           _var.tHandle,
-                                          m.Handle,
-                                          v.Handle,
-                                          math_ops.cast(beta1_power.Handle, TDtypes.as_base_dtype(_var.dtype)),
-                                          math_ops.cast(beta2_power.Handle, TDtypes.as_base_dtype(_var.dtype)),
+                                          m.tHandle,
+                                          v.tHandle,
+                                          math_ops.cast(beta1_power.tHandle, TDtypes.as_base_dtype(_var.dtype)),
+                                          math_ops.cast(beta2_power.tHandle, TDtypes.as_base_dtype(_var.dtype)),
                                           math_ops.cast(Flr_t,              TDtypes.as_base_dtype(_var.dtype)),
                                           math_ops.cast(Fbeta1_t,           TDtypes.as_base_dtype(_var.dtype)),
                                           math_ops.cast(Fbeta2_t,           TDtypes.as_base_dtype(_var.dtype)),
