@@ -332,8 +332,8 @@ nn_internal = class
   private
 
   public
-    class function tanh(x:TFTensor; name: string = '') : TFTensor ; static;
-    class function relu(features:TFTensor; name: string = '') : TFTensor ; static;
+    function tanh(x:TFTensor; name: string = '') : TFTensor ;
+    function relu(features:TFTensor; name: string = '') : TFTensor ;
     /// <summary>
     /// Computes sigmoid of `x` element-wise.
     /// Specifically, `y = 1 / (1 + exp(-x))`.
@@ -342,7 +342,7 @@ nn_internal = class
     /// <param name="x"></param>
     /// <param name="name">A name for the operation (optional).</param>
     /// <returns>A Tensor with the same type as `x`.</returns>
-    class function sigmoid<T>(x: T; name: string = ''): TFTensor ; static;
+    function sigmoid<T>(x: T; name: string = ''): TFTensor ;
     /// <summary>
     /// Computes dropout.
     /// </summary>
@@ -353,7 +353,8 @@ nn_internal = class
     /// <param name="name"></param>
     /// <param name="rate">A scalar `Tensor` with the same type as `x`.</param>
     /// <returns>A Tensor of the same shape of `x`.</returns>
-    class function dropout(x: TFTensor; keep_prob: TFTensor = nil; noise_shape: TFTensor = nil; seed: PInteger = nil; name: string = ''; rate: PSingle = nil): TFTensor ; static;
+    function dropout(x: TFTensor; keep_prob: TFTensor = nil; noise_shape: TFTensor = nil; seed: PInteger = nil; name: string = ''; rate: PSingle = nil): TFTensor ;
+    function l2_loss(t: TFTensor; name: string = ''): TFTensor ;
 end;
 {$ENDREGION}
 
@@ -465,6 +466,7 @@ end;
       // tf.tensor
       function convert_to_tensor(value: TValue; dtype: TF_DataType= DtInvalid; name: string= ''; preferred_dtype: TF_DataType=DtInvalid): TFTensor;
 
+      {$REGION 'tf.linalg'}
       // tf.linalg
       //
       function diag(diagonal: TFTensor; name: string = ''): TFTensor;
@@ -495,7 +497,9 @@ end;
       /// <param name="name"></param>
       /// <returns></returns>
       function batch_matmul(x: TFTensor; y: TFTensor; adj_x : Boolean = false; adj_y : Boolean= false; name : string= ''): TFTensor;
+      {$ENDREGION}
 
+      {$REGION 'tf.ops'}
       // tf.ops
       //
       procedure add_to_collection<T>(name: string; value: T);
@@ -536,7 +540,9 @@ end;
       /// <param name="name"></param>
       /// <returns>A tensor or (possibly nested) sequence of tensors.</returns>
       function map_fn(fn : TFunc<TFTensor, TFTensor> ; elems: TFTensor; dtype : TF_DataType = DtInvalid; parallel_iterations : Integer= -1; back_prop: Boolean = true; swap_memory : Boolean = false; infer_shape : Boolean = true; name: string = ''): TFTensor;
+      {$ENDREGION}
 
+      {$REGION 'tf.constant'}
       // tf.constant
       //
       /// <summary>
@@ -553,10 +559,12 @@ end;
       function zeros(shape: TFTensor; dtype: TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor; overload;
       function ones(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor;
       function size(input: TFTensor; name: string = ''; out_type: TF_DataType = TF_DataType.TF_INT32): TFTensor;
+      {$ENDREGION}
 
       // tf.reshape
       function  reshape(tensor: TFTensor; shape: TFShape; name: string = ''): TFTensor;
 
+      {$REGION 'tf.gradients'}
       //tf.gradients
       //
       // Gradient
@@ -568,7 +576,9 @@ end;
       /// <returns>Tape set</returns>
       function GradientTape(persistent: Boolean = false; watch_accessed_variables: Boolean = true): TGradientTape;
       function GetTapeSet: TStack<ITape>;
+      {$ENDREGION}
 
+      {$REGION 'tf.variable'}
       // tf.variable
       //
       /// <summary>
@@ -581,7 +591,9 @@ end;
       function global_variables_initializer: TFOperation;
       function global_variables(scope: string = '') : TArray<IVariableV1>;
       function trainable_variables(scope: string = '') : TArray<IVariableV1>;
+      {$ENDREGION}
 
+      {$REGION 'tf.array'}
       // tf.array
       //
       /// <summary>
@@ -650,7 +662,28 @@ end;
       /// <param name="name">A name for the operation (optional).</param>
       /// <returns>A `Tensor` the same type as `input`.</returns>
       function slice<Tb, Ts>(input: TFTensor; _begin : TArray<Tb>; size : TArray<Ts>; name: string = ''): TFTensor;
+      /// <summary>
+      /// Transposes `a`. Permutes the dimensions according to `perm`.
+      /// </summary>
+      /// <param name="a"></param>
+      /// <param name="perm"></param>
+      /// <param name="name"></param>
+      /// <param name="conjugate"></param>
+      /// <returns></returns>
+      function transpose<T1>(a: T1; perm: PAxis = nil; name: string = 'transpose'; conjugate: Boolean = false): TFTensor;
+      /// <summary>
+      /// Creates a tensor with all elements set to zero.
+      /// </summary>
+      /// <param name="tensor"></param>
+      /// <param name="dtype"></param>
+      /// <param name="name"></param>
+      /// <param name="optimize"></param>
+      /// <returns>A `Tensor` with all elements set to zero.</returns>
+      function zeros_like(tensor: TFTensor; dtype: TF_DataType = DtInvalid; name : string= ''; optimize : Boolean= true): TFTensor; overload;
+      function zeros_like(nd    : TNDArray; dtype: TF_DataType = DtInvalid; name : string= ''; optimize : Boolean= true): TFTensor; overload;
+      {$ENDREGION}
 
+      {$REGION 'tf.sparse'}
       // tf.sparse
       //
       /// <summary>
@@ -669,7 +702,9 @@ end;
       function SparseTensor(indices: TArray< TArray<Int64> >; values: TValue; dense_shape:TArray<Int64>) : TSparseTensor;  overload;
       function SparseTensor(indices: TArray<TArray<Int64>>;   values: TArray<Integer>; dense_shape: TArray<Int64>): TSparseTensor; overload;
       function sparse_tensor_to_dense(sp_input: TSparseTensor; default_value: TValue; validate_indices : Boolean= true; name: string = ''): TFTensor;
+      {$ENDREGION}
 
+      {$REGION 'tf.math'}
       // tf.math
       //
       /// <summary>
@@ -1016,6 +1051,7 @@ end;
       function square(x : TFTensor; name: string = ''): TFTensor;
       function squared_difference(x : TFTensor; y: TFTensor; name: string = '') : TFTensor;
       function exp(x: TFTensor; name: string = ''): TFTensor;
+      {$ENDREGION}
 
       // tf.random
       function random_uniform(shape: TFShape; minval: Single = 0; maxval: Single = 1; dtype: TF_DataType = TF_FLOAT; seed: pInteger = nil; name: string = ''): TFTensor;
@@ -1048,34 +1084,6 @@ implementation
         TensorFlow.Tensor;
 
 {$REGION 'TTensorflow'}
-
-{ MathApi }
-
-function MathApi.argmax(input: TFTensor; axis: TAxis; name: string; dimension: PInteger; output_type: TF_DataType): TFTensor;
-begin
-    Result := gen_math_ops.arg_max(input, axis, output_type, name);
-end;
-
-function MathApi.log(x: TFTensor; name: string): TFTensor;
-begin
-    Result := gen_math_ops.log(x, name);
-end;
-
-function MathApi.erf(x: TFTensor; name: string): TFTensor;
-begin
-    Result := math_ops.erf(x, name);
-end;
-
-function MathApi.sum(x: TFTensor; axis: TAxis; name: string): TFTensor;
-begin
-   Result :=  math_ops.reduce_sum(x, axis, False, name);
-end;
-
-function MathApi.bincount(arr, weights, minlength, maxlength: TFTensor; dtype: TF_DataType; name: string; axis: PTFShape; binary_output: Boolean): TFTensor;
-begin
-    Result := math_ops.bincount(arr, weights, minlength, maxlength, dtype, name, axis, binary_output);
-end;
-
 { TTensorflow }
 
 constructor TTensorflow.Create;
@@ -1815,6 +1823,11 @@ begin
     Result := Value.AsType< TList<IVariableV1> >.ToArray;
 end;
 
+function TTensorflow.transpose<T1>(a: T1; perm: PAxis; name: string; conjugate: Boolean): TFTensor;
+begin
+    Result := array_ops.transpose(a, perm, name, conjugate);
+end;
+
 class function TTensorflow.truediv(x, y: TFTensor; name: string): TFTensor;
 begin
     Result := math_ops.truediv(x, y, name);
@@ -1845,6 +1858,16 @@ end;
 function TTensorflow.zeros(shape: TFTensor; dtype: TF_DataType; name: string): TFTensor;
 begin
     Result := array_ops.zeros(shape, dtype, name);
+end;
+
+function TTensorflow.zeros_like(nd: TNDArray; dtype: TF_DataType; name: string; optimize: Boolean): TFTensor;
+begin
+   Result := array_ops.zeros_like(nd, dtype, name, optimize);
+end;
+
+function TTensorflow.zeros_like(tensor: TFTensor; dtype: TF_DataType; name: string; optimize: Boolean): TFTensor;
+begin
+    Result := array_ops.zeros_like(tensor, dtype, name, optimize);
 end;
 
 function TTensorflow._clip_by_value(t, clip_value_min, clip_value_max: TFTensor; name: string): TFTensor;
@@ -2022,7 +2045,7 @@ end;
 {$REGION 'nn_internal'}
 { nn_internal }
 
-class function nn_internal.dropout(x, keep_prob, noise_shape: TFTensor; seed: PInteger; name: string; rate: PSingle): TFTensor;
+function nn_internal.dropout(x, keep_prob, noise_shape: TFTensor; seed: PInteger; name: string; rate: PSingle): TFTensor;
 begin
     var keep: TFTensor := nil;
     if keep_prob <> nil then
@@ -2033,17 +2056,22 @@ begin
     Result := nn_ops.dropout_v2(x, rate_tensor, noise_shape, seed,  name);
 end;
 
-class function nn_internal.relu(features: TFTensor; name: string): TFTensor;
+function nn_internal.l2_loss(t: TFTensor; name: string): TFTensor;
+begin
+   Result := nn_ops.l2_loss(t, name);
+end;
+
+function nn_internal.relu(features: TFTensor; name: string): TFTensor;
 begin
     Result := gen_nn_ops.relu(features, name);
 end;
 
-class function nn_internal.sigmoid<T>(x: T; name: string): TFTensor;
+function nn_internal.sigmoid<T>(x: T; name: string): TFTensor;
 begin
    Result := math_ops.sigmoid(x, name);
 end;
 
-class function nn_internal.tanh(x: TFTensor; name: string): TFTensor;
+function nn_internal.tanh(x: TFTensor; name: string): TFTensor;
 begin
     Result := gen_nn_ops.tanh(x, name);
 end;
@@ -2080,6 +2108,35 @@ end;
 function train_internal.GradientDescentOptimizer(learning_rate: Single): Optimizer;
 begin
     Result := TensorFlow.Training.GradientDescentOptimizer.Create(learning_rate);
+end;
+{$ENDREGION}
+
+{$REGION 'MathApi'}
+{ MathApi }
+
+function MathApi.argmax(input: TFTensor; axis: TAxis; name: string; dimension: PInteger; output_type: TF_DataType): TFTensor;
+begin
+    Result := gen_math_ops.arg_max(input, axis, output_type, name);
+end;
+
+function MathApi.log(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_math_ops.log(x, name);
+end;
+
+function MathApi.erf(x: TFTensor; name: string): TFTensor;
+begin
+    Result := math_ops.erf(x, name);
+end;
+
+function MathApi.sum(x: TFTensor; axis: TAxis; name: string): TFTensor;
+begin
+   Result :=  math_ops.reduce_sum(x, axis, False, name);
+end;
+
+function MathApi.bincount(arr, weights, minlength, maxlength: TFTensor; dtype: TF_DataType; name: string; axis: PTFShape; binary_output: Boolean): TFTensor;
+begin
+    Result := math_ops.bincount(arr, weights, minlength, maxlength, dtype, name, axis, binary_output);
 end;
 {$ENDREGION}
 

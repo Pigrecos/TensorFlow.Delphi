@@ -676,7 +676,7 @@ begin
                       end;
 
                       name   := string(v1.ToString);
-                      Result := gen_array_ops.transpose(a_tensor, perm, name);
+                      Result := gen_array_ops.transpose(a_tensor, perm^, name);
                   end );
 end;
 

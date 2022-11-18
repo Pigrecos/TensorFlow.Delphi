@@ -102,6 +102,12 @@ type
        procedure GradientConcatTest;
        procedure GradientOperatorMulTest;
        procedure GradientSliceTest;
+       // Tensor Operate
+       procedure TransposeTest;
+       procedure ConcatDoubleTest;
+       procedure ConcatTest;
+       procedure InitTensorTest;
+       procedure TestZerosLike;
   end;
 
   TForm1 = class(TForm)
@@ -559,6 +565,13 @@ begin
     ma.GradientOperatorMulTest;
     ma.GradientSliceTest;
     ma.GradientConcatTest;
+    // Tensor Operate
+    mmo1.Lines.Add('Tensor Operate');
+    ma.TransposeTest ;
+    ma.InitTensorTest;
+    ma.ConcatTest;
+    ma.ConcatDoubleTest;
+    ma.TestZerosLike;
 
     mmo1.Lines.Add('Test ManagedAPI Test End....');
     ma.Free;
@@ -576,6 +589,12 @@ begin
     Clips.clip_by_global_norm;
     mmo1.Lines.Add('clip_by_global_norm Test End....');
     Clips.Free;
+
+    mmo1.Lines.Add('Neural NetworkTest Test Start....');
+    var NeuralNetworkTest := EagerModeTestBase.Create;
+    NeuralNetworkTest.NeuralNetworkTest_l2_loss;
+    mmo1.Lines.Add('Neural NetworkTest Test End....');
+    NeuralNetworkTest.Free;
 
     mmo1.Lines.Add('Bitwise op. Test Start....');
     var Bitwise := BitwiseApiTest.Create;
@@ -627,6 +646,140 @@ destructor ManagedAPI.Destroy;
 begin
 
 end;
+
+procedure ManagedAPI.TransposeTest;
+begin
+    // https://www.tensorflow.org/api_docs/python/tf/transpose#for_example_2
+    var aX : TArray<TArray<Integer>> :=  [[1, 2, 3],[4, 5, 6]];
+    var x := tf.constant(aX);
+    var transpose_x := tf.transpose(x);
+
+    var tr_numpy : TArray<Integer> := transpose_x[0].numpy.ToArray<Integer>;
+    var aTest0   : TArray<Integer> := [1,4];
+    Assert.IsTrue( TUtils.SequenceEqual<Integer>(aTest0, tr_numpy) );
+
+    tr_numpy := transpose_x[1].numpy.ToArray<Integer>;
+    aTest0   := [2,5];
+    Assert.IsTrue( TUtils.SequenceEqual<Integer>(aTest0, tr_numpy) );
+
+    tr_numpy := transpose_x[2].numpy.ToArray<Integer>;
+    aTest0   := [3,6];
+    Assert.IsTrue( TUtils.SequenceEqual<Integer>(aTest0, tr_numpy) );
+
+    var aA :  TArray<TArray<TArray<TArray<Integer>>>> :=  [
+                                                              [
+                                                                  [
+                                                                      [ 1, 11, 2, 22 ]
+                                                                  ],
+                                                                  [
+                                                                      [ 3, 33, 4, 44 ]
+                                                                  ]
+                                                              ],
+                                                              [
+                                                                  [
+                                                                      [ 5, 55, 6, 66 ]
+                                                                  ],
+                                                                  [
+                                                                      [ 7, 77, 8, 88 ]
+                                                                  ]
+                                                              ]
+                                                          ] ;
+
+    var a := tf.constant( np.np_array(aA) );
+
+    var aPerm : TAxis := [ 3, 1, 2, 0 ];
+    var actual_transposed_a := tf.transpose(a, @aPerm);
+
+    var aE :  TArray<TArray<TArray<TArray<Integer>>>> := [
+                                                              [
+                                                                  [ [ 1, 5 ] ], [ [ 3, 7 ] ]
+                                                              ],
+                                                              [
+                                                                  [ [ 11, 55 ] ], [ [ 33, 77 ] ]
+                                                              ],
+                                                              [
+                                                                  [
+                                                                      [ 2, 6 ]
+                                                                  ],
+                                                                  [
+                                                                      [ 4, 8 ]
+                                                                  ]
+                                                              ],
+                                                              [
+                                                                  [
+                                                                      [ 22, 66 ]
+                                                                  ],
+                                                                  [
+                                                                      [ 44, 88 ]
+                                                                  ]
+                                                              ]
+                                                          ];
+
+    var expected_transposed_a := tf.constant( np.np_array(aE) );
+
+    Assert.IsTrue(TFShape.Create([4, 2, 1, 2])= actual_transposed_a.shape);
+    Assert.IsTrue(expected_transposed_a.numpy.equals(actual_transposed_a.numpy) );
+end;
+
+procedure ManagedAPI.InitTensorTest;
+begin
+    var aX : TArray<TArray<TArray<Integer>>> :=  [ [ [ 1 ], [ 2 ], [ 3 ] ],
+                                                   [ [ 4 ], [ 5 ], [ 6 ] ]
+                                                  ];
+    var a := tf.constant(np.np_array(aX));
+    Assert.IsTrue( TUtils.SequenceEqual<Int64>([ 2, 3, 1 ], a.shape.dims));
+
+    var b := tf.constant( aX );
+    Assert.IsTrue( TUtils.SequenceEqual<Int64>([ 2, 3, 1 ], b.shape.dims));
+end;
+
+procedure ManagedAPI.ConcatTest;
+begin
+    var aA : TArray<TArray<Integer>> := [ [ 1, 2 ], [ 3, 4 ] ];
+    var a := tf.constant( aA );
+
+    aA    := [ [ 5, 6 ], [ 7, 8 ] ];
+    var b := tf.constant( aA);
+
+    aA    := [ [ 9, 10 ], [ 11, 12 ] ];
+    var c := tf.constant( aA );
+
+    var concatValue := tf.concat([ a, b, c ],  0);
+    Assert.IsTrue( TUtils.SequenceEqual<Int64>([ 6, 2 ], concatValue.shape.dims) );
+end;
+
+procedure ManagedAPI.ConcatDoubleTest;
+begin
+    var aA : TArray<TArray<Double>> := [ [ 1.0, 2.0 ], [ 3.0, 4.0 ] ];
+    var a := tf.constant( aA );
+
+    aA    := [ [ 5.0, 6.0 ], [ 7.0, 8.0 ] ];
+    var b := tf.constant( aA );
+
+    aA    := [ [ 9.0, 10.0 ], [ 11.0, 12.0 ] ];
+    var c := tf.constant( aA );
+
+    var concatValue := tf.concat([ a, b, c ],  0);
+    Assert.IsTrue( TUtils.SequenceEqual<Int64>([ 6, 2 ], concatValue.shape.dims) );
+end;
+
+procedure ManagedAPI.TestZerosLike;
+begin
+   (* var a2D : TArray<TArray<Integer>> := [ [ 1, 2, 3 ], [ 4, 5, 6 ] ];
+    var zeros2D := tf.zeros_like( TNdArray.Create(a2D) );
+
+    Assert.AreEqual(new[] { 0, 0, 0 }, zeros2D[0].numpy());
+    Assert.AreEqual(new[] { 0, 0, 0 }, zeros2D[1].numpy());
+
+    var zeros1D = tf.zeros_like(new int[,]
+    {
+        { 1, 2, 3 }
+    });
+
+    Assert.AreEqual(new[] { 0, 0, 0 }, zeros1D[0].numpy());
+  *)
+end;
+
 
 procedure ManagedAPI.Slice;
 begin

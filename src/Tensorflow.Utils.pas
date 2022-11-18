@@ -56,6 +56,8 @@ type
       class operator Implicit(const Value: TArray<Single>): TValue;
       class operator Implicit(const Value: TF_DataType): TValue;
       class operator Implicit(const Value: TArray< TArray<Integer> >): TValue;
+      class operator Implicit(const Value: TArray< TArray<TArray<Integer>> >): TValue;
+      class operator Implicit(const Value: TArray< TArray<Double> >): TValue;
 
   end;
 
@@ -486,7 +488,7 @@ begin
       TF_UINT8:  Result := UInt8.MaxValue;
       TF_UINT16: Result := UInt16.MaxValue;
       TF_UINT32: Result := UInt32.MaxValue;
-      TF_UINT64: Result := UInt64.MaxValue;
+      TF_UINT64: Result := Int64(UInt64.MaxValue);
     else
       raise Exception.Create(' Not Implemented - Tdtypes.max');
     end;
@@ -1503,6 +1505,16 @@ end;
 class operator TValueHelp.Implicit(const Value: TArray<Single>): TValue;
 begin
     Result := TValue.From< TArray<Single> >(Value);
+end;
+
+class operator TValueHelp.Implicit(const Value: TArray<TArray<TArray<Integer>>>): TValue;
+begin
+   Result := TValue.From< TArray<TArray<TArray<Integer>>> >(Value);
+end;
+
+class operator TValueHelp.Implicit(const Value: TArray<TArray<Double>>): TValue;
+begin
+    Result := TValue.From< TArray<TArray<Double>> >(Value);
 end;
 
 end.

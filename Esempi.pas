@@ -78,6 +78,7 @@ type
       function  Equal(f1: TArray<Double>; f2: TArray<Double>): Boolean; overload;
 
       procedure clip_by_global_norm;
+      procedure NeuralNetworkTest_l2_loss;
   end;
 
   ActivationFunctionTest = class(EagerModeTestBase)
@@ -256,6 +257,15 @@ begin
     Assert.IsTrue(Equal(expected, actual));
     var nNorm : NDArray := norm.numpy;
     Assert.AreEqual<Single>( nNorm, 14.282857);
+end;
+
+procedure EagerModeTestBase.NeuralNetworkTest_l2_loss;
+begin
+    var vA : TArray< TArray<Single> > := [[1, 2, 3, 4],[5, 6, 7, 8]];
+    var x := tf.Variable(np.np_array(vA), '',tf.float32_t);
+    var l2 := tf.nn.l2_loss(x.totensor);
+    var l2_numpy : NDArray := l2.numpy;
+    Assert.AreEqual<Single>(l2_numpy, 102);
 end;
 
 constructor EagerModeTestBase.Create;
@@ -524,12 +534,13 @@ begin
             var fc : NDArray := loss.numpy;
             var fW : NDArray := W.numpy;
             var fb : NDArray := b.numpy;
-            mmo1.Lines.Add('');
+
             mmo1.Lines.Add( Format('step: %d, loss: %.9f, W: %.9f, b: %.9f',[step, Single(fc),  Single(fW), Single(fb)]) );
 
         end;
     end;
     mmo1.Lines.Add('');
+    Result := True;
 end;
 
 end.

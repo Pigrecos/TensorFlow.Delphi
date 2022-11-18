@@ -930,6 +930,7 @@ TNDArray = class(TFTensor, IEnumerable )
      function reshape(newshape: TFShape): TNDArray;
      function astype(dtype: TF_DataType): TNDArray;
      function ToByteArray: TArray<Byte>;
+     function Equals(y: TNDArray): Boolean;
 
      property Item[indices: Integer ]         : TNDArray read GetItem write SetItem; default;
      property Item[indices: TArray<Integer> ] : TNDArray read GetItem write SetItem; default;
@@ -2736,7 +2737,19 @@ class function TFTensor.InitTensor<T>(aArray: TArray<TArray<TArray<T>>>; shape: 
 var
   l_pData     : Pointer;
 begin
-     l_pData := PByte(@aArray[0][0][0]);
+     var _length := shape.Size;
+     var a : TArray<T>; SetLength(a,_length) ;
+     var j : Integer := 0;
+     for var i := 0 to Length(aArray) - 1 do
+     begin
+        for var k := 0 to Length(aArray[i]) - 1 do
+        begin
+           CopyMemory(@a[j], @aArray[i][k][0], Length(aArray[i][k]) * Tdtypes.get_datatype_size(dtype)) ;
+           Inc(j,Length(aArray[i][k]));
+        end;
+     end;
+
+     l_pData := PByte(@a[0]);
      Result := TF_NewTensor(shape,dtype,l_pData) ;
 end;
 
@@ -2744,7 +2757,22 @@ class function TFTensor.InitTensor<T>(aArray: TArray<TArray<TArray<TArray<T>>>>;
 var
   l_pData     : Pointer;
 begin
-     l_pData := PByte(@aArray[0][0][0][0]);
+     var _length := shape.Size;
+     var a : TArray<T>; SetLength(a,_length) ;
+     var j : Integer := 0;
+     for var i := 0 to Length(aArray) - 1 do
+     begin
+        for var k := 0 to Length(aArray[i]) - 1 do
+        begin
+            for var x := 0 to Length(aArray[i][k]) - 1 do
+            begin
+               CopyMemory(@a[j], @aArray[i][k][x][0], Length(aArray[i][k][x]) * Tdtypes.get_datatype_size(dtype)) ;
+               Inc(j,Length(aArray[i][k][x]));
+            end;
+        end;
+     end;
+
+     l_pData := PByte(@a[0]);
      Result := TF_NewTensor(shape,dtype,l_pData) ;
 end;
 
@@ -3515,6 +3543,15 @@ begin
   inherited Destroy;
 end;
 
+function TNDArray.Equals(y: TNDArray): Boolean;
+begin
+    if ndim <> y.ndim        then exit(False)
+    else if size <> y.size   then exit(False)
+    else if dtype <> y.dtype then exit(False);
+
+    Result := TUtils.SequenceEqual<byte>(ToByteArray, y.ToByteArray);
+end;
+
 function TNDArray.GetItem(indices: TArray<Integer>): TNDArray;
 begin
      var aSlice : TArray<Slice> := [];
@@ -3806,6 +3843,7 @@ begin
            TF_UINT32: Create( TFTensor.InitTensor<UInt32>(value.AsType< TArray<TArray<UInt32>> >,  shape,dtype) );
            TF_UINT64: Create( TFTensor.InitTensor<UInt64>(value.AsType< TArray<TArray<UInt64>> >,  shape,dtype) );
          end;
+         NewEagerTensorHandle ;
        end;
        3 : begin
          case dtype of
@@ -3822,7 +3860,24 @@ begin
            TF_UINT32: Create( TFTensor.InitTensor<UInt32>(value.AsType< TArray<TArray<TArray<UInt32>>> >,  shape,dtype) );
            TF_UINT64: Create( TFTensor.InitTensor<UInt64>(value.AsType< TArray<TArray<TArray<UInt64>>> >,  shape,dtype) );
          end;
-
+         NewEagerTensorHandle ;
+       end;
+       4 : begin
+         case dtype of
+           TF_FLOAT:  Create( TFTensor.InitTensor<Single>(value.AsType< TArray<TArray<TArray<TArray<Single>>>> >,  shape,dtype) );
+           TF_DOUBLE: Create( TFTensor.InitTensor<Double>(value.AsType< TArray<TArray<TArray<TArray<Double>>>> >,  shape,dtype) );
+           TF_INT32:  Create( TFTensor.InitTensor<Int32>(value.AsType< TArray<TArray<TArray<TArray<Int32>>>> >,    shape,dtype) );
+           TF_UINT8:  Create( TFTensor.InitTensor<UInt8>(value.AsType< TArray<TArray<TArray<TArray<UInt8>>>> >,    shape,dtype) );
+           TF_INT16:  Create( TFTensor.InitTensor<Int16>(value.AsType< TArray<TArray<TArray<TArray<Int16>>>> >,    shape,dtype) );
+           TF_INT8:   Create( TFTensor.InitTensor<Int8>(value.AsType< TArray<TArray<TArray<TArray<Int8>>>> >,      shape,dtype) );
+           TF_STRING: Create( TFTensor.InitTensor<string>(value.AsType< TArray<TArray<TArray<TArray<string>>>> >,  shape,dtype) );
+           TF_INT64:  Create( TFTensor.InitTensor<Int64>(value.AsType< TArray<TArray<TArray<TArray<Int64>>>> >,    shape,dtype) );
+           TF_BOOL:   Create( TFTensor.InitTensor<Boolean>(value.AsType< TArray<TArray<TArray<TArray<Boolean>>>> >,shape,dtype) );
+           TF_UINT16: Create( TFTensor.InitTensor<UInt16>(value.AsType< TArray<TArray<TArray<TArray<UInt16>>>> >,  shape,dtype) );
+           TF_UINT32: Create( TFTensor.InitTensor<UInt32>(value.AsType< TArray<TArray<TArray<TArray<UInt32>>>> >,  shape,dtype) );
+           TF_UINT64: Create( TFTensor.InitTensor<UInt64>(value.AsType< TArray<TArray<TArray<TArray<UInt64>>>> >,  shape,dtype) );
+         end;
+         NewEagerTensorHandle ;
        end;
 
     end;
