@@ -212,9 +212,10 @@ begin
     ctx.ensure_initialized;
     var tipo : PTypeInfo;
     tipo:= value.TypeInfo;
+    var tipoName : string := string.LowerCase(tipo.Name);
     // convert data type
     if (dtype <> TF_DataType.DtInvalid) and
-       (string.LowerCase(tipo.Name) <> 'tndarray') and
+       (tipoName <> 'tndarray') and
        (value.IsArray = False) and
        (dtype <> TUtils.GetDataType(value))  then
     begin
@@ -225,10 +226,13 @@ begin
             TF_DataType.TF_INT32:  value := value.AsType<Int32>;
         end;
     end
-    else if (dtype <> TF_DataType.DtInvalid) and (value.IsType<TNDArray>) and  ( value.AsType<TNDArray>.Dtype = dtype ) then
+    else if (dtype <> TF_DataType.DtInvalid) and (value.TypeInfo = TypeInfo(TNDArray)) then
     begin
-        var nd := value.AsType<TNDArray>;
-        value := math_ops.cast(nd, dtype);
+       if value.AsType<TNDArray>.Dtype = dtype then
+       begin
+           var nd := value.AsType<TNDArray>;
+           value := math_ops.cast(nd, dtype);
+       end;
     end;
     // non ascii char
     if (dtype = TF_DataType.TF_STRING) and (value.IsArray) and (value.GetArrayElement(0).IsType<Byte> ) then
@@ -236,14 +240,14 @@ begin
         Result := TEagerTensor.Create(Value.AsType< TArray<Byte> >, TFShape.Scalar, TF_DataType.TF_STRING);
         Exit;
     end;
-    if value.IsType<TEagerTensor>      then  Result := value.AsType<TEagerTensor>
-    else if value.IsType<TNDArray>     then  Result := value.AsType<TNDArray>
-    else if value.IsType<TFShape>      then
+    if      value.TypeInfo = TypeInfo(TEagerTensor)  then  Result := value.AsType<TEagerTensor>
+    else if value.TypeInfo = TypeInfo(TNDArray)      then  Result := value.AsType<TNDArray>
+    else if value.TypeInfo = TypeInfo(TFShape)  then
     begin
          var vval := Value.AsType<TFShape>;
          Result := TEagerTensor.Create(vval.dims, TFShape.Create([vval.ndim]),TUtils.GetDataType(Value) );
     end
-    else if value.IsType<TAxis>      then
+    else if value.TypeInfo = TypeInfo(TAxis)      then
     begin
          var vval := Value.AsType<TAxis>;
          var shape : TFShape;
@@ -251,50 +255,59 @@ begin
          else                  shape := TFShape.Create([vval.size]);
          Result := TEagerTensor.Create(vval.axis, shape,TUtils.GetDataType(Value) );
     end
-    else if (value.IsType<string>) or (value.IsType<AnsiString>) then
+    else if (value.TypeInfo = TypeInfo(string)) or (value.TypeInfo = TypeInfo(AnsiString)) then
     begin
         var vval := Value.AsType<string>;
         Result := TEagerTensor.Create([vval], TFShape.scalar );
     end
-    else if (value.IsType<TArray<String>>) or (value.IsType<TArray<AnsiString>>) then
-    begin
-        var vval : TArray<TF_TString> := Value.AsType<TArray<TF_TString>>;
-        Result := TEagerTensor.Create(vval, TFShape.Create( [ Length(vval) ] ) );
-    end
-    else if value.IsType<Boolean> then
+    else if value.TypeInfo = TypeInfo(Boolean) then
     begin
         var vval := Value.AsType<Boolean>;
         Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_BOOL);
     end
-    else if value.IsType<Boolean> then
+    else if value.TypeInfo = TypeInfo(Boolean) then
     begin
         var vval := Value.AsType<Byte>;
         Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_UINT8);
     end
-    else if value.IsType<Integer> then
+    else if value.TypeInfo = TypeInfo(Integer) then
     begin
         var vval := Value.AsType<Integer>;
         Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_INT32);
     end
-    else if value.IsType<Int64> then
+    else if value.TypeInfo = TypeInfo(Int64) then
     begin
         var vval := Value.AsType<Int64>;
         Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_INT64);
     end
-    else if value.IsType<UInt64> then
+    else if value.TypeInfo = TypeInfo(UInt64) then
     begin
         var vval := Value.AsType<UInt64>;
         Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_UINT64);
     end
-    else if (value.IsType<Single>) and (Value.TypeInfo.Name ='Single') then
+    else if (value.IsType<Single>) and (tipoName ='single') then
     begin
         var vval : Single := Value.AsType<Single>;
         Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_FLOAT);
     end
-    else if value.IsType<Double> and (Value.TypeInfo.Name ='Double') then
+    else if value.IsType<Double> and (tipoName ='double') then
     begin
         var vval : Double := Value.AsType<Double>;
         Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_DOUBLE);
+    end
+    else if ((value.IsType<TArray<String>>) or (value.IsType<TArray<AnsiString>>))  and (tipoName.Contains('string')) then
+    begin
+        var vval : TArray<TF_TString> := [];
+        if value.IsType<TArray<String>> then
+        begin
+            var vval0 : TArray<String> := Value.AsType<TArray<String>>;
+            for var i := 0 to Length(vval0)-1 do
+              vval := vval + [ vval0[i] ];
+        end else
+        begin
+            vval := Value.AsType<TArray<TF_TString>>;
+        end;
+        Result := TEagerTensor.Create(vval, TFShape.Create( [ Length(vval) ] ) );
     end
     else if value.isArray then
     begin

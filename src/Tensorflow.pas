@@ -34,9 +34,11 @@ interface
        TensorFlow.Variable,
        TensorFlow.Tensors.Ragged,
        TensorFlow.Initializer,
+       Keras.KerasApi,
        TensorFlow.Training,
        TensorFlow.bitwise_ops,
        TensorFlow.linalg_ops,
+       Tensorflow.NameScope,
        Numpy,
        Numpy.Axis,
 
@@ -94,6 +96,9 @@ type
 
     public
       ops : string_ops;
+
+      constructor Create;
+      destructor Destroy; override;
       /// <summary>
       /// Converts all uppercase characters into their respective lowercase replacements.
       /// </summary>
@@ -123,6 +128,18 @@ type
       /// <returns></returns>
       function substr(input: TFTensor; pos: Integer; len: Integer; name: string  = ''; &uint: string = 'BYTE'): TFTensor; overload;
       function substr(input: String; pos: Integer; len: Integer; name: string = ''; &uint: string = 'BYTE'): TFTensor;overload;
+      /// <summary>
+      /// String lengths of `input`.
+      /// </summary>
+      /// <param name="input"></param>
+      /// <param name="name"></param>
+      /// <param name="unit"></param>
+      /// <returns></returns>
+      function string_length(input: TFTensor; name: string = ''; &unit : string= 'BYTE') : TFTensor ;
+      function format(template: string; inputs: TArray<TFTEnsor>; placeholder: string = '{}'; summarize: Integer = 3; name: string = '') : TFTensor;
+      function split(input: TFTensor; sep : AnsiChar = ' '; maxsplit : Integer= -1; name: string = ''): RaggedTensor;
+      function unicode_decode_with_offsets(input: TFTensor; input_encoding: string; errors: string = 'replace'; replacement_char: Integer = $FFFD; replace_control_characters: Boolean = false; name: string = ''): Tuple<RaggedTensor, RaggedTensor>;
+
   end;
 {$ENDREGION}
 
@@ -343,6 +360,7 @@ nn_internal = class
     /// <param name="name">A name for the operation (optional).</param>
     /// <returns>A Tensor with the same type as `x`.</returns>
     function sigmoid<T>(x: T; name: string = ''): TFTensor ;
+    function softmax(logits: TFTensor; axis: Integer = -1; name: string = ''): TFTensor ;
     /// <summary>
     /// Computes dropout.
     /// </summary>
@@ -355,6 +373,8 @@ nn_internal = class
     /// <returns>A Tensor of the same shape of `x`.</returns>
     function dropout(x: TFTensor; keep_prob: TFTensor = nil; noise_shape: TFTensor = nil; seed: PInteger = nil; name: string = ''; rate: PSingle = nil): TFTensor ;
     function l2_loss(t: TFTensor; name: string = ''): TFTensor ;
+    function softmax_cross_entropy_with_logits_v2(labels: TFTensor; logits: TFTensor; axis: Integer = -1; name : string= ''): TFTensor ;
+    function leaky_relu(features: TFTensor; alpha: Single = 0.2; name: string = ''): TFTensor ;
 end;
 {$ENDREGION}
 
@@ -393,6 +413,14 @@ end;
   end;
 {$ENDREGION}
 
+{$REGION 'image_internal'}
+  image_internal = class
+     public
+       function resize_images_v2(images: TFTensor; size: TFShape;  method: string = 'bilinear'; preserve_aspect_ratio : Boolean= false; antialias : Boolean= false; name: string = ''): TFTensor; overload;
+       function resize_images_v2(images: TFTensor; size: TFTensor; method: string = 'bilinear'; preserve_aspect_ratio : Boolean= false; antialias : Boolean= false; name: string = ''): TFTensor; overload;
+end;
+{$ENDREGION}
+
 {$REGION 'TTensorflow'}
   TTensorflow = class(TFDisposable)
     private
@@ -419,6 +447,7 @@ end;
       Context  : TContext;
       OpDefLib : OpDefLibrary;
       Runner   : TEagerRunner;
+      keras    : KerasInterface;
       compat   : CompatApi;
       strings  : StringsApi;
       GraphKeys: TGraphKeys;
@@ -434,6 +463,7 @@ end;
       bitwise: bitwise_ops;
       train  : train_internal;
       linalg : LinalgApi;
+      image  : image_internal;
       // Inizializer
       glorot_uniform_initializer : IInitializer;
       zeros_initializer          : IInitializer;
@@ -451,12 +481,30 @@ end;
       procedure   reset_default_graph;
       function    peak_default_graph: TFgraph;
       /// <summary>
+      /// A context manager that lifts ops out of control-flow scopes and function-building graphs.
+      /// When eager execution is enabled, code inside an init_scope block runs with
+      /// eager execution enabled even when tracing a `tf.function`.
+      /// </summary>
+      function  init_scope: TNameScope;
+      /// <summary>
       ///     Creates a new graph.
       /// </summary>
       ///<remarks>Has no interaction with graph defaulting. Equivalent to new Graph();</remarks>
       function Graph: TFGraph;
       function placeholder(dtype: TF_DataType; shape: TFShape ; name: string = ''): TFTensor; overload;
       function placeholder(dtype: TF_DataType): TFTensor; overload;
+      /// <summary>
+      /// A placeholder op that passes through `input` when its output is not fed.
+      /// </summary>
+      /// <typeparam name="T"></typeparam>
+      /// <param name="input">A `Tensor`. The default value to produce when output is not fed.</param>
+      /// <param name="shape">
+      /// A `tf.Shape` or list of `int`s. The (possibly partial) shape of
+      /// the tensor.
+      /// </param>
+      /// <param name="name">A name for the operation (optional).</param>
+      /// <returns>A `Tensor`. Has the same type as `input`.</returns>
+      function placeholder_with_default<T>(input :T ; shape: TArray<Integer>; name : string= ''): TFTensor;
       function Session(graph: TFGraph; config: PConfigProto = nil): TFSession;overload;
       function Session: TFSession;overload;
       function get_default_session: TFSession;
@@ -555,6 +603,7 @@ end;
       /// <returns></returns>
       function constant(value: TValue; dtype : TF_DataType = DtInvalid; shape : PTFShape= nil; name : AnsiString = 'Const'): TFTensor; overload;
       function constant(value: TValue; name : AnsiString ): TFTensor; overload;
+      function constant(value: TValue; shape : TFShape ): TFTensor; overload;
       function zeros(shape: TFShape; dtype:  TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor; overload;
       function zeros(shape: TFTensor; dtype: TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor; overload;
       function ones(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_FLOAT; name: string = ''): TFTensor;
@@ -577,6 +626,7 @@ end;
       function GradientTape(persistent: Boolean = false; watch_accessed_variables: Boolean = true): TGradientTape;
       function GetTapeSet: TStack<ITape>;
       {$ENDREGION}
+
 
       {$REGION 'tf.variable'}
       // tf.variable
@@ -681,6 +731,32 @@ end;
       /// <returns>A `Tensor` with all elements set to zero.</returns>
       function zeros_like(tensor: TFTensor; dtype: TF_DataType = DtInvalid; name : string= ''; optimize : Boolean= true): TFTensor; overload;
       function zeros_like(nd    : TNDArray; dtype: TF_DataType = DtInvalid; name : string= ''; optimize : Boolean= true): TFTensor; overload;
+      /// <summary>
+      /// Creates a tensor with all elements set to 1.
+      /// </summary>
+      /// <param name="tensor"></param>
+      /// <param name="dtype"></param>
+      /// <param name="name">A name for the operation (optional).</param>
+      /// <param name="optimize">
+      /// if true, attempt to statically determine the shape of 'tensor' and
+      /// encode it as a constant.
+      /// </param>
+      /// <returns>A `Tensor` with all elements set to 1.</returns>
+      function ones_like(tensor:TFTensor ; dtype: TF_DataType = DtInvalid; name: string = ''; optimize: Boolean = true): TFTensor; overload;
+      function ones_like(nd:TNDArray     ; dtype: TF_DataType = DtInvalid; name: string = ''; optimize: Boolean = true): TFTensor; overload;
+      /// <summary>
+      /// Return the elements, either from `x` or `y`, depending on the `condition`.
+      /// </summary>
+      /// <returns></returns>
+      function where<Tx, Ty>(condition: TFTensor; x: Tx; y: Ty; name: string = ''): TFTensor;
+      /// <summary>
+      /// Returns the shape of a tensor.
+      /// </summary>
+      /// <param name="input"></param>
+      /// <param name="name"></param>
+      /// <param name="out_type"></param>
+      /// <returns></returns>
+      function shape(input: TFTensor; name: string = ''; out_type: TF_DataType = TF_INT32): TFTensor;
       {$ENDREGION}
 
       {$REGION 'tf.sparse'}
@@ -1053,8 +1129,15 @@ end;
       function exp(x: TFTensor; name: string = ''): TFTensor;
       {$ENDREGION}
 
+      {$REGION 'tf.random'}
       // tf.random
-      function random_uniform(shape: TFShape; minval: Single = 0; maxval: Single = 1; dtype: TF_DataType = TF_FLOAT; seed: pInteger = nil; name: string = ''): TFTensor;
+      //
+      function  random_uniform(shape: TFShape; minval: Single = 0; maxval: Single = 1; dtype: TF_DataType = TF_FLOAT; seed: pInteger = nil; name: string = ''): TFTensor;
+      Function  truncated_normal(shape: TFShape; mean: Single = 0.0; stddev: Single = 1.0; dtype: TF_DataType = TF_FLOAT; seed: pInteger = nil; name: string = ''): TFTensor;
+      Function  random_shuffle(value: TFTensor; seed: Integer = 0; name: string = '') : TFTensor;
+      procedure set_random_seed(seed: Integer);
+      Function  multinomial(logits: TFTensor; num_samples: Integer; seed: pInteger = nil; name: string = ''; output_dtype: TF_DataType = DtInvalid): TFTensor;
+      {$ENDREGION}
 
       property Version : string read GetVersion;
 
@@ -1080,7 +1163,7 @@ implementation
         TensorFlow.random_ops,
         TensorFlow.gen_nn_ops,
         TensorFlow.nn_ops,
-        Tensorflow.NameScope,
+        TensorFlow.image_ops_impl,
         TensorFlow.Tensor;
 
 {$REGION 'TTensorflow'}
@@ -1092,6 +1175,7 @@ begin
     Status    := TFStatus.Create;
     OpDefLib  := OpDefLibrary.Create;
     runner    := TEagerRunner.Create ;
+
     FtapeSet  := TGradientTape.Create;
     compat    := CompatApi.Create;
     strings   := StringsApi.Create;
@@ -1106,6 +1190,7 @@ begin
     bitwise   := bitwise_ops.Create;
     train     := train_internal.Create;
     linalg    := LinalgApi.Create;
+    image     := image_internal.Create;
     //
     glorot_uniform_initializer := GlorotUniform.Create;
     zeros_initializer          := TensorFlow.Initializer.Zeros.Create;
@@ -1146,6 +1231,7 @@ begin
   bitwise.Free;
   train.Free;
   linalg.Free;
+  image.Free;
   //
   if Assigned(gradientFunctions) then  gradientFunctions.Free;
 end;
@@ -1357,14 +1443,18 @@ begin
     Result := concat(TList<TFTensor>.Create(values),axis,name);
 end;
 
+function TTensorflow.constant(value: TValue; shape: TFShape): TFTensor;
+begin
+    var Sshape : PTFShape;
+    if shape.IsNil then Sshape := nil
+    else                Sshape := @shape;
+
+    Result := constant(value, DtInvalid, Sshape, 'Const');
+end;
+
 function TTensorflow.constant(value: TValue; name: AnsiString): TFTensor;
 begin
     Result := constant(value, DtInvalid, nil, name);
-end;
-
-function TTensorflow.constant_initializer<T>(value: T; dtype: TF_DataType; verify_shape: Boolean): IInitializer;
-begin
-    Result := Constant<T>.Create(value, dtype, verify_shape)
 end;
 
 function TTensorflow.constant(value: TValue; dtype: TF_DataType; shape: PTFShape; name: AnsiString): TFTensor;
@@ -1375,6 +1465,11 @@ begin
                                   False,
                                   True,
                                   name);
+end;
+
+function TTensorflow.constant_initializer<T>(value: T; dtype: TF_DataType; verify_shape: Boolean): IInitializer;
+begin
+    Result := Constant<T>.Create(value, dtype, verify_shape)
 end;
 
 function TTensorflow.cumsum(x: TFTensor; axis: Integer; exclusive, reverse: Boolean; name: string): TFTensor;
@@ -1500,6 +1595,11 @@ begin
     Result := array_ops.identity(input, name);
 end;
 
+function TTensorflow.init_scope: TNameScope;
+begin
+    Result := Tops.init_scope
+end;
+
 function TTensorflow.is_finite(input: TFTensor; name: string): TFTensor;
 begin
     Result := gen_math_ops.is_finite(input, name);
@@ -1565,6 +1665,11 @@ begin
     Result := array_ops.placeholder(dtype,nil,'');
 end;
 
+function TTensorflow.placeholder_with_default<T>(input: T; shape: TArray<Integer>; name: string): TFTensor;
+begin
+    Result := gen_array_ops.placeholder_with_default(input, shape, name);
+end;
+
 function TTensorflow.pow<T1, T2>(x: T1; y: T2; name: string): TFTensor;
 begin
     Result := math_ops.pow(x, y, name);
@@ -1591,6 +1696,34 @@ begin
     Result := random.uniform(shape, minval, maxval, dtype, seed, name);
 end;
 
+Function TTensorflow.truncated_normal(shape: TFShape; mean: Single; stddev: Single; dtype: TF_DataType; seed: pInteger; name: string): TFTensor;
+begin
+    Result := random_ops.truncated_normal(shape, mean, stddev, dtype, seed, name);
+end;
+
+Function TTensorflow.random_shuffle(value: TFTensor; seed: Integer; name: string) : TFTensor;
+begin
+    Result := random_ops.random_shuffle(value, seed, name);
+end;
+
+procedure TTensorflow.set_random_seed(seed: Integer);
+begin
+    if executing_eagerly then
+        Context.set_global_seed(seed)
+    else
+        Tops.get_default_graph.seed := seed;
+end;
+
+function TTensorflow.shape(input: TFTensor; name: string; out_type: TF_DataType): TFTensor;
+begin
+    Result := array_ops.shape_internal(input, name, true, out_type);
+end;
+
+Function TTensorflow.multinomial(logits: TFTensor; num_samples: Integer; seed: pInteger; name: string; output_dtype: TF_DataType): TFTensor;
+begin
+    Result := random_ops.multinomial(logits, num_samples, seed, name, output_dtype);
+end;
+
 function TTensorflow.range(start, limit: TValue): TFTensor;
 begin
     var v     : TValue                := System.default(TValue);
@@ -1606,37 +1739,37 @@ end;
 
 function TTensorflow.reduce_all(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string): TFTensor;
 begin
-   Result := math_ops.reduce_all(input_tensor, axis^, keepdims, name);
+   Result := math_ops.reduce_all(input_tensor, axis, keepdims, name);
 end;
 
 function TTensorflow.reduce_any(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string): TFTensor;
 begin
-    Result := math_ops.reduce_any(input_tensor, axis^, keepdims, name);
+    Result := math_ops.reduce_any(input_tensor, axis, keepdims, name);
 end;
 
 function TTensorflow.reduce_max(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string): TFTensor;
 begin
-    Result := math_ops.reduce_max(input_tensor, axis^, keepdims, name);
+    Result := math_ops.reduce_max(input_tensor, axis, keepdims, name);
 end;
 
 function TTensorflow.reduce_mean(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string; reduction_indices: PInteger): TFTensor;
 begin
-    Result := math_ops.reduce_mean(input_tensor, axis^, keepdims, name, reduction_indices);
+    Result := math_ops.reduce_mean(input_tensor, axis, keepdims, name, reduction_indices);
 end;
 
 function TTensorflow.reduce_min(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string): TFTensor;
 begin
-    Result := math_ops.reduce_min(input_tensor, axis^, keepdims, name);
+    Result := math_ops.reduce_min(input_tensor, axis, keepdims, name);
 end;
 
 function TTensorflow.reduce_prod(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string): TFTensor;
 begin
-   Result := math_ops.reduce_prod(input_tensor, axis^, keepdims, name);
+   Result := math_ops.reduce_prod(input_tensor, axis, keepdims, name);
 end;
 
 function TTensorflow.reduce_std(input_tensor: TFTensor; axis: PAxis; keepdims: Boolean; name: string): TFTensor;
 begin
-   Result := math_ops.reduce_std(input_tensor, axis^, keepdims, name);
+   Result := math_ops.reduce_std(input_tensor, axis, keepdims, name);
 end;
 
 function TTensorflow.reduce_sum(input: TFTensor; axis, reduction_indices: PAxis; keepdims: Boolean; name: string): TFTensor;
@@ -1695,6 +1828,16 @@ end;
 function TTensorflow.ones(shape: TFShape; dtype: TF_DataType; name: string): TFTensor;
 begin
     Result := array_ops.ones(shape, dtype, name);
+end;
+
+function TTensorflow.ones_like(tensor: TFTensor; dtype: TF_DataType; name: string; optimize: Boolean): TFTensor;
+begin
+   Result := array_ops.ones_like(tensor, dtype, name, optimize);
+end;
+
+function TTensorflow.ones_like(nd: TNDArray; dtype: TF_DataType; name: string; optimize: Boolean): TFTensor;
+begin
+   Result := array_ops.ones_like(nd, dtype, name, optimize);
 end;
 
 function TTensorflow.sigmoid<T>(x: T; name: string): TFTensor;
@@ -1870,6 +2013,20 @@ begin
     Result := array_ops.zeros_like(tensor, dtype, name, optimize);
 end;
 
+function TTensorflow.where<Tx, Ty>(condition: TFTensor; x: Tx; y: Ty; name: string): TFTensor;
+begin
+    var v_x :=  TValue.From<Tx>(x);
+    var v_y :=  TValue.From<Ty>(y);
+    var x_obj : TObject := nil;
+    var y_obj : TObject := nil;
+    if v_x.IsObject then
+       x_obj := v_x.AsObject;
+    if v_y.IsObject then
+       y_obj := v_y.AsObject;
+
+    Result := array_ops.where(condition, x_obj, y_obj, name);
+end;
+
 function TTensorflow._clip_by_value(t, clip_value_min, clip_value_max: TFTensor; name: string): TFTensor;
 begin
     Result := clip_ops.clip_by_value(t, clip_value_min, clip_value_max, name);
@@ -1889,6 +2046,7 @@ end;
 {$ENDREGION}
 
 {$REGION 'CompatV1Api'}
+
 { CompatV1Api }
 
 constructor CompatV1Api.Create;
@@ -1948,6 +2106,16 @@ end;
 {$REGION 'StringsApi'}
 { StringsApi }
 
+constructor StringsApi.Create;
+begin
+    ops := string_ops.Create;
+end;
+
+destructor StringsApi.Destroy;
+begin
+    ops.Free;
+end;
+
 function StringsApi.lower(input: TFTensor; encoding, name: string): TFTensor;
 begin
     Result := ops.lower(input, encoding, name);
@@ -1967,6 +2135,28 @@ function StringsApi.substr(input: String; pos, len: Integer; name, uint: string)
 begin
     Result := ops.substr(input, pos, len, uint, name);
 end;
+
+function StringsApi.string_length(input: TFTensor; name, &unit: string): TFTensor;
+begin
+    Result :=  ops.string_length(input, &unit);
+end;
+
+function StringsApi.format(template: string; inputs: TArray<TFTEnsor>; placeholder: string; summarize: Integer; name: string): TFTensor;
+begin
+    Result := ops.string_format(inputs, template, placeholder, summarize, name);
+end;
+
+function StringsApi.split(input: TFTensor; sep: AnsiChar; maxsplit: Integer; name: string): RaggedTensor;
+begin
+    Result := ops.string_split_v2(input, sep, maxsplit, name);
+end;
+
+function StringsApi.unicode_decode_with_offsets(input: TFTensor; input_encoding, errors: string; replacement_char: Integer; replace_control_characters: Boolean;
+  name: string): Tuple<RaggedTensor, RaggedTensor>;
+begin
+    Result := ops.unicode_decode_with_offsets(input, input_encoding, errors, replacement_char, replace_control_characters, name)
+end;
+
 {$ENDREGION}
 
 {$REGION 'GraphKeys'}
@@ -2061,6 +2251,11 @@ begin
    Result := nn_ops.l2_loss(t, name);
 end;
 
+function nn_internal.leaky_relu(features: TFTensor; alpha: Single; name: string): TFTensor;
+begin
+   Result := nn_ops.leaky_relu(features, alpha, name);
+end;
+
 function nn_internal.relu(features: TFTensor; name: string): TFTensor;
 begin
     Result := gen_nn_ops.relu(features, name);
@@ -2069,6 +2264,16 @@ end;
 function nn_internal.sigmoid<T>(x: T; name: string): TFTensor;
 begin
    Result := math_ops.sigmoid(x, name);
+end;
+
+function nn_internal.softmax(logits: TFTensor; axis: Integer; name: string): TFTensor;
+begin
+   Result :=  gen_nn_ops.softmax(logits, name);
+end;
+
+function nn_internal.softmax_cross_entropy_with_logits_v2(labels, logits: TFTensor; axis: Integer; name: string): TFTensor;
+begin
+   Result := nn_ops.softmax_cross_entropy_with_logits_v2_helper(labels, logits, axis, name)
 end;
 
 function nn_internal.tanh(x: TFTensor; name: string): TFTensor;
@@ -2202,17 +2407,35 @@ end;
 
 {$ENDREGION}
 
+{ image_internal }
+
+function image_internal.resize_images_v2(images, size: TFTensor; method: string; preserve_aspect_ratio, antialias: Boolean; name: string): TFTensor;
+begin
+    Result := image_ops_impl.resize_images_v2(images, size, method, preserve_aspect_ratio, antialias, name);
+end;
+
+function image_internal.resize_images_v2(images: TFTensor; size: TFShape; method: string; preserve_aspect_ratio, antialias: Boolean; name: string): TFTensor;
+begin
+    Result := image_ops_impl.resize_images_v2(images, size, method, preserve_aspect_ratio, antialias, name);
+end;
+
 initialization
 begin
-    tf := TTensorflow.Create;
+    tf          := TTensorflow.Create;
+    tf.keras    := KerasInterface.Create;
 end;
 
 finalization
 begin
+     tf.keras.free;
      tf.Free;
 end;
 
 end.
+
+
+
+
 
 
 

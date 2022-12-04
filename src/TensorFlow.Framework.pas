@@ -28,6 +28,13 @@ interface
            ProtoGen.opDef;
 
 type
+  smart_module = class
+    class function smart_cond(_pred: TFTensor; true_fn : TFunc< TArray<TFTensor> > = nil; false_fn : TFunc< TArray<TFTensor> > = nil; name: string = ''): TArray<TFTensor>; overload;
+    class function smart_cond(_pred: Boolean; true_fn : TFunc<TFTensor> = nil; false_fn : TFunc<TFTensor> = nil; name: string = ''): TFTensor; overload;
+
+    class function smart_constant_value(_pred: TFTensor) : Nullable<Boolean>;
+  end;
+
   common_shapes = class
      public
        class function has_fully_defined_shape(tensor: TFTensor): Boolean;
@@ -48,6 +55,8 @@ type
        /// </return>
        class function _broadcast_shape_helper(shape_x: TFTensor; shape_y: TFTEnsor): TFtensor;
   end;
+
+  // tensor_shape move to Tensorflow.tensor.Ragged  for Circular reference
 
   /// <summary>
   /// Abstract base class for Tensor-like objects that are composed from Tensors.
@@ -112,7 +121,10 @@ implementation
         Tensorflow.Utils,
         Tensorflow.NameScope,
         Tensorflow.array_ops,
-        Tensorflow.math_ops;
+        Tensorflow.math_ops,
+        TensorFlow.control_flow_ops,
+
+        NumPy.NDArray;
 
 { op_def_registry }
 
@@ -284,6 +296,49 @@ begin
     Result := tTEnsor.Tag.AsType<IndexedSlices>;
 end;
 
+{ smart_module }
+
+class function smart_module.smart_cond(_pred: Boolean; true_fn, false_fn: TFunc<TFTensor>; name: string): TFTensor;
+begin
+    if _pred then Result := true_fn
+    else          Result := false_fn;
+end;
+
+class function smart_module.smart_cond(_pred: TFTensor; true_fn, false_fn: TFunc<TArray<TFTensor>>; name: string): TArray<TFTensor>;
+var
+  pred_value :Nullable<Boolean>;
+begin
+    pred_value := smart_module.smart_constant_value(_pred);
+    if pred_value.HasValue then
+    begin
+        var res : TArray<TFTensor>;
+        if pred_value.Value then res := true_fn
+        else                     res := false_fn;
+        Result := res;
+    end else
+    begin
+        Result := control_flow_ops.cond<TFTensor>(_pred, true_fn, false_fn, name);
+    end;
+end;
+
+class function smart_module.smart_constant_value(_pred: TFTensor): Nullable<Boolean>;
+begin
+    var pred_value := TUtils.constant_value(_pred);
+    if pred_value = nil then
+    begin
+        var res : TArray<Pointer> ;
+        SetLength(res, _pred.op.NumOutputs) ;
+
+        var evaluated := TF_TryEvaluateConstant(_pred.graph.handle, _pred._as_tf_output, @res[0], tf.Status.Handle);
+        if (evaluated= 0) or (TF_GetCode(tf.Status.Handle) <> TF_Code.TF_OK)  then
+            Result := nil
+        else
+            raise TFException.Create('Not Implemented');
+    end;
+
+    Result := Boolean(NDArray(pred_value));
+end;
+
 initialization
 begin
     random_seed.Fgraph_to_seed_dict := TDictionary<string,Integer>.Create;
@@ -295,6 +350,7 @@ begin
 end;
 
 end.
+
 
 
 

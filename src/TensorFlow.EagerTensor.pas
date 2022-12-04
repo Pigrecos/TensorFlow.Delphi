@@ -35,6 +35,9 @@ type
        m_Device : string;
        procedure Resolve;
        function GetDeviceName: string;
+    protected
+       function GetShape: TFShape;  override;
+       procedure Setshape(const Value: TFShape);  override;
 
     public
        constructor Create(h:Pointer);overload;
@@ -88,7 +91,6 @@ type
        class function GetRank(eTensor:TEagerTensor): Integer;
        class function GetDims(eTensor:TEagerTensor): TArray<Integer>;
 
-       procedure Setshape(const Value: TFShape);
        /// <summary>
        /// _create_substitute_placeholder
        /// </summary>
@@ -96,6 +98,7 @@ type
        function  AsPlaceholder(name: string = ''): TFTensor;
        function  AsConstant(name: string = ''): TFTensor;
        procedure copy_handle_data(target_t: TFTensor);
+       function  ToString: string;override;
 
        property Device : string read GetDeviceName;
 
@@ -105,7 +108,8 @@ implementation
       uses System.TypInfo,
            Tensorflow,
            Tensorflow.Utils,
-           TensorFlow.Ops;
+           TensorFlow.Ops,
+           Numpy;
 
 { TEagerTensor }
 
@@ -152,7 +156,7 @@ end;
 
 constructor TEagerTensor.Create(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType);
 begin
-     inherited Create( TFTensor.InitTensor<Byte>(bytes,shape,dtype) );
+     inherited Create( TFTensor.InitTensor(shape,bytes,dtype) );
      NewEagerTensorHandle(Handle);
 end;
 
@@ -319,11 +323,18 @@ var
   vValue: TValue;
   lIsArray : Boolean;
 begin
-    aDim := 0;
-    vValue := value;
+    aDim     := 0;
+    vValue   := value;
     lIsArray := False;
+    dtype    := dtInvalid;
     while vValue.IsArray do
     begin
+        if value.GetArrayLength < 1 then
+        begin
+           var ttt := value.TypeData^.DynArrElType^ ;
+           dtype := TDTypes.as_tf_dtype(ttt);
+           Break;
+        end;
         lIsArray := True;
         vValue := vValue.GetArrayElement(0);
         inc(aDim)
@@ -336,11 +347,13 @@ begin
         shape := @v;
     end;
 
-    dtype:= TUtils.GetDataType(value);
+    if value.GetArrayLength > 0 then
+      dtype:= TUtils.GetDataType(value);
 
     if (shape.Size = 0) and (dtype <> TF_DataType.TF_STRING ) then
     begin
         inherited Create(shape, dtype);
+        NewEagerTensorHandle(Handle);
         Exit;
     end;
 
@@ -545,16 +558,37 @@ begin
     tf.Status.RaiseEx;
 end;
 
+function TEagerTensor.ToString: string;
+begin
+    var nd  := TNDArray.Create(Self);
+    var str := NDArrayRender.ToString(nd);
+    Result  := Format('tf.Tensor: shape=%s, dtype=%s, numpy=%s',[Shape.ToString, Tdtypes.ToString(dtype), str]);
+end;
+
 procedure TEagerTensor.Setshape(const Value: TFShape);
 begin
     if not Shape.is_compatible_with(Value) then
         raise Exception.Create('Tensor''s shape is not compatible.');
+end;
 
-    if value.IsNil  then
-      TF_GraphSetTensorShape(graph.Handle, _as_tf_output, nil, -1, tf.Status.Handle)
-    else
-      TF_GraphSetTensorShape(graph.Handle, _as_tf_output, @value.dims, value.ndim, tf.Status.Handle);
-    tf.Status.RaiseEx;
+function TEagerTensor.GetShape: TFShape;
+begin
+    var sShape := System.default(TFShape);
+
+    if rank < 0 then
+        Exit(sShape);
+
+    var numDims := TFE_TensorHandleNumDims(eagerTensorHandle, tf.Status.Handle);
+    var dims : TArray<Integer> ;
+    if numDims > 0 then
+    begin
+        SetLength(dims,numDims) ;
+
+        for var i := 0 to Length(dims)- 1 do
+          dims[i] := TFE_TensorHandleDim(eagerTensorHandle, i, tf.Status.Handle);
+    end;
+
+    Result := dims;
 end;
 
 end.

@@ -68,7 +68,15 @@ uses
   Keras.KerasApi in 'src\Keras\Keras.KerasApi.pas',
   TensorFlow.resource_variable_grad in 'src\Gradient\TensorFlow.resource_variable_grad.pas',
   TensorFlow.linalg_ops in 'src\Operation\TensorFlow.linalg_ops.pas',
-  TensorFlow.array_grad in 'src\Gradient\TensorFlow.array_grad.pas';
+  TensorFlow.array_grad in 'src\Gradient\TensorFlow.array_grad.pas',
+  Keras.Regularizers in 'src\Keras\Keras.Regularizers.pas',
+  Keras.ILayersApi in 'src\Keras\Keras.ILayersApi.pas',
+  Keras.LossFunc in 'src\Keras\Keras.LossFunc.pas',
+  Keras.Engine in 'src\Keras\Keras.Engine.pas',
+  Keras.Backend in 'src\Keras\Keras.Backend.pas',
+  TensorFlow.image_ops_impl in 'src\Operation\TensorFlow.image_ops_impl.pas',
+  TensorFlow.gen_image_ops in 'src\Operation\TensorFlow.gen_image_ops.pas',
+  TensorFlow.nn_impl in 'src\Operation\TensorFlow.nn_impl.pas';
 
 {$R *.res}
 

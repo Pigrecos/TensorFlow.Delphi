@@ -35,6 +35,7 @@ type
       class operator Implicit(const value: Integer): TAxis;
       class operator Implicit(const aValue: TArray<Integer>): TAxis;
       class operator Implicit(const aValue: TAxis): TFTensor;
+      class operator Implicit(const aValue: TAxis): TArray<Integer>;
       class operator Implicit(const aValue: TAxis): PAxis;
 
       property size                    : Integer read GetSize;
@@ -78,6 +79,11 @@ begin
     if aValue.axis = nil then  Result := nil
     else                       Result := @aValue;
 
+end;
+
+class operator TAxis.Implicit(const aValue: TAxis): TArray<Integer>;
+begin
+    Result := aValue.axis
 end;
 
 class operator TAxis.Implicit(const value: Integer): TAxis;

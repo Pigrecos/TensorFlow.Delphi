@@ -14,10 +14,9 @@ unit Keras.ArgsDefinition;
 
 interface
        uses System.SysUtils,
+            System.Generics.Collections,
+
             Spring,
-            Spring.Collections,
-            Spring.Collections.Lists,
-            Spring.Collections.Dictionaries,
 
             TF4D.Core.CApi,
             TensorFlow.DApi,
@@ -26,11 +25,54 @@ interface
             TensorFlow.Variable,
             TensorFlow.Initializer,
 
+            Keras.Regularizers,
             Keras.Activations,
-            Keras.Layer;
+
+            Keras.Engine,
+
+            ProtoGen.nodeDef;
 
 type
-  ConvolutionalArgs = class(LayerArgs)
+
+ Cropping2DArgs = class(LayerArgs)
+    private
+
+    public
+      /// <summary>
+      /// channel last: (b, h, w, c)
+      /// channels_first: (b, c, h, w)
+      /// </summary>
+      type DataFormat = ( channels_first = 0, channels_last = 1 );
+    public
+      /// <summary>
+      /// Accept: int[1][2], int[1][1], int[2][2]
+      /// </summary>
+      cropping    : TNDarray;
+      data_format : DataFormat;
+
+      Constructor Create;
+ end;
+
+  Cropping3DArgs = class(LayerArgs)
+    private
+
+    public
+      /// <summary>
+      /// channel last: (b, h, w, c)
+      /// channels_first: (b, c, h, w)
+      /// </summary>
+      type DataFormat = ( channels_first_ = 0, channels_last_ = 1 );
+    public
+      /// <summary>
+      /// Accept: int[1][3], int[1][1], int[3][2]
+      /// </summary>
+      cropping    : TNDarray;
+      data_format : DataFormat;
+
+      Constructor Create;
+ end;
+
+ ConvolutionalArgs = class(LayerArgs)
     private
 
     public
@@ -52,8 +94,8 @@ type
       BiasInitializer    : IInitializer;
       KernelRegularizer  : IRegularizer;
       BiasRegularizer    : IRegularizer;
-      KernelConstraint   : procedure;
-      BiasConstraint     : procedure;
+      KernelConstraint   : TProc;
+      BiasConstraint     : TProc;
 
       constructor Create;
   end;
@@ -77,6 +119,14 @@ type
         Unroll          : Boolean;
         TimeMajor       : Boolean;
         Kwargs          : TDictionary<string,TValue>;
+
+        Unitis              : Integer;
+        Activation          : TActivation;
+        RecurrentActivation : TActivation;
+        UseBias             : boolean;
+        KernelInitializer   : IInitializer;
+        RecurrentInitializer: IInitializer;
+        BiasInitializer     : IInitializer;
 
         Constructor Create;
   end;
@@ -106,6 +156,56 @@ type
         Constructor Create;
   end;
 
+  ELUArgs = class(LayerArgs)
+    private
+
+    public
+      Alpha   : Single ;
+      constructor Create;
+  end;
+
+  LeakyReLuArgs = class(LayerArgs)
+    private
+
+    public
+      Alpha   : Single ;
+      constructor Create;
+  end;
+
+  SoftmaxArgs = class(LayerArgs)
+    private
+
+    public
+      axis   : TAxis ;
+      constructor Create;
+  end;
+
+  BaseDenseAttentionArgs = class(LayerArgs)
+    private
+
+    public
+      /// <summary>
+      /// Boolean. Set to `true` for decoder self-attention. Adds a mask such
+      /// that position `i` cannot attend to positions `j > i`. This prevents the
+      /// flow of information from the future towards the past.
+      /// </summary>
+      causal : boolean ;
+
+      /// <summary>
+      /// Float between 0 and 1. Fraction of the units to drop for the
+      /// attention scores.
+      /// </summary>
+      dropout : Single;
+      constructor Create;
+  end;
+
+  TensorFlowOpLayerArgs = class(LayerArgs)
+    private
+
+    public
+      NodeDef   : TNodeDef ;
+      Constants : TDictionary<Integer, TNDArray>;
+  end;
 
 implementation
           uses Tensorflow;
@@ -164,6 +264,49 @@ begin
     Momentum  := 0.0;
     Epsilon   := 1e-7;
     Centered  := false;
+end;
+
+{ Cropping2DArgs }
+
+constructor Cropping2DArgs.Create;
+begin
+    data_format := DataFormat.channels_last;
+end;
+
+{ Cropping3DArgs }
+
+constructor Cropping3DArgs.Create;
+begin
+     data_format := DataFormat.channels_last_;
+end;
+
+{ ELUArgs }
+
+constructor ELUArgs.Create;
+begin
+   Alpha := 0.1
+end;
+
+{ LeakyReLuArgs }
+
+constructor LeakyReLuArgs.Create;
+begin
+    Alpha := 0.3
+end;
+
+{ SoftmaxArgs }
+
+constructor SoftmaxArgs.Create;
+begin
+     axis := -1;
+end;
+
+{ BaseDenseAttentionArgs }
+
+constructor BaseDenseAttentionArgs.Create;
+begin
+    causal := False;
+    dropout := 0;
 end;
 
 end.

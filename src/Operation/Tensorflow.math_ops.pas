@@ -329,10 +329,10 @@ begin
     for var i := 0 to Length(a) - 1 do
        vValues := vValues +[ a[i] ];
 
-    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'einsum', @inputs),
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'einsum', @vValues),
                                 function(v1: TNameScope): TFTensor
                                   begin
-                                      var Args := ExecuteOpArgs.Create(vValues);
+                                      var Args := ExecuteOpArgs.Create([ TValue.From< TArray<TFTensor> >(inputs.ToArray)]) ;
                                       Args.GetGradientAttrs :=  function(op: TFOperation): TArray<TParameter>
                                              begin
                                                  Result := [];
@@ -748,13 +748,10 @@ end;
 
 class function math_ops._may_reduce_to_scalar(keepdims: Boolean; axis: PAxis; _output: TFTensor) : TFTensor;
 begin
-    Result := nil;
     var dims: TArray<TF_int64_t> := [];
     if ( not common_shapes.has_fully_defined_shape(_output) ) and ( not keepdims) and (axis = nil)  then
-    begin
-         _output.shape := TFShape.Create(dims);
-        Result := _output;
-    end;
+      _output.shape := TFShape.Create(dims);
+    Result := _output;
 end;
 
 class function math_ops._may_reduce_to_scalar(keepdims: Boolean; axis: TFTensor; _output: TFTensor) : TFTensor;
@@ -866,10 +863,12 @@ begin
                                                 var a_reshape          := aReshape.Value1;
                                                 var a_free_dims        := aReshape.Value2;
                                                 var a_free_dims_static := aReshape.Value3;
+
                                                 var bReshape           := _tensordot_reshape(b, b_axes,True);
-                                                var b_reshape          := aReshape.Value1;
-                                                var b_free_dims        := aReshape.Value2;
-                                                var b_free_dims_static := aReshape.Value3;
+                                                var b_reshape          := bReshape.Value1;
+                                                var b_free_dims        := bReshape.Value2;
+                                                var b_free_dims_static := bReshape.Value3;
+
                                                 var ab_matmul := matmul(a_reshape, b_reshape);
                                                 var dims := TList<integer>.Create;
                                                 try
@@ -1082,7 +1081,7 @@ begin
                   function(v1: TNameScope): TFTensor
                     begin
                         name := v1.ToString;
-                        var array_is_nonempty := TTEnsor( math_ops.reduce_prod(array_ops.shape(arr)) ) > 0;
+                        var array_is_nonempty := TTEnsor( math_ops.reduce_prod(array_ops.shape(arr)) ) > int32(0);
                         var output_size := math_ops.cast(array_is_nonempty, Tdtypes.cint32) * (TTensor(math_ops.reduce_max(arr)) + 1);
                         if minlength <> nil then
                             output_size := math_ops.maximum(minlength, output_size);

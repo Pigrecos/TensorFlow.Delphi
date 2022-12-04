@@ -118,6 +118,7 @@ TEagerRunner = class(TFDisposable)
     function TFE_Execute(ctx: TContext; device_name: AnsiString; op_name: AnsiString; inputs: TArray<TFTensor>;attrs: TArray<TValue>; num_outputs: Integer): TArray<TFTensor>;
     function TFE_ExecuteCancelable(ctx: TContext; device_name, op_name: AnsiString; inputs: TArray<TFTensor>; attrs: TArray<TValue>; num_outputs: Integer): TArray<TFTensor>;
     function TFE_FastPathExecute(op_exec_info: TFastPathOpExecInfo): TArray<TFTensor>;
+    procedure ClearEagerOperationMap;
     /// <summary>
     /// Execute a TensorFlow operation.
     /// </summary>
@@ -307,6 +308,11 @@ function TEagerRunner.CouldForwardprop : Boolean;
 begin
     Result := HasAccumulator;
 end;
+procedure TEagerRunner.ClearEagerOperationMap;
+begin
+   thread_local_eager_operation_map.Clear;
+end;
+
 function TEagerRunner.CouldBackprop : Boolean;
 begin
      Result := HasGradientTape;

@@ -53,9 +53,13 @@ type
       //
       class operator Implicit(const Value: TArray<TFTensor>): TValue;
       class operator Implicit(const Value: TArray<Integer>): TValue;
+      class operator Implicit(const Value: TArray<Int64>): TValue;
       class operator Implicit(const Value: TArray<Single>): TValue;
+      class operator Implicit(const Value: TArray<Byte>): TValue;
+      class operator Implicit(const Value: TArray<String>): TValue;
       class operator Implicit(const Value: TF_DataType): TValue;
       class operator Implicit(const Value: TArray< TArray<Integer> >): TValue;
+      class operator Implicit(const Value: TArray< TArray<Single> >): TValue;
       class operator Implicit(const Value: TArray< TArray<TArray<Integer>> >): TValue;
       class operator Implicit(const Value: TArray< TArray<Double> >): TValue;
 
@@ -142,6 +146,7 @@ type
       class function GetShape(value: TValue): TFShape;overload;
       class function GetShape<T>(Tval: TArray<TArray<TArray<TArray<T>>>>): TFShape;  overload;
       class function ConvertToDict(dny: TArray<TParameter>): TDictionary<string,TValue> ;
+      class function Get<Tk,TV>(dict : TDictionary<Tk,TV>; key: Tk; defaultValue: TV): TV ;
 
       class function as_shape_proto(tshape: TFShape): TTensorShapeProto; static;
       class function as_shape<T>(dims: TArray<T>): TTensorShapeProto;
@@ -163,17 +168,23 @@ type
       /// <param name="partial"></param>
       /// <returns></returns>
       class function constant_value(tensor: TFTensor; partial: Boolean = false): TNDArray;
-      class function ParseSlices(slices: TArray<Slice>): ParsedSliceArgs;
+      class function constant_value_as_shape(tensor: TFTensor): TFShape;
+      class function ParseSlices(slices: TArray<Slice>): ParsedSliceArgs; overload;
+      class function ParseSlices(start: TFTensor; stop: TFTensor = nil; step: TFTensor = nil): ParsedSliceArgs; overload;
       class function zip<T1, T2>(e1 : Enumerable<T1>; e2 : TEnumerable<T2>): Enumerable<Tuple<T1,T2>> ; overload;
       class function zip<T>(e1 : TNDArray; e2 : TNDArray; axis: PAxis = nil):  Enumerable<Tuple<T,T>> ; overload;
       class function zip<T>(e1 : TList<T>; e2 : TList<T>):  Enumerable<Tuple<T,T>> ; overload;
       class function zip<T1, T2>(tu1 : Tuple<T1,T1>; tu2 : Tuple<T2,T2>):  TArray< Tuple<T1,T2> > ; overload;
+
+      class procedure extendleft<T>(var queue : TQueue<T>; elements: TEnumerable<T>);
 
       class function range(start, _end: Integer): Enumerable<integer>;  overload; static;
       class function range(_end: Integer): Enumerable<integer> ;  overload; static;
  end;
 
  function GetArg(sNome: string; vVal : TValue):  TParameter;
+ function sum(_enumerable: TArray<TValue>): Double;
+ function all(_enumerable: TArray<TValue>): Boolean;
 
 implementation
         uses system.Generics.Defaults,
@@ -182,10 +193,34 @@ implementation
              TensorFlow.EagerTensor,
              Tensorflow.NameScope,
              TensorFlow.Ops,
+             Tensorflow.array_ops,
              Numpy,
              Complex,
              TensorFlow.Variable;
 
+function sum(_enumerable: TArray<TValue>): Double;
+begin
+    var typedef : TArray<PTypeInfo>:= [ TypeInfo(Double), TypeInfo(Integer), TypeInfo(Single) ];
+    var sum : Double := 0.0;
+    for var e1 in _enumerable do
+    begin
+        if not TArray.Contains<PTypeInfo>(typedef , e1.TypeInfo) then
+            raise TfException.Create('Numeric array expected');
+        sum := sum  + Double(e1.AsOrdinal);
+    end;
+    Result := sum;
+end;
+
+function all(_enumerable: TArray<TValue>): Boolean;
+begin
+    for var e1 in _enumerable do
+    begin
+       var b : Boolean;
+        if not e1.TryAsType<Boolean>(b) then
+           Exit(false);
+    end;
+    Result := true;
+end;
 
 function GetArg(sNome: string; vVal : TValue):  TParameter;
 begin
@@ -522,6 +557,14 @@ begin
 end;
 
 { TUtils }
+
+class function TUtils.Get<Tk, TV>(dict: TDictionary<Tk, TV>; key: Tk; defaultValue: TV): TV;
+begin
+    if dict.ContainsKey(key) then
+      Exit( dict[key] );
+
+    Result := defaultValue;
+end;
 
 class function TUtils.GetDataType(value: TValue): TF_DataType;
 var
@@ -873,6 +916,14 @@ begin
 
 end;
 
+class procedure TUtils.extendleft<T>(var queue: TQueue<T>; elements: TEnumerable<T>);
+begin
+    var aElements :=elements.ToArray;
+    TArray.Reverse<T>(aElements);
+    for var i := 0 to Length(aElements) - 1 do
+        queue.Enqueue(aElements[i]);
+end;
+
 class function TUtils.ArrayToArrayTipo<T>(a : Tarray<T>; toTipo: PTypeInfo): TArray<Integer>;
 var
   i : Integer;
@@ -1030,6 +1081,12 @@ begin
     if not (ret = nil) then
         tensor.graph.prevent_feeding(tensor);
     Result := ret;
+end;
+
+class function TUtils.constant_value_as_shape(tensor: TFTensor): TFShape;
+begin
+  { TODO -oMax -c : Implementare 02/12/2022 15:26:52 }
+  raise Exception.Create('Implementare');
 end;
 
 class function TUtils._ConstantValue(tensor: TFTensor; partial: Boolean): TNDArray;
@@ -1388,7 +1445,47 @@ begin
       aend.free;
       strides.free;
     end;
+end;
 
+class function TUtils.ParseSlices(start: TFTensor; stop: TFTensor ; step: TFTensor): ParsedSliceArgs;
+begin
+    var abegin := TList<TFTensor>.Create;
+    var aend   := TList<TFTensor>.Create;
+    var strides:= TList<TFTensor>.Create;
+    try
+      var index            : Integer := 0;
+      var new_axis_mask    : Integer := 0;
+      var shrink_axis_mask : Integer := 0;
+      var begin_mask       : Integer := 0;
+      var end_mask         : Integer := 0;
+      var ellipsis_mask    : Integer := 0;
+
+      abegin.Add(start);
+
+      if stop = nil then
+          aend.Add(TTensor(start) + 1)
+      else
+          aend.Add(stop);
+      shrink_axis_mask := shrink_axis_mask or (1 shl index);
+      if step = nil then
+          strides.Add( tf.constant(1, start.dtype) )
+      else
+          strides.Add(step);
+
+      Result := default(ParsedSliceArgs);
+      Result.tPackedBegin   := array_ops.stack(abegin.ToArray);
+      Result.tPackedEnd     := array_ops.stack(aend.ToArray);
+      Result.tPackedStrides := array_ops.stack(strides.ToArray);
+      Result.iBeginMask     := begin_mask;
+      Result.iEndMask       := end_mask;
+      Result.iEllipsisMask  := ellipsis_mask;
+      Result.iShrinkAxisMask:= shrink_axis_mask;
+      Result.iNewAxisMask   := new_axis_mask ;
+    finally
+      abegin.free;
+      aend.free;
+      strides.free;
+    end;
 end;
 
 class function TUtils.SequenceEqual<T>(const v1, v2: TArray<T>): boolean;
@@ -1515,6 +1612,26 @@ end;
 class operator TValueHelp.Implicit(const Value: TArray<TArray<Double>>): TValue;
 begin
     Result := TValue.From< TArray<TArray<Double>> >(Value);
+end;
+
+class operator TValueHelp.Implicit(const Value: TArray<Int64>): TValue;
+begin
+   Result := TValue.From< TArray<Int64> >(Value);
+end;
+
+class operator TValueHelp.Implicit(const Value: TArray<String>): TValue;
+begin
+     Result := TValue.From< TArray<String> >(Value);
+end;
+
+class operator TValueHelp.Implicit(const Value: TArray<Byte>): TValue;
+begin
+    Result := TValue.From< TArray<Byte> >(Value);
+end;
+
+class operator TValueHelp.Implicit(const Value: TArray<TArray<Single>>): TValue;
+begin
+    Result := TValue.From< TArray<TArray<Single>> >(Value);
 end;
 
 end.

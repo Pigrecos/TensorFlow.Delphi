@@ -18,7 +18,10 @@ unit Tensorflow.NameScope;
 
 interface
       uses System.SysUtils,
-           Spring, spring.Collections.Lists,
+           System.Generics.Collections,
+
+           Spring,
+
            TF4D.Core.CApi,
            TensorFlow.DApiBase,
            TensorFlow.Context;

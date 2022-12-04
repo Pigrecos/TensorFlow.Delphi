@@ -139,6 +139,10 @@ type
     public
  end;
 
+ AutoTrackable = class abstract(Trackable)
+
+ end;
+
  /// <summary>
  /// Base class for optimizers.
  /// This class defines the API to add Ops to train a model.  You never use this

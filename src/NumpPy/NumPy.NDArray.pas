@@ -67,6 +67,8 @@ type
       class operator Implicit(v : Int64):  NDArray;    static;
       class operator Implicit(v : Single): NDArray;    static;
       class operator Implicit(v : Double): NDArray;    static;
+      //
+      class operator Implicit(v : NDArray): string;    static;
 
       Class Operator Add(lhs: NDArray; rhs: NDArray)          : NDArray; Overload;
       Class Operator Subtract(lhs: NDArray; rhs: NDArray)     : NDArray; Overload;
@@ -89,7 +91,8 @@ type
 
 implementation
       uses TensorFlow.gen_math_ops,
-           Tensorflow.math_ops;
+           Tensorflow.math_ops,
+           TensorFlow.Tensor;
 
 { NDArray }
 
@@ -267,6 +270,12 @@ end;
 class operator NDArray.Implicit(v: Double): NDArray;
 begin
    Result := TNDArray.Create(v)
+end;
+
+class operator NDArray.Implicit(v: NDArray): string;
+begin
+    var t : TTensor := v.FHandleNDArray;
+    Result := string(t)
 end;
 
 { NDArrayConverter }
@@ -463,3 +472,4 @@ begin
 end;
 
 end.
+

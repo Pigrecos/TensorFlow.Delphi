@@ -60,7 +60,8 @@ type
      class function zeros(shape: TFTensor; dtype: TF_DataType = TF_DataType.TF_FLOAT; name : string = '') : TFTensor; overload; static;
      class function zeros(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_FLOAT; name : string = ''): TFTensor; overload; static;
      class function size<T>(input: T; name: string = ''; optimize: Boolean = true; out_type: TF_DataType = TF_DataType.TF_INT32):TFTensor;static;
-     class function stack(values: TValue; axis: Integer = 0; name: string = 'stack'):TFTensor;static;
+     class function stack(values: TArray<TFTensor>; axis: Integer = 0; name: string = 'stack'):TFTensor;overload;static;
+     class function stack(values: TValue; axis: Integer = 0; name: string = 'stack'):TFTensor;overload;static;
      class function unstack(value: TFTensor; num: PInteger = nil; axis: Integer = 0; name: string = 'unstack') : TArray<TFTensor>; static;
      class function identity(input: TFTensor; name: String = ''): TFTensor; static;
      class function expand_dims(input: TFTensor; axis: Integer = -1; name: string = ''): TFTensor; static;
@@ -91,7 +92,7 @@ type
      class function concat(values: TArray<TFTensor>; axis: Integer; name: string = 'concat'): TFTensor; overload ;static;
      class function concat(values: TArray<TFTensor>; axis: TFTensor; name: string = 'concat'): TFTensor; overload ;static;
      class function concat(values: TArray<TValue>; axis: Integer; name: string = 'concat'): TFTensor; overload ;static;
-     class function where(condition: TFTensor; x : TObject= nil ; y : TObject= nil; name: string = ''): TFTensor; static;
+     class function where(condition: TFTensor; x: TObject = nil; y: TObject = nil; name: string = ''): TFTensor; static;
      class function where_v2(condition: TFTensor; x: TObject = nil; y: TObject= nil; name: string= ''): TFTensor; static;
      /// <summary>
      /// Removes dimensions of size 1 from the shape of a tensor.
@@ -565,13 +566,21 @@ begin
     Result := gen_array_ops.squeeze(input, axis, name)
 end;
 
+class function array_ops.stack(values: TArray<TFTensor>; axis: Integer; name: string): TFTensor;
+begin
+    if axis = 0 then
+     Result :=  Tops.convert_to_tensor(values, DtInvalid,name)
+    else
+     Result := gen_array_ops.pack(values, axis, name);
+end;
+
 class function array_ops.stack(values: TValue; axis: Integer; name: string): TFTensor;
 begin
     if axis = 0 then
-     // If the input is a constant list, it can be converted to a constant op
+      // If the input is a constant list, it can be converted to a constant op
      Exit( Tops.convert_to_tensor(values, DtInvalid,name) );
 
-     raise TFException.Create('Not Implemented ("array_ops.stack")');
+    raise Exception.Create('array_ops.stack');
 end;
 
 class function array_ops.stop_gradient(input: TFTensor; name: string): TFTensor;
@@ -695,7 +704,7 @@ begin
      Result := gen_array_ops.unpack(value, num^, axis, name);
 end;
 
-class function array_ops.where(condition: TFTensor; x, y: TObject; name: string): TFTensor;
+class function array_ops.where(condition: TFTensor; x: TObject; y: TObject; name: string): TFTensor;
 begin
     if (x = nil) and (y = nil) then
     begin
@@ -854,7 +863,11 @@ begin
                     function(v1: TNameScope): TFTensor
                       begin
                           name := string(v1.ToString);
-                          var output := gen_array_ops.fill(shape, constant_op.constant(Single(1), dtype, 'Const'), name);
+                          var output : TFTensor ;
+                          if dtype = TF_DOUBLE then
+                             output := gen_array_ops.fill(shape, constant_op.constant(Double(1), dtype, 'Const'), name)
+                          else
+                             output := gen_array_ops.fill(shape, constant_op.constant(Single(1), dtype, 'Const'), name);
                           Result := output;
                       end );
 end;

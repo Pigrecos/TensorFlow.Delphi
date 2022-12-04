@@ -14,7 +14,7 @@ unit Esempi;
 
 interface
      uses Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-          Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.Buttons,rtti,
+          Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.Buttons,rtti, System.Math,
 
           spring,
 
@@ -112,6 +112,18 @@ type
         procedure NDimConst;
         procedure Multiply;
         procedure Reshape;
+  end;
+
+  LinalgTest = class(EagerModeTestBase)
+     private
+
+      public
+        constructor Create;
+        procedure Einsum;
+        procedure EyeTest;
+        procedure GlobalNorm;
+        procedure LSTSQ;
+        procedure Tensordot;
   end;
 
 
@@ -505,7 +517,7 @@ begin
     // var rnd2 = rng.randn<float>();
     var W : TResourceVariable := tf.Variable(Single(-0.06), 'weight');
     var b : TResourceVariable := tf.Variable(Single(-0.73), 'bias');
-    var optimizer := kKeras.optimizers.SGD(learning_rate);
+    var optimizer := tf.Keras.optimizers.SGD(learning_rate);
 
     // Run training for the given number of steps.
     for var step in TUtils.range(1, training_steps + 1) do
@@ -541,6 +553,88 @@ begin
     end;
     mmo1.Lines.Add('');
     Result := True;
+end;
+
+{ LinalgTest }
+
+procedure AssetSequenceEqual(expected: TArray<Single>; actual: TArray<Single>);
+begin
+    var eps: Single := 1e-5;
+    for var i : Integer := 0 to Length(expected) - 1 do
+        Assert.IsTrue(Abs(expected[i] - actual[i]) < eps * Max(1.0, Abs(expected[i]) ), Format('expected %.9f vs actual %.9f',[expected[i], actual[i]]) );
+end;
+
+constructor LinalgTest.Create;
+begin
+  TestInit;
+end;
+
+procedure LinalgTest.EyeTest;
+begin
+    var tensor := tf.linalg.eye(3);
+
+    Assert.IsTrue(tensor.shape = TFShape.Create([3, 3]));
+    var t1 : TTensor := tensor[[2, 0]];
+    var t2 : TTensor := tensor[[2, 1]];
+    var t3 : TTensor := tensor[[2, 2]];
+    Assert.AreEqual<Double>(0.0,  Double(t1));
+    Assert.AreEqual<Double>(0.0,  Double(t2));
+    Assert.AreEqual<Double>(1.0,  Double(t3));
+end;
+
+/// <summary>
+/// https://colab.research.google.com/github/biswajitsahoo1111/blog_notebooks/blob/master/Doing_Linear_Algebra_using_Tensorflow_2.ipynb#scrollTo=6xfOcTFBL3Up
+/// </summary>
+procedure LinalgTest.LSTSQ;
+begin
+    var aA_Over : TArray< TArray<Single>> := [ [ 1, 2 ], [ 2, 0.5 ], [ 3, 1 ], [ 4, 5.0] ];
+    var A_over  := tf.constant(aA_Over);
+    var aA_under : TArray< TArray<Single>> := [ [ 3, 1, 2, 5 ], [ 7, 9, 1, 4.0 ] ];
+    var A_under := tf.constant(aA_under);
+    var b_over  := tf.constant(TArray<Single>.Create( 3, 4, 5, 6.0), TFShape.Create([4, 1]) );
+    var b_under  := tf.constant(TArray<Single>.Create( 7.2, -5.8),   TFShape.Create([2, 1]) );
+    var x_over := tf.linalg.lstsq(A_over, b_over);
+    var x := tf.matmul( tf.linalg.inv(tf.matmul(A_over, A_over,  true)), tf.matmul(A_over, b_over, true));
+    Assert.IsTrue(x_over.shape = TFShape.Create([2, 1]));
+    AssetSequenceEqual(x_over.ToArray<Single>, x.ToArray<Single>) ;
+    var x_under := tf.linalg.lstsq(A_under, b_under);
+    var y := tf.matmul(A_under, tf.matmul(tf.linalg.inv(tf.matmul(A_under, A_under, False, true)), b_under), true);
+    Assert.IsTrue(x_under.shape = TFShape.Create([4, 1]));
+    AssetSequenceEqual(x_under.ToArray<Single>, y.ToArray<Single>) ;
+
+   (* var x_over_reg  := tf.linalg.lstsq(A_over, b_over, TNDArray.Create(Single(2.0)));
+    var x_under_reg := tf.linalg.lstsq(A_under, b_under,TNDArray.Create(Single(2.0)));
+    Assert.IsTrue(x_under_reg.shape = TFShape.Create([4, 1]));
+    AssetSequenceEqual(x_under_reg.ToArray<Single>, [-0.04763567, -1.214508, 0.62748903, 1.299031])*) ;
+end;
+
+procedure LinalgTest.Einsum;
+begin
+    var m0 := tf.random.normal(TFShape.Create([2, 3]));
+    var m1 := tf.random.normal(TFShape.Create([3, 5]));
+    var e  := tf.linalg.einsum('ij,jk->ik', TFTensors.Create([m0, m1]) );
+    Assert.IsTrue(e.shape = TFShape.Create([2, 5]));
+end;
+
+procedure LinalgTest.GlobalNorm;
+begin
+    var t_list := TFTensors.Create( [tf.constant(TArray<Single>.create(1, 2, 3, 4 )), tf.constant(TArray<Single>.create( 5, 6, 7, 8 ))] );
+    var norm   := tf.linalg.global_norm(t_list.ToArray);
+    var s1 : NDArray := norm.numpy;
+    Assert.AreEqual<Single>(s1, 14.282857);
+end;
+
+procedure LinalgTest.Tensordot;
+begin
+    var a := tf.constant(TArray<Integer>.create( 1, 2 ));
+    var b := tf.constant(TArray<Integer>.create( 2, 3 ));
+    var c := tf.linalg.tensordot(a, b,  TNDArray.Create(Integer(0)));
+    Assert.IsTrue(c.shape =  TFShape.Create([2, 2]));
+    Assert.IsTrue(TUtils.SequenceEqual<Integer>(c.ToArray<integer>, [ 2, 3, 4, 6 ]) );
+    c := tf.linalg.tensordot(a, b, TNDArray.Create( TArray<Integer>.Create( 0, 0 )) );
+    Assert.AreEqual<Integer>(c.shape.ndim, 0);
+    var s1 : NDArray := c.numpy;
+    Assert.AreEqual<Integer>(s1, 8);
 end;
 
 end.

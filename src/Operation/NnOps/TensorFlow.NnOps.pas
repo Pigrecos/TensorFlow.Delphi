@@ -16,9 +16,11 @@ unit TensorFlow.NnOps;
 
 interface
     uses System.SysUtils,
+         System.Generics.Collections,
+
          Spring,
          Spring.Collections,
-         Spring.Collections.Lists,
+
          TF4D.Core.CApi,
          TensorFlow.DApi,
          Tensorflow.Utils,
@@ -29,6 +31,7 @@ interface
          TensorFlow.Interfaces,
 
          Keras.Layer,
+         Keras.Engine,
          Keras.ArgsDefinition;
 
 type

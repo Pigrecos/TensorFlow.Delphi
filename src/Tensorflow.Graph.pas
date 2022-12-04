@@ -16,8 +16,16 @@ unit Tensorflow.Graph;
 
 interface
      uses System.SysUtils,
+          System.Generics.Collections,
+
+          Spring,
+
+          TF4D.Core.CApi,
+          TensorFlow.DApiEager,
           TensorFlow.DApi,
-          Spring.Collections.Stacks;
+
+          ProtoGen.attrValue,
+          ProtoGen.OpDef;
 
 const
   EAGER_CONST_THRESHOLD : Integer = 128;
@@ -48,15 +56,86 @@ type
   /// </summary>
   TFuncGraph = class(TFGraph)
      private
+       F_func_graph_handle : Pointer;
+       F_captures          : TDictionary<Int64, Tuple<TFTensor, TFTensor> > ;
 
      protected
+       procedure NativeDispose(hnd: Pointer); override;
+     public
+       FuncName         : string;
+       Inputs           : TFTensors;
+       Outputs          : TFTensors;
+       Attrs            : TDictionary<string, string>;
+       external_captures: TArray<TFTensor>;
+       captures         : TArray< Tuple<TFTensor, TFTensor> >;
+       internal_captures: TArray<TFTensor>;
+       captured_inputs  : TArray<TFTensor>;
+
+       // <summary>
+       /// Construct a new FuncGraph.
+       /// </summary>
+       constructor Create(name: string) ; overload;
+       constructor Create(_handle: Pointer; name: string; attrs: TDictionary<string, string>) ; overload;
+       function    capture(tensor: TFTensor; name: string = ''; shape: PTFShape = nil): TFTensor;
+       function    capture_eager_tensor(tensor: TFTensor; name: string): TFTensor;
+       function    _capture_helper(tensor: TFTensor; name: string; shape: PTFShape = nil): TFTensor;
+       procedure   ToGraph(opers: TArray<TFOperation>; inputs : TArray<TFTensor>; outputs : TArray<TFTEnsor>; output_names: TArray<string>) ;
+       function    _create_substitute_placeholder(value: TFTensor; name : string= ''; dtype: TF_DataType = DtInvalid; shape: PTFShape = nil): TFTensor;
+       procedure   SetAttrs;
+       function    as_default: TFGraph; override;
+       procedure   gExit; override;
+       function    Create_op(op_type    : TF_TString ;
+                        inputs         : TArray<TFTensor>;
+                        dtypes         : TArray<TF_DataType>;
+                        input_types    : TArray<TF_DataType> = [];
+                        Name           : TF_TString= '';
+                        attrs          : TDictionary<string, TAttrValue> = nil;
+                        op_def         : POpDef= nil;
+                        compute_device : Boolean = True) : TFOperation; override;
+  end;
+
+  SubGraphUtility = record
+     private
 
      public
 
-       function capture(tensor: TFTensor; name: string = ''; shape: PTFShape = nil): TFTensor;
+        /// <summary>
+        /// Copies the tensor and all its inputs recursively to the outer graph.
+        /// </summary>
+        /// <param name="tensors"></param>
+        /// <param name="graph"></param>
+        /// <param name="add_sources"></param>
+        /// <param name="handle_captures"></param>
+        /// <param name="base_graph"></param>
+        /// <returns></returns>
+        class function lift_to_graph(init_tensors: TFTensors;
+                                graph           : TFuncGraph;
+                                sources         : TList<TFTensor>;
+                                add_sources     : Boolean = false;
+                                handle_captures : Boolean = false;
+                                base_graph      : TFGraph = nil;
+                                op_map : TDictionary<ITensorOrOperation, TFOperation> = nil): TDictionary<ITensorOrOperation, TFOperation> ;static;
+
+        class Procedure _copy_source(s : TFTensor;
+                                graph           : TFuncGraph;
+                                op_map          : TDictionary<ITensorOrOperation, TFOperation>;
+                                handle_captures : Boolean;
+                                inverse_captures: TDictionary<TFTensor, TFTensor>;
+                                base_graph      : TFGraph); static;
+
+        class Procedure _copy_non_source(op: TFOperation; graph: TFuncGraph; op_map: TDictionary<ITensorOrOperation, TFOperation>; base_graph: TFGraph); static;
+
+        /// <summary>
+        /// Walk a Graph and capture the subgraph between init_tensor and sources.
+        /// </summary>
+        /// <param name="init_tensor"></param>
+        /// <param name="add_sources"></param>
+        class function  map_subgraph(init_tensor: TFTensor; sources: TList<TFTensor>; visited_ops: TList<TFOperation>; add_sources: Boolean): TList<TFTensor>; static;
   end;
 
 implementation
+          uses Tensorflow,
+               TensorFlow.Ops;
 
 { DefaultGraphStack }
 
@@ -100,7 +179,99 @@ end;
 
 { TFuncGraph }
 
+constructor TFuncGraph.Create(name: string);
+begin
+   inherited Create;
+
+   Fouter_graph := Tops.get_default_graph;
+
+   while Fouter_graph.building_function do
+     Fouter_graph := Fouter_graph.OuterGraph;
+
+   Fgraph_key := name;
+   Fbuilding_function := true;
+end;
+
+constructor TFuncGraph.Create(_handle: Pointer; name: string; attrs: TDictionary<string, string>);
+begin
+
+end;
+
+procedure TFuncGraph.NativeDispose(hnd: Pointer);
+begin
+  TFE_ContextRemoveFunction(tf.Context.Handle,PAnsiChar(Fgraph_key), tf.Status.Handle);
+  TF_DeleteFunction(F_func_graph_handle);
+
+  inherited NativeDispose(hnd);
+end;
+
+function TFuncGraph.as_default: TFGraph;
+begin
+
+end;
+
 function TFuncGraph.capture(tensor: TFTensor; name: string; shape: PTFShape): TFTensor;
+begin
+
+end;
+
+function TFuncGraph.capture_eager_tensor(tensor: TFTensor; name: string): TFTensor;
+begin
+
+end;
+
+function TFuncGraph.Create_op(op_type: TF_TString; inputs: TArray<TFTensor>; dtypes, input_types: TArray<TF_DataType>; Name: TF_TString; attrs: TDictionary<string, TAttrValue>;
+  op_def: POpDef; compute_device: Boolean): TFOperation;
+begin
+
+end;
+
+procedure TFuncGraph.gExit;
+begin
+  inherited;
+
+end;
+
+procedure TFuncGraph.SetAttrs;
+begin
+
+end;
+
+procedure TFuncGraph.ToGraph(opers: TArray<TFOperation>; inputs, outputs: TArray<TFTEnsor>; output_names: TArray<string>);
+begin
+
+end;
+
+function TFuncGraph._capture_helper(tensor: TFTensor; name: string; shape: PTFShape): TFTensor;
+begin
+
+end;
+
+function TFuncGraph._create_substitute_placeholder(value: TFTensor; name: string; dtype: TF_DataType; shape: PTFShape): TFTensor;
+begin
+
+end;
+
+{ SubGraphUtility }
+
+class function SubGraphUtility.lift_to_graph(init_tensors: TFTensors; graph: TFuncGraph; sources: TList<TFTensor>; add_sources, handle_captures: Boolean; base_graph: TFGraph;
+  op_map: TDictionary<ITensorOrOperation, TFOperation>): TDictionary<ITensorOrOperation, TFOperation>;
+begin
+
+end;
+
+class function SubGraphUtility.map_subgraph(init_tensor: TFTensor; sources: TList<TFTensor>; visited_ops: TList<TFOperation>; add_sources: Boolean): TList<TFTensor>;
+begin
+
+end;
+
+class procedure SubGraphUtility._copy_non_source(op: TFOperation; graph: TFuncGraph; op_map: TDictionary<ITensorOrOperation, TFOperation>; base_graph: TFGraph);
+begin
+
+end;
+
+class procedure SubGraphUtility._copy_source(s: TFTensor; graph: TFuncGraph; op_map: TDictionary<ITensorOrOperation, TFOperation>; handle_captures: Boolean;
+  inverse_captures: TDictionary<TFTensor, TFTensor>; base_graph: TFGraph);
 begin
 
 end;

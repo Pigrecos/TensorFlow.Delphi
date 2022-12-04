@@ -1,4 +1,4 @@
-unit Keras.Activations;
+unit Keras.LossFunc;
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,16 +13,22 @@ unit Keras.Activations;
 ******************************************************************************)
 
 interface
-       uses System.SysUtils,
+     uses System.SysUtils,
 
-            TF4D.Core.CApi,
-            TensorFlow.DApi,
-            Numpy.Axis,
-            TensorFlow.Context,
-            TensorFlow.Variable;
+          TensorFlow.DApi;
 
 type
-  TActivation = Reference To function(features: TFTensor; name: string = ''): TFTensor;
+
+   ILossFunc = interface
+   ['{AE7EE5F7-1243-45C6-86B1-C43DB3146C9F}']
+     function GetReduction : string;
+     function GetName : string;
+
+     function Call(y_true: TFTensor; y_pred: TFTensor; sample_weight: TFTensor = nil): TFTensor;
+
+     property Reduction : string read GetReduction;
+     property Name      : string read GetName;
+   end;
 
 implementation
 

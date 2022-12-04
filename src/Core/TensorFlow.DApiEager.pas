@@ -220,6 +220,12 @@ type
   procedure TFE_ContextSetLogDevicePlacement(ctx: PTFE_Context; enable: Byte;status: PTF_Status);cdecl;
   {$EXTERNALSYM TFE_ContextSetLogDevicePlacement}
 
+  // Removes a function from the context. Once removed, you can no longer
+  // TFE_Execute it or TFE_Execute any TFE_Op which has it as an attribute or any
+  // other function which calls it as an attribute.
+  procedure TFE_ContextRemoveFunction(ctx: PTFE_Context; name: PTFChar; status: PTF_Status);
+  {$EXTERNALSYM TFE_ContextRemoveFunction}
+
   /// <summary>
   ///
   /// </summary>
@@ -271,6 +277,7 @@ procedure TFE_ContextClearCaches;                     external TensorFlowLib nam
 procedure TFE_ContextStartStep;                       external TensorFlowLib name 'TFE_ContextStartStep';
 procedure TFE_ContextEndStep;                         external TensorFlowLib name 'TFE_ContextEndStep';
 procedure TFE_ContextSetLogDevicePlacement;           external TensorFlowLib name 'TFE_ContextSetLogDevicePlacement';
+procedure TFE_ContextRemoveFunction;                  external TensorFlowLib name 'TFE_ContextRemoveFunction';
 function  TFE_NewTensorHandle;                        external TensorFlowLib name 'TFE_NewTensorHandle';
 procedure TFE_DeleteTensorHandle;                     external TensorFlowLib name 'TFE_DeleteTensorHandle';
 function  TFE_TensorHandleResolve;                    external TensorFlowLib name 'TFE_TensorHandleResolve';

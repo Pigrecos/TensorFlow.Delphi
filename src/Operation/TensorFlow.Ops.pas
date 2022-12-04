@@ -48,6 +48,7 @@ type
       class var Fuid_number      : Integer;
       class var Fgraph_uid_number: Integer;
       class var Fuid_number_for_function : Integer;
+      class var Fuid_number_for_layer : Integer;
 
       procedure SetSingleThread(const Value: Boolean);
       function  Get_default_graph_stack: DefaultGraphStack;
@@ -121,6 +122,7 @@ type
       class function uid: Integer;
       class function GraphUniqueId: Integer;
       class function uid_function: Integer;
+      class function uid_layer: Integer;
       class procedure reset_uid;
       //
       class procedure colocate_with(ignore_existing : Boolean = false); overload;
@@ -608,6 +610,12 @@ class function TOps.uid_function: Integer;
 begin
     TInterlocked.Increment(Fuid_number_for_function);
     Result := Fuid_number_for_function
+end;
+
+class function TOps.uid_layer: Integer;
+begin
+    TInterlocked.Increment(Fuid_number_for_layer);
+    Result := Fuid_number_for_layer
 end;
 
 class function TOps.init_scope: TNameScope;

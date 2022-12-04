@@ -150,6 +150,7 @@ type
       public
          constructor Create(learning_rate: Single; momentum : Single = 0.0; nesterov : Boolean = false; decay: Single = 0.0);
     end;
+
     OptimizerApi = class
       private
 

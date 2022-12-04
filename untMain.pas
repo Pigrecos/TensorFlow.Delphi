@@ -85,6 +85,23 @@ type
       procedure Variabele_Accumulation;
       procedure Variabele_ShouldReturnNegative;
       procedure IdentityOriginalTensor;
+      /// <summary>
+      /// Test the function of setting random seed
+      /// This will help regenerate the same result
+      /// </summary>
+      procedure TFRandomSeedTest;
+      /// <summary>
+      /// compare to Test above, seed is also added in params
+      /// </summary>
+      procedure TFRandomSeedTest2;
+      /// <summary>
+      /// This part we use funcs in tf.random rather than only tf
+      /// </summary>
+      procedure TFRandomRaodomSeedTest;
+      /// <summary>
+      /// compare to Test above, seed is also added in params
+      /// </summary>
+      procedure TFRandomRaodomSeedTest2;
   end;
 
   ManagedAPI = class
@@ -108,6 +125,11 @@ type
        procedure ConcatTest;
        procedure InitTensorTest;
        procedure TestZerosLike;
+       // StringsApiTest
+       procedure StringFromBytes;
+       procedure StringEqual;
+       procedure StringArray;
+       procedure StringSplit;
   end;
 
   TForm1 = class(TForm)
@@ -314,6 +336,84 @@ begin
     Assert.IsTrue( TUtils.SequenceEqual<Integer>([ 0, 0, 0, 1, 0 ], res[3].ToArray<integer>));
     Assert.IsTrue( TUtils.SequenceEqual<Integer>([ 0, 0, 0, 0, 1 ], res[4].ToArray<integer>));
 
+end;
+
+procedure TUnitTest_Basic.TFRandomSeedTest;
+begin
+    var initValue := np.arange(6).reshape(TFShape.create([3, 2]));
+    tf.set_random_seed(1234);
+    var a1 := tf.random_uniform(1);
+    var b1 := tf.random_shuffle(tf.constant(initValue));
+
+    // This part we consider to be a refresh
+    tf.set_random_seed(10);
+    tf.random_uniform(1);
+    tf.random_shuffle(tf.constant(initValue));
+
+    tf.set_random_seed(1234);
+    var a2 := tf.random_uniform(1);
+    var b2 := tf.random_shuffle(tf.constant(initValue));
+    Assert.IsTrue(a1.numpy.Equals(a2.numpy));
+    Assert.IsTrue(b1.numpy.Equals(b2.numpy));
+end;
+
+procedure TUnitTest_Basic.TFRandomSeedTest2;
+begin
+    var initValue := np.arange(6).reshape(TFShape.create([3, 2]));
+    tf.set_random_seed(1234);
+    var pSeed : Integer := 1234;
+    var a1  := tf.random_uniform(1, 0, 1, TF_FLOAT,@pSeed);
+    var b1  := tf.random_shuffle(tf.constant(initValue), pSeed);
+
+    // This part we consider to be a refresh
+    tf.set_random_seed(10);
+    tf.random_uniform(1);
+    tf.random_shuffle(tf.constant(initValue));
+
+    tf.set_random_seed(1234);
+    var a2 := tf.random_uniform(1);
+    var b2 := tf.random_shuffle(tf.constant(initValue));
+    Assert.IsTrue(a1.numpy.Equals(a2.numpy));
+    Assert.IsTrue(b1.numpy.Equals(b2.numpy));
+end;
+
+procedure TUnitTest_Basic.TFRandomRaodomSeedTest;
+begin
+    tf.set_random_seed(1234);
+    var a1 := tf.random.normal(1);
+    var b1 := tf.random.truncated_normal(1);
+
+    // This part we consider to be a refresh
+    tf.set_random_seed(10);
+    tf.random.normal(1);
+    tf.random.truncated_normal(1);
+
+    tf.set_random_seed(1234);
+    var a2 := tf.random.normal(1);
+    var b2 := tf.random.truncated_normal(1);
+
+    Assert.IsTrue(a1.numpy.Equals(a2.numpy));
+    Assert.IsTrue(b1.numpy.Equals(b2.numpy));
+end;
+
+procedure TUnitTest_Basic.TFRandomRaodomSeedTest2;
+begin
+    tf.set_random_seed(1234);
+    var pSeed : Integer := 1234;
+    var a1 := tf.random.normal(1, 0.0, 1.0, TF_FLOAT, @pSeed);
+    var b1 := tf.random.truncated_normal(1);
+
+    // This part we consider to be a refresh
+    tf.set_random_seed(10);
+    tf.random.normal(1);
+    tf.random.truncated_normal(1);
+
+    tf.set_random_seed(1234);
+    var a2 := tf.random.normal(1, 0.0, 1.0, TF_FLOAT, @pSeed);
+    var b2 := tf.random.truncated_normal(1,  0.0, 1.0, TF_FLOAT, @pSeed);
+
+    Assert.IsTrue(a1.numpy.Equals(a2.numpy));
+    Assert.IsTrue(b1.numpy.Equals(b2.numpy));
 end;
 
 procedure TUnitTest_Basic.Tensor_batch_to_space_nd;
@@ -524,6 +624,13 @@ begin
     // End Session Test
     //
 
+    mmo1.Lines.Add('Random Test Start....');
+    UnitTest.TFRandomSeedTest;
+    UnitTest.TFRandomSeedTest2;
+    UnitTest.TFRandomRaodomSeedTest;
+    UnitTest.TFRandomRaodomSeedTest2;
+    mmo1.Lines.Add('Random Test End....');
+
     mmo1.Lines.Add('Tensor Test Start....');
     UnitTest.Tensor_sparse_to_dense;
     UnitTest.Tensor_sparse_tensor_to_dense;
@@ -566,12 +673,19 @@ begin
     ma.GradientSliceTest;
     ma.GradientConcatTest;
     // Tensor Operate
-    mmo1.Lines.Add('Tensor Operate');
+    mmo1.Lines.Add('Tensor Operate test');
     ma.TransposeTest ;
     ma.InitTensorTest;
     ma.ConcatTest;
     ma.ConcatDoubleTest;
     ma.TestZerosLike;
+
+    // StringsApiTest
+    mmo1.Lines.Add('Strings Api Test test');
+    ma.StringFromBytes;
+    ma.StringEqual;
+    ma.StringArray;
+    ma.StringSplit;
 
     mmo1.Lines.Add('Test ManagedAPI Test End....');
     ma.Free;
@@ -618,6 +732,16 @@ begin
     Constant.Reshape;
     mmo1.Lines.Add('Constant Test End....');
     Constant.Free;
+
+    mmo1.Lines.Add('Linear Algebra Test Start....');
+    var linAl := LinalgTest.Create;
+    linAl.Einsum;
+    linAl.EyeTest;
+    linAl.GlobalNorm;
+    linAl.LSTSQ;
+    linAl.Tensordot;
+    mmo1.Lines.Add('Linear Algebra End....');
+    linAl.Free;
     {$HINTS ON}
 end;
 
@@ -653,19 +777,15 @@ begin
     var aX : TArray<TArray<Integer>> :=  [[1, 2, 3],[4, 5, 6]];
     var x := tf.constant(aX);
     var transpose_x := tf.transpose(x);
-
     var tr_numpy : TArray<Integer> := transpose_x[0].numpy.ToArray<Integer>;
     var aTest0   : TArray<Integer> := [1,4];
     Assert.IsTrue( TUtils.SequenceEqual<Integer>(aTest0, tr_numpy) );
-
     tr_numpy := transpose_x[1].numpy.ToArray<Integer>;
     aTest0   := [2,5];
     Assert.IsTrue( TUtils.SequenceEqual<Integer>(aTest0, tr_numpy) );
-
     tr_numpy := transpose_x[2].numpy.ToArray<Integer>;
     aTest0   := [3,6];
     Assert.IsTrue( TUtils.SequenceEqual<Integer>(aTest0, tr_numpy) );
-
     var aA :  TArray<TArray<TArray<TArray<Integer>>>> :=  [
                                                               [
                                                                   [
@@ -684,12 +804,9 @@ begin
                                                                   ]
                                                               ]
                                                           ] ;
-
     var a := tf.constant( np.np_array(aA) );
-
     var aPerm : TAxis := [ 3, 1, 2, 0 ];
     var actual_transposed_a := tf.transpose(a, @aPerm);
-
     var aE :  TArray<TArray<TArray<TArray<Integer>>>> := [
                                                               [
                                                                   [ [ 1, 5 ] ], [ [ 3, 7 ] ]
@@ -714,9 +831,7 @@ begin
                                                                   ]
                                                               ]
                                                           ];
-
     var expected_transposed_a := tf.constant( np.np_array(aE) );
-
     Assert.IsTrue(TFShape.Create([4, 2, 1, 2])= actual_transposed_a.shape);
     Assert.IsTrue(expected_transposed_a.numpy.equals(actual_transposed_a.numpy) );
 end;
@@ -728,7 +843,6 @@ begin
                                                   ];
     var a := tf.constant(np.np_array(aX));
     Assert.IsTrue( TUtils.SequenceEqual<Int64>([ 2, 3, 1 ], a.shape.dims));
-
     var b := tf.constant( aX );
     Assert.IsTrue( TUtils.SequenceEqual<Int64>([ 2, 3, 1 ], b.shape.dims));
 end;
@@ -737,13 +851,10 @@ procedure ManagedAPI.ConcatTest;
 begin
     var aA : TArray<TArray<Integer>> := [ [ 1, 2 ], [ 3, 4 ] ];
     var a := tf.constant( aA );
-
     aA    := [ [ 5, 6 ], [ 7, 8 ] ];
     var b := tf.constant( aA);
-
     aA    := [ [ 9, 10 ], [ 11, 12 ] ];
     var c := tf.constant( aA );
-
     var concatValue := tf.concat([ a, b, c ],  0);
     Assert.IsTrue( TUtils.SequenceEqual<Int64>([ 6, 2 ], concatValue.shape.dims) );
 end;
@@ -752,34 +863,27 @@ procedure ManagedAPI.ConcatDoubleTest;
 begin
     var aA : TArray<TArray<Double>> := [ [ 1.0, 2.0 ], [ 3.0, 4.0 ] ];
     var a := tf.constant( aA );
-
     aA    := [ [ 5.0, 6.0 ], [ 7.0, 8.0 ] ];
     var b := tf.constant( aA );
-
     aA    := [ [ 9.0, 10.0 ], [ 11.0, 12.0 ] ];
     var c := tf.constant( aA );
-
     var concatValue := tf.concat([ a, b, c ],  0);
     Assert.IsTrue( TUtils.SequenceEqual<Int64>([ 6, 2 ], concatValue.shape.dims) );
 end;
 
 procedure ManagedAPI.TestZerosLike;
 begin
-   (* var a2D : TArray<TArray<Integer>> := [ [ 1, 2, 3 ], [ 4, 5, 6 ] ];
+    var a2D : TArray<TArray<Integer>> := [ [ 1, 2, 3 ], [ 4, 5, 6 ] ];
     var zeros2D := tf.zeros_like( TNdArray.Create(a2D) );
-
-    Assert.AreEqual(new[] { 0, 0, 0 }, zeros2D[0].numpy());
-    Assert.AreEqual(new[] { 0, 0, 0 }, zeros2D[1].numpy());
-
-    var zeros1D = tf.zeros_like(new int[,]
-    {
-        { 1, 2, 3 }
-    });
-
-    Assert.AreEqual(new[] { 0, 0, 0 }, zeros1D[0].numpy());
-  *)
+    var z  := zeros2D[0].numpy.ToArray<Integer>;
+    var z1 := zeros2D[1].numpy.ToArray<Integer>;
+    Assert.IsTrue(TUtils.SequenceEqual<Integer>( [0, 0, 0 ], z) );
+    Assert.IsTrue(TUtils.SequenceEqual<Integer>( [0, 0, 0 ], z1));
+    var a1D : TArray<Integer> := [ 1, 2, 3 ];
+    var zeros1D := tf.zeros_like( TNdArray.Create(a1D) );
+    z  := zeros1D.numpy.ToArray<Integer>;
+    Assert.IsTrue(TUtils.SequenceEqual<Integer>( [0, 0, 0 ], z) );
 end;
-
 
 procedure ManagedAPI.Slice;
 begin
@@ -814,6 +918,51 @@ begin
     Assert.AreEqual<Integer>(NDArray(r3np[[1, 0, 0]]), 5);
     Assert.AreEqual<Integer>(NDArray(r3np[[1, 0, 1]]), 5);
     Assert.AreEqual<Integer>(NDArray(r3np[[1, 0, 2]]), 5);
+end;
+
+procedure ManagedAPI.StringFromBytes;
+begin
+    var jpg := tf.constant( TArray<Byte>.Create( $41, $ff, $d8, $ff ), tf.string_t);
+    var strings := jpg.ToString;
+    Assert.AreEqual(strings, 'tf.Tensor: shape=(), dtype=TF_STRING, numpy="A\xff\xd8\xff"');
+end;
+
+procedure ManagedAPI.StringEqual;
+begin
+    var str1 := tf.constant('Hello1');
+    var str2 := tf.constant('Hello2');
+    var res := tf.equal(str1, str2);
+    var bRes : NDArray := res.numpy;
+    Assert.IsFalse( Boolean(bRes) );
+    var str3 := tf.constant('Hello1');
+    res      := tf.equal(str1, str3);
+    bRes     := res.numpy;
+    Assert.IsTrue( Boolean(bRes) );
+    var str4 := tf.strings.substr(str1, 0, 5);
+    var str5 := tf.strings.substr(str2, 0, 5);
+    res      := tf.equal(str4, str5);
+    bRes     := res.numpy;
+    Assert.IsTrue( Boolean(bRes) );
+end;
+
+procedure ManagedAPI.StringArray;
+begin
+    var strings : TArray<string> := [ 'map_and_batch_fusion', 'noop_elimination', 'shuffle_and_repeat_fusion' ];
+    var tensor := tf.constant(strings, tf.string_t, nil, 'optimizations');
+    var s0 : NDarray := tensor[0].numpy ;
+    var s1 : NDarray := tensor[1].numpy ;
+    var s2 : NDarray := tensor[2].numpy ;
+    Assert.AreEqual<integer>(3, tensor.shape[0]);
+    Assert.AreEqual<string>(s0, strings[0]);
+    Assert.AreEqual<string>(s1, strings[1]);
+    Assert.AreEqual<string>(s2, strings[2]);
+end;
+
+procedure ManagedAPI.StringSplit;
+begin
+    var tensor        := tf.constant(TArray<String>.Create('hello world', 'tensorflow .net csharp', 'fsharp' ));
+    var ragged_tensor := tf.strings.split(tensor);
+    Assert.IsTrue(TFShape.Create([3, -1])= ragged_tensor.shape);
 end;
 
 procedure ManagedAPI.Gather ;

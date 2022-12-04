@@ -33,6 +33,7 @@ TTensor = record
       class procedure EnsureScalar(t: TTensor);static;
       class procedure EnsureDType(t: TTensor; _is: TF_DataType); static;
       function GetShape: TFShape;
+      function GetTipo: TF_DataType;
 
   public
       class operator Implicit(t : TFTensor): TTensor;
@@ -76,6 +77,7 @@ TTensor = record
       class operator Explicit(t : TTensor): Single;
       class operator Explicit(t : TTensor): Double;
       class operator Explicit(t : TTensor): AnsiString;
+      class operator Explicit(t : TTensor): string;
 
       class function ToStringArray(t: TTensor): TArray<AnsiString>; static;
       //
@@ -305,6 +307,7 @@ TTensor = record
       // Property
       property HTensor : TFTensor read FHandleTensor;
       property Shape   : TFShape  read GetShape;
+      property dtype   : TF_DataType read GetTipo;
 end;
 
 implementation
@@ -418,7 +421,7 @@ end;
 class procedure TTensor.EnsureDType(t: TTensor; _is: TF_DataType);
 begin
     if t.FHandleTensor.dtype <> _is then
-       raise Exception.Create('Unable to cast scalar tensor {tensor.dtype} to {@is}');
+       raise Exception.Create(Format('Unable to cast scalar tensor %s to %s',[Tdtypes.ToString(t.dtype), Tdtypes.ToString(_is)]));
 end;
 
 class Procedure TTensor.EnsureScalar(t: TTensor);
@@ -530,9 +533,21 @@ begin
     Result := t.FHandleTensor.StringData(0);
 end;
 
+class operator TTensor.Explicit(t: TTensor): string;
+begin
+    EnsureScalar(t);
+    EnsureDType(t, TF_STRING);
+    Result := t.FHandleTensor.StringData(0);
+end;
+
 function TTensor.GetShape: TFShape;
 begin
     Result :=  FHandleTensor.Shape;
+end;
+
+function TTensor.GetTipo: TF_DataType;
+begin
+    Result :=  FHandleTensor.Dtype;
 end;
 
 class function TTensor.ToStringArray(t: TTensor): TArray<AnsiString>;

@@ -12,11 +12,13 @@
    limitations under the License.
 ******************************************************************************)
 {$ENDREGION}
+
 unit TensorFlow.DApi;
 {$POINTERMATH ON}
 {$WARN DUPLICATE_CTOR_DTOR OFF}
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
+
 interface
 uses
   System.SysUtils,
@@ -651,24 +653,24 @@ TFTensor = class(ITensorOrOperation)
    ///     Used for keep other pointer when do implicit operating
    /// </summary>
    FTag : TValue;
+   /// <summary>
+   /// Keras History: (Layer, (node_index, tensor_index))
+   /// </summary>
+   FKerasHistory : TObject;
 
    function GetByteSize: UInt64;
    function GetDataTypeSize: UInt64;
    function GetSize: UInt64;
    function GetData: Pointer;
    function GetRank: Integer;
-   function GetShape: TFShape;
-   procedure Setshape(const Value: TFShape);
    // inherited from ITensorOrOperation
    function  GetName: string; override;
    function GetType: TF_DataType; override;
    function GetDevice: string; override;
 
    function GetTensorDataPointer: Pointer;
-   function StringBytes:TArray< TArray<Byte> >; overload;
    procedure UpdateTensoData;
    procedure InitTensor(shape: TFShape; dtype: TF_DataType);overload;
-   Procedure InitTensor(shape: TFShape; bytes: TArray<Byte>; dtype: TF_DataType); overload;
    class function GetBestDType<Tx, Ty>(x: Tx; y: Ty) : TF_DataType;
    class function TF_NewTensor(shape: TFShape; dtype: TF_DataType; data: Pointer):PTF_Tensor; overload;
    class function TF_NewTensor(data: TArray<Byte>; shape: TFShape; dtype: TF_DataType):PTF_Tensor; overload;
@@ -678,10 +680,13 @@ TFTensor = class(ITensorOrOperation)
    function GetItem(idx: Integer): TFTensor;overload;
    function GetItem(slices: TArray<string>): TFTensor;overload;
    function GetItem(_slice: string): TFTensor;overload;
+   function GetItem(start:TFTensor; stop:TFTensor = nil; step: TFTensor = nil): TFTensor;overload;
    function GetnDim: Integer;
  protected
    procedure NativeDispose(hnd: Pointer); override;
    function  GetNDArray(ddtype: TF_DataType): TNDArray;
+   function  GetShape: TFShape;  virtual;
+   procedure Setshape(const Value: TFShape);  virtual;
  public
    // Scalar
    constructor Create(hnd: Pointer);   overload;
@@ -721,20 +726,24 @@ TFTensor = class(ITensorOrOperation)
    class function Create<T>(aArray: TArray<TArray<TArray<T>>>;        shape: PTFShape=nil):TFTensor; overload;
    class function Create<T>(aArray: TArray<TArray<TArray<TArray<T>>>>;shape: PTFShape=nil):TFTensor; overload;
 
-   class function InitTensor<T>(aArray: TArray<T>;                        shape: TFShape; dtype: TF_DataType): PTF_Tensor; overload;
-   class function InitTensor<T>(aArray: TArray<TArray<T>>;                shape: TFShape; dtype: TF_DataType): PTF_Tensor; overload;
-   class function InitTensor<T>(aArray: TArray<TArray<TArray<T>>>;        shape: TFShape; dtype: TF_DataType): PTF_Tensor; overload;
-   class function InitTensor<T>(aArray: TArray<TArray<TArray<TArray<T>>>>;shape: TFShape; dtype: TF_DataType): PTF_Tensor; overload;
+   class function  InitTensor(shape: TFShape; bytes: TArray<Byte>; dtype: TF_DataType):PTF_Tensor; overload;
+   class function  InitTensor<T>(aArray: TArray<T>;                        shape: TFShape; dtype: TF_DataType): PTF_Tensor; overload;
+   class function  InitTensor<T>(aArray: TArray<TArray<T>>;                shape: TFShape; dtype: TF_DataType): PTF_Tensor; overload;
+   class function  InitTensor<T>(aArray: TArray<TArray<TArray<T>>>;        shape: TFShape; dtype: TF_DataType): PTF_Tensor; overload;
+   class function  InitTensor<T>(aArray: TArray<TArray<TArray<TArray<T>>>>;shape: TFShape; dtype: TF_DataType): PTF_Tensor; overload;
    //
    class function    StringTensor(srcArray: TArray<TArray<Byte>>; shape: TFShape):PTF_Tensor;overload;
    class function    StringTensor(srcArray: TArray<TF_TString>;   shape: TFShape):PTF_Tensor;overload;
    class function    StringTensor(srcArray: TArray<string>;       shape: TFShape):PTF_Tensor;overload;
    //
+   function StringBytes:TArray< TArray<Byte> >; overload;
    function StringBytes(index: Integer): TArray<byte>; overload;
    function StringData(index: integer): AnsiString; overload;
    function StringData: TArray<TF_TString>; overload;
    //
    function ToString: string;override;
+   function Equals(y: Integer): TFTensor; reintroduce;
+   function NotEquals(y: Integer): TFTensor;
    //
    destructor  Destroy; override;
 
@@ -776,6 +785,7 @@ TFTensor = class(ITensorOrOperation)
    function  _slice(start: Integer): TFTensor; overload;
    function  _slice(_sl: slice): TFTensor; overload;
 
+   property  KerasHistory  : TObject        read FKerasHistory write FKerasHistory;
    property  Tag           : TValue         read FTag write FTag;
    property  bytesize      : UInt64         read GetByteSize;
    property  dtypesize     : UInt64         read GetDataTypeSize;
@@ -808,7 +818,7 @@ TFTensor = class(ITensorOrOperation)
    property  Item[idx: Integer ]         : TFTensor read GetItem ; default;
    property  Item[slices: TArray<string>]: TFTensor read GetItem ; default;
    property  Item[slice: string]: TFTensor          read GetItem ; default;
-
+   property  Item[start:TFTensor; stop:TFTensor = nil; step: TFTensor = nil]: TFTensor  read GetItem ; default;
 end;
 {$ENDREGION}
 
@@ -930,7 +940,7 @@ TNDArray = class(TFTensor, IEnumerable )
      function reshape(newshape: TFShape): TNDArray;
      function astype(dtype: TF_DataType): TNDArray;
      function ToByteArray: TArray<Byte>;
-     function Equals(y: TNDArray): Boolean;
+     function Equals(y: TNDArray): Boolean; reintroduce;
 
      property Item[indices: Integer ]         : TNDArray read GetItem write SetItem; default;
      property Item[indices: TArray<Integer> ] : TNDArray read GetItem write SetItem; default;
@@ -1211,7 +1221,6 @@ TFGraph = class(TFDisposable)
    Funfetchable_ops    : TList<TFOperation>;
    Funfeedable_tensors : TList<TFTensor>;
    Fname_stack         : string;
-   Fgraph_key          : string;
    Flast_loss_reduction: string;
    Fis_loss_scaled_by_optimizer : Boolean;
    // <summary>
@@ -1223,10 +1232,8 @@ TFGraph = class(TFDisposable)
    /// Arbitrary collections of objects.
    /// </summary>
    Fcollections       : TDictionary<string, TValue>;
-   Fbuilding_function : Boolean;
    Fcontainer         : string;
    Fseed              : Integer;
-   Fouter_graph       : TFGraph;
    // Current control flow context. It could be either CondContext or WhileContext
    Fcontrol_flow_context : TControlFlowContext ;
    // represents the nested with(...) statements
@@ -1237,6 +1244,10 @@ TFGraph = class(TFDisposable)
    procedure _create_op_helper(op: TFOperation; compute_device: Boolean = true);
    function  _as_graph_element_locked(obj: TValue; allow_tensor: Boolean = true; allow_operation: Boolean = true): ITensorOrOperation;
  protected
+   Fouter_graph       : TFGraph;
+   Fgraph_key         : string;
+   Fbuilding_function : Boolean;
+
    procedure NativeDispose(hnd: Pointer); override;
  public
    function name_scope(name: TF_TString) : TF_TString;
@@ -1320,7 +1331,7 @@ TFGraph = class(TFDisposable)
    procedure prevent_feeding(tensor: TFTensor);
    procedure prevent_fetching(op: TFOperation);
    function  GetOpDef(tipo : string): TOpDef;
-   procedure gExit;
+   procedure gExit; virtual;
    function  NewOperation(opType,opName: string):TFOperationDesc;
    procedure Add_op(var op: TFOperation);
    function  is_fetchable<T>(tensor_or_op: T ) : Boolean;
@@ -1329,7 +1340,7 @@ TFGraph = class(TFDisposable)
    /// Must call Exit() to pop graph
    /// </summary>
    /// <returns></returns>
-   function as_default: TFGraph;
+   function as_default: TFGraph; virtual;
    function Create_op(op_type        : TF_TString ;
                       inputs         : TArray<TFTensor>;
                       dtypes         : TArray<TF_DataType>;
@@ -1337,7 +1348,7 @@ TFGraph = class(TFDisposable)
                       Name           : TF_TString= '';
                       attrs          : TDictionary<string, TAttrValue> = nil;
                       op_def         : POpDef= nil;
-                      compute_device : Boolean = True) : TFOperation;
+                      compute_device : Boolean = True) : TFOperation; virtual;
    //
    property nodes_by_name       : TDictionary<string, ITensorOrOperation> read Fnodes_by_name;
    property version             : Integer read Fversion;
@@ -2374,6 +2385,16 @@ begin
    TF_DeleteTensor(hnd);
 end;
 
+function TFTensor.Equals(y: Integer): TFTensor;
+begin
+    Result := gen_math_ops.equal(self, constant_op.constant(y, self.dtype, 'Const') );
+end;
+
+function TFTensor.NotEquals(y: Integer): TFTensor;
+begin
+    Result := gen_math_ops.not_equal(self, constant_op.constant(y, self.dtype, 'Const') );
+end;
+
 function TFTensor.StringBytes: TArray< TArray<Byte> >;
 var
   i    : Integer;
@@ -2445,7 +2466,7 @@ var
   pDims    : PTF_int64_t ;
   i        : Integer ;
 
-  ts       : TArray<TF_TString> ;
+  //ts       : TArray<TF_TString> ;
 begin
      dims     := shape.Dims;
      pDims    :=  PTF_int64_t(Pointer(@dims)^);
@@ -2453,15 +2474,17 @@ begin
      var pTensor := TF_AllocateTensor(TF_DataType.TF_STRING, pDims, shape.ndim, shape.size * TF_TSRING_SIZE);
      var tstr  : PTF_TString  := TF_TensorData(pTensor);
 
-    SetLength(ts,Length(srcArray));
-    for i := 0 to Length(srcArray)- 1 do
-      ts[i] := TF_TString( TEncoding.UTF8.GetString(srcArray[i]) );
+    // Modified by Max 20/11/2022 20:36:00 Testing for byte string non UTF8 char
+    //SetLength(ts,Length(srcArray));
+    //for i := 0 to Length(srcArray)- 1 do
+      //ts[i] := TF_TString( TEncoding.UTF8.GetString(srcArray[i]) );
 
-    for i := 0 to Length(ts) - 1 do
+
+    for i := 0 to Length(srcArray) - 1 do
     begin
           TF_StringInit(tstr);
 
-          TF_StringCopy(tstr, @ts[i][1], Length(ts[i]));
+          TF_StringCopy(tstr, @srcArray[i][0], Length(srcArray[i]));
 
           Inc(pbyte(tstr), TF_TSRING_SIZE);
     end;
@@ -2669,18 +2692,18 @@ begin
     Handle := TF_NewTensor(shape,dtype,nil)  ;
 end;
 
-Procedure TFTensor.InitTensor(shape: TFShape; bytes: TArray<Byte>; dtype: TF_DataType);
+class function TFTensor.InitTensor(shape: TFShape; bytes: TArray<Byte>; dtype: TF_DataType): PTF_Tensor;
 begin
      if dtype = TF_DataType.TF_STRING then
      begin
          var buf : TArray<TArray<byte>>;
          SetLength(buf,1);
          for var i := 0 to Length(bytes) - 1 do
-           buf[0][i] := bytes[i];
-         Handle := StringTensor( buf, TFShape.Scalar);
+           buf[0] := buf[0] + [ bytes[i] ];
+         Result := StringTensor( buf, TFShape.Scalar);
      end else
      begin
-         Handle  := TF_NewTensor(bytes,shape,dtype) ;
+         Result  := TF_NewTensor(bytes,shape,dtype) ;
      end;
 end;
 
@@ -2879,6 +2902,29 @@ begin
                                                 end;
                                                 raise  TFException.Create('Not Implemented');
                                             end );
+end;
+
+function TFTensor.GetItem(start, stop, step: TFTensor): TFTensor;
+begin
+    var args := TUtils.ParseSlices(start, stop, step);
+    var newVal : TValue := TValue.From< ParsedSliceArgs >(args);
+
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope('', 'strided_slice', @newVal),
+                function(v1: TNameScope): TFTensor
+                  begin
+                      var name : string := v1.ToString;
+                      var tensor := gen_array_ops.strided_slice(self,
+                                                                args.tPackedBegin,
+                                                                args.tPackedEnd,
+                                                                args.tPackedStrides,
+                                                                args.iBeginMask,
+                                                                args.iEndMask,
+                                                                args.iEllipsisMask,
+                                                                args.iNewAxisMask,
+                                                                args.iShrinkAxisMask,
+                                                                name);
+                      Result := tensor;
+                  end);
 end;
 
 function TFTensor.GetName: string;
@@ -3548,7 +3594,6 @@ begin
     if ndim <> y.ndim        then exit(False)
     else if size <> y.size   then exit(False)
     else if dtype <> y.dtype then exit(False);
-
     Result := TUtils.SequenceEqual<byte>(ToByteArray, y.ToByteArray);
 end;
 
@@ -3729,11 +3774,19 @@ var
   vValue: TValue;
   lIsArray : Boolean;
 begin
-    aDim := 0;
-    vValue := value;
+    aDim     := 0;
+    vValue   := value;
     lIsArray := False;
+    dtype    := dtInvalid;
     while vValue.IsArray do
     begin
+        if value.GetArrayLength < 1 then
+        begin
+           var ttt := value.TypeData^.DynArrElType^ ;
+           dtype := TDTypes.as_tf_dtype(ttt);
+           Break;
+        end;
+
         lIsArray := True;
         vValue := vValue.GetArrayElement(0);
         inc(aDim)
@@ -3746,11 +3799,13 @@ begin
         shape := @v;
     end;
 
-    dtype:= TUtils.GetDataType(value);
+    if value.GetArrayLength >0 then
+      dtype:= TUtils.GetDataType(value);
 
     if (shape.Size = 0) and (dtype <> TF_DataType.TF_STRING ) then
     begin
         inherited Create(shape, dtype);
+        NewEagerTensorHandle ;
         Exit;
     end;
 

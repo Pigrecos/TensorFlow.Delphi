@@ -80,6 +80,50 @@ type
        class function MaybeCreateControlFlowState(between_op_list: TList<TFOperation>; between_ops: TList<TFOperation>; colocate_gradients_with_ops: Boolean) : ControlFlowState;Static;
        class function IsLoopExit(op: TFOperation): Boolean; static;
        class function  _NextIteration(data: TFTensor; name: string = ''): TFTensor; static;
+       /// <summary>
+       /// Return `true_fn()` if the predicate `pred` is true else `false_fn()`.
+       ///
+       /// `true_fn` and `false_fn` both return lists of output tensors. `true_fn` and
+       /// `false_fn` must have the same non-zero number and type of outputs.
+       ///
+       /// **WARNING**: Any Tensors or Operations created outside of `true_fn` and
+       /// `false_fn` will be executed regardless of which branch is selected at runtime.
+       ///
+       /// Although this behavior is consistent with the dataflow model of TensorFlow,
+       /// it has frequently surprised users who expected a lazier semantics.
+       /// Consider the following simple program:
+       ///
+       /// z = tf.multiply(a, b)
+       /// result = tf.cond(x &lt; y, ()=> tf.add(x, z), ()=> tf.square(y))
+       ///
+       /// If `x&lt;y`, the `tf.add` operation will be executed and `tf.square`
+       /// operation will not be executed.Since `z` is needed for at least one
+       /// branch of the `cond`, the `tf.multiply` operation is always executed,
+       /// unconditionally.
+       ///
+       /// Note that `cond` calls `true_fn` and `false_fn` *exactly once* (inside the
+       /// call to `cond`, and not at all during `Session.run()`). `cond`
+       /// stitches together the graph fragments created during the `true_fn` and
+       /// `false_fn` calls with some additional graph nodes to ensure that the right
+       /// branch gets executed depending on the value of `pred`.
+       ///
+       /// `tf.cond` supports nested structures as implemented in
+       /// `tensorflow.python.util.nest`. Both `true_fn` and `false_fn` must return the
+       /// same(possibly nested) value structure of lists, tuples, and/or named tuples.
+       /// Singleton lists and tuples form the only exceptions to this: when returned by
+       /// `true_fn` and/or `false_fn`, they are implicitly unpacked to single values.
+       /// This behavior is disabled by passing `strict= True`.
+       /// </summary>
+       /// <param name="pred"> A scalar determining whether to return the result of `true_fn` or
+       /// `false_fn`.</param>
+       /// <param name="true_fn">The callable to be performed if pred is true.</param>
+       /// <param name="false_fn">The callable to be performed if pred is false.</param>
+       /// <param name="strict"> A boolean that enables/disables 'strict' mode; see above.</param>
+       /// <param name="name">Optional name prefix for the returned tensors.</param>
+       /// <returns>Tensors returned by the call to either `true_fn` or `false_fn`. If the
+       /// callables return a singleton list, the element is extracted from the list.</returns>
+       class function cond(pred: TFTensor; true_fn : TFunc<TFTensor>= nil; false_fn: TFunc<TFTensor>= nil; name: string = ''): TFTensor; overload ;static;
+       class function cond<TFTensor>(pred: TFTensor; true_fn, false_fn: TFunc<TArray<TFTensor>>; name: string): TArray<TFTensor>; overload ;static;
   end;
 
 implementation
@@ -93,6 +137,18 @@ implementation
            TensorFlow.control_flow_util ;
 
 { control_flow_ops }
+
+class function control_flow_ops.cond(pred: TFTensor; true_fn, false_fn: TFunc<TFTensor>; name: string): TFTensor;
+begin
+    { TODO -oMax -c : Implementare 03/12/2022 10:57:15 }
+    raise Exception.Create('control_flow_ops.cond');
+end;
+
+class function control_flow_ops.cond<TFTensor>(pred: TFTensor; true_fn, false_fn: TFunc<TArray<TFTensor>>; name: string): TArray<TFTensor>;
+begin
+   { TODO -oMax -c : Implementare 03/12/2022 10:57:15 }
+    raise Exception.Create('control_flow_ops.cond');
+end;
 
 class function control_flow_ops.group<T>(inputs: TArray<T>; name: string): TFOperation;
 begin
