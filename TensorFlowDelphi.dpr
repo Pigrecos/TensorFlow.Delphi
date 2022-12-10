@@ -76,7 +76,8 @@ uses
   Keras.Backend in 'src\Keras\Keras.Backend.pas',
   TensorFlow.image_ops_impl in 'src\Operation\TensorFlow.image_ops_impl.pas',
   TensorFlow.gen_image_ops in 'src\Operation\TensorFlow.gen_image_ops.pas',
-  TensorFlow.nn_impl in 'src\Operation\TensorFlow.nn_impl.pas';
+  TensorFlow.nn_impl in 'src\Operation\TensorFlow.nn_impl.pas',
+  TensorFlow.embedding_ops in 'src\Operation\TensorFlow.embedding_ops.pas';
 
 {$R *.res}
 

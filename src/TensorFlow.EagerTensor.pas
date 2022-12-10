@@ -587,7 +587,6 @@ begin
         for var i := 0 to Length(dims)- 1 do
           dims[i] := TFE_TensorHandleDim(eagerTensorHandle, i, tf.Status.Handle);
     end;
-
     Result := dims;
 end;
 

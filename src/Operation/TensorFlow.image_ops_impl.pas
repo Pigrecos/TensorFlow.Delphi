@@ -1,4 +1,5 @@
 unit TensorFlow.image_ops_impl;
+{$REGION 'Licence'}
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +12,8 @@ unit TensorFlow.image_ops_impl;
    See the License for the specific language governing permissions and
    limitations under the License.
 ******************************************************************************)
+{$ENDREGION}
+
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
@@ -191,3 +194,4 @@ begin
 end;
 
 end.
+

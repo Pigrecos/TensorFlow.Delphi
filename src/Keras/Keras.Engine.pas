@@ -1,4 +1,5 @@
 unit Keras.Engine;
+{$REGION 'Licence'}
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +12,7 @@ unit Keras.Engine;
    See the License for the specific language governing permissions and
    limitations under the License.
 ******************************************************************************)
+{$ENDREGION}
 
 interface
      uses System.SysUtils,
@@ -101,6 +103,12 @@ type
     TensorIndices : TArray<Integer>;
     InputTensors  : TFTensors;
     Outputs       : TFTensors;
+  end;
+
+  IPoolFunction = interface
+    ['{17352CCA-5C47-49AD-9265-C9762F7F3FB6}']
+
+    function Apply(value: TFTensor; ksize: TArray<Integer>; strides: TArray<Integer>; padding: string; data_format: string = 'NHWC'; name: string = ''): TFTensor;
   end;
 
   /// <summary>
@@ -212,7 +220,7 @@ type
   /// <summary>
   /// Specifies the ndim, dtype and shape of every input to a layer.
   /// </summary>
-  InputSpec = class
+  TInputSpec = class
      private
         FnDim      : Nullable<Integer>;
         Fmin_ndim  : Nullable<Integer>;
@@ -248,9 +256,9 @@ type
 implementation
           uses Tensorflow.Utils;
 
-{ InputSpec }
+{ TInputSpec }
 
-constructor InputSpec.Create(dtype: TF_DataType; _ndim, _min_ndim: Integer; _axes: TDictionary<Integer, Integer>; shape: PTFShape);
+constructor TInputSpec.Create(dtype: TF_DataType; _ndim, _min_ndim: Integer; _axes: TDictionary<Integer, Integer>; shape: PTFShape);
 begin
     if _ndim = null then FnDim := nil
     else                FnDim := _ndim ;

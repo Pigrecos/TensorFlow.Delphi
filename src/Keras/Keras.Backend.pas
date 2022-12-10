@@ -1,4 +1,5 @@
 unit Keras.Backend;
+{$REGION 'Licence'}
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +12,10 @@ unit Keras.Backend;
    See the License for the specific language governing permissions and
    limitations under the License.
 ******************************************************************************)
+{$ENDREGION}
+
+{$WARN IMPLICIT_STRING_CAST OFF}
+{$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
 interface
     uses System.SysUtils,
@@ -199,6 +204,9 @@ end;
 
 function  BackendBase.normalize_data_format(value : PValue= nil): ImageDataFormat;
 begin
+    // for delphi warming
+    Result := ImageDataFormat.channels_last;
+
     if value = nil then
     begin
         var v : TValue := TValue.From<ImageDataFormat>(_IMAGE_DATA_FORMAT);
@@ -212,10 +220,9 @@ begin
     else if value^.IsType<string>  then
     begin
         var sEnum      : string := value^.AsType<string>;
-        var dataFormat : ImageDataFormat;
         if (sEnum.Contains('channels_last')) or (sEnum.Contains('channels_first')) then
         begin
-            if      sEnum.Contains('channels_last')  then Result := ImageDataFormat.channels_last
+            if      sEnum.Contains('channels_last')  then  Result := ImageDataFormat.channels_last
             else if sEnum.Contains('channels_first')  then Result := ImageDataFormat.channels_first;
             Exit;
         end;
@@ -350,7 +357,7 @@ begin
     var graph := Tensorflow.tf.get_default_graph;
     if _GRAPH_LEARNING_PHASES.ContainsKey(graph) then
     begin
-        var phase := Tensorflow.tf.placeholder_with_default(false, [], 'keras_learning_phase');
+        Tensorflow.tf.placeholder_with_default(false, [], 'keras_learning_phase');
         _GRAPH_LEARNING_PHASES[graph] := GraphLearningPhase(0);
     end;
     Result := _GRAPH_LEARNING_PHASES[graph];
@@ -362,7 +369,7 @@ begin
      if   value then v := 1
      else            v := 0;
 
-    _GRAPH_LEARNING_PHASES.AddOrSetValue(Tensorflow.tf.get_default_graph, GraphLearningPhase(value) );
+    _GRAPH_LEARNING_PHASES.AddOrSetValue(Tensorflow.tf.get_default_graph, GraphLearningPhase(v) );
 end;
 
 procedure BackendImpl.batch_set_value(tuples: TList<Tuple<IVariableV1, TNDArray>>);
@@ -396,13 +403,13 @@ begin
 
     if data_format = 'channels_first' then
     begin
-        var padArray : TArray< TArray<Integer> > := [ [ 0, 0 ], [ 0, 0 ], [ Integer( pattern[0][0] ), Integer( pattern[0][1] ) ],
-                                                                          [ Integer( pattern[1][0] ), Integer( pattern[1][1] ) ] ];
+        var padArray : TArray< TArray<Integer> > := [ [ 0, 0 ], [ 0, 0 ], [ Integer( loc_padding[0][0] ), Integer( loc_padding[0][1] ) ],
+                                                                          [ Integer( loc_padding[1][0] ), Integer( loc_padding[1][1] ) ] ];
         pattern := TNDArray.Create(padArray);
     end else
     begin
-        var padArray : TArray< TArray<Integer> > := [ [ 0, 0 ], [ Integer( pattern[0][0] ), Integer( pattern[0][1] ) ],
-                                                                [ Integer( pattern[1][0] ), Integer( pattern[1][1] ) ], [ 0, 0 ] ];
+        var padArray : TArray< TArray<Integer> > := [ [ 0, 0 ], [ Integer( loc_padding[0][0] ), Integer( loc_padding[0][1] ) ],
+                                                                [ Integer( loc_padding[1][0] ), Integer( loc_padding[1][1] ) ], [ 0, 0 ] ];
         pattern := TNDArray.Create(padArray);
     end;
     Result := array_ops.pad(x, pattern);
@@ -418,7 +425,7 @@ begin
     var global_graph := get_graph;
     if (source_graph = global_graph) and (exec_graph <> global_graph) then
     begin
-        var lifted_map := SubGraphUtility.lift_to_graph(outputs, exec_graph, TList<TFTensor>.Create, true, true, source_graph);
+        SubGraphUtility.lift_to_graph(outputs, exec_graph, TList<TFTensor>.Create, true, true, source_graph);
     end;
     if (outputs[0].op.Tipo = 'Placeholder') or (outputs[0].op.Tipo = 'StridedSlice') then
     begin
@@ -466,8 +473,8 @@ end;
 
 function BackendImpl.resize_images(x: TFTensor; height_factor, width_factor: Integer; data_format, interpolation: string): TFTensor;
 begin
-    var rows := 0;
-    var cols := 0;
+    var rows : Integer;
+    var cols : Integer;
 
     if data_format = 'channels_first' then
     begin

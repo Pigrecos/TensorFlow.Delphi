@@ -1,4 +1,5 @@
 unit Keras.ArgsDefinition;
+{$REGION 'Licence'}
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +12,7 @@ unit Keras.ArgsDefinition;
    See the License for the specific language governing permissions and
    limitations under the License.
 ******************************************************************************)
+{$ENDREGION}
 
 interface
        uses System.SysUtils,
@@ -33,44 +35,6 @@ interface
             ProtoGen.nodeDef;
 
 type
-
- Cropping2DArgs = class(LayerArgs)
-    private
-
-    public
-      /// <summary>
-      /// channel last: (b, h, w, c)
-      /// channels_first: (b, c, h, w)
-      /// </summary>
-      type DataFormat = ( channels_first = 0, channels_last = 1 );
-    public
-      /// <summary>
-      /// Accept: int[1][2], int[1][1], int[2][2]
-      /// </summary>
-      cropping    : TNDarray;
-      data_format : DataFormat;
-
-      Constructor Create;
- end;
-
-  Cropping3DArgs = class(LayerArgs)
-    private
-
-    public
-      /// <summary>
-      /// channel last: (b, h, w, c)
-      /// channels_first: (b, c, h, w)
-      /// </summary>
-      type DataFormat = ( channels_first_ = 0, channels_last_ = 1 );
-    public
-      /// <summary>
-      /// Accept: int[1][3], int[1][1], int[3][2]
-      /// </summary>
-      cropping    : TNDarray;
-      data_format : DataFormat;
-
-      Constructor Create;
- end;
 
  ConvolutionalArgs = class(LayerArgs)
     private
@@ -96,6 +60,22 @@ type
       BiasRegularizer    : IRegularizer;
       KernelConstraint   : TProc;
       BiasConstraint     : TProc;
+
+      constructor Create;
+  end;
+
+  Conv1DArgs = class(ConvolutionalArgs)
+    private
+
+    public
+
+      constructor Create;
+  end;
+
+    Conv2DArgs = class(ConvolutionalArgs)
+    private
+
+    public
 
       constructor Create;
   end;
@@ -199,12 +179,388 @@ type
       constructor Create;
   end;
 
-  TensorFlowOpLayerArgs = class(LayerArgs)
+  AttentionArgs = class(BaseDenseAttentionArgs)
+    private
+
+    public
+      /// <summary>
+      /// If `true`, will create a scalar variable to scale the attention scores.
+      /// </summary>
+      use_scale : Boolean;
+
+      /// <summary>
+      /// Function to use to compute attention scores, one of
+      /// `{"dot", "concat"}`. `"dot"` refers to the dot product between the query
+      /// and key vectors. `"concat"` refers to the hyperbolic tangent of the
+      /// concatenation of the query and key vectors.
+      /// </summary>
+      score_mode : string ;
+      constructor Create;
+  end;
+
+  MultiHeadAttentionArgs = class(LayerArgs)
+    private
+
+    public
+       NumHeads          : Integer;
+       KeyDim            : Integer;
+       ValueDim          : Nullable<Integer>;
+       Dropout           : Single;
+       UseBias           : Boolean;
+       OutputShape       : TFShape;
+       AttentionAxis     : TFShape ;
+       KernelInitializer : IInitializer;
+       BiasInitializer   : IInitializer ;
+       KernelRegularizer : IRegularizer;
+       BiasRegularizer   : IRegularizer;
+       KernelConstraint  : TProc;
+       BiasConstraint    : TProc;
+
+       constructor Create;
+  end;
+
+  DropoutArgs = class(LayerArgs)
+    private
+
+    public
+       /// <summary>
+       /// Float between 0 and 1. Fraction of the input units to drop.
+       /// </summary>
+       Rate : Single;
+
+       /// <summary>
+       /// 1D integer tensor representing the shape of the
+       /// binary dropout mask that will be multiplied with the input.
+       /// </summary>
+       NoiseShape : TFShape;
+
+       /// <summary>
+       /// random seed.
+       /// </summary>
+       Seed  : Nullable<Integer>;
+
+       SupportsMasking : Boolean;
+
+       constructor Create;
+  end;
+
+  DenseArgs = class(LayerArgs)
+    private
+
+    public
+      /// <summary>
+      /// Positive integer, dimensionality of the output space.
+      /// </summary>
+      Units : Integer;
+
+      /// <summary>
+      /// Activation function to use.
+      /// </summary>
+      Activation : TActivation;
+
+      /// <summary>
+      /// Whether the layer uses a bias vector.
+      /// </summary>
+      UseBias : Boolean;
+
+      /// <summary>
+      /// Initializer for the `kernel` weights matrix.
+      /// </summary>
+      KernelInitializer : IInitializer;
+
+      /// <summary>
+      /// Initializer for the bias vector.
+      /// </summary>
+      BiasInitializer : IInitializer;
+
+      /// <summary>
+      /// Regularizer function applied to the `kernel` weights matrix.
+      /// </summary>
+      KernelRegularizer : IRegularizer;
+
+      /// <summary>
+      /// Regularizer function applied to the bias vector.
+      /// </summary>
+      BiasRegularizer : IRegularizer;
+
+      /// <summary>
+      /// Constraint function applied to the `kernel` weights matrix.
+      /// </summary>
+      KernelConstraint : TProc;
+
+      /// <summary>
+      /// Constraint function applied to the bias vector.
+      /// </summary>
+      BiasConstraint : TProc;
+
+      constructor Create;
+  end;
+
+  EinsumDenseArgs = class(LayerArgs)
+    public
+      /// <summary>
+      /// An equation describing the einsum to perform. This equation must
+      /// be a valid einsum string of the form `ab,bc->ac`, `...ab,bc->...ac`, or
+      /// `ab...,bc->ac...` where 'ab', 'bc', and 'ac' can be any valid einsum axis
+      /// expression sequence.
+      /// </summary>
+      Equation : string;
+
+      /// <summary>
+      /// The expected shape of the output tensor (excluding the batch
+      /// dimension and any dimensions represented by ellipses). You can specify
+      /// None for any dimension that is unknown or can be inferred from the input
+      /// shape.
+      /// </summary>
+      OutputShape : TFShape;
+
+      /// <summary>
+      /// A string containing the output dimension(s) to apply a bias to.
+      /// Each character in the `bias_axes` string should correspond to a character
+      /// in the output portion of the `equation` string.
+      /// </summary>
+      BiasAxes : string;
+
+      /// <summary>
+      /// Activation function to use.
+      /// </summary>
+      Activation : TActivation;
+
+      /// <summary>
+      /// Initializer for the `kernel` weights matrix.
+      /// </summary>
+      KernelInitializer : IInitializer;
+
+      /// <summary>
+      /// Initializer for the bias vector.
+      /// </summary>
+      BiasInitializer : IInitializer;
+
+      /// <summary>
+      /// Regularizer function applied to the `kernel` weights matrix.
+      /// </summary>
+      KernelRegularizer : IRegularizer;
+
+      /// <summary>
+      /// Regularizer function applied to the bias vector.
+      /// </summary>
+      BiasRegularizer : IRegularizer;
+
+      /// <summary>
+      /// Constraint function applied to the `kernel` weights matrix.
+      /// </summary>
+      KernelConstraint : TProc;
+
+      /// <summary>
+      /// Constraint function applied to the bias vector.
+      /// </summary>
+      BiasConstraint : TProc;
+
+      constructor Create;
+  end;
+
+  EmbeddingArgs = class(LayerArgs)
+    private
+
+    public
+      InputDim    : Integer;
+      OutputDim   : Integer;
+      MaskZero    : Boolean;
+      InputLength : Integer;
+      EmbeddingsInitializer : IInitializer;
+
+      constructor Create;
+  end;
+
+  InputLayerArgs = class(LayerArgs)
+    private
+
+    public
+      InputTensor : TFTensor;
+      Sparse      : Boolean;
+      Ragged      : Boolean;
+
+      constructor Create;
+  end;
+
+  CroppingArgs = class(LayerArgs)
+    private
+
+    public
+      /// <summary>
+      /// Accept length 1 or 2
+      /// </summary>
+      cropping : TNDArray;
+
+      constructor Create;
+  end;
+
+ Cropping2DArgs = class(LayerArgs)
+    private
+
+    public
+      /// <summary>
+      /// channel last: (b, h, w, c)
+      /// channels_first: (b, c, h, w)
+      /// </summary>
+      type DataFormat = ( channels_first = 0, channels_last = 1 );
+    public
+      /// <summary>
+      /// Accept: int[1][2], int[1][1], int[2][2]
+      /// </summary>
+      cropping    : TNDarray;
+      data_format : DataFormat;
+
+      Constructor Create;
+ end;
+
+ Cropping3DArgs = class(LayerArgs)
+    private
+
+    public
+      /// <summary>
+      /// channel last: (b, h, w, c)
+      /// channels_first: (b, c, h, w)
+      /// </summary>
+      type DataFormat = ( channels_first_ = 0, channels_last_ = 1 );
+    public
+      /// <summary>
+      /// Accept: int[1][3], int[1][1], int[3][2]
+      /// </summary>
+      cropping    : TNDarray;
+      data_format : DataFormat;
+
+      Constructor Create;
+ end;
+
+ LSTMArgs = class(RNNArgs)
+    public
+      UnitForgetBias  : Boolean;
+      Dropout         : Single;
+      RecurrentDropout: Single;
+      &Implementation : Integer;
+
+      Constructor Create;
+ end;
+
+ LSTMCellArgs = class(LayerArgs)
+    public
+      Constructor Create;
+ end;
+
+ MergeArgs = class(LayerArgs)
+    public
+      Inputs : TFTensors;
+      Axis   : Integer;
+
+      Constructor Create;
+ end;
+
+ LayerNormalizationArgs = class(LayerArgs)
+    public
+      Axis            : TAxis;
+      Epsilon         : Single;
+      Center          : Boolean;
+      Scale           : Boolean;
+      BetaInitializer : IInitializer;
+      GammaInitializer: IInitializer;
+      BetaRegularizer : IRegularizer;
+      GammaRegularizer: IRegularizer;
+
+      Constructor Create;
+ end;
+
+  BatchNormalizationArgs = class(LayerArgs)
+    public
+      Axis            : TFShape;
+      Momentum        : Single;
+      Epsilon         : Single;
+      Center          : Boolean;
+      Scale           : Boolean;
+      BetaInitializer : IInitializer;
+      GammaInitializer: IInitializer;
+      MovingMeanInitializer : IInitializer;
+      MovingVarianceInitializer : IInitializer;
+      BetaRegularizer : IRegularizer;
+      GammaRegularizer: IRegularizer;
+      Renorm          : Boolean;
+      RenormMomentum  : Single;
+
+      Constructor Create;
+ end;
+
+ Pooling1DArgs = class(LayerArgs)
+    private
+      Fstrides : Nullable<Integer>;
+      function  GetStrides: Integer;
+      procedure SetStrides(const Value: Integer);
+    public
+      /// <summary>
+      /// The pooling function to apply, e.g. `tf.nn.max_pool2d`.
+      /// </summary>
+      PoolFunction : IPoolFunction;
+
+      /// <summary>
+      /// specifying the size of the pooling window.
+      /// </summary>
+      PoolSize : Integer;
+
+      /// <summary>
+      /// The padding method, either 'valid' or 'same'.
+      /// </summary>
+      Padding : string ;
+
+      /// <summary>
+      /// one of `channels_last` (default) or `channels_first`.
+      /// </summary>
+      DataFormat : string;
+
+      Constructor Create;
+
+      /// <summary>
+      /// specifying the strides of the pooling operation.
+      /// </summary>
+      property Strides : Integer read GetStrides write SetStrides;
+ end;
+
+ Pooling2DArgs = class(LayerArgs)
+    public
+      /// <summary>
+      /// The pooling function to apply, e.g. `tf.nn.max_pool2d`.
+      /// </summary>
+      PoolFunction : IPoolFunction;
+
+      /// <summary>
+      /// specifying the size of the pooling window.
+      /// </summary>
+      PoolSize : TFShape;
+
+      /// <summary>
+      /// specifying the strides of the pooling operation.
+      /// </summary>
+      Strides : TFShape;
+
+      /// <summary>
+      /// The padding method, either 'valid' or 'same'.
+      /// </summary>
+      Padding : string ;
+
+      /// <summary>
+      /// one of `channels_last` (default) or `channels_first`.
+      /// </summary>
+      DataFormat : string;
+
+      Constructor Create;
+ end;
+
+ TensorFlowOpLayerArgs = class(LayerArgs)
     private
 
     public
       NodeDef   : TNodeDef ;
       Constants : TDictionary<Integer, TNDArray>;
+
+      constructor Create;
   end;
 
 implementation
@@ -214,6 +570,8 @@ implementation
 
 constructor ConvolutionalArgs.Create;
 begin
+    inherited Create;
+
     Rank           := 2 ;
     NumSpatialDims := -1;
     KernelSize     := 5;
@@ -233,6 +591,8 @@ end;
 
 constructor RNNArgs.Create;
 begin
+    inherited Create;
+
     Cell            := nil;
     ReturnSequences := false;
     ReturnState     := false;
@@ -241,6 +601,7 @@ begin
     Unroll          := false;
     TimeMajor       := false;
     Kwargs          := nil;
+    UseBias         := True;
 end;
 
 { OptimizerV2Args }
@@ -270,6 +631,8 @@ end;
 
 constructor Cropping2DArgs.Create;
 begin
+    inherited Create;
+
     data_format := DataFormat.channels_last;
 end;
 
@@ -277,6 +640,8 @@ end;
 
 constructor Cropping3DArgs.Create;
 begin
+     inherited Create;
+
      data_format := DataFormat.channels_last_;
 end;
 
@@ -284,6 +649,8 @@ end;
 
 constructor ELUArgs.Create;
 begin
+   inherited Create;
+
    Alpha := 0.1
 end;
 
@@ -291,6 +658,8 @@ end;
 
 constructor LeakyReLuArgs.Create;
 begin
+    inherited Create;
+
     Alpha := 0.3
 end;
 
@@ -298,6 +667,8 @@ end;
 
 constructor SoftmaxArgs.Create;
 begin
+     inherited Create;
+
      axis := -1;
 end;
 
@@ -305,8 +676,195 @@ end;
 
 constructor BaseDenseAttentionArgs.Create;
 begin
+    inherited Create;
+
     causal := False;
     dropout := 0;
+end;
+
+{ AttentionArgs }
+
+constructor AttentionArgs.Create;
+begin
+    inherited Create;
+
+    use_scale := False;
+    score_mode:= 'dot';
+end;
+
+{ MultiHeadAttentionArgs }
+
+constructor MultiHeadAttentionArgs.Create;
+begin
+    inherited Create;
+
+    ValueDim          := nil;
+    Dropout           := 0;
+    UseBias           := True;
+    OutputShape       := Default(TFShape);
+    AttentionAxis     := Default(TFShape);
+    KernelInitializer := tf.glorot_uniform_initializer;
+    BiasInitializer   := tf.zeros_initializer;
+    KernelRegularizer := nil;
+    BiasRegularizer   := nil;
+    KernelConstraint  := nil;
+    BiasConstraint    := nil;
+end;
+
+{ DropoutArgs }
+
+constructor DropoutArgs.Create;
+begin
+    inherited Create;
+end;
+
+{ DenseArgs }
+
+constructor DenseArgs.Create;
+begin
+     inherited Create;
+
+     UseBias           := True;
+     KernelInitializer := tf.glorot_uniform_initializer;
+     BiasInitializer   := tf.zeros_initializer;
+end;
+
+{ TensorFlowOpLayerArgs }
+
+constructor TensorFlowOpLayerArgs.Create;
+begin
+    inherited Create;
+end;
+
+{ EinsumDenseArgs }
+
+constructor EinsumDenseArgs.Create;
+begin
+    inherited Create;
+
+    BiasAxes          := '';
+    KernelInitializer := tf.glorot_uniform_initializer;
+    BiasInitializer   := tf.zeros_initializer;
+end;
+
+{ EmbeddingArgs }
+
+constructor EmbeddingArgs.Create;
+begin
+    inherited Create;
+
+    InputLength := -1;
+end;
+
+{ InputLayerArgs }
+
+constructor InputLayerArgs.Create;
+begin
+    inherited Create;
+end;
+
+{ Conv1DArgs }
+
+constructor Conv1DArgs.Create;
+begin
+   inherited Create;
+end;
+
+{ Conv2DArgs }
+
+constructor Conv2DArgs.Create;
+begin
+   inherited Create;
+end;
+
+{ CroppingArgs }
+
+constructor CroppingArgs.Create;
+begin
+    inherited Create;
+end;
+
+{ LSTMArgs }
+
+constructor LSTMArgs.Create;
+begin
+   inherited Create;
+end;
+
+{ LSTMCellArgs }
+
+constructor LSTMCellArgs.Create;
+begin
+   inherited Create;
+end;
+
+{ MergeArgs }
+
+constructor MergeArgs.Create;
+begin
+    inherited Create;
+end;
+
+{ LayerNormalizationArgs }
+
+constructor LayerNormalizationArgs.Create;
+begin
+    inherited Create;
+
+    Axis             := -1;
+    Epsilon          := 1e-3;
+    Center           := true;
+    Scale            := true;
+    BetaInitializer  := tf.zeros_initializer;
+    GammaInitializer := tf.ones_initializer;
+end;
+
+{ BatchNormalizationArgs }
+
+constructor BatchNormalizationArgs.Create;
+begin
+    inherited Create;
+
+    Axis             := -1;
+    Momentum         := 0.99;
+    Epsilon          := 1e-3;
+    Center           := true;
+    Scale            := true;
+    BetaInitializer  := tf.zeros_initializer;
+    GammaInitializer := tf.ones_initializer;
+    MovingMeanInitializer := tf.zeros_initializer;
+    MovingVarianceInitializer := tf.ones_initializer;
+    RenormMomentum   := 0.99;
+end;
+
+{ Pooling1DArgs }
+
+constructor Pooling1DArgs.Create;
+begin
+    inherited Create;
+
+    Fstrides := nil;
+    Padding  := 'valid';
+end;
+
+function Pooling1DArgs.GetStrides: Integer;
+begin
+    if Fstrides.HasValue then   Result := Fstrides.Value
+    else                        Result := PoolSize;
+end;
+
+procedure Pooling1DArgs.SetStrides(const Value: Integer);
+begin
+    Fstrides := Value;
+end;
+
+{ Pooling2DArgs }
+
+constructor Pooling2DArgs.Create;
+begin
+    inherited Create;
+
+    Padding  := 'valid';
 end;
 
 end.

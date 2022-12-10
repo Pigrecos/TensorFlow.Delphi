@@ -1,4 +1,5 @@
 unit TensorFlow.Variable;
+{$REGION 'Licence'}
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +12,7 @@ unit TensorFlow.Variable;
    See the License for the specific language governing permissions and
    limitations under the License.
 ******************************************************************************)
+{$ENDREGION}
 
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
@@ -253,6 +255,8 @@ type
       function GetName: String;
       function GetHandle:TFTensor;
 
+      function assign_lazy_load(value: TFTensor; name: string = ''): IVariableV1;
+      function assign_sub_lazy_load(delta: TFTensor; name: string = ''): IVariableV1;
       function _TensorConversionFunction(dtype: TF_DataType = DtInvalid; name: string = ''; as_ref: Boolean = false): TFTensor;
       function AsTensor(dtype: TF_DataType = TF_DataType.DtInvalid; name : string= ''; as_ref : Boolean= false): TFTensor;
       function numpy: TNDArray;

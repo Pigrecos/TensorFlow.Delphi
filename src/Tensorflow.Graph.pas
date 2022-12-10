@@ -14,6 +14,9 @@ unit Tensorflow.Graph;
 ******************************************************************************)
 {$ENDREGION}
 
+{$WARN IMPLICIT_STRING_CAST OFF}
+{$WARN IMPLICIT_STRING_CAST_LOSS OFF}
+
 interface
      uses System.SysUtils,
           System.Generics.Collections,
@@ -199,7 +202,7 @@ end;
 
 procedure TFuncGraph.NativeDispose(hnd: Pointer);
 begin
-  TFE_ContextRemoveFunction(tf.Context.Handle,PAnsiChar(Fgraph_key), tf.Status.Handle);
+  TFE_ContextRemoveFunction(tf.Context.Handle,PAnsiChar(AnsiString (Fgraph_key) ), tf.Status.Handle);
   TF_DeleteFunction(F_func_graph_handle);
 
   inherited NativeDispose(hnd);

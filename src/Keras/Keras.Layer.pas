@@ -1,4 +1,5 @@
 unit Keras.Layer;
+{$REGION 'Licence'}
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,12 +12,15 @@ unit Keras.Layer;
    See the License for the specific language governing permissions and
    limitations under the License.
 ******************************************************************************)
+{$ENDREGION}
+
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
 interface
        uses System.SysUtils,
             System.Generics.Collections,
+            System.RegularExpressions,
 
             Spring,
             Spring.Collections.Enumerable,
@@ -24,30 +28,27 @@ interface
             TF4D.Core.CApi,
             TensorFlow.DApi,
             TensorFlow.DApiBase,
+            TensorFlow.Framework,
             Numpy.Axis,
             TensorFlow.Context,
             TensorFlow.Variable,
             TensorFlow.Training,
             TensorFlow.Initializer,
+            TensorFlow.NnOps,
 
             Keras.Regularizers,
+            Keras.Activations,
             Keras.ArgsDefinition,
             Keras.Engine,
 
             ProtoGen.nodeDef,
             ProtoGen.variable;
 
-type
 
-  IPoolFunction = interface
-    ['{17352CCA-5C47-49AD-9265-C9762F7F3FB6}']
-
-    function Apply(value: TFTensor; ksize: TArray<Integer>; strides: TArray<Integer>; padding: string; data_format: string = 'NHWC'; name: string = ''): TFTensor;
-  end;
-
-  threadvar  tls_CallContext : TCallContext;
+threadvar  tls_CallContext : TCallContext;
 
 type
+{$REGION 'Layer'}
   /// <summary>
   /// Base layer class.
   /// A layer is a class implementing common neural networks operations, such
@@ -97,7 +98,7 @@ type
        /// <summary>
        /// Provides information about which inputs are compatible with the layer.
        /// </summary>
-       FinputSpec              : InputSpec;
+       FinputSpec              : TInputSpec;
        Ftrainable_weights      : TList<IVariableV1>;
        Fnon_trainable_weights  : TList<IVariableV1>;
        FName                   : string;
@@ -135,7 +136,7 @@ type
        function  ComputeOutputShape(input_shape: TFShape): TFShape; virtual;
        function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; virtual;
        function  _name_scope: string;virtual;
-       procedure build(inputs: TFTensors); virtual;
+       procedure Build(input_shape: TFShape); virtual;
        procedure add_loss(losses: TFunc<TFTensor>); virtual;
        procedure _init_set_name(_name: string; zero_based: Boolean = true); virtual;
     public
@@ -179,6 +180,7 @@ type
         property stateful             : Boolean             read Fstateful;
         property dynamicc             : Boolean             read Fdynamic;
         property SupportsMasking      : Boolean             read FSupportsMasking;
+        property inputSpec            : TInputSpec          read FinputSpec;
         property trainable_weights    : TList<IVariableV1>  read GetTrainW;
         property trainable_variables  : TList<IVariableV1>  read GetTrainVars;
         property non_trainable_weights: TList<IVariableV1>  read GetNotTrainW;
@@ -195,6 +197,7 @@ type
         property weights              : TList<IVariableV1>  read GetW write SetW;
 
   end;
+{$ENDREGION}
 
   {$REGION 'Activation'}
   /// <summary>
@@ -203,7 +206,7 @@ type
   /// </summary>
   ELU = class(Layer)
     protected
-      procedure Build(inputs: TFTensors); override;
+      procedure Build(input_shape: TFShape); override;
       function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
       function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
     public
@@ -215,7 +218,7 @@ type
 
   Exponential = class(Layer)
     protected
-      procedure Build(inputs: TFTensors); override;
+      procedure Build(input_shape: TFShape); override;
       function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
       function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
     public
@@ -253,7 +256,7 @@ type
       const alpha : Single = 1.67326324;
       const scale : Single = 1.05070098;
 
-      procedure Build(inputs: TFTensors); override;
+      procedure Build(input_shape: TFShape); override;
       function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
       function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
     public
@@ -308,6 +311,193 @@ type
   end;
   {$ENDREGION}
 
+  {$REGION 'Regularization'}
+  Dropout = class(Layer)
+    protected
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
+    public
+      args  : DropoutArgs;
+      function get_noise_shape(inputs: TFTensor ): TFTensor;
+
+      constructor Create(_args: DropoutArgs);
+  end;
+  {$ENDREGION}
+
+  {$REGION 'Core'}
+  /// <summary>
+  /// Just your regular densely-connected NN layer.
+  /// </summary>
+  Dense  = class(Layer)
+  private
+      function getAct: TActivation;
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
+    public
+      args   : DenseArgs;
+      kernel : IVariableV1;
+      bias   : IVariableV1;
+
+      constructor Create(_args: DenseArgs);
+      class function from_config(args: LayerArgs): Dense;
+
+      property activation : TActivation read getAct;
+  end;
+
+  // A layer that uses `tf.einsum` as the backing computation.
+  //   This layer can perform einsum calculations of arbitrary dimensionality.
+  //   Args:
+  //     equation: An equation describing the einsum to perform. This equation must
+  //       be a valid einsum string of the form `ab,bc->ac`, `...ab,bc->...ac`, or
+  //       `ab...,bc->ac...` where 'ab', 'bc', and 'ac' can be any valid einsum axis
+  //       expression sequence.
+  //     output_shape: The expected shape of the output tensor (excluding the batch
+  //       dimension and any dimensions represented by ellipses). You can specify
+  //       None for any dimension that is unknown or can be inferred from the input
+  //       shape.
+  //     activation: Activation function to use. If you don't specify anything, no
+  //       activation is applied (that is, a "linear" activation: `a(x) = x`).
+  //     bias_axes: A string containing the output dimension(s) to apply a bias to.
+  //       Each character in the `bias_axes` string should correspond to a character
+  //       in the output portion of the `equation` string.
+  //     kernel_initializer: Initializer for the `kernel` weights matrix.
+  //     bias_initializer: Initializer for the bias vector.
+  //     kernel_regularizer: Regularizer function applied to the `kernel` weights
+  //       matrix.
+  //     bias_regularizer: Regularizer function applied to the bias vector.
+  //     activity_regularizer: Regularizer function applied to the output of the
+  //       layer (its "activation").
+  //     kernel_constraint: Constraint function applied to the `kernel` weights
+  //       matrix.
+  //     bias_constraint: Constraint function applied to the bias vector.
+  //   Examples:
+  //   **Biased dense layer with einsums**
+  //   This example shows how to instantiate a standard Keras dense layer using
+  //   einsum operations. This example is equivalent to
+  //   `tf.keras.layers.Dense(64, use_bias=True)`.
+  //   >>> layer = tf.keras.layers.EinsumDense("ab,bc->ac",
+  //   ...                                     output_shape=64,
+  //   ...                                     bias_axes="c")
+  //   >>> input_tensor = tf.keras.Input(shape=[32])
+  //   >>> output_tensor = layer(input_tensor)
+  //   >>> output_tensor
+  //   <... shape=(None, 64) dtype=...>
+  //   **Applying a dense layer to a sequence**
+  //   This example shows how to instantiate a layer that applies the same dense
+  //   operation to every element in a sequence. Here, the `output_shape` has two
+  //   values (since there are two non-batch dimensions in the output); the first
+  //   dimension in the `output_shape` is `None`, because the sequence dimension `b`
+  //   has an unknown shape.
+  //   >>> layer = tf.keras.layers.EinsumDense("abc,cd->abd",
+  //   ...                                     output_shape=(None, 64),
+  //   ...                                     bias_axes="d")
+  //   >>> input_tensor = tf.keras.Input(shape=[32, 128])
+  //   >>> output_tensor = layer(input_tensor)
+  //   >>> output_tensor
+  //   <... shape=(None, 32, 64) dtype=...>
+  //   **Applying a dense layer to a sequence using ellipses**
+  //   This example shows how to instantiate a layer that applies the same dense
+  //   operation to every element in a sequence, but uses the ellipsis notation
+  //   instead of specifying the batch and sequence dimensions.
+  //   Because we are using ellipsis notation and have specified only one axis, the
+  //   `output_shape` arg is a single value. When instantiated in this way, the layer
+  //   can handle any number of sequence dimensions - including the case where no
+  //   sequence dimension exists.
+  //   >>> layer = tf.keras.layers.EinsumDense("...x,xy->...y",
+  //   ...                                     output_shape=64,
+  //   ...                                     bias_axes="y")
+  //   >>> input_tensor = tf.keras.Input(shape=[32, 128])
+  //   >>> output_tensor = layer(input_tensor)
+  //   >>> output_tensor
+  //   <... shape=(None, 32, 64) dtype=...>
+  //
+  EinsumDense = class(Layer)
+    private
+      Fequation             : string;
+      Factivation           : TActivation;
+      Fbias                 : IVariableV1 ;
+      Fkernel               : IVariableV1 ;
+      Fbias_axes            : string;
+      Fkernel_initializer   : IInitializer;
+      Fbias_initializer     : IInitializer;
+      Fkernel_constraint    : TProc;
+      Fbias_constraint      : TProc;
+      Fbias_regularizer     : IRegularizer;
+      Fkernel_regularizer   : IRegularizer;
+      Ffull_output_shape    : TFShape;
+      Fpartial_output_shape : TFshape;
+
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
+    public
+      /// <summary>
+      /// Analyzes an einsum string to determine the required weight shape.
+      /// </summary>
+      class function _analyze_einsum_string(equation: string; bias_axes: string; input_shape: TFShape; output_shape: TFShape): Tuple<TFShape, TFShape, TFShape>;
+      /// <summary>
+      /// Analyze an pre-split einsum string to find the weight shape.
+      /// </summary>
+      class function _analyze_split_string(split_string: TMatch; bias_axes: string; input_shape: TFShape; output_shape: TFShape; left_elided : Boolean= false): Tuple<TFShape, TFShape, TFShape>;
+
+      constructor Create(_args: EinsumDenseArgs);
+
+      property equation             : string        read Fequation;
+      property activation           : TActivation   read Factivation;
+      property bias                 : IVariableV1   read Fbias;
+      property kernel               : IVariableV1   read Fkernel;
+      property bias_axes            : string        read Fbias_axes;
+      property kernel_initializer   : IInitializer  read Fkernel_initializer;
+      property bias_initializer     : IInitializer  read Fbias_initializer;
+      property kernel_constraint    : TProc         read Fkernel_constraint;
+      property bias_constraint      : TProc         read Fbias_constraint;
+      property bias_regularizer     : IRegularizer  read Fbias_regularizer;
+      property kernel_regularizer   : IRegularizer  read Fkernel_regularizer;
+      property full_output_shape    : TFShape       read Ffull_output_shape;
+      property partial_output_shape : TFshape       read Fpartial_output_shape;
+  end;
+
+  /// <summary>
+  /// Turns positive integers (indexes) into dense vectors of fixed size.
+  /// https://www.tensorflow.org/api_docs/python/tf/keras/layers/Embedding
+  /// </summary>
+  Embedding = class(Layer)
+    private
+      function getInput_dim: Integer;
+      function getmask_zero: Boolean;
+      function getoutput_dim: Integer;
+
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
+    public
+      args      : EmbeddingArgs;
+      embeddings: IVariableV1;
+      embeddings_initializer : IInitializer;
+
+      constructor Create(_args: EmbeddingArgs);
+
+      property input_dim : Integer  read getInput_dim;
+      property output_dim: Integer  read getoutput_dim;
+      property mask_zero : Boolean  read getmask_zero;
+  end;
+
+  /// <summary>
+  /// Layer to be used as an entry point into a Network (a graph of layers).
+  /// </summary>
+  InputLayer = class(Layer)
+    public
+      args         : InputLayerArgs;
+      isPlaceholder: Boolean;
+      typeSpec     : TensorSpec;
+
+      constructor Create(_args: InputLayerArgs);
+      class function from_config(_args: LayerArgs): InputLayer;
+  end;
+
+  {$ENDREGION}
+
   {$REGION 'Attention'}
   /// <summary>
   /// Base class for attention layers that can be used in sequence DNN/CNN models.
@@ -329,11 +519,7 @@ type
       Fsupports_masking : Boolean;
 
       function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
-      function  Call(inputs: TFTensors; mask:TFTensors = nil; training : pBoolean= nil; return_attention_scores : Boolean= false): TFTensors; overload ;
-    public
-      args : BaseDenseAttentionArgs;
-
-      constructor Create(_args: BaseDenseAttentionArgs);
+      function  Call(inputs: TFTensors; mask:TFTensors = nil; training : pBoolean= nil; return_attention_scores : Boolean= false): TFTensors; reintroduce; overload ;
       /// <summary>
       /// Calculates attention scores.
       /// </summary>
@@ -341,6 +527,10 @@ type
       /// <param name="key">key: Key tensor of shape `[batch_size, Tv, dim]`.</param>
       /// <returns>Tensor of shape `[batch_size, Tq, Tv]`.</returns>
       function _calculate_scores(query: TFTensor; key: TFTensor): TFTensor; virtual;
+    public
+      args : BaseDenseAttentionArgs;
+
+      constructor Create(_args: BaseDenseAttentionArgs);
       /// <summary>
       /// Applies attention scores to the given value tensor.
       /// To use this method in your attention layer, follow the steps:
@@ -454,15 +644,472 @@ type
   /// </code>
   /// </example>
   Attention = class(BaseDenseAttention)
+    private
+    function GetScoreMode: string;
+    function GetUse_Scale: Boolean;
 
+    protected
+      // Creates variable when `use_scale` is True or `score_mode` is `concat`.
+      procedure Build(input_shape: TFShape); override;
+      /// <summary>
+      /// Calculates attention scores as a query-key dot product.
+      /// </summary>
+      /// <param name="query">query: Query tensor of shape `[batch_size, Tq, dim]`.</param>
+      /// <param name="key">key: Key tensor of shape `[batch_size, Tv, dim]`.</param>
+      /// <returns>Tensor of shape `[batch_size, Tq, Tv]`.</returns>
+      function _calculate_scores(query: TFTensor; key: TFTensor): TFTensor; override;
+    public
+      concat_score_weight : IVariableV1 ;
+      scale               : IVariableV1 ;
+      args                : AttentionArgs;
+
+      constructor Create(_args: AttentionArgs);
+      function get_config: LayerArgs;
+
+      property score_mode: string read  GetScoreMode;
+      property use_scale : Boolean read GetUse_Scale;
+  end;
+
+  MultiHeadAttention = class(Layer)
+    private
+        const _CHR_IDX : string = 'abcdefghijklmnopqrstuvwxyz';
+    protected
+        Fquery_shape          : TFShape;
+        Fkey_shape            : TFShape;
+        Fvalue_shape          : TFShape ;
+        Fbuilt_from_signature : Boolean;
+        Fquery_dense          : EinsumDense;
+        Fkey_dense            : EinsumDense;
+        Fvalue_dense          : EinsumDense;
+        Foutput_dense         : EinsumDense;
+        Fdot_product_equation : string;
+        Fcombine_equation     : string;
+        Fsoftmax              : Softmax ;
+        Fdropout_layer        : Dropout ;
+
+        function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+        function  Call(inputs: TFTensors; attention_mask: TFTensor; training : PBoolean= nil; return_attention_scores: Boolean = false): TFTensors; reintroduce; overload ;
+    public
+        args : MultiHeadAttentionArgs;
+
+        constructor Create(_args: MultiHeadAttentionArgs);
+        /// <summary>
+        /// Builds einsum equations for the attention computation.
+        /// Query, key, value inputs after projection are expected to have the shape as:
+        /// `(bs, [non-attention dims], [attention dims], num_heads, channels)`.
+        /// `bs` and `[non-attention dims]` are treated as `[batch dims]`.
+        ///
+        /// <para>
+        /// The attention operations can be generalized:
+        /// </para>
+        /// <para>
+        ///   (1) Query-key dot product:
+        ///   `([batch dims], [query attention dims], num_heads, channels), ([batch dims],
+        ///   [key attention dims], num_heads, channels) -> ([batch dim],
+        ///   num_heads, [query attention dims], [key attention dims])`
+        ///   </para><para>
+        ///   (2) Combination:
+        ///   `([batch dims], num_heads, [query attention dims], [key attention dims]),
+        ///   ([batch dims], [value attention dims], num_heads, channels) -> ([batch dims],
+        ///   [query attention dims], num_heads, channels)`
+        /// </para>
+        /// </summary>
+        /// <param name="rank">Rank of query, key, value tensors.</param>
+        /// <param name="attn_axes">List/tuple of axes, `[-1, rank)`,
+        ///                        that attention will be applied to.</param>
+        /// <returns></returns>
+        class function _build_attention_equation(rank: Integer; attn_axes: TFShape): Tuple<string, string, Integer>;
+        /// <summary>
+        /// Builds an einsum equation for projections inside multi-head attention.
+        /// </summary>
+        class function _build_proj_equation(free_dims: Integer; bound_dims: Integer; output_dims: Integer): Tuple<string, string, Integer>;
+        class function _get_output_shape(output_rank: Integer; known_last_dims: TFShape): TFShape;
+        procedure _build_from_signature(query: TFTensor; value: TFTensor; key: TFTensor = nil); overload;
+        procedure _build_from_signature(query: TFShape; value: TFShape; key: TFShape ); overload;
+        function _get_dense(equation: string; output_shape: TFShape; bias_axes: string; name: string): EinsumDense;
+        function _build_output_dense(free_dims: Integer; name: string): EinsumDense;
+        procedure _build_attention(rank: Integer);
+        function _masked_softmax(attention_scores: TFTensor; attention_mask : TFTensor = nil): TFTensor;
+        function _compute_attention(query: TFTensor; key: TFTensor; value: TFTensor; attention_mask : TFTensor= nil; training: Boolean = false): TFTensors;
   end;
   {$ENDREGION}
 
-  TensorFlowOpLayer = class(Layer)
+  {$REGION 'Convolutional'}
+  Convolutional = class(Layer)
+    private
+      Fconvolution_op : ConvolutionInternal;
+
+      function Getactivation: TActivation;
+      function Getbias_initializer: IInitializer;
+      function Getdata_format: string;
+      function Getdilation_rate: TFShape;
+      function GetFilter: Integer;
+      function Getkernel_initializer: IInitializer;
+      function Getkernel_regularizer: IRegularizer;
+      function Getkernel_size: TFShape;
+      function Getpadding: string;
+      function GetRank: Integer;
+      function Getstrides: TFShape;
+      function Getuse_bias: Boolean;
+    protected
+      kernel             : IVariableV1;
+      bias               : IVariableV1;
+      _tf_data_format    : string;
+
+      procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+      function  _get_channel_axis: Integer; virtual;
+    public
+      args : ConvolutionalArgs;
+
+      constructor Create(_args: ConvolutionalArgs) ;
+
+      property rank               : Integer      read GetRank;
+      property filters            : Integer      read GetFilter;
+      property kernel_size        : TFShape      read Getkernel_size;
+      property strides            : TFShape      read Getstrides;
+      property padding            : string       read Getpadding;
+      property data_format        : string       read Getdata_format;
+      property dilation_rate      : TFShape      read Getdilation_rate;
+      property activation         : TActivation  read Getactivation;
+      property use_bias           : Boolean      read Getuse_bias;
+      property kernel_initializer : IInitializer read Getkernel_initializer;
+      property kernel_regularizer : IRegularizer read Getkernel_regularizer;
+      property bias_initializer   : IInitializer read Getbias_initializer;
+  end;
+
+  Conv1D = class(Convolutional)
+    public
+      constructor Create(_args: Conv1DArgs) ;
+  end;
+
+    Conv2D = class(Convolutional)
+    public
+      constructor Create(_args: Conv2DArgs) ;
+  end;
+
+  Conv2DTranspose = class(Conv2D)
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+    public
+      constructor Create(_args: Conv2DArgs) ;
+  end;
+  {$ENDREGION}
+
+  {$REGION 'Cropping'}
+  Cropping1D = class(Layer)
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+    public
+      args : CroppingArgs;
+
+      constructor Create(_args: CroppingArgs) ;
+  end;
+
+  /// <summary>
+  /// Crop the input along axis 1 and 2.
+  /// <para> For example: </para>
+  /// <para> shape (1, 5, 5, 5) -- crop2D ((1, 2), (1, 3)) --> shape (1, 2, 1, 5) </para>
+  /// </summary>
+  Cropping2D = class(Layer)
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+    public
+      args : Cropping2DArgs;
+
+      constructor Create(_args: Cropping2DArgs) ;
+  end;
+
+  /// <summary>
+  /// Similar to copping 2D
+  /// </summary>
+  Cropping3D = class(Layer)
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+    public
+      args : Cropping3DArgs;
+
+      constructor Create(_args: Cropping3DArgs) ;
+  end;
+  {$ENDREGION}
+
+  {$REGION 'Lstm-Rnn'}
+  LSTMCell = class(Layer)
     private
 
     protected
 
+    public
+      args : LSTMCellArgs;
+
+      constructor Create(_args: LSTMCellArgs) ;
+  end;
+
+  RNN = class(Layer)
+    private
+      Fargs           : RNNArgs;
+      Finput_spec     : TObject; // or NoneValue??
+      Fstate_spec     : TObject;
+      Fstates         : TObject;
+      Fconstants_spec : TObject;
+      Fnum_constants  : Integer;
+
+      function PreConstruct(_args: RNNArgs) : RNNArgs;
+    protected
+      kernel : IVariableV1;
+      bias   : IVariableV1;
+    public
+
+      constructor Create(_args: RNNArgs) ;
+  end;
+  {$ENDREGION}
+
+  {$REGION 'Merging'}
+  Merge = class(Layer)
+    private
+
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+      function  _merge_function(inputs: TFTensors): TFTensors; virtual;
+    public
+
+      constructor Create(_args: MergeArgs) ;
+  end;
+
+  Add = class(Merge)
+    private
+
+    protected
+      function  _merge_function(inputs: TFTensors): TFTensors; override;
+    public
+
+      constructor Create(_args: MergeArgs) ;
+  end;
+
+  Subtract = class(Merge)
+    private
+
+    protected
+      function  _merge_function(inputs: TFTensors): TFTensors; override;
+    public
+
+      constructor Create(_args: MergeArgs) ;
+  end;
+
+  Concatenate = class(Merge)
+    private
+      function GetAxis: Integer;
+
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  _merge_function(inputs: TFTensors): TFTensors; override;
+    public
+      args : MergeArgs;
+
+      constructor Create(_args: MergeArgs) ;
+
+      property axis : Integer read GetAxis;
+  end;
+  {$ENDREGION}
+
+  {$REGION 'Normalization'}
+  LayerNormalization = class(Layer)
+    private
+      function getbeta_initializer: IInitializer;
+      function getcenter: Boolean;
+      function getepsilon: Single;
+      function getgamma_initializer: IInitializer;
+      function getgamma_regularizer: IRegularizer;
+      function getscale: Boolean;
+
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+    public
+      args           : LayerNormalizationArgs;
+      fused          : Boolean ;
+      axis           : TArray<Integer>;
+      _data_format   : string;
+      kernel_size    : TFShape;
+      gamma          : IVariableV1;
+      beta           : IVariableV1;
+      moving_mean    : IVariableV1;
+      moving_variance: IVariableV1;
+
+      constructor Create(_args: LayerNormalizationArgs) ;
+      function _fused_can_be_used(ndims: Integer) : Boolean;
+
+      property epsilon  : Single  read getepsilon;
+      property center   : Boolean read getcenter;
+      property scale    : Boolean read getscale;
+      property beta_initializer  : IInitializer read getbeta_initializer;
+      property gamma_initializer : IInitializer read getgamma_initializer;
+      property gamma_regularizer : IRegularizer read getgamma_regularizer;
+
+  end;
+
+  BatchNormalization = class(Layer)
+    private
+      function getbeta_initializer: IInitializer;
+      function getcenter: Boolean;
+      function getepsilon: Single;
+      function getgamma_initializer: IInitializer;
+      function getgamma_regularizer: IRegularizer;
+      function getMomentum: Single;
+      function getmoving_mean_initializer: IInitializer;
+      function getmoving_variance_initializer: IInitializer;
+      function getrenorm: Boolean;
+      function getscale: Boolean;
+      function _moments(inputs: TFTensors; reduction_axes: TArray<Integer>; keep_dims: Boolean): Tuple<TFTensor, TFTensor>;
+      function _calculate_mean_and_var(inputs: TFTensors; reduction_axes: TArray<Integer>; keep_dims: Boolean): Tuple<TFTensor, TFTensor>;
+      function _support_zero_size_input: Boolean;
+      function _fused_batch_norm(inputs, training: TFTensor): TFTensor;
+      procedure _assign_moving_average(variable: IVariableV1; value, momentum: TFTensor);
+      procedure _assign_new_value(variable: IVariableV1; value: TFTensor);
+
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+    public
+       args : BatchNormalizationArgs;
+       fused          : Boolean ;
+       axis           : TArray<Integer>;
+       _data_format   : string;
+       kernel_size    : TFShape;
+       gamma          : IVariableV1;
+       beta           : IVariableV1;
+       moving_mean    : IVariableV1;
+       moving_variance: IVariableV1;
+
+       constructor Create(_args: BatchNormalizationArgs) ;
+
+       property momentum : Single  read getMomentum;
+       property epsilon  : Single  read getepsilon;
+       property center   : Boolean read getcenter;
+       property scale    : Boolean read getscale;
+       property renorm   : Boolean read getrenorm;
+       property beta_initializer            : IInitializer read getbeta_initializer;
+       property gamma_initializer           : IInitializer read getgamma_initializer;
+       property moving_mean_initializer     : IInitializer read getmoving_mean_initializer;
+       property moving_variance_initializer : IInitializer read getmoving_variance_initializer;
+       property gamma_regularizer           : IRegularizer read getgamma_regularizer;
+  end;
+  {$ENDREGION}
+
+  {$REGION 'Pooling'}
+  Pooling1D = class(Layer)
+    protected
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+
+    public
+      args      : Pooling1DArgs;
+      input_spec: TInputSpec;
+
+      constructor Create(_args: Pooling1DArgs) ;
+  end;
+
+  Pooling2D = class(Layer)
+    protected
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+
+    public
+      args      : Pooling2DArgs;
+      input_spec: TInputSpec;
+
+      constructor Create(_args: Pooling2DArgs) ;
+  end;
+
+  MaxPooling1D = class(Pooling1D)
+    public
+
+      constructor Create(_args: Pooling1DArgs) ;
+  end;
+
+  MaxPooling2D = class(Pooling2D)
+    public
+
+      constructor Create(_args: Pooling2DArgs) ;
+  end;
+
+  AveragePooling2D = class(Pooling2D)
+    public
+
+      constructor Create(_args: Pooling2DArgs) ;
+  end;
+
+  GlobalPooling1D = class(Layer)
+    private
+      function getDataFormat: string;
+    protected
+
+      Finput_spec  : TInputSpec;
+    public
+      args      : Pooling1DArgs;
+
+      constructor Create(_args: Pooling1DArgs) ;
+
+      property data_format : string read getDataFormat;
+  end;
+
+  GlobalPooling2D = class(Layer)
+    private
+      function getDataFormat: string;
+    protected
+
+      Finput_spec  : TInputSpec;
+    public
+      args      : Pooling2DArgs;
+
+      constructor Create(_args: Pooling2DArgs) ;
+
+      property data_format : string read getDataFormat;
+  end;
+
+  GlobalMaxPooling1D = class(GlobalPooling1D)
+    protected
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+
+    public
+      constructor Create(_args: Pooling1DArgs) ;
+  end;
+
+  GlobalMaxPooling2D = class(GlobalPooling2D)
+    protected
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+
+    public
+      constructor Create(_args: Pooling2DArgs) ;
+  end;
+
+  GlobalAveragePooling1D = class(GlobalPooling1D)
+    protected
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+
+    public
+      constructor Create(_args: Pooling1DArgs) ;
+  end;
+
+  GlobalAveragePooling2D = class(GlobalPooling2D)
+    protected
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+
+    public
+      constructor Create(_args: Pooling2DArgs) ;
+  end;
+  {$ENDREGION}
+
+  TensorFlowOpLayer = class(Layer)
     public
       args     : TensorFlowOpLayerArgs;
       constants: TDictionary<Integer, TNDArray>;
@@ -484,10 +1131,18 @@ implementation
              Tensorflow.Utils,
              Tensorflow.NameScope,
              TensorFlow.EagerTensor,
-             TensorFlow.Framework,
+             TensorFlow.nn_ops,
+             TensorFlow.nn_impl,
+             Tensorflow.math_ops,
+             Tensorflow.array_ops,
+             TensorFlow.gen_math_ops,
+             TensorFlow.embedding_ops,
+             TensorFlow.Slice,
+             NumPy.NDArray,
 
              Keras.Utils;
 
+{$REGION 'Layer'}
 { Layer }
 
 constructor Layer.Create(_args: LayerArgs);
@@ -527,7 +1182,7 @@ begin
 
 end;
 
-procedure Layer.build(inputs: TFTensors);
+procedure Layer.Build(input_shape: TFShape);
 begin
     Fbuilt := true;
 end;
@@ -698,7 +1353,7 @@ begin
         tf.Context.eager_mode(tf.Context.is_build_function);
     end;
 
-    build(inputs);
+    build(inputs.shape);
 
     if need_restore_mode then
         tf.Context.restore_mode;
@@ -708,17 +1363,17 @@ end;
 
 function Layer.FunctionalConstructionCall(inputs: TFTensors): TFTensors;
 begin
-    var mask_arg_passed_by_framework     : Boolean := false;
-    var training_arg_passed_by_framework : Boolean := false;
-    var training_value : TFTensor := nil;
-    if training_value = nil then
-       training_arg_passed_by_framework := true;
+    //var mask_arg_passed_by_framework     : Boolean := false;
+    //var training_arg_passed_by_framework : Boolean := false;
+    //var training_value : TFTensor := nil;
+    //if training_value = nil then
+    //   training_arg_passed_by_framework := true;
 
 
     if base_layer_utils.needs_keras_history(inputs) then
         base_layer_utils.create_keras_history(inputs);
 
-    var outputs : TFTensors := nil;
+    var outputs : TFTensors ;
     var ctxManager  := CallContext.enter(true);
 
     var graph := tf.keras.backend.get_graph;
@@ -994,6 +1649,7 @@ begin
   Result := __ObjRelease;
 {$ENDIF}
 end;
+{$ENDREGION}
 
 { TensorFlowOpLayer }
 
@@ -1020,7 +1676,7 @@ begin
     args := _args;
 end;
 
-procedure ELU.Build(inputs: TFTensors);
+procedure ELU.Build(input_shape: TFShape);
 begin
   if alpha < 0  then
     raise TFException.Create('Alpha must be a number greater than 0.');
@@ -1048,7 +1704,7 @@ begin
     inherited Create(_args);
 end;
 
-procedure Exponential.Build(inputs: TFTensors);
+procedure Exponential.Build(input_shape: TFShape);
 begin
    Fbuilt := true;
 end;
@@ -1108,7 +1764,7 @@ begin
    inherited Create(_args);
 end;
 
-procedure SELU.Build(inputs: TFTensors);
+procedure SELU.Build(input_shape: TFShape);
 begin
   if alpha < 0  then
     raise TFException.Create('Alpha must be a number greater than 0.');
@@ -1302,6 +1958,7 @@ var
   return_attention_scores  : Boolean;
 begin
     _mask := nil;
+    _inp  := nil;
     count := inputs.Count;
 
     if (count < 2) or (count > 6)  then
@@ -1450,6 +2107,2273 @@ end;
 function BaseDenseAttention.getDropout: Single;
 begin
     Result := args.dropout
+end;
+
+{ Attention }
+
+constructor Attention.Create(_args: AttentionArgs);
+begin
+    inherited Create(_args);
+    if (score_mode <> 'dot') and (score_mode <> 'concat') then
+       raise TFException.Create('Received: score_mode='+score_mode+'. Acceptable values are: ["dot", "concat"]');
+end;
+
+procedure Attention.Build(input_shape: TFShape);
+begin
+    if use_scale  then
+      scale := add_weight('scale', 1, DType, tf.ones_initializer, nil, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE, true)
+    else
+      scale := nil;
+
+    if score_mode = 'concat' then
+        concat_score_weight := add_weight('concat_score_weight', 1, DType, tf.ones_initializer, nil, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE, true)
+    else
+        concat_score_weight := nil;
+
+    inherited Build(input_shape);
+end;
+
+function Attention._calculate_scores(query, key: TFTensor): TFTensor;
+begin
+    var scores: TFTensor := nil;
+    if score_mode = 'dot' then
+    begin
+        //scores = tf.matmul(query, key, transpose_b: true);
+        //scores = tf.matmul(tf.squeeze(query),tf.squeeze(key), transpose_b: true);
+        scores := tf.linalg.einsum('bij,bkj->bik', TFTensors.Create([query, key]));
+        if scale <> nil then
+            scores := TTensor(scores) * scale.AsTensor;
+    end
+    else if score_mode = 'concat' then
+    begin
+        // Reshape tensors to enable broadcasting.
+        // Reshape into [batch_size, Tq, 1, dim].
+        var q_reshaped := tf.expand_dims(query, -2);
+        // Reshape into [batch_size, 1, Tv, dim].
+        var k_reshaped := tf.expand_dims(key, -3);
+        var tA : TAxis := -1;
+        if scale <> nil then
+            scores := TTensor(concat_score_weight.AsTensor) * tf.reduce_sum(tf.tanh(TTensor(scale.AsTensor) * (TTensor(q_reshaped) + k_reshaped)), @tA)
+        else
+            scores := TTensor(concat_score_weight.AsTensor) * tf.reduce_sum(tf.tanh(TTensor(q_reshaped) + k_reshaped), @tA);
+    end;
+    Result := scores;
+end;
+
+function Attention.get_config: LayerArgs;
+begin
+    Result := args;
+end;
+
+function Attention.GetScoreMode: string;
+begin
+    Result := args.score_mode;
+end;
+
+function Attention.GetUse_Scale: Boolean;
+begin
+    Result := args.use_scale;
+end;
+
+{$ENDREGION}
+
+{$REGION 'Regularization'}
+{ Dropout }
+
+constructor Dropout.Create(_args: DropoutArgs);
+begin
+    inherited Create(_args);
+
+    args := _args;
+end;
+
+function Dropout.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    var b : Boolean ;
+    if training = nil then b := False
+    else                   b := training^;
+    training := @b;
+    // function nn_internal.dropout(x, keep_prob, noise_shape: TFTensor; seed: PInteger; name: string; rate: PSingle): TFTensor;
+    var true_pred : TFunc<TFTensor> := function : TFTensor
+                                              begin
+                                                 Result := tf.nn.dropout(inputs.First, nil,  get_noise_shape(inputs.First), @args.Seed, '', @args.Rate);
+                                              end;
+
+    var false_pred : TFunc<TFTensor> := function : TFTensor
+                                              begin
+                                                 Result := tf.identity(inputs.First);
+                                              end;
+
+    var output := smart_module.smart_cond(training^, true_pred, true_pred );
+
+    Result := TFTensors.Create(output);
+end;
+
+function Dropout.get_noise_shape(inputs: TFTensor): TFTensor;
+begin
+    if args.NoiseShape.isNull then
+        Exit(nil);
+
+    Result := nil;
+end;
+{$ENDREGION}
+
+{$REGION 'Core'}
+{ Dense }
+
+constructor Dense.Create(_args: DenseArgs);
+begin
+    inherited Create(_args);
+
+    args := _args;
+    FSupportsMasking := true;
+    FinputSpec       := TInputSpec.Create(DtInvalid,null, 2);
+end;
+
+procedure Dense.Build(input_shape: TFShape);
+begin
+
+    var last_dim              := input_shape.dims[ High(input_shape.dims) ];
+    var axes := TDictionary<Integer, Integer>.Create;
+    axes.AddOrSetValue(-1,last_dim);
+    FinputSpec := TInputSpec.Create(DtInvalid,null, 2, axes);
+
+    kernel := add_weight('kernel', TFShape.Create([last_dim, args.Units]), DType, args.KernelInitializer, nil, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE,True);
+
+    if args.UseBias then
+        bias := add_weight('bias', TFShape.Create([args.Units]), DType, args.BiasInitializer, nil, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE,True);
+
+    Fbuilt := true;
+end;
+
+function Dense.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+var
+  outputs : TFTensor;
+  rank    : Integer;
+  nda     : TArray< TArray<Integer> >;
+begin
+    outputs := nil;
+    rank    := inputs.rank;
+    nda     := [ [ rank - 1 ], [ 0 ] ] ;
+    if rank > 2 then
+       outputs := tf.linalg.tensordot(inputs.First, kernel.AsTensor, TNDArray.Create(nda) )
+    else
+       outputs := gen_math_ops.mat_mul(inputs.First, kernel.AsTensor);
+
+    if args.UseBias then
+        outputs := tf.nn.bias_add(outputs, bias);
+    if args.Activation <> nil then
+        outputs := activation(outputs);
+
+    Result := TFTensors.Create(outputs);
+end;
+
+class function Dense.from_config(args: LayerArgs): Dense;
+begin
+    Result := Dense.Create(args as DenseArgs);
+end;
+
+function Dense.getAct: TActivation;
+begin
+    Result := args.Activation;
+end;
+
+{ EinsumDense }
+
+constructor EinsumDense.Create(_args: EinsumDenseArgs);
+begin
+    inherited Create(_args);
+
+    Fequation             := _args.Equation;
+    Fpartial_output_shape := _args.OutputShape;
+    Fbias_axes            := _args.BiasAxes;
+    Factivation           := _args.Activation;
+    Fkernel_initializer   := _args.KernelInitializer;
+    Fbias_initializer     := _args.BiasInitializer;
+    Fkernel_regularizer   := _args.KernelRegularizer;
+    Fbias_regularizer     := _args.BiasRegularizer;
+    Fkernel_constraint    := _args.KernelConstraint;
+    Fbias_constraint      := _args.BiasConstraint;
+end;
+
+procedure EinsumDense.Build(input_shape: TFShape);
+var
+ kernel_shape,
+ bias_shape  : TFShape;
+ shape_data  : Tuple<TFShape, TFShape, TFShape>;
+begin
+    shape_data     := _analyze_einsum_string(Fequation, Fbias_axes, input_shape, Fpartial_output_shape);
+
+    kernel_shape       := shape_data.Value1;
+    bias_shape         := shape_data.Value2;
+    Ffull_output_shape := shape_data.Value3;
+
+    Fkernel := add_weight('kernel', kernel_shape, DType, Fkernel_initializer, Fkernel_regularizer, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE,True);
+
+
+    if bias_shape <> nil then
+        Fbias := add_weight('bias', bias_shape, DType, Fbias_initializer, Fbias_regularizer, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE,True)
+    else
+        Fbias := nil;
+
+    inherited build(input_shape);
+end;
+
+function EinsumDense.ComputeOutputShape(input_shape: TFShape): TFShape;
+begin
+    Result := Ffull_output_shape;
+end;
+
+function EinsumDense.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    var ret := tf.linalg.einsum(Fequation, TFTensors.Create([inputs.First,Fkernel.AsTensor]));
+    if Fbias <> nil then
+        ret := TTensor(ret) + Fbias.AsTensor;
+
+    if Assigned(Factivation) then
+        ret := Factivation(ret);
+
+    Result := TFTensors.Create(ret);
+end;
+
+class function EinsumDense._analyze_einsum_string(equation, bias_axes: string; input_shape, output_shape: TFShape): Tuple<TFShape, TFShape, TFShape>;
+begin
+    var dot_replaced_string := TRegex.Replace(equation, '\.\.\.', '0');
+
+    // This is the case where no ellipses are present in the string.
+    var split_string := TRegex.Match(dot_replaced_string, '([a-zA-Z]+),([a-zA-Z]+)->([a-zA-Z]+)');
+    if split_string.Success then
+        Exit( _analyze_split_string(split_string, bias_axes, input_shape, output_shape) );
+
+    // This is the case where ellipses are present on the left.
+    split_string := TRegex.Match(dot_replaced_string, '0([a-zA-Z]+),([a-zA-Z]+)->0([a-zA-Z]+)');
+    if split_string.Success then
+        Exit( _analyze_split_string(split_string, bias_axes, input_shape, output_shape, true) );
+
+    // This is the case where ellipses are present on the right.
+    split_string := TRegex.Match(dot_replaced_string, '([a-zA-Z]{2,})0,([a-zA-Z]+)->([a-zA-Z]+)0');
+    if split_string.Success then
+        Exit( _analyze_split_string(split_string, bias_axes, input_shape, output_shape) );
+
+    raise TFException.Create('Invalid einsum equation "'+ equation +'." Equations must be in the form [X],[Y]->[Z], ...[X],[Y]->...[Z], or [X]...,[Y]->[Z]....');
+end;
+
+class function EinsumDense._analyze_split_string(split_string: TMatch; bias_axes: string; input_shape, output_shape: TFShape;
+  left_elided: Boolean): Tuple<TFShape, TFShape, TFShape>;
+var
+  bias_shape,
+  _output_shape  : TList<Integer>;
+  output_dim_map : TDictionary<char, Integer>;
+  input_dim_map  : TDictionary<char, Integer>;
+  input_spec,
+  weight_spec,
+  output_spec    : string;
+  elided         : Integer;
+begin
+    input_spec := split_string.Groups[1].Value;
+    weight_spec:= split_string.Groups[2].Value;
+    output_spec:= split_string.Groups[3].Value;
+
+    elided := input_shape.ndim - input_spec.Length;
+    _output_shape := TList<Integer>.Create;
+    _output_shape.Add(input_shape[0]);
+    _output_shape.AddRange(output_shape.as_int_list);
+
+    if (elided > 0) and (left_elided) then
+        for var i := 1 to elided - 1 do
+            // We already inserted the 0th input dimension at dim 0, so we need to
+            // start at location 1 here.
+            _output_shape.Insert(1, input_shape[i])
+    else if (elided > 0) and ( not left_elided) then
+        for var i := input_shape.ndim - elided  to (input_shape.ndim - (input_shape.ndim - elided)) - 1 do
+            _output_shape.Add(input_shape[i]);
+
+    if left_elided then
+    begin
+        // If we have beginning dimensions elided, we need to use negative indexing
+        // to determine where in the input dimension our values are.
+        //input_dim_map = { dim: (i + elided) - len(input_shape) for i, dim in enumerate(input_spec) }
+        input_dim_map := TDictionary<char, Integer>.Create;
+        for var i := 1 to input_spec.Length do
+            input_dim_map.AddOrSetValue(input_spec[i], i + elided - input_shape.ndim);
+
+        // Because we've constructed the full output shape already, we don't need
+        // to do negative indexing.
+        //output_dim_map = { dim: (i + elided) for i, dim in enumerate(output_spec)}
+        output_dim_map := TDictionary<char, Integer>.Create;
+        for var i := 1 to output_spec.Length do
+            output_dim_map.AddOrSetValue(output_spec[i], i + elided);
+    end else
+    begin
+        input_dim_map := TDictionary<char, Integer>.Create;
+        for var i := 1 to input_spec.Length do
+            input_dim_map.AddOrSetValue(input_spec[i], i);
+
+        output_dim_map := TDictionary<char, Integer>.Create;
+        for var i := 1 to output_spec.Length do
+            output_dim_map.AddOrSetValue(output_spec[i], i);
+    end;
+
+    for var dim in input_spec do
+    begin
+        var input_shape_at_dim := input_shape[ input_dim_map[dim] ];
+        var index : Integer;
+        if output_dim_map.TryGetValue(dim, index) then
+        begin
+            var output_shape_at_dim := _output_shape[index];
+            if (output_shape_at_dim <> -1) and (output_shape_at_dim <> input_shape_at_dim) then
+               raise TFException.Create('Input shape and output shape do not match at shared dimension '+ dim + sLineBreak +
+                                        '.Input shape is '+input_shape_at_dim.ToString+', and output shape is '+ output_shape[output_dim_map[dim]].ToString+'.');
+        end;
+    end;
+
+    for var dim in output_spec do
+    begin
+        if ( not input_spec.Contains(dim) ) and ( not weight_spec.Contains(dim) )  then
+        begin
+           raise TFException.Create('Dimension '+dim+' was specified in the output '+ output_spec + sLineBreak +
+                                    'but has no corresponding dim in the input spec '+ input_spec + 'or weight spec '+ output_spec );
+        end;
+    end;
+
+    var weight_shape := TList<Int64>.Create;
+    for var dim in weight_spec do
+    begin
+        if input_dim_map.ContainsKey(dim) then
+            weight_shape.add( input_shape[input_dim_map[dim]] )
+        else if output_dim_map.ContainsKey(dim) then
+            weight_shape.add(_output_shape[output_dim_map[dim]])
+        else
+           raise TFException.Create('Weight dimension '+dim+' did not have a match in ' + sLineBreak +
+                                    'either the input spec '+ input_spec +
+                                    'or the output spec '+ output_spec + '. For this layer, the weight must be fully specified.');
+    end;
+
+    if bias_axes <> '' then
+    begin
+        var num_left_elided : Integer;
+        if left_elided then num_left_elided := elided
+        else                num_left_elided := 0;
+
+        var idx_map := TDictionary<char, Integer>.Create;
+        for var i := 1 to output_spec.Length do
+            idx_map.AddOrSetValue( output_spec[i], _output_shape[i + num_left_elided] );
+
+        for var _char in bias_axes do
+            if not output_spec.Contains(_char) then
+               raise TFException.Create('Bias dimension '+ _char +' was requested, but is not part of the output spec '+ output_spec);
+
+        var lstIdx := TList<Integer>.Create;
+        for var  _char in bias_axes do
+        begin
+            lstIdx.Add(output_spec.IndexOf(_char));
+        end;
+        var e := Enumerable<Integer>.Create(lstIdx.ToArray);
+        var first_bias_location := e.Min;
+
+        var bias_output_spec := output_spec.Substring(first_bias_location);
+
+        lstIdx.Clear;
+        for var  _char in bias_output_spec do
+        begin
+           if bias_axes.Contains(_char) then  lstIdx.Add( idx_map[_char] )
+           else                               lstIdx.Add( 1 );
+        end;
+        bias_shape := lstIdx ;
+
+        if not left_elided then
+            for var x := 0 to elided do
+                bias_shape.add(1);
+    end
+    else bias_shape := nil;
+
+    var s1 : TFShape := weight_shape.ToArray;
+    var s2 : TFShape;
+    var s3 : TFShape := _output_shape.ToArray;
+    if bias_shape <> nil then s2 := bias_shape.ToArray
+    else                      s2 := TList<Integer>.Create.ToArray;
+
+    Result := Tuple.Create( s1,s2,s3);
+end;
+
+{ Embedding }
+
+constructor Embedding.Create(_args: EmbeddingArgs);
+begin
+    var lArg : LayerArgs := LayerArgs.Create;
+    lArg.DType      := _args.DType;
+    lArg.Name       := _args.Name;
+    lArg.InputShape := _args.InputShape;
+    lArg.BatchSize  := _args.BatchSize;
+
+    inherited Create(lArg);
+
+    args := _args;
+    if args.InputShape.isNull then
+        args.InputShape := args.InputLength;
+
+    var a : TArray<Int64> := [ args.BatchSize ] + args.InputShape.dims;
+    if args.BatchInputShape.isNull then
+        args.BatchInputShape := a;
+
+    if Assigned( args.EmbeddingsInitializer) then embeddings_initializer :=  args.EmbeddingsInitializer
+    else                                          embeddings_initializer :=  tf.random_uniform_initializer;
+    FSupportsMasking := mask_zero;
+end;
+
+procedure Embedding.Build(input_shape: TFShape);
+begin
+    tf.Context.eager_mode;
+
+    embeddings := add_weight('embeddings', TFShape.Create([input_dim, output_dim]), TF_DataType.TF_FLOAT, embeddings_initializer );
+
+    tf.Context.graph_mode;
+    Fbuilt := true;
+end;
+
+function Embedding.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    var dtype := inputs.dtype;
+    if (dtype <> tf.int32_t) and (dtype <> tf.int64_t) then
+        inputs := TFTensors.Create(  math_ops.cast(inputs.First, tf.int32_t) );
+
+    var outputs := embedding_ops.embedding_lookup(embeddings, inputs.First);
+    Result := TFTensors.Create(outputs);
+end;
+
+function Embedding.getInput_dim: Integer;
+begin
+    Result := args.InputDim;
+end;
+
+function Embedding.getmask_zero: Boolean;
+begin
+    Result := args.MaskZero
+end;
+
+function Embedding.getoutput_dim: Integer;
+begin
+    Result := args.OutputDim;
+end;
+
+{ InputLayer }
+
+constructor InputLayer.Create(_args: InputLayerArgs);
+begin
+    inherited Create(_args);
+
+    args             := _args;
+    Fbuilt           := true;
+    FSupportsMasking := true;
+
+    if not BatchInputShape.isNull then
+    begin
+        args.BatchSize  := BatchInputShape.dims[0];
+        var a :=  BatchInputShape.dims;
+        Delete(a,0,1);
+        args.InputShape := a;
+    end;
+
+    // moved to base class
+    if string.IsNullOrEmpty(args.Name) then
+    begin
+        var prefix := 'input';
+        Fname      := prefix + '_' + tf.keras.backend.get_uid(prefix).ToString;
+        args.Name  := name;
+    end;
+
+    if args.DType = TF_DataType.DtInvalid then
+    begin
+        if args.InputTensor = nil then args.DType := tf.float32_t
+        else                           args.DType := args.InputTensor.dtype;
+    end;
+
+    if args.InputTensor = nil then
+    begin
+        if not args.InputShape.isNull then
+        begin
+            var aBatch : TArray<Int64> := [args.BatchSize] + args.InputShape.dims;
+            args.BatchInputShape := aBatch;
+        end else
+        begin
+            args.BatchInputShape := default(TFShape);
+        end;
+
+        var graph := tf.keras.backend.get_graph;
+        graph.as_default;
+
+        var batch := BatchInputShape;
+        args.InputTensor := tf.keras.backend.placeholder(@batch, -1, DType, args.Sparse, Name, args.Ragged);
+
+        graph.gExit;
+
+        isPlaceholder := true;
+    end;
+
+    // Create an input node to add to self.outbound_node
+    // and set output_tensors' _keras_history.
+    // input_tensor._keras_history = base_layer.KerasHistory(self, 0, 0)
+    // input_tensor._keras_mask = None
+    var nA : NodeArgs := NodeArgs.Create;
+    nA.Outputs := TFTensors.Create( args.InputTensor );
+    var node := Node.Create(nA);
+    node.Connect(Self);
+
+    typeSpec := TensorSpec.Create(args.InputTensor.shape, args.InputTensor.dtype, Name);
+end;
+
+class function InputLayer.from_config(_args: LayerArgs): InputLayer;
+begin
+    Result := InputLayer.Create(_args as InputLayerArgs);
+end;
+
+{ MultiHeadAttention }
+
+constructor MultiHeadAttention.Create(_args: MultiHeadAttentionArgs);
+begin
+    inherited Create(_args) ;
+
+    Fquery_shape          := Default(TFShape);
+    Fkey_shape            := Default(TFShape);
+    Fvalue_shape          := Default(TFShape);
+    Fbuilt_from_signature := False;
+    Fquery_dense          := nil;
+    Fkey_dense            := nil;
+    Fvalue_dense          := nil;
+    Foutput_dense         := nil;
+    Fdot_product_equation := '';
+    Fcombine_equation     := '';
+    Fsoftmax              := nil;
+    Fdropout_layer        := nil;
+end;
+
+class function MultiHeadAttention._build_attention_equation(rank: Integer; attn_axes: TFShape): Tuple<string, string, Integer>;
+begin
+    var target_notation := _CHR_IDX.Substring(0, rank);
+    // `batch_dims` includes the head dim.
+    // batch_dims = tuple(np.delete(range(rank), attn_axes + (rank - 1,)))
+    // Since range(rank) is an IEnumerable like (0, 1, 2 ...) whose index is equal to its value
+    // use IEnumerable.Except instead of np.delete which is unavailable
+    var e  : Enumerable<integer> := TUtils.range(rank);
+    var e1 : TArray<integer> := attn_axes.as_int_list + [rank - 1];
+    var batch_dims := e.ExceptWith(e1);
+
+    var letter_offset   := rank;
+    var source_notation := '';
+    for var i := 0 to rank-1 do
+    begin
+        if (batch_dims.Contains(i)) or ( i = rank - 1) then
+            source_notation := source_notation + target_notation[i]
+        else begin
+            source_notation := source_notation + _CHR_IDX[letter_offset];
+            letter_offset   := letter_offset + 1;
+        end;
+    end;
+    var tn  : string :='';
+    var tn1 : string :='';
+    var sn  : string :='';
+    for var i in batch_dims do            tn  := tn  + target_notation[i];
+    for var i in attn_axes.as_int_list do tn1 := tn1 + target_notation[i];
+    for var i in attn_axes.as_int_list do sn  := sn  + source_notation[i];
+
+    var product_notation := tn + tn1 + sn;
+
+    var dot_product_equation := Format('%s,%s->$s',[source_notation,target_notation,product_notation]);
+    var attn_scores_rank     := product_notation.Length;
+    var combine_equation     := Format('%s,%s->$s',[product_notation,source_notation,target_notation]);
+
+    Result := Tuple.Create(dot_product_equation, combine_equation, attn_scores_rank);
+end;
+
+class function MultiHeadAttention._build_proj_equation(free_dims, bound_dims, output_dims: Integer): Tuple<string, string, Integer>;
+begin
+    var _char : char;
+    var input_str  := '';
+    var kernel_str := '';
+    var output_str := '';
+    var bias_axes  := '';
+    var letter_offset := 0;
+    for var i in TUtils.range(free_dims) do
+    begin
+        _char      := _CHR_IDX[i + letter_offset];
+        input_str  := input_str +_char;
+        output_str := output_str + _char;
+    end;
+    letter_offset := letter_offset + free_dims;
+    for var i in TUtils.range(bound_dims) do
+    begin
+        _char      := _CHR_IDX[i + letter_offset];
+        input_str  := input_str + _char;
+        kernel_str := kernel_str +_char;
+    end;
+    letter_offset := letter_offset +  bound_dims;
+    for var i in TUtils.range(output_dims) do
+    begin
+        _char := _CHR_IDX[i + letter_offset];
+        kernel_str := kernel_str + _char;
+        output_str := output_str + _char;
+        bias_axes  := bias_axes  + _char;
+    end;
+    var equation := Format('%s,%s->%s',[input_str,kernel_str,output_str]);
+    Result := Tuple.Create(equation, bias_axes, output_str.Length);
+end;
+
+class function MultiHeadAttention._get_output_shape(output_rank: Integer; known_last_dims: TFShape): TFShape;
+begin
+    var a : TArray<Integer> := [];
+    for var i in TUtils.range(output_rank - known_last_dims.rank) do
+        a := a + [-1];
+
+    Result := a + known_last_dims.as_int_list;
+end;
+
+procedure MultiHeadAttention._build_from_signature(query, value, key: TFTensor);
+begin
+    var s : TFShape := default(TFShape);
+    if Assigned(key)  then s := key.shape;
+
+    _build_from_signature(query.shape, value.shape, s);
+end;
+
+procedure MultiHeadAttention._build_from_signature(query, value, key: TFShape);
+begin
+    Fbuilt_from_signature := true;
+    Fquery_shape          := query;
+    Fvalue_shape          := value;
+
+    if key = nil then   Fkey_shape := Fvalue_shape
+    else                Fkey_shape := key;
+    // Any setup work performed only once should happen in an `init_scope`
+    // to avoid creating symbolic Tensors that will later pollute any eager
+    // operations.
+    TUtils.tf_with<TNameScope>(tf.init_scope,
+                 procedure(v1: TNameScope)
+                        begin
+                            var free_dims := Fquery_shape.rank - 1;
+                            var t_be := _build_proj_equation(free_dims, 1, 2);
+                            var einsum_equation := t_be.Value1;
+                            var bias_axes       := t_be.Value2;
+                            var output_rank     := t_be.Value3;
+
+                            var sBias : string := '';
+                            if args.UseBias then  sBias := bias_axes;
+
+                            Fquery_dense := _get_dense(einsum_equation, _get_output_shape(output_rank - 1, TFShape.Create([args.NumHeads, args.KeyDim])), sBias, 'query');
+
+                            var t_bp := _build_proj_equation(Fkey_shape.rank - 1, 1, 2);
+                            einsum_equation := t_bp.Value1;
+                            bias_axes       := t_bp.Value2;
+                            output_rank     := t_bp.Value3;
+                            Fkey_dense := _get_dense(einsum_equation, _get_output_shape(output_rank - 1, TFShape.Create([args.NumHeads, args.KeyDim])), sBias, 'key');
+
+                            var t_bp1 := _build_proj_equation(Fvalue_shape.rank - 1, 1, 2);
+                            einsum_equation := t_bp1.Value1;
+                            bias_axes       := t_bp1.Value2;
+                            output_rank     := t_bp1.Value3;
+
+                            var vDim : Integer := args.ValueDim;
+                            if args.ValueDim = nil then vDim  := args.KeyDim;
+                            Fvalue_dense := _get_dense(einsum_equation, _get_output_shape(output_rank - 1, TFShape.Create([args.NumHeads, vDim])), sBias, 'value');
+                            // Builds the attention computations for multi-head dot product attention.
+                            // These computations could be wrapped into the keras attention layer once
+                            // it support mult-head einsum computations.
+                            _build_attention(output_rank);
+                            Foutput_dense := _build_output_dense(free_dims, 'attention_output');
+                        end);
+
+
+    StackLayers([Fquery_dense, Fkey_dense, Fvalue_dense, Foutput_dense]);
+end;
+
+function MultiHeadAttention._get_dense(equation: string; output_shape: TFShape; bias_axes, name: string): EinsumDense;
+begin
+    var eD : EinsumDenseArgs := EinsumDenseArgs.Create;
+
+    eD.Equation          := equation;
+    eD.OutputShape       := output_shape;
+    eD.BiasAxes          := bias_axes;
+    eD.Name              := name;
+    eD.KernelInitializer := args.KernelInitializer;
+    eD.BiasInitializer   := args.BiasInitializer;
+    eD.KernelRegularizer := args.KernelRegularizer;
+    eD.BiasRegularizer   := args.BiasRegularizer;
+    eD.KernelConstraint  := args.KernelConstraint;
+    eD.BiasConstraint    := args.BiasConstraint;
+
+    Result := EinsumDense.Create(eD);
+end;
+
+function MultiHeadAttention._build_output_dense(free_dims: Integer; name: string): EinsumDense;
+begin
+    if args.OutputShape.IsNull then args.OutputShape := TFShape.Create([ Fquery_shape[-1] ]);
+    var bE := _build_proj_equation(free_dims, 2,  args.OutputShape.ndim);
+    var einsum_equation := bE.Value1;
+    var bias_axes       := bE.Value2;
+    var output_rank     := bE.Value3;
+
+    var sBias : string := '';
+    if args.UseBias then  sBias := bias_axes;
+    Result := _get_dense(einsum_equation, _get_output_shape(output_rank - 1, args.OutputShape), sBias, name);
+end;
+
+procedure MultiHeadAttention._build_attention(rank: Integer);
+begin
+    if args.AttentionAxis = nil then
+        args.AttentionAxis := TFShape.Create(TUtils.range(1, rank - 2).ToArray);
+
+    var attn_scores_rank : Integer;
+    var bA := _build_attention_equation(rank, args.AttentionAxis);
+    Fdot_product_equation := bA.Value1;
+    Fcombine_equation     := bA.Value2;
+    attn_scores_rank      := bA.Value3;
+
+    var norm_axes := TUtils.range(attn_scores_rank - args.AttentionAxis.ndim, attn_scores_rank).ToArray;
+
+    var sArg := SoftmaxArgs.Create; sArg.axis := norm_axes;
+    Fsoftmax := Softmax.Create(sArg);
+
+    var dArg       := DropoutArgs.Create; dArg.Rate := args.Dropout;
+    Fdropout_layer := Dropout.Create(dArg);
+end;
+
+function MultiHeadAttention._masked_softmax(attention_scores, attention_mask: TFTensor): TFTensor;
+begin
+    if attention_mask <> nil then
+    begin
+        var mask_expansion_axis := -args.AttentionAxis.ndim * 2 - 1;
+        for var i := 0 to (attention_scores.shape.ndim - attention_mask.shape.ndim) - 1 do
+            attention_mask := tf.expand_dims(attention_mask, mask_expansion_axis);
+    end;
+    var tScore : TFTensors;
+    if attention_mask = nil then tScore := TFTensors.Create(attention_scores)
+    else                         tScore := TFTensors.Create([attention_scores, attention_mask]) ;
+    Result := Fsoftmax.Apply(tScore).First;
+end;
+
+function MultiHeadAttention._compute_attention(query, key, value, attention_mask: TFTensor; training: Boolean): TFTensors;
+begin
+    // Note: Applying scalar multiply at the smaller end of einsum improves
+    // XLA performance, but may introduce slight numeric differences in
+    // the Transformer attention head.
+    query := tf.multiply( query, Single(1) / TTensor(tf.sqrt( tf.convert_to_tensor( Single(args.KeyDim) ) ) ));
+    // Take the dot product between "query" and "key" to get the raw
+    // attention scores.
+    var attention_scores := tf.linalg.einsum(Fdot_product_equation, TFTensors.Create([key, query]));
+    attention_scores     := _masked_softmax(attention_scores, attention_mask);
+    // This is actually dropping out entire tokens to attend to, which might
+    // seem a bit unusual, but is taken from the original Transformer paper.
+    var attention_scores_dropout := Fdropout_layer.Apply(TFTensors.Create(attention_scores), nil, training);
+    // `context_layer` = [B, T, N, H]
+    var attention_output := tf.linalg.einsum(Fcombine_equation, TFTensors.Create([attention_scores_dropout.First, value]));
+    Result := TFTensors.Create([attention_output, attention_scores]);
+end;
+
+function MultiHeadAttention.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    var _inp : TFTensors;
+    var _mask: TFTensor := nil;
+
+    var count : Integer := inputs.Count;
+    if (count < 2) or (count > 5) then
+      raise Exception.Create(Format('%s layer accepts inputs list of length from 2 to 5, ' +
+                                    'namely [query, value, (key), (attention_mask), (return_attention_scores)].' +
+                                    'Received length: %d.',[name,count]));
+
+    var has_bool : Boolean := inputs[count - 1].dtype = TF_DataType.TF_BOOL;
+    var return_attention_scores : Boolean := false;
+    if has_bool then
+    begin
+        return_attention_scores := Boolean(TTensor(inputs[count - 1]));
+        Dec(count);
+    end;
+
+    Case count of
+      2: begin
+            _inp := TFTensors.Create([inputs[0], inputs[1]]);
+         end;
+      3: begin
+            if inputs[2].shape[-1] = inputs[1].shape[-1] then
+                _inp :=  TFTensors.Create( [ inputs[0], inputs[1], inputs[2] ] )
+            else begin
+                _inp  := TFTensors.Create( [inputs[0], inputs[1]] );
+                _mask := inputs[2];
+            end;
+         end;
+      4: begin
+            _inp  := TFTensors.Create( [ inputs[0], inputs[1], inputs[2] ] );
+            _mask := inputs[3];
+         end;
+    else
+        raise Exception.Create(''); //TODO:Add discriptions for this err
+    end;
+
+    Result := call(_inp, _mask, training, return_attention_scores);
+end;
+
+function MultiHeadAttention.Call(inputs: TFTensors; attention_mask: TFTensor; training: PBoolean; return_attention_scores: Boolean): TFTensors;
+begin
+    var query := inputs[0];
+    var value := inputs[1];
+    var key : TFTensor ;
+    if inputs.Count = 3 then  key := inputs[2]
+    else                      key := nil;
+    if Fbuilt_from_signature then
+       _build_from_signature(query, value, key);
+    if key = nil then
+        key := value;
+
+    // TODO: Add RaggedTensor support
+    //var query_is_ragged = query is tf.RaggedTensor;
+    //if (query_is_ragged)
+    //{
+    //    var query_lengths = query.nested_row_lengths();
+    //    query = query.to_tensor();
+    //}
+    //var key_is_ragged = key is tf.RaggedTensor;
+    //var value_is_ragged = value is tf.RaggedTensor;
+    //if (key_is_ragged && value_is_ragged)
+    //{
+    //    // Ensure they have the same shape.
+    //    var bounding_shape = tf.math.maximum(key.bounding_shape(), value.bounding_shape());
+    //    key = key.to_tensor(shape: bounding_shape);
+    //    value = value.to_tensor(shape: bounding_shape);
+    //}
+    //else if (key_is_ragged)
+    //{
+    //    key = key.to_tensor(shape: tf.shape(value));
+    //}
+    //else if (value_is_ragged)
+    //{
+    //    value = value.to_tensor(shape: tf.shape(key));
+    //}
+
+    //   N = `num_attention_heads`
+    //   H = `size_per_head`
+    // `query` = [B, T, N ,H]
+    query := Fquery_dense.Apply( TFTensors.Create(query) ).First;
+    // `key` = [B, S, N, H]
+    key := Fkey_dense.Apply( TFTensors.Create(key) ).First;
+    // `value` = [B, S, N, H]
+    value := Fvalue_dense.Apply( TFTensors.Create(value) ).First;
+    var bTrain : Boolean := False;
+    if training <> nil then bTrain := training^;
+
+    var ts := _compute_attention(query, key, value, attention_mask, bTrain);
+    var attention_output := ts[0];
+    var attention_scores := ts[1];
+
+    attention_output := Foutput_dense.Apply(TFTensors.Create(attention_output)).First;
+
+    //if (query_is_ragged)
+    //{
+    //    attention_output = tf.RaggedTensor.from_tensor(attention_output, lengths: query_lengths);
+    //}
+
+    if return_attention_scores then
+        Exit( TFTensors.Create([attention_output, attention_scores]) );
+
+    Result := TFTensors.Create(attention_output);
+end;
+
+{$ENDREGION}
+
+{$REGION 'Convolutional'}
+
+{ Convolutional }
+
+constructor Convolutional.Create(_args: ConvolutionalArgs);
+begin
+    inherited Create(_args) ;
+
+    args := _args;
+
+    args.KernelSize   := conv_utils.normalize_tuple(args.KernelSize.as_int_list, args.Rank, 'kernel_size');
+    args.Strides      := conv_utils.normalize_tuple(args.Strides.as_int_list, args.Rank, 'strides');
+    args.Padding      := conv_utils.normalize_padding(args.Padding);
+    args.DataFormat   := conv_utils.normalize_data_format(args.DataFormat);
+    args.DilationRate := conv_utils.normalize_tuple(args.DilationRate.as_int_list, args.Rank, 'dilation_rate');
+    FinputSpec        := TInputSpec.Create(DtInvalid, rank + 2);
+    _tf_data_format   := conv_utils.convert_data_format(data_format, rank + 2);
+end;
+
+function Convolutional.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    var outputs := Fconvolution_op.Apply(inputs.first, kernel.AsTensor);
+    if use_bias then
+    begin
+        if data_format = 'channels_first' then
+           raise Exception.Create('call channels_first')
+        else
+           outputs := nn_ops.bias_add(outputs, bias, 'NHWC');
+    end;
+
+    if activation <> nil then
+        outputs := activation(outputs);
+
+    Result := TFTensors.create(outputs);
+end;
+
+procedure Convolutional.Build(input_shape: TFShape);
+begin
+    var channel_axis : Integer;
+    if data_format = 'channels_first' then channel_axis := 1
+    else                                   channel_axis := -1;
+
+    var input_channel : Int64;
+    if channel_axis < 0  then input_channel := input_shape.dims[input_shape.ndim + channel_axis]
+    else                      input_channel := input_shape.dims[channel_axis];
+
+    var kernel_shape : TFShape := kernel_size.dims + [ input_channel div args.Groups, filters ];
+
+    kernel := add_weight('kernel', kernel_shape, DType, kernel_initializer, kernel_regularizer, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE, true);
+
+    if use_bias then
+        bias := add_weight('bias', TFShape.Create([filters]), DType, bias_initializer, nil, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE, True);
+
+    var axes := TDictionary<Integer, Integer>.Create;
+    axes.Add(-1, input_channel);
+    FinputSpec := TInputSpec.Create(DtInvalid, null, rank + 2, axes);
+
+    var tf_padding : string;
+    if padding = 'causal' then
+        tf_padding := 'VALID'
+    else
+        tf_padding := padding.ToUpper;
+
+    var tf_op_name : string := self.name;
+
+    Fconvolution_op := nn_ops.convolution_internal(tf_padding, strides, dilation_rate, rank, tf_op_name, _tf_data_format);
+
+    Fbuilt := true;
+end;
+
+function Convolutional._get_channel_axis: Integer;
+begin
+    if data_format = 'channels_first'  then Result := -1 - rank
+    else                                    Result := -1 ;
+end;
+
+function Convolutional.Getactivation: TActivation;
+begin
+    Result := args.Activation;
+end;
+
+function Convolutional.Getbias_initializer: IInitializer;
+begin
+    Result := args.BiasInitializer;
+end;
+
+function Convolutional.Getdata_format: string;
+begin
+    Result := args.DataFormat;
+end;
+
+function Convolutional.Getdilation_rate: TFShape;
+begin
+    Result := args.DilationRate;
+end;
+
+function Convolutional.GetFilter: Integer;
+begin
+    Result := args.Filters;
+end;
+
+function Convolutional.Getkernel_initializer: IInitializer;
+begin
+    Result := args.KernelInitializer;
+end;
+
+function Convolutional.Getkernel_regularizer: IRegularizer;
+begin
+    Result := args.KernelRegularizer;
+end;
+
+function Convolutional.Getkernel_size: TFShape;
+begin
+    Result := args.KernelSize;
+end;
+
+function Convolutional.Getpadding: string;
+begin
+    Result := args.Padding;
+end;
+
+function Convolutional.GetRank: Integer;
+begin
+    Result := args.Rank;
+end;
+
+function Convolutional.Getstrides: TFShape;
+begin
+    Result := args.Strides;
+end;
+
+function Convolutional.Getuse_bias: Boolean;
+begin
+    Result := args.UseBias;
+end;
+
+{ Conv1D }
+
+constructor Conv1D.Create(_args: Conv1DArgs);
+begin
+    inherited Create(_args) ;
+end;
+
+{ Conv2D }
+
+constructor Conv2D.Create(_args: Conv2DArgs);
+begin
+    inherited Create(_args) ;
+end;
+
+{ Conv2DTranspose }
+
+constructor Conv2DTranspose.Create(_args: Conv2DArgs);
+begin
+    inherited Create(_args) ;
+end;
+
+procedure Conv2DTranspose.Build(input_shape: TFShape);
+begin
+    if input_shape.ndim <> 4 then
+       raise TFException.Create('Inputs should have rank 4. Received input shape: '+input_shape.ToString);
+
+    var channel_axis := _get_channel_axis;
+    var input_dim    := input_shape[-1];
+    var kernel_shape := TFShape.Create([kernel_size[0], kernel_size[1], filters, input_dim]);
+
+    kernel := add_weight('kernel', kernel_shape, TF_FLOAT, kernel_initializer, kernel_regularizer, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE, true);
+
+    if use_bias then
+        bias := add_weight('bias', filters, TF_FLOAT, bias_initializer, nil, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE, true);
+
+    Fbuilt := true;
+
+end;
+
+function Conv2DTranspose.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    var inputs_shape := array_ops.shape(inputs.first);
+    var batch_size   := inputs_shape[0];
+    var h_axis := 1;
+    var w_axis := 2 ;
+    if data_format = 'channels_first' then
+    begin
+        h_axis := 2;
+        w_axis := 3 ;
+    end;
+    var height := -1;
+    var width  := -1;
+    if inputs.shape.ndim > -1 then
+    begin
+        var dims := inputs.shape.dims;
+        height := dims[h_axis];
+        width  := dims[w_axis];
+    end;
+
+    var kernel_h := kernel_size.dims[0];
+    var kernel_w := kernel_size.dims[1];
+    var stride_h := strides.dims[0];
+    var stride_w := strides.dims[1];
+
+    var out_pad_h := -1;
+    var out_pad_w := -1;
+
+    // Infer the dynamic output shape:
+    var out_height := conv_utils.deconv_output_length(height, kernel_h, padding, out_pad_h, stride_h, dilation_rate[0]);
+    var out_width  := conv_utils.deconv_output_length(width,  kernel_w, padding, out_pad_w, stride_w, dilation_rate[1]);
+
+    var output_shape_tensor : TFTensor;
+    if data_format = 'channels_first' then
+    begin
+        var v : TValue := Tvalue.From<TArray<TValue>> ([batch_size, filters, out_height, out_width]);
+        output_shape_tensor := array_ops.stack(v);
+    end else
+    begin
+         var v : TValue := Tvalue.From<TArray<TValue>> ([batch_size, out_height, out_width, filters]);
+        output_shape_tensor := array_ops.stack(v);
+    end;
+    //(x: TFTensor; kernel: IVariableV1; output_shape: TFTensor; strides: PTFShape = nil; padding: string = 'valid'; data_format : string= ''; dilation_rate: PTFShape = nil):
+    var sShape  := strides;
+    var sdShape := dilation_rate;
+    var outputs := tf.keras.backend.conv2d_transpose(inputs.First, kernel, output_shape_tensor, @sShape, padding, data_format, @sdShape);
+
+    if not tf.Context.executing_eagerly then
+    begin
+        var out_shape := ComputeOutputShape(inputs.shape);
+        outputs.shape := out_shape;
+    end;
+
+    if use_bias then
+        outputs := tf.nn.bias_add(outputs, bias, conv_utils.convert_data_format(data_format, 4));
+
+    if activation <> nil then
+    begin
+        var res :=  activation(outputs);
+
+        Exit ( TFTensors.Create(res) );
+    end;
+
+    Result := TFTensors.Create(outputs);
+end;
+
+function Conv2DTranspose.ComputeOutputShape(input_shape: TFShape): TFShape;
+begin
+    var output_shape := input_shape.dims;
+    var c_axis := 3;
+    var h_axis := 1;
+    var w_axis := 2;
+    if data_format = 'channels_first' then
+    begin
+        c_axis := 1;
+        h_axis := 2;
+        w_axis := 3;
+    end;
+
+    var kernel_h := kernel_size.dims[0];
+    var kernel_w := kernel_size.dims[1];
+    var stride_h := strides.dims[0];
+    var stride_w := strides.dims[1];
+
+    var out_pad_h := -1;
+    var out_pad_w := -1;
+
+    output_shape[c_axis] := filters;
+
+    output_shape[h_axis] := conv_utils.deconv_output_length(output_shape[h_axis], kernel_h, padding, out_pad_h, stride_h, dilation_rate[0]);
+    output_shape[w_axis] := conv_utils.deconv_output_length(output_shape[w_axis], kernel_w, padding, out_pad_w, stride_w, dilation_rate[1]);
+
+    Result := TFShape.Create(output_shape);
+end;
+{$ENDREGION}
+
+{$REGION 'Cropping'}
+
+{ Cropping1D }
+
+constructor Cropping1D.Create(_args: CroppingArgs);
+begin
+    inherited Create(_args) ;
+
+    args := _args;
+end;
+
+procedure Cropping1D.Build(input_shape: TFShape);
+begin
+    if args.cropping.rank <> 1 then
+    begin
+        // throw an ValueError exception
+        raise TFException.Create('Cropping1D.Build');
+    end
+    else if (args.cropping.shape[0] > 2) or (args.cropping.shape[0] < 1) then
+    begin
+        raise TFException.Create('The `cropping` argument must be a tuple of 2 integers.');
+    end;
+    Fbuilt := true;
+
+end;
+
+function Cropping1D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    var output : TFTensor := inputs.First;
+    if output.rank <> 3 then
+    begin
+        // throw an ValueError exception
+        raise TFException.Create('Expected dim=3, found dim='+ output.rank.ToString);
+    end;
+    if args.cropping.shape[0] = 1 then
+    begin
+        var crop_start : Integer := NDarray(args.cropping[0]);
+        output := output[ [ Slice.Create(nil,nil), Slice.Create(crop_start, output.shape[1] - crop_start), Slice.Create(nil,nil)] ];
+    end else
+    begin
+        var crop_start : Integer := NDarray(args.cropping[0]);
+        var crop_end   : Integer := NDarray(args.cropping[1]);
+        output := output[ [ Slice.Create(nil,nil), Slice.Create(crop_start, output.shape[1] - crop_end),  Slice.Create(nil,nil)] ];
+    end;
+    Result := TFTensors.Create(output);
+end;
+
+function Cropping1D.ComputeOutputShape(input_shape: TFShape): TFShape;
+begin
+    if args.cropping.shape[0] = 1 then
+    begin
+        var crop: Integer  := NDarray(args.cropping[0]);
+        Result := TFShape.Create ( [input_shape[0], input_shape[1] - crop * 2, input_shape[2]] );
+    end else
+    begin
+        var crop_start : Integer := NDarray(args.cropping[0]);
+        var crop_end   : Integer := NDarray(args.cropping[1]);
+        Result := TFShape.Create ( [input_shape[0], input_shape[1] - crop_start - crop_end, input_shape[2]]);
+    end
+end;
+
+{ Cropping2D }
+
+constructor Cropping2D.Create(_args: Cropping2DArgs);
+begin
+    inherited Create(_args) ;
+
+    args := _args;
+end;
+
+procedure Cropping2D.Build(input_shape: TFShape);
+begin
+  Fbuilt := true;
+end;
+
+function Cropping2D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+var
+  output : TFTensor;
+begin
+    output := inputs.First;
+    if output.rank <> 4 then
+    begin
+          // throw an ValueError exception
+          raise TFException.Create('Expected dim=4, found dim=' + output.rank.ToString);
+    end;
+    if args.cropping.shape = TFShape.Create([1]) then
+    begin
+          var crop : Integer := NDarray(args.cropping[0]);
+          if args.data_format = Cropping2DArgs.DataFormat.channels_last then
+          begin
+                output := output[ [Slice.Create(nil,nil),
+                                              Slice.Create(crop, output.shape[1] - crop),
+                                              Slice.Create(crop, output.shape[2] - crop),
+                                              Slice.Create(nil,nil)] ];
+          end else
+          begin
+                output := output[ [Slice.Create(nil,nil),
+                                              Slice.Create(nil,nil),
+                                              Slice.Create(crop, output.shape[2] - crop),
+                                              Slice.Create(crop, output.shape[3] - crop)] ];
+          end;
+    end
+    // a tuple of 2 integers
+    else if args.cropping.shape = TFShape.Create([2]) then
+    begin
+          var crop_1 : Integer := NDArray(args.cropping[0]);
+          var crop_2 : Integer := NDArray(args.cropping[1]);
+          if args.data_format = Cropping2DArgs.DataFormat.channels_last then
+          begin
+                output := output[ [Slice.Create(nil,nil),
+                                              Slice.Create(crop_1, output.shape[1] - crop_1),
+                                              Slice.Create(crop_2, output.shape[2] - crop_2),
+                                              Slice.Create(nil,nil)] ];
+          end else
+          begin
+                output := output[ [Slice.Create(nil,nil),
+                                              Slice.Create(nil,nil),
+                                              Slice.Create(crop_1, output.shape[2] - crop_1),
+                                              Slice.Create(crop_2, output.shape[3] - crop_2)] ];
+          end;
+    end
+    else if (args.cropping.shape[0] = 2) and (args.cropping.shape[1] = 2) then
+    begin
+          var x_start : Integer := NDArray(args.cropping[[0, 0]]);
+          var x_end   : Integer := NDArray(args.cropping[[0, 1]]);
+
+          var y_start : Integer := NDArray(args.cropping[[1, 0]]);
+          var y_end   : Integer := NDArray(args.cropping[[1, 1]]);
+          if args.data_format = Cropping2DArgs.DataFormat.channels_last then
+          begin
+                output := output[ [Slice.Create(nil,nil),
+                                              Slice.Create(x_start, output.shape[1] - x_end),
+                                              Slice.Create(y_start, output.shape[2] - y_end),
+                                              Slice.Create(nil,nil)] ];
+          end else
+          begin
+                output := output[ [Slice.Create(nil,nil),
+                                              Slice.Create(nil,nil),
+                                              Slice.Create(x_start, output.shape[2] - x_end),
+                                              Slice.Create(y_start, output.shape[3] - y_end)
+                                              ] ];
+          end;
+    end;
+    Result := TFTensors.Create(output);
+end;
+
+function Cropping2D.ComputeOutputShape(input_shape: TFShape): TFShape;
+begin
+    if args.cropping.shape = TFShape.Create([1]) then
+    begin
+          var crop : Integer := NDarray(args.cropping[0]);
+          if args.data_format = Cropping2DArgs.DataFormat.channels_last then
+          begin
+                Result := TFShape.Create([input_shape[0], input_shape[1] - crop * 2, input_shape[2] - crop * 2, input_shape[3]]);
+          end else
+          begin
+                Result := TFShape.Create([input_shape[0], input_shape[1], input_shape[2] - crop * 2, input_shape[3] - crop * 2]);
+          end;
+    end
+    // a tuple of 2 integers
+    else if args.cropping.shape =  TFShape.Create([2]) then
+    begin
+          var crop_1 : Integer := NDArray(args.cropping[0]);
+          var crop_2 : Integer := NDArray(args.cropping[1]);
+          if args.data_format = Cropping2DArgs.DataFormat.channels_last then
+          begin
+                Result := TFShape.Create([input_shape[0], input_shape[1] - crop_1 * 2, input_shape[2] - crop_2 * 2, input_shape[3]]);
+          end else
+          begin
+                Result := TFShape.Create([input_shape[0], input_shape[1], input_shape[2] - crop_1 * 2, input_shape[3] - crop_2 * 2]);
+          end;
+    end
+    else if args.cropping.shape = TFShape.Create([2, 2]) then
+    begin
+          var crop_1_start : Integer := NDArray(args.cropping[[0, 0]]);
+          var crop_1_end   : Integer := NDArray(args.cropping[[0, 1]]);
+
+          var crop_2_start : Integer := NDArray(args.cropping[[1, 0]]);
+          var crop_2_end   : Integer := NDArray(args.cropping[[1, 1]]);
+
+          if args.data_format = Cropping2DArgs.DataFormat.channels_last  then
+          begin
+              Result := TFShape.Create([input_shape[0], input_shape[1] - crop_1_start - crop_1_end, input_shape[2] - crop_2_start - crop_2_end, input_shape[3]]);
+          end else
+          begin
+              Result := TFShape.Create([input_shape[0], input_shape[1], input_shape[2] - crop_1_start - crop_1_end, input_shape[3] - crop_2_start - crop_2_end]);
+          end;
+    end else
+    begin
+         raise TFException.Create('Cropping2D.ComputeOutputShape');
+    end;
+end;
+
+{ Cropping3D }
+
+constructor Cropping3D.Create(_args: Cropping3DArgs);
+begin
+    inherited Create(_args) ;
+
+    args := _args;
+end;
+
+procedure Cropping3D.Build(input_shape: TFShape);
+begin
+   Fbuilt := true;
+end;
+
+function Cropping3D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+var
+  output : TFTensor;
+begin
+    output := inputs.First;
+    if output.rank <> 5 then
+    begin
+          // throw an ValueError exception
+          raise TFException.Create('Expected dim=5, found dim=' + output.rank.ToString);
+    end;
+    if args.cropping.shape = TFShape.Create([1]) then
+    begin
+          var crop : Integer := NDarray(args.cropping[0]);
+          if args.data_format = Cropping3DArgs.DataFormat.channels_last_ then
+          begin
+                output := output[ [Slice.Create(nil,nil),
+                                              Slice.Create(crop, output.shape[1] - crop),
+                                              Slice.Create(crop, output.shape[2] - crop),
+                                              Slice.Create(crop, output.shape[3] - crop),
+                                              Slice.Create(nil,nil)] ];
+          end else
+          begin
+                output := output[ [Slice.Create(nil,nil),
+                                              Slice.Create(nil,nil),
+                                              Slice.Create(crop, output.shape[2] - crop),
+                                              Slice.Create(crop, output.shape[3] - crop),
+                                              Slice.Create(crop, output.shape[4] - crop)] ];
+          end;
+    end
+    // int[1][3] equivalent to a tuple of 3 integers
+    else if args.cropping.shape = TFShape.Create([3]) then
+    begin
+          var crop_1 : Integer := NDArray(args.cropping[0]);
+          var crop_2 : Integer := NDArray(args.cropping[1]);
+          var crop_3 : Integer := NDArray(args.cropping[2]);
+          if args.data_format = Cropping3DArgs.DataFormat.channels_last_ then
+          begin
+                output := output[ [Slice.Create(nil,nil),
+                                              Slice.Create(crop_1, output.shape[1] - crop_1),
+                                              Slice.Create(crop_2, output.shape[2] - crop_2),
+                                              Slice.Create(crop_3, output.shape[3] - crop_3),
+                                              Slice.Create(nil,nil)] ];
+          end else
+          begin
+                output := output[ [Slice.Create(nil,nil),
+                                              Slice.Create(nil,nil),
+                                              Slice.Create(crop_1, output.shape[2] - crop_1),
+                                              Slice.Create(crop_2, output.shape[3] - crop_2),
+                                              Slice.Create(crop_3, output.shape[4] - crop_3)] ];
+          end;
+    end
+    else if (args.cropping.shape[0] = 3) and (args.cropping.shape[1] = 2) then
+    begin
+          var x       : Integer := NDArray(args.cropping[[0, 0]]);
+          var x_end   : Integer := NDArray(args.cropping[[0, 1]]);
+
+          var y       : Integer := NDArray(args.cropping[[1, 0]]);
+          var y_end   : Integer := NDArray(args.cropping[[1, 1]]);
+
+          var z       : Integer := NDArray(args.cropping[[2, 0]]);
+          var z_end   : Integer := NDArray(args.cropping[[2, 1]]);
+          if args.data_format = Cropping3DArgs.DataFormat.channels_last_ then
+          begin
+                output := output[ [Slice.Create(nil,nil),
+                                              Slice.Create(x, output.shape[1] - x_end),
+                                              Slice.Create(y, output.shape[2] - y_end),
+                                              Slice.Create(z, output.shape[3] - z_end),
+                                              Slice.Create(nil,nil)] ];
+          end else
+          begin
+                output := output[ [Slice.Create(nil,nil),
+                                              Slice.Create(nil,nil),
+                                              Slice.Create(x, output.shape[2] - x_end),
+                                              Slice.Create(y, output.shape[3] - y_end),
+                                              Slice.Create(z, output.shape[4] - z_end)
+                                              ] ];
+          end;
+    end;
+    Result := TFTensors.Create(output);
+
+end;
+
+function Cropping3D.ComputeOutputShape(input_shape: TFShape): TFShape;
+begin
+    if args.cropping.shape = TFShape.Create([1]) then
+    begin
+          var crop : Integer := NDarray(args.cropping[0]);
+          if args.data_format = Cropping3DArgs.DataFormat.channels_last_ then
+          begin
+                Result := TFShape.Create([input_shape[0], input_shape[1] - crop * 2, input_shape[2] - crop * 2, input_shape[3] - crop * 2, input_shape[4]]);
+          end else
+          begin
+                Result := TFShape.Create([input_shape[0], input_shape[1], input_shape[2] - crop * 2, input_shape[3] - crop * 2, input_shape[4] - crop * 2]);
+          end;
+    end
+    // a tuple of 2 integers
+    else if args.cropping.shape =  TFShape.Create([3]) then
+    begin
+          var crop_start_1 : Integer := NDArray(args.cropping[0]);
+          var crop_start_2 : Integer := NDArray(args.cropping[1]);
+          var crop_start_3 : Integer := NDArray(args.cropping[2]);
+          if args.data_format = Cropping3DArgs.DataFormat.channels_last_ then
+          begin
+                Result := TFShape.Create([input_shape[0], input_shape[1] - crop_start_1 * 2, input_shape[2] - crop_start_2 * 2, input_shape[3] - crop_start_3 * 2, input_shape[4]]);
+          end else
+          begin
+                Result := TFShape.Create([input_shape[0], input_shape[1], input_shape[2] - crop_start_1 * 2, input_shape[3] - crop_start_2 * 2, input_shape[4] - crop_start_3 * 2]);
+          end;
+    end
+    else if args.cropping.shape = TFShape.Create([3, 2]) then
+    begin
+          var x       : Integer := NDArray(args.cropping[[0, 0]]);
+          var x_end   : Integer := NDArray(args.cropping[[0, 1]]);
+
+          var y       : Integer := NDArray(args.cropping[[1, 0]]);
+          var y_end   : Integer := NDArray(args.cropping[[1, 1]]);
+
+          var z       : Integer := NDArray(args.cropping[[2, 0]]);
+          var z_end   : Integer := NDArray(args.cropping[[2, 1]]);
+
+          if args.data_format = Cropping3DArgs.DataFormat.channels_last_  then
+          begin
+              Result := TFShape.Create([input_shape[0], input_shape[1] - x - x_end, input_shape[2] - y - y_end, input_shape[3] - z - z_end, input_shape[4]]);
+          end else
+          begin
+              Result := TFShape.Create([input_shape[0], input_shape[1], input_shape[2] - x - x_end, input_shape[3] - y - y_end, input_shape[4] - z - z_end]);
+          end;
+    end else
+    begin
+         raise TFException.Create('Cropping3D.ComputeOutputShape');
+    end;
+end;
+
+{$ENDREGION}
+
+{$REGION 'Lstm-Rnn'}
+
+{ LSTMCell }
+
+constructor LSTMCell.Create(_args: LSTMCellArgs);
+begin
+   inherited Create(_args) ;
+
+   args := _args;
+end;
+
+{ RNN }
+
+constructor RNN.Create(_args: RNNArgs);
+begin
+    inherited Create(_args) ;
+end;
+
+function RNN.PreConstruct(_args: RNNArgs): RNNArgs;
+begin
+
+end;
+{$ENDREGION}
+
+{$REGION 'Merging'}
+{ Merge }
+
+constructor Merge.Create(_args: MergeArgs);
+begin
+    inherited Create(_args) ;
+end;
+
+procedure Merge.Build(input_shape: TFShape);
+begin
+  // output_shape = input_shape.dims[1^];
+end;
+
+function Merge.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    Result := _merge_function(inputs);
+end;
+
+function Merge._merge_function(inputs: TFTensors): TFTensors;
+begin
+    Result := nil;
+end;
+
+{ Add }
+
+constructor Add.Create(_args: MergeArgs);
+begin
+    inherited Create(_args) ;
+end;
+
+function Add._merge_function(inputs: TFTensors): TFTensors;
+begin
+    var output := inputs[0];
+    for var i := 1 to inputs.count-1 do
+        output := TTensor(output) + inputs[i];
+
+    Result := TFTensors.Create(output);
+end;
+
+{ Subtract }
+
+constructor Subtract.Create(_args: MergeArgs);
+begin
+    inherited Create(_args) ;
+end;
+
+function Subtract._merge_function(inputs: TFTensors): TFTensors;
+begin
+    if inputs.Count <> 2 then
+        raise TFException.Create('A `Subtract` layer should be called on exactly 2 inputs');
+
+    var output : TFTensor := TTensor(inputs[0]) - inputs[1];
+    Result := TFTensors.Create(output);
+end;
+
+{ Concatenate }
+
+constructor Concatenate.Create(_args: MergeArgs);
+begin
+    inherited Create(_args) ;
+    args := _args;
+end;
+
+procedure Concatenate.Build(input_shape: TFShape);
+begin
+  (*var shape_set = new HashSet<Shape>();
+    var reduced_inputs_shapes = inputs.Select(x => x.shape).ToArray();
+    for (var i = 0; i < reduced_inputs_shapes.Length; i++)
+    {
+        int seq = -1;
+        Shape shape = reduced_inputs_shapes[i].Where(x =>
+        {
+            seq++;
+            return seq != i;
+        }).ToArray();
+        shape_set.Add(shape);
+    }*)
+end;
+
+function Concatenate.GetAxis: Integer;
+begin
+    Result := args.Axis;
+end;
+
+function Concatenate._merge_function(inputs: TFTensors): TFTensors;
+begin
+    var Res := tf.keras.backend.concatenate(inputs, axis);
+    Result := TFTensors.Create(Res);
+end;
+{$ENDREGION}
+
+{$REGION 'Normalization'}
+
+{ LayerNormalization }
+
+constructor LayerNormalization.Create(_args: LayerNormalizationArgs);
+begin
+    inherited Create(_args) ;
+    args := _args;
+
+    axis := args.Axis.axis;
+end;
+
+procedure LayerNormalization.Build(input_shape: TFShape);
+begin
+    var ndims := input_shape.ndim;
+    for var idx := 0 to Length(axis) -1 do
+    begin
+        var x := axis[idx];
+        if x < 0 then
+            axis[idx] := ndims + x;
+    end;
+
+    var axis_to_dim := TDictionary<Integer, Integer>.Create;
+     for var x in axis do
+        axis_to_dim.AddOrSetValue(x, input_shape[x]);
+
+    FinputSpec := TInputSpec.Create(DtInvalid, ndims, null, axis_to_dim);
+    var param_dtype : TF_DataType;
+    if DType = TF_DataType.DtInvalid  then  param_dtype := TF_DataType.TF_FLOAT
+    else                                    param_dtype :=  DType;
+    var param_shape := inputSpec.AllAxisDim;
+
+    if scale then
+        gamma := add_weight('gamma', param_shape, param_dtype, gamma_initializer{, trainable: true});
+
+    if center then
+        beta := add_weight('beta', param_shape, param_dtype, beta_initializer{,trainable: true});
+
+    fused := _fused_can_be_used(ndims);
+
+    Fbuilt := true;
+end;
+
+function LayerNormalization.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    var outputs : TFTensor := nil;
+    var inputs_dtype := TDtypes.as_base_dtype(inputs.dtype);
+    var input_shape  := inputs.shape;
+    var ndims        := input_shape.ndim;
+
+    var broadcast_shape : TArray<Integer>;
+    for var i := 0 to ndims - 1 do
+      broadcast_shape := broadcast_shape + [1];
+
+    for var dim in axis do
+        broadcast_shape[dim] := input_shape.as_int_list[dim];
+
+    var _broadcast  : TFunc<IVariableV1, TFTensor> := function(v : IVariableV1): TFTensor
+    begin
+        if (v.shape.ndim <> ndims) and (not TUtils.SequenceEqual<Integer>(axis, [ ndims - 1 ]))  then
+            Exit( tf.reshape(v.AsTensor, broadcast_shape) );
+        Result := v.AsTensor;
+    end;
+
+    if fused then
+    begin
+        var tensor_shape := tf.shape(inputs.First);
+        var pre_dim      := tf.constant(1);
+        var in_dim       := tf.constant(1);
+        for var dim in TUtils.range(ndims) do
+        begin
+            var dim_tensor := tensor_shape[dim];
+            if dim < axis[0] then
+                pre_dim := TTensor(pre_dim) * dim_tensor
+            else
+                in_dim := TTensor(in_dim) * dim_tensor;
+        end;
+        var vObj : TArray<TValue> := [ 1, pre_dim, in_dim, 1 ];
+        inputs := TFTensors.Create( tf.reshape(inputs.first, vObj) );
+
+        var scale  := tf.ones (TFShape.Create([Integer(TTensor(pre_dim))]), DType);
+        var offset := tf.zeros(TFShape.Create([Integer(TTensor(pre_dim))]), DType);
+
+        outputs := tf.nn.fused_batch_norm(inputs.first,scale, offset, nil, nil, epsilon, 'NCHW')[0];
+
+        outputs := tf.reshape(outputs, tensor_shape);
+
+        scale   := _broadcast(gamma);
+        offset  := _broadcast(beta);
+
+        outputs := TTensor(outputs) * tf.cast(scale, outputs.dtype);
+        outputs := TTensor(outputs) + tf.cast(offset, outputs.dtype);
+    end else
+    begin
+
+    end;
+
+    // If some components of the shape got lost due to adjustments, fix that.
+    outputs.shape := input_shape;
+
+    Result := TFTensors.Create(outputs);
+end;
+
+function LayerNormalization.ComputeOutputShape(input_shape: TFShape): TFShape;
+begin
+    Result := input_shape;
+end;
+
+function LayerNormalization._fused_can_be_used(ndims: Integer) : Boolean;
+begin
+    var can_use_fused := false;
+    if (axis[ High(axis) ] = ndims - 1) and (axis[ High(axis) ] - axis[0] = Length(axis) - 1) then
+        can_use_fused := true;
+    if (epsilon < 1.001e-5) or (DType <> tf.float32_t)  then
+        can_use_fused := false;
+    Result := can_use_fused;
+end;
+
+function LayerNormalization.getbeta_initializer: IInitializer;
+begin
+    Result := args.BetaInitializer
+end;
+
+function LayerNormalization.getcenter: Boolean;
+begin
+    Result := args.Center
+end;
+
+function LayerNormalization.getepsilon: Single;
+begin
+    Result := args.Epsilon
+end;
+
+function LayerNormalization.getgamma_initializer: IInitializer;
+begin
+    Result := args.GammaInitializer
+end;
+
+function LayerNormalization.getgamma_regularizer: IRegularizer;
+begin
+   Result := args.GammaRegularizer
+end;
+
+function LayerNormalization.getscale: Boolean;
+begin
+    Result := args.Scale;
+end;
+
+{ BatchNormalization }
+
+constructor BatchNormalization.Create(_args: BatchNormalizationArgs);
+begin
+    inherited Create(_args) ;
+    args := _args;
+
+    axis := [];
+    for var i := 0 to Length(args.Axis.dims)-1 do
+       axis := axis + [ args.Axis.dims[i] ]
+
+end;
+
+procedure BatchNormalization.Build(input_shape: TFShape);
+begin
+    var ndims := input_shape.ndim;
+    for var idx := 0 to Length(axis) -1 do
+    begin
+        var x := axis[idx];
+        if x < 0 then
+            axis[idx] := ndims + x;
+    end;
+
+    fused := ndims = 4;
+
+    if fused then
+    begin
+        if TUtils.SequenceEqual<Integer>(axis, [ 1 ]) then
+            _data_format := 'NCHW'
+        else if TUtils.SequenceEqual<Integer>(axis, [ 3 ]) then
+            _data_format := 'NHWC'
+        else
+            raise TFException.Create('Unsupported axis, fused batch norm only supports axis == [1] or axis == [3]');
+    end;
+
+    var axis_to_dim := TDictionary<Integer, Integer>.Create;
+    for var x in axis do
+        axis_to_dim.AddOrSetValue(x,input_shape[x]);
+
+    FinputSpec := TInputSpec.Create(DtInvalid, ndims, null, axis_to_dim);
+    var param_dtype : TF_DataType;
+    if DType = TF_DataType.DtInvalid  then  param_dtype := TF_DataType.TF_FLOAT
+    else                                    param_dtype :=  DType;
+    var param_shape := inputSpec.AllAxisDim;
+
+    if scale then
+        gamma := add_weight('gamma', param_shape, param_dtype, gamma_initializer{, trainable: true})
+    else
+        raise TFException.Create('add_weight gamma');
+
+    if center then
+        beta := add_weight('beta', param_shape, param_dtype, beta_initializer{,trainable: true})
+    else
+        raise TFException.Create('add_weight beta');
+
+    moving_mean := add_weight('moving_mean', param_shape, param_dtype, moving_mean_initializer, nil, VARIABLE_SYNCHRONIZATION_ON_READ, VARIABLE_AGGREGATION_MEAN, false);
+
+    moving_variance := add_weight('moving_variance', param_shape, param_dtype, moving_variance_initializer, nil, VARIABLE_SYNCHRONIZATION_ON_READ, VARIABLE_AGGREGATION_MEAN, false);
+
+    if renorm then
+       raise TFException.Create('build when renorm is true');
+
+    Fbuilt := true;
+end;
+
+function BatchNormalization.ComputeOutputShape(input_shape: TFShape): TFShape;
+begin
+   Result := input_shape;
+end;
+
+function BatchNormalization._moments(inputs: TFTensors; reduction_axes: TArray<Integer>; keep_dims: Boolean): Tuple<TFTensor, TFTensor>;
+begin
+    var mean_variance := _calculate_mean_and_var(inputs, reduction_axes, keep_dims);
+    if _support_zero_size_input then
+       raise TFException.Create('Not Implemented');
+
+    Result :=  mean_variance;
+end;
+
+function BatchNormalization._calculate_mean_and_var(inputs: TFTensors; reduction_axes: TArray<Integer>; keep_dims: Boolean): Tuple<TFTensor, TFTensor>;
+begin
+   Result := nn_impl.moments(inputs.First, reduction_axes, '', keep_dims);
+end;
+
+function BatchNormalization._support_zero_size_input: Boolean;
+begin
+    Result := false;
+end;
+
+function BatchNormalization._fused_batch_norm(inputs: TFTensor; training: TFTensor): TFTensor;
+var
+  training_value: Nullable<Boolean>;
+begin
+    var input_batch_size      : TFShape := default(TFShape);
+    var use_fused_avg_updates : Boolean := true;
+    var exponential_avg_factor: Single  := 0;
+    if use_fused_avg_updates then
+        exponential_avg_factor := 1.0 - momentum;
+
+    var _fused_batch_norm_training : TFunc< TArray<TFTensor> > :=
+              function : TArray<TFTensor>
+               begin
+                   Result := tf.nn.fused_batch_norm(inputs, gamma.AsTensor, beta.AsTensor, moving_mean.AsTensor, moving_variance.AsTensor, epsilon, _data_format, true, '', exponential_avg_factor);
+               end;
+    var _fused_batch_norm_inference : TFunc< TArray<TFTensor> > :=
+              function : TArray<TFTensor>
+               begin
+                   Result := tf.nn.fused_batch_norm(inputs, gamma.AsTensor, beta.AsTensor, moving_mean.AsTensor, moving_variance.AsTensor, epsilon, _data_format, false);
+               end;
+
+    if (use_fused_avg_updates) and (not input_batch_size.isNull) then
+       raise TFException.Create('Not Implemented');
+
+    var res := smart_module.smart_cond(training, _fused_batch_norm_training, _fused_batch_norm_inference);
+    var output   := res[0];
+    var mean     := res[1];
+    var variance := res[2];
+    training_value := smart_module.smart_constant_value(training);
+
+    if (not training_value.HasValue) or (training_value.HasValue and training_value.Value) then
+    begin
+        var momentum_tensor : TFTensor := nil;
+        if not use_fused_avg_updates then
+        begin
+            if training_value = nil then
+                momentum_tensor := smart_module.smart_cond(training, function : TArray<TFTensor>
+                                                                       begin
+                                                                           var f := TOps.convert_to_tensor(momentum);
+                                                                           Result := [ f ]
+                                                                       end,
+                                                                       function : TArray<TFTensor>
+                                                                       begin
+                                                                           var f := TOps.convert_to_tensor(Single(1.0));
+                                                                           Result := [ f ]
+                                                                        end)[0]
+            else
+                momentum_tensor := Tops.convert_to_tensor(momentum);
+        end;
+
+        if use_fused_avg_updates then
+            _assign_new_value(moving_mean, mean)
+        else
+            _assign_moving_average(moving_variance, variance, momentum_tensor);
+
+        if use_fused_avg_updates then
+            _assign_new_value(moving_variance, variance)
+        else
+            _assign_moving_average(moving_variance, variance, momentum_tensor);
+
+        // var mean_update = _assign_moving_average(moving_mean.AsTensor(), mean, momentum_tensor);
+        // var variance_update = _assign_moving_average(moving_variance.AsTensor(), variance, momentum_tensor);
+        // add_update(new Tensor[] { mean_update }, inputs: true);
+        // add_update(new Tensor[] { variance_update }, inputs: true);
+    end;
+
+    Result := output;
+end;
+
+procedure BatchNormalization._assign_new_value(variable: IVariableV1; value: TFTensor);
+begin
+    var vValues : TArray<TValue> := [TValue.From<IVariableV1>(variable), value, momentum];
+    TUtils.tf_with<TNameScope>( TOps.name_scope('AssignNewValue', '', @vValues),
+        procedure (v1: TNameScope)
+          begin
+              var scope := v1.ToString;
+              // var cm = ops.colocate_with(variable);
+              variable.assign_lazy_load(value, scope);
+          end );
+end;
+
+procedure BatchNormalization._assign_moving_average(variable: IVariableV1; value: TFTensor; momentum: TFTensor);
+begin
+    var vValues : TArray<TValue> := [TValue.From<IVariableV1>(variable), value, momentum];
+    TUtils.tf_with<TNameScope>( TOps.name_scope('AssignMovingAvg', '', @vValues),
+        procedure (v1: TNameScope)
+          begin
+              // var cm = ops.colocate_with(variable);
+              var scope := v1.ToString;
+              var decay        := Tops.convert_to_tensor(Single(1.0) - TTensor(momentum), Dtinvalid, 'decay');
+              var update_delta := (TTensor(variable.AsTensor) - math_ops.cast(value, variable.dtype)) * decay;
+              variable.assign_sub_lazy_load(update_delta, scope);
+          end );
+end;
+
+function BatchNormalization.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    var outputs : TFTensor := nil;
+    var training_tensor : TFTensor;
+    if training = nil then training_tensor := tf.placeholder(tf.bool_t, TFShape.Scalar)
+    else                   training_tensor := tf.logical_and(training^, Trainable);
+    if fused then
+    begin
+        // var training = tf.convert_to_tensor(training);
+        outputs := _fused_batch_norm(inputs.First, training_tensor);
+        Result := TFTensors.Create(outputs);
+        Exit;
+    end;
+
+    var inputs_dtype := Tdtypes.as_base_dtype(inputs.dtype);
+    var input_shape  := inputs.shape;
+    var ndims        := input_shape.ndim;
+
+    var reduction_axes : TArray<Integer>;
+    for var i := 0 to  ndims - 1 do
+    begin
+        if not TArray.Contains<Integer>(axis, i) then
+           reduction_axes := reduction_axes + [ i ];
+    end;
+
+    // Broadcasting only necessary for single-axis batch norm where the axis is
+    // not the last dimension
+    var broadcast_shape : TArray<Integer>;
+    for var i := 0 to  ndims - 1 do
+        broadcast_shape := broadcast_shape + [ 1 ];
+
+    broadcast_shape[ axis[0] ] := input_shape.dims[ axis[0] ];
+
+    var scale  := gamma;
+    var offset := beta;
+    var training_value := smart_module.smart_constant_value(training_tensor);
+
+    var mean     : TFTensor;
+    var variance : TFTensor;
+    if (training_value.HasValue) and (training_value.Value = false) then
+    begin
+        mean     := moving_mean.AsTensor;
+        variance := moving_variance.AsTensor;
+    end else
+    begin
+        var keep_dims := Length(axis) > 1;
+        var mean_variance := _moments(inputs, reduction_axes, keep_dims);
+        mean     := mean_variance.Value1;
+        variance := mean_variance.Value2;
+        mean := smart_module.smart_cond(training_tensor,
+             function : TArray<TFTensor> begin Result := [mean] end,
+             function : TArray<TFTensor> begin Result := [ Tops.convert_to_tensor(TValue.From<IVariableV1>(moving_mean)) ] end)[0] ;
+
+        variance := smart_module.smart_cond(training_tensor,
+             function : TArray<TFTensor> begin Result := [variance] end,
+             function : TArray<TFTensor> begin Result := [ Tops.convert_to_tensor(TValue.From<IVariableV1>(moving_variance)) ] end)[0] ;
+
+        var new_mean     := mean;
+        var new_variance := variance;
+    end;
+
+    mean              := math_ops.cast(mean, inputs.dtype);
+    variance          := math_ops.cast(variance, inputs.dtype);
+    var offset_tensor := math_ops.cast(offset, inputs.dtype);
+    var scale_tensor  := math_ops.cast(scale, inputs.dtype);
+    outputs           := nn_impl.batch_normalization(inputs.First, mean, variance, offset_tensor, scale_tensor, epsilon);
+    // If some components of the shape got lost due to adjustments, fix that.
+    outputs.shape     := input_shape;
+    Result := TFTensors.Create( outputs );
+end;
+
+function BatchNormalization.getbeta_initializer: IInitializer;
+begin
+   Result := args.BetaInitializer
+end;
+
+function BatchNormalization.getcenter: Boolean;
+begin
+    Result := args.Center
+end;
+
+function BatchNormalization.getepsilon: Single;
+begin
+    Result := args.Epsilon
+end;
+
+function BatchNormalization.getgamma_initializer: IInitializer;
+begin
+    Result := args.GammaInitializer
+end;
+
+function BatchNormalization.getgamma_regularizer: IRegularizer;
+begin
+    Result := args.GammaRegularizer
+end;
+
+function BatchNormalization.getMomentum: Single;
+begin
+    Result := args.Momentum
+end;
+
+function BatchNormalization.getmoving_mean_initializer: IInitializer;
+begin
+    Result := args.MovingMeanInitializer
+end;
+
+function BatchNormalization.getmoving_variance_initializer: IInitializer;
+begin
+    Result := args.MovingVarianceInitializer;
+end;
+
+function BatchNormalization.getrenorm: Boolean;
+begin
+    Result := args.Renorm;
+end;
+
+function BatchNormalization.getscale: Boolean;
+begin
+    Result := args.Scale
+end;
+{$ENDREGION}
+
+{$REGION 'Pooling'}
+
+{ Pooling1D }
+
+constructor Pooling1D.Create(_args: Pooling1DArgs);
+begin
+   inherited Create(_args) ;
+
+   args := _args;
+
+   args.Padding    := conv_utils.normalize_padding(args.Padding);
+   args.DataFormat := conv_utils.normalize_data_format(args.DataFormat);
+   input_spec      := TInputSpec.Create(DtInvalid, 3);
+
+end;
+
+function Pooling1D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    var pool_shape : TArray<Integer>;
+    var strides : TArray<Integer>;
+    if args.DataFormat = 'channels_last' then
+    begin
+        pool_shape := [ 1, args.PoolSize, 1 ];
+        strides    := [ 1, args.Strides,  1 ];
+    end else
+    begin
+        pool_shape := [ 1, 1, args.PoolSize ];
+        strides    := [ 1, 1, args.Strides  ];
+    end;
+
+    var outputs := args.PoolFunction.Apply( inputs.First, pool_shape, strides, args.Padding.ToUpper, conv_utils.convert_data_format(args.DataFormat, 3));
+
+    Result := TFTensors.Create( outputs );
+end;
+
+{ Pooling2D }
+
+constructor Pooling2D.Create(_args: Pooling2DArgs);
+begin
+   inherited Create(_args) ;
+
+   args := _args;
+
+   args.PoolSize   := conv_utils.normalize_tuple(args.PoolSize, 2, 'pool_size');
+   args.Strides    := conv_utils.normalize_tuple(args.Strides,  2, 'strides');
+   args.Padding    := conv_utils.normalize_padding(args.Padding);
+   args.DataFormat := conv_utils.normalize_data_format(args.DataFormat);
+   input_spec      := TInputSpec.Create(DtInvalid, 4);
+
+end;
+
+function Pooling2D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    var pool_shape : TArray<Integer>;
+    var strides : TArray<Integer>;
+    if args.DataFormat = 'channels_last' then
+    begin
+        pool_shape := [ 1, args.PoolSize.dims[0], args.PoolSize.dims[1], 1 ];
+        strides    := [ 1, args.Strides.dims[0],  args.Strides.dims[1], 1 ];
+    end else
+    begin
+        pool_shape := [ 1, 1, args.PoolSize.dims[0], args.PoolSize.dims[1] ];
+        strides    := [ 1, 1, args.Strides.dims[0],  args.Strides.dims[1]  ];
+    end;
+
+    var outputs := args.PoolFunction.Apply( inputs.First, pool_shape, strides, args.Padding.ToUpper, conv_utils.convert_data_format(args.DataFormat, 4));
+
+    Result := TFTensors.Create( outputs );
+end;
+
+{ MaxPooling1D }
+
+constructor MaxPooling1D.Create(_args: Pooling1DArgs);
+begin
+    inherited Create(_args) ;
+
+    args.PoolFunction := MaxPoolFunction.Create;
+end;
+
+{ MaxPooling2D }
+
+constructor MaxPooling2D.Create(_args: Pooling2DArgs);
+begin
+    inherited Create(_args) ;
+
+    args.PoolFunction := MaxPoolFunction.Create;
+end;
+
+{ AveragePooling2D }
+
+constructor AveragePooling2D.Create(_args: Pooling2DArgs);
+begin
+    inherited Create(_args) ;
+
+    args.PoolFunction := AveragePoolFunction.Create;
+end;
+
+{ GlobalPooling1D }
+
+constructor GlobalPooling1D.Create(_args: Pooling1DArgs);
+begin
+   inherited Create(_args) ;
+
+   args := _args;
+   args.DataFormat := conv_utils.normalize_data_format(args.DataFormat);
+   Finput_spec     := TInputSpec.Create(DtInvalid, 3);
+end;
+
+function GlobalPooling1D.getDataFormat: string;
+begin
+    Result := args.DataFormat
+end;
+
+{ GlobalPooling2D }
+
+constructor GlobalPooling2D.Create(_args: Pooling2DArgs);
+begin
+   inherited Create(_args) ;
+
+   args := _args;
+   args.DataFormat := conv_utils.normalize_data_format(args.DataFormat);
+   Finput_spec     := TInputSpec.Create(DtInvalid, 4);
+end;
+
+function GlobalPooling2D.getDataFormat: string;
+begin
+   Result := args.DataFormat
+end;
+
+{ GlobalMaxPooling1D }
+
+constructor GlobalMaxPooling1D.Create(_args: Pooling1DArgs);
+begin
+    inherited Create(_args) ;
+end;
+
+function GlobalMaxPooling1D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    if data_format = 'channels_last' then
+    begin
+        var a : TAxis := 1;
+        var Res := math_ops.reduce_max(inputs.First, @a, false);
+        Result := TFTensors.Create(Res);
+    end else
+    begin
+        var a : TAxis := 2;
+        var Res := math_ops.reduce_max(inputs.First, @a, false);
+        Result := TFTensors.Create(Res);
+    end;
+end;
+
+{ GlobalMaxPooling2D }
+
+constructor GlobalMaxPooling2D.Create(_args: Pooling2DArgs);
+begin
+     inherited Create(_args) ;
+end;
+
+function GlobalMaxPooling2D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    if data_format = 'channels_last' then
+    begin
+        var a : TAxis := [1,2];
+        var Res := math_ops.reduce_max(inputs.First, @a, false) ;
+        Result := TFTensors.Create(Res);
+    end else
+    begin
+        var a : TAxis := [2,3];
+        var Res := math_ops.reduce_max(inputs.First, @a, false);
+        Result := TFTensors.Create(Res);
+    end;
+end;
+
+{ GlobalAveragePooling1D }
+
+constructor GlobalAveragePooling1D.Create(_args: Pooling1DArgs);
+begin
+     inherited Create(_args) ;
+end;
+
+function GlobalAveragePooling1D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    if data_format = 'channels_last' then
+    begin
+        var a : TAxis := 1;
+        var Res := math_ops.reduce_mean(inputs.First, @a, false);
+        Result := TFTensors.Create(Res);
+    end else
+    begin
+        var a : TAxis := 2;
+        var Res := math_ops.reduce_mean(inputs.First, @a, false);
+        Result := TFTensors.Create(Res);
+    end;
+end;
+
+{ GlobalAveragePooling2D }
+
+constructor GlobalAveragePooling2D.Create(_args: Pooling2DArgs);
+begin
+     inherited Create(_args) ;
+end;
+
+function GlobalAveragePooling2D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    if data_format = 'channels_last' then
+    begin
+        var a : TAxis := [1,2];
+        var Res := math_ops.reduce_mean(inputs.First, @a, false) ;
+        Result := TFTensors.Create(Res);
+    end else
+    begin
+        var a : TAxis := [2,3];
+        var Res := math_ops.reduce_mean(inputs.First, @a, false);
+        Result := TFTensors.Create(Res);
+    end;
 end;
 {$ENDREGION}
 

@@ -1,4 +1,5 @@
 unit TensorFlow.NnOps;
+{$REGION 'Licence'}
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +12,8 @@ unit TensorFlow.NnOps;
    See the License for the specific language governing permissions and
    limitations under the License.
 ******************************************************************************)
+{$ENDREGION}
+
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
@@ -26,11 +29,9 @@ interface
          Tensorflow.Utils,
          TensorFlow.Context,
          Tensorflow.NameScope,
-         TensorFlow.Ops,
          TensorFlow.Variable,
          TensorFlow.Interfaces,
 
-         Keras.Layer,
          Keras.Engine,
          Keras.ArgsDefinition;
 
@@ -205,8 +206,25 @@ type
     function Flatten: TArray<TValue>;
   end;
 
+  /// <summary>
+  /// Performs the max pooling on the input.
+  /// </summary>
+  MaxPoolFunction = class(TInterfacedObject, IPoolFunction)
+
+    function Apply(value: TFTensor; ksize: TArray<Integer>; strides: TArray<Integer>; padding: string; data_format: string = 'NHWC'; name: string = ''): TFTensor;
+  end;
+
+  /// <summary>
+  /// Performs the max pooling on the input.
+  /// </summary>
+  AveragePoolFunction = class(TInterfacedObject, IPoolFunction)
+
+    function Apply(value: TFTensor; ksize: TArray<Integer>; strides: TArray<Integer>; padding: string; data_format: string = 'NHWC'; name: string = ''): TFTensor;
+  end;
+
 implementation
       uses TensorFlow.DApiBase,
+           TensorFlow.Ops,
            TensorFlow.gen_nn_ops,
            Tensorflow.array_ops;
 
@@ -471,6 +489,34 @@ end;
 function LSTMStateTuple.Flatten: TArray<TValue>;
 begin
     Result := [c,h]
+end;
+
+{ MaxPoolFunction }
+
+function MaxPoolFunction.Apply(value: TFTensor; ksize, strides: TArray<Integer>; padding, data_format, name: string): TFTensor;
+begin
+    var vValues : TValue := value;
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'MaxPool', @vValues),
+                  function(v1: TNameScope): TFTensor
+                    begin
+                        name :=  v1.ToString;
+                        value := Tops.convert_to_tensor(value, DtInvalid, 'input');
+                        Result := gen_nn_ops.max_pool(value, ksize, strides, padding, data_format, name)
+                    end );
+end;
+
+{ AveragePoolFunction }
+
+function AveragePoolFunction.Apply(value: TFTensor; ksize, strides: TArray<Integer>; padding, data_format, name: string): TFTensor;
+begin
+    var vValues : TValue := value;
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'AveragePool', @vValues),
+                  function(v1: TNameScope): TFTensor
+                    begin
+                        name :=  v1.ToString;
+                        value := Tops.convert_to_tensor(value, DtInvalid, 'input');
+                        Result := gen_nn_ops.average_pool(value, ksize, strides, padding, data_format, name)
+                    end );
 end;
 
 end.

@@ -138,7 +138,7 @@ begin
     Result := TUtils.tf_with<TNameScope,RaggedTensor>( TOps.name_scope(name, 'StringSplit'),
                           function(v1: TNameScope): RaggedTensor
                             begin
-                                var sep_tensor := Tops.convert_to_tensor(sep, TF_DataType.TF_STRING);
+                                Tops.convert_to_tensor(sep, TF_DataType.TF_STRING);
                                 if input.rank = 0 then
                                 begin
                                     var parts := string_split_v2(array_ops.stack([ input ]), sep, maxsplit, name);

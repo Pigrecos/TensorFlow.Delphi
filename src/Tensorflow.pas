@@ -1,4 +1,5 @@
 unit Tensorflow;
+{$REGION 'Licence'}
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +12,8 @@ unit Tensorflow;
    See the License for the specific language governing permissions and
    limitations under the License.
 ******************************************************************************)
+{$ENDREGION}
+
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
@@ -375,6 +378,17 @@ nn_internal = class
     function l2_loss(t: TFTensor; name: string = ''): TFTensor ;
     function softmax_cross_entropy_with_logits_v2(labels: TFTensor; logits: TFTensor; axis: Integer = -1; name : string= ''): TFTensor ;
     function leaky_relu(features: TFTensor; alpha: Single = 0.2; name: string = ''): TFTensor ;
+    function bias_add(value: TFTensor; bias: IVariableV1; data_format: string = ''; name: string = ''): TFTensor ;
+    function fused_batch_norm(x,
+                              scale,
+                              offset     : TFTensor;
+                              mean       : TFTensor = nil;
+                              variance   : TFTensor = nil;
+                              epsilon    : Single = 0.001;
+                              data_format: string = 'NHWC';
+                              is_training: Boolean= true;
+                              name       : string = '';
+                              exponential_avg_factor : Single= 1.0): TArray<TFTensor>;
 end;
 {$ENDREGION}
 
@@ -611,7 +625,9 @@ end;
       {$ENDREGION}
 
       // tf.reshape
-      function  reshape(tensor: TFTensor; shape: TFShape; name: string = ''): TFTensor;
+      function  reshape(tensor: TFTensor; shape: TFShape; name: string = ''): TFTensor; overload;
+      function  reshape(tensor: TFTensor; shape: TFTensor; name: string = ''): TFTensor; overload;
+      function  reshape(tensor: TFTensor; shape: TArray<TValue>; name: string = ''): TFTensor; overload;
 
       {$REGION 'tf.gradients'}
       //tf.gradients
@@ -1163,6 +1179,7 @@ implementation
         TensorFlow.random_ops,
         TensorFlow.gen_nn_ops,
         TensorFlow.nn_ops,
+        TensorFlow.nn_impl,
         TensorFlow.image_ops_impl,
         TensorFlow.Tensor;
 
@@ -1810,6 +1827,16 @@ begin
     Result := gen_array_ops.reshape(tensor, shape, name);
 end;
 
+function TTensorflow.reshape(tensor: TFTensor; shape: TArray<TValue>; name: string): TFTensor;
+begin
+    Result := gen_array_ops.reshape(tensor, shape, name);
+end;
+
+function TTensorflow.reshape(tensor, shape: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_array_ops.reshape(tensor, shape, name);
+end;
+
 function TTensorflow.round(x: TFTensor; name: string): TFTensor;
 begin
    Result := gen_math_ops.round(x, name);
@@ -2235,6 +2262,17 @@ end;
 {$REGION 'nn_internal'}
 { nn_internal }
 
+function nn_internal.bias_add(value: TFTensor; bias: IVariableV1; data_format, name: string): TFTensor;
+begin
+    var newVal : TValue := TValue.From< TArray<TValue> >([value, TValue.From<IVariableV1>(bias)]);
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'BiasAdd', @newVal),
+                          function(v1: TNameScope): TFTensor
+                            begin
+                                 name   := v1.ToString;
+                                 Result := gen_nn_ops.bias_add(value, bias, data_format, name);
+                            end );
+end;
+
 function nn_internal.dropout(x, keep_prob, noise_shape: TFTensor; seed: PInteger; name: string; rate: PSingle): TFTensor;
 begin
     var keep: TFTensor := nil;
@@ -2244,6 +2282,12 @@ begin
     if rate <> nil  then rate_tensor := tf.constant(rate^,'')
     else                 rate_tensor := keep;
     Result := nn_ops.dropout_v2(x, rate_tensor, noise_shape, seed,  name);
+end;
+
+function nn_internal.fused_batch_norm(x, scale, offset, mean, variance: TFTensor; epsilon: Single; data_format: string; is_training: Boolean; name: string;
+  exponential_avg_factor: Single): TArray<TFTensor>;
+begin
+   Result := nn_impl.fused_batch_norm(x, scale, offset, mean, variance, epsilon, data_format, is_training, name, exponential_avg_factor)
 end;
 
 function nn_internal.l2_loss(t: TFTensor; name: string): TFTensor;

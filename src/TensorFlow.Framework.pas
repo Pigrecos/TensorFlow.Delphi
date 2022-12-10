@@ -1,4 +1,5 @@
 unit TensorFlow.Framework;
+{$REGION 'Licence'}
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +12,8 @@ unit TensorFlow.Framework;
    See the License for the specific language governing permissions and
    limitations under the License.
 ******************************************************************************)
+{$ENDREGION}
+
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
@@ -28,6 +31,40 @@ interface
            ProtoGen.opDef;
 
 type
+  /// <summary>
+  /// Specifies a TensorFlow value type.
+  /// </summary>
+  TypeSpec = class
+
+  end;
+
+  /// <summary>
+  /// Describes a dense object with shape, dtype, and name.
+  /// </summary>
+  DenseSpec = class(TypeSpec)
+     private
+
+     protected
+        Fshape : TFShape;
+        Fdtype : TF_DataType;
+        Fname  : string;
+     public
+
+       constructor Create(_shape: TFShape; _dtype: TF_DataType = TF_FLOAT; _name: string = '');
+       function ToString: string; override;
+
+       property shape : TFShape     read Fshape;
+       property dtype : TF_DataType read Fdtype;
+       property name  : string      read Fname;
+  end;
+
+  TensorSpec  = class(DenseSpec)
+     public
+       constructor Create(shape: TFShape; dtype: TF_DataType = TF_FLOAT; name: string = '');
+       function _unbatch: TensorSpec;
+       function _batch(dim: Integer = -1):  TensorSpec;
+  end;
+
   smart_module = class
     class function smart_cond(_pred: TFTensor; true_fn : TFunc< TArray<TFTensor> > = nil; false_fn : TFunc< TArray<TFTensor> > = nil; name: string = ''): TArray<TFTensor>; overload;
     class function smart_cond(_pred: Boolean; true_fn : TFunc<TFTensor> = nil; false_fn : TFunc<TFTensor> = nil; name: string = ''): TFTensor; overload;
@@ -93,8 +130,7 @@ type
         property graph       : TFGraph     read GetGraph;
   end;
 
-
-   op_def_registry = class
+  op_def_registry = class
      private
        class var registered_ops  : TDictionary<string,TOpDef>;
      public
@@ -337,6 +373,43 @@ begin
     end;
 
     Result := Boolean(NDArray(pred_value));
+end;
+
+{ DenseSpec }
+
+constructor DenseSpec.Create(_shape: TFShape; _dtype: TF_DataType; _name: string);
+begin
+    Fshape := _shape;
+    Fdtype := _dtype;
+    Fname  := _name;
+end;
+
+function DenseSpec.ToString: string;
+begin
+   Result := Format('shape=%s, dtype=%s, name=%s',[Fshape.ToString, Tdtypes.ToString(Fdtype), Fname] )
+end;
+
+{ TensorSpec }
+
+constructor TensorSpec.Create(shape: TFShape; dtype: TF_DataType; name: string);
+begin
+    inherited Create(shape, dtype, name);
+end;
+
+function TensorSpec._batch(dim: Integer): TensorSpec;
+begin
+    var shapes := shape.dims;
+    shapes := [dim] + shapes ;
+    Result := TensorSpec.Create(shapes, Fdtype);
+end;
+
+function TensorSpec._unbatch: TensorSpec;
+begin
+    if Fshape.ndim = 0 then
+       raise Exception.Create('Unbatching a tensor is only supported for rank >= 1');
+    var a  := Fshape.dims;
+    Delete(a,0,1) ;
+    Result := TensorSpec.Create(a, Fdtype);
 end;
 
 initialization

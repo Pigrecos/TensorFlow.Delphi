@@ -1,4 +1,5 @@
 unit Keras.Utils;
+{$REGION 'Licence'}
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,9 +12,11 @@ unit Keras.Utils;
    See the License for the specific language governing permissions and
    limitations under the License.
 ******************************************************************************)
+{$ENDREGION}
 
 interface
        uses System.SysUtils,
+            System.Math,
             System.Character,
             System.Generics.Collections,
 
@@ -62,6 +65,17 @@ type
 
     public
       class function to_snake_case(name: string): string; static;
+  end;
+
+  conv_utils = record
+    private
+
+    public
+      class function convert_data_format(data_format: string; ndim: Integer): string; static;
+      class function normalize_tuple(value: TArray<Integer>; n: Integer; name: string): TArray<Integer> ; static;
+      class function normalize_padding(value: string): string; static;
+      class function normalize_data_format(value: string): string; static;
+      class function deconv_output_length(input_length: Integer; filter_size: Integer; padding: string; output_padding: Integer = -1; stride: Integer = 0; dilation: Integer = 1): Integer; static;
   end;
 
 implementation
@@ -196,7 +210,7 @@ end;
 class function base_layer_utils.get_default_graph_uid_map: TDictionary<string, Integer>;
 begin
     var graph := Tops.get_default_graph;
-    var name_uid_map : TDictionary<string, Integer> := nil;
+    var name_uid_map : TDictionary<string, Integer> ;
     if tf.keras.backend.PER_GRAPH_LAYER_NAME_UIDS.ContainsKey(graph) then
     begin
         name_uid_map := tf.keras.backend.PER_GRAPH_LAYER_NAME_UIDS[graph];
@@ -234,6 +248,73 @@ begin
        if (name[i].IsUpper) and ( not name[i - 1].IsDigit ) then Result := Result + '_'+ name[i]
        else                                                      Result := Result + name[i]
     end;
+end;
+
+{ conv_utils }
+
+class function conv_utils.convert_data_format(data_format: string; ndim: Integer): string;
+begin
+    if data_format = 'channels_last' then
+    begin
+        if      ndim = 3 then Exit('NWC')
+        else if ndim = 4 then Exit('NHWC')
+        else if ndim = 5 then Exit('NDHWC')
+        else
+            raise Exception.Create('Input rank not supported: '+ ndim.ToString );
+    end
+    else if data_format = 'channels_first' then
+    begin
+        if      ndim = 3 then Exit('NCW')
+        else if ndim = 4 then Exit('NCHW')
+        else if ndim = 5 then Exit('NCDHW')
+        else
+            raise Exception.Create('Input rank not supported: ' +ndim.ToString );
+    end
+    else
+       raise Exception.Create('Invalid data_format: '+ data_format);
+end;
+
+class function conv_utils.normalize_tuple(value: TArray<Integer>; n: Integer; name: string): TArray<Integer>;
+begin
+    if Length(value) = 1 then
+    begin
+         for var i := 0 to n-1 do
+           Result := Result + [  value[0] ];
+    end else
+    begin
+        Result := value;
+    end;
+end;
+
+class function conv_utils.deconv_output_length(input_length, filter_size: Integer; padding: string; output_padding, stride, dilation: Integer): Integer;
+begin
+    // Get the dilated kernel size
+    filter_size := filter_size + (filter_size - 1) * (dilation - 1);
+
+    // Infer length if output padding is None, else compute the exact length
+    var _length : Integer := -1;
+    if output_padding = -1 then
+    begin
+        if      padding = 'valid' then  _length := input_length * stride + max(filter_size - stride, 0)
+        else if padding = 'full'  then  _length := input_length * stride - (stride + filter_size - 2)
+        else if padding = 'same'  then  _length := input_length * stride;
+    end else
+    begin
+        raise Exception.Create('Not Implemented');
+    end;
+    Result := _length;
+end;
+
+class function conv_utils.normalize_data_format(value: string): string;
+begin                 
+    if string.IsNullOrEmpty(value) then
+        Exit ( 'channels_last' );
+    Result := value.ToLower;
+end;
+
+class function conv_utils.normalize_padding(value: string): string;
+begin
+    Result := value.ToLower;
 end;
 
 end.
