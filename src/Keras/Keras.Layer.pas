@@ -16,14 +16,21 @@ unit Keras.Layer;
 
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
+{$WARN SYMBOL_DEPRECATED OFF}
 
 interface
        uses System.SysUtils,
+            System.JSON,
             System.Generics.Collections,
             System.RegularExpressions,
 
             Spring,
+            Spring.Collections,
             Spring.Collections.Enumerable,
+
+            Neon.Core.Persistence,
+            Neon.Core.Persistence.JSON,
+            Neon.Core.Utils,
 
             TF4D.Core.CApi,
             TensorFlow.DApi,
@@ -40,6 +47,7 @@ interface
             Keras.Activations,
             Keras.ArgsDefinition,
             Keras.Engine,
+            Keras.Data,
 
             ProtoGen.nodeDef,
             ProtoGen.variable;
@@ -870,12 +878,62 @@ type
 
       constructor Create(_args: RNNArgs) ;
   end;
+
+  /// <summary>
+  /// Long Short-Term Memory layer - Hochreiter 1997.
+  ///
+  /// See [the Keras RNN API guide](https://www.tensorflow.org/guide/keras/rnn)
+  /// for details about the usage of RNN API.
+  /// </summary>
+  LSTM = class(RNN)
+  private
+      function getUnits: Integer;
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+    public
+      args      : LSTMArgs;
+      state_spec: TArray<TInputSpec> ;
+
+      constructor Create(_args: LSTMArgs) ;
+
+      property units     : Integer read getUnits;
+  end;
+
+  SimpleRNNCell = class(Layer)
+    protected
+      procedure Build(input_shape: TFShape); override;
+    public
+
+      constructor Create(_args: SimpleRNNArgs) ;
+  end;
+
+  SimpleRNN = class(RNN)
+    protected
+      procedure Build(input_shape: TFShape); override;
+    public
+      args : SimpleRNNArgs;
+      cell : SimpleRNNCell;
+
+      constructor Create(_args: SimpleRNNArgs) ;
+  end;
+
+  StackedRNNCells = class(Layer, RNNArgs.IRnnArgCell)
+    public
+      Cells              : IList<RnnCell> ;
+      reverse_state_order: Boolean;
+
+      {$REGION 'Property Accessors'}
+      function GetState_size : TValue;
+      {$ENDREGION}
+
+      constructor Create(_args: StackedRNNCellsArgs) ;
+  end;
   {$ENDREGION}
 
   {$REGION 'Merging'}
   Merge = class(Layer)
-    private
-
     protected
       procedure Build(input_shape: TFShape); override;
       function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
@@ -1109,6 +1167,185 @@ type
   end;
   {$ENDREGION}
 
+  {$REGION 'PreProcessing'}
+  PreprocessingLayer = class(Layer)
+    public
+      constructor Create(_args: PreprocessingLayerArgs) ;
+  end;
+
+  /// <summary>
+  /// Resize the batched image input to target height and width.
+  /// The input should be a 4-D tensor in the format of NHWC.
+  /// </summary>
+  Resizing = class(PreprocessingLayer)
+    protected
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+    public
+      args : ResizingArgs;
+
+      function from_config(config: TJSONValue): Resizing;
+      constructor Create(_args: ResizingArgs) ;
+  end;
+
+  CombinerPreprocessingLayer = class(Layer)
+    protected
+       Fcombiner           : ICombiner;
+       Fpreviously_updated : Boolean;
+    public
+       args : PreprocessingLayerArgs;
+
+       procedure adapt(data: IDatasetV2; reset_state: Boolean = true); virtual;
+       constructor Create(_args: PreprocessingLayerArgs) ;
+  end;
+
+  IndexLookupAccumulator = class(TInterfacedObject,IAccumulator)
+    protected
+
+    public
+       CountDict : TDictionary<string,Integer>;
+       constructor Create ;
+  end;
+
+  /// <summary>
+  /// Combiner for the IndexLookup preprocessing layer.
+  /// </summary>
+  IndexLookupCombiner = class(TInterfacedObject,ICombiner)
+    protected
+       Fvocab_size : Integer;
+       Fmask_value : string;
+    public
+       procedure Compute(values: TFTensor; accumulator : IAccumulator= nil);
+       procedure Merge;
+       procedure Extract;
+       function  Restore: IAccumulator;
+       procedure Serialize;
+       procedure Deserialize;
+
+       constructor Create(vocab_size : Integer= -1; mask_value: string = '') ;
+  end;
+
+  IndexLookup = class(CombinerPreprocessingLayer)
+    protected
+
+    public
+       procedure adapt(data: IDatasetV2; reset_state: Boolean = true); override;
+
+       constructor Create(max_tokens: Integer = -1; num_oov_indices : Integer= 1; mask_token : string=''; oov_token: string = '[UNK]'; encoding: string = 'utf-8'; invert : Boolean = false) ;
+  end;
+
+  /// <summary>
+  /// Maps strings from a vocabulary to integer indices.
+  /// </summary>
+  StringLookup = class(IndexLookup)
+    protected
+
+    public
+
+       constructor Create(max_tokens: Integer = -1; num_oov_indices : Integer= 1; mask_token : string=''; vocabulary: TArray<string> = []; oov_token: string = '[UNK]'; encoding: string = 'utf-8'; invert : Boolean = false);
+  end;
+
+  TextVectorization = class(CombinerPreprocessingLayer)
+    protected
+       Findex_lookup_layer : IndexLookup;
+
+       procedure Build(input_shape: TFShape); override;
+    public
+       args : TextVectorizationArgs;
+
+       constructor Create(_args: TextVectorizationArgs) ;
+       function _preprocess(inputs: TFTensors): TFTensors;
+       procedure adapt(data: IDatasetV2; reset_state: Boolean = true); override;
+
+  end;
+  {$ENDREGION}
+
+  {$REGION 'Rescaling'}
+  /// <summary>
+  /// Multiply inputs by `scale` and adds `offset`.
+  /// </summary>
+  Rescaling = class(Layer)
+    protected
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
+    public
+      args  :  RescalingArgs;
+      scale : TFTensor;
+      offset: TFTensor;
+
+      constructor Create(_args: RescalingArgs) ;
+  end;
+  {$ENDREGION}
+
+  {$REGION 'Reshaping'}
+  /// <summary>
+  /// Zero-padding layer for 2D input (e.g. picture).
+  ///
+  /// This layer can add rows and columns of zeros
+  /// at the top, bottom, left and right side of an image tensor.
+  /// </summary>
+  ZeroPadding2D = class(Layer)
+    protected
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
+    public
+      data_format : string;
+      padding     : TNDArray;
+      input_spec  : TInputSpec;
+
+      constructor Create(_args: ZeroPadding2DArgs) ;
+  end;
+
+  Flatten = class(Layer)
+    protected
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
+    public
+      args            : FlattenArgs;
+      input_spec      : TInputSpec;
+      _channels_first : Boolean;
+
+      constructor Create(_args: FlattenArgs) ;
+  end;
+
+  Permute = class(Layer)
+    protected
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
+      procedure Build(input_shape: TFShape); override;
+    public
+      dims, permute : TArray<Integer>;
+
+      constructor Create(_args: PermuteArgs) ;
+  end;
+
+  /// <summary>
+  /// Layer that reshapes inputs into the given shape.
+  /// </summary>
+  Reshape = class(Layer)
+    protected
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
+    public
+      args : ReshapeArgs;
+
+      constructor Create(_args: ReshapeArgs) ;
+  end;
+
+  /// <summary>
+  /// Layer that reshapes inputs into the given shape.
+  /// </summary>
+  UpSampling2D = class(Layer)
+    protected
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
+    public
+      args          : UpSampling2DArgs;
+      size          : TArray<Integer>;
+      data_format   : string;
+      interpolation : string ;
+
+      constructor Create(_args: UpSampling2DArgs) ;
+  end;
+  {$ENDREGION}
+
   TensorFlowOpLayer = class(Layer)
     public
       args     : TensorFlowOpLayerArgs;
@@ -1128,6 +1365,7 @@ implementation
              Tensorflow,
              TensorFlow.Tensor,
              TensorFlow.Ops,
+             TensorFlow.Constant_op,
              Tensorflow.Utils,
              Tensorflow.NameScope,
              TensorFlow.EagerTensor,
@@ -1137,6 +1375,8 @@ implementation
              Tensorflow.array_ops,
              TensorFlow.gen_math_ops,
              TensorFlow.embedding_ops,
+             TensorFlow.image_ops_impl,
+             TensorFlow.Tensors.Ragged,
              TensorFlow.Slice,
              NumPy.NDArray,
 
@@ -1537,21 +1777,6 @@ begin
     Result := Ftrainable_state;
 end;
 
-{$IFNDEF AUTOREFCOUNT}
-function Layer.GetRefCount: Integer;
-begin
-  Result := FRefCount and not objDestroyingFlag;
-end;
-
-class procedure Layer.__MarkDestroying(const Obj);
-var
-  LRef: Integer;
-begin
-  repeat
-    LRef := Layer(Obj).FRefCount;
-  until AtomicCmpExchange(Layer(Obj).FRefCount, LRef or objDestroyingFlag, LRef) = LRef;
-end;
-
 function Layer.add_weight(name: string; shape: TFShape; dtype: TF_DataType; initializer: IInitializer; regularizer: IRegularizer; synchronization: TVariableSynchronization;
   aggregation: TVariableAggregation; trainable: Boolean; getter: TFunc<VariableArgs, IVariableV1>): IVariableV1;
 begin
@@ -1595,6 +1820,21 @@ begin
     else                     Fnon_trainable_weights.Add(variable);
 
     Result := variable;
+end;
+
+{$IFNDEF AUTOREFCOUNT}
+function Layer.GetRefCount: Integer;
+begin
+  Result := FRefCount and not objDestroyingFlag;
+end;
+
+class procedure Layer.__MarkDestroying(const Obj);
+var
+  LRef: Integer;
+begin
+  repeat
+    LRef := Layer(Obj).FRefCount;
+  until AtomicCmpExchange(Layer(Obj).FRefCount, LRef or objDestroyingFlag, LRef) = LRef;
 end;
 
 procedure Layer.AfterConstruction;
@@ -3612,6 +3852,98 @@ function RNN.PreConstruct(_args: RNNArgs): RNNArgs;
 begin
 
 end;
+
+{ LSTM }
+
+constructor LSTM.Create(_args: LSTMArgs);
+begin
+   inherited Create(_args) ;
+
+   args := _args;
+
+   var a : TArray<Integer>:= [units, units];
+   for var i := 0 to Length(a)- 1  do
+   begin
+     var sShape : TFShape := TFShape.Create([-1, a[i]]);
+     state_spec := state_spec + [ TInputSpec.Create(DtInvalid, null, null,nil, @sShape) ];
+   end;
+
+end;
+
+procedure LSTM.Build(input_shape: TFShape);
+begin
+
+end;
+
+function LSTM.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    Result := inherited Call(inputs, state, training);
+end;
+
+function LSTM.ComputeOutputShape(input_shape: TFShape): TFShape;
+begin
+
+end;
+
+function LSTM.getUnits: Integer;
+begin
+   Result := args.Units;
+end;
+
+{ SimpleRNNCell }
+
+constructor SimpleRNNCell.Create(_args: SimpleRNNArgs);
+begin
+    inherited Create(_args) ;
+end;
+
+procedure SimpleRNNCell.Build(input_shape: TFShape);
+begin
+  inherited;
+
+end;
+
+{ SimpleRNN }
+
+constructor SimpleRNN.Create(_args: SimpleRNNArgs);
+begin
+    inherited Create(_args) ;
+
+    args := _args;
+end;
+
+procedure SimpleRNN.Build(input_shape: TFShape);
+begin
+  var input_dim := input_shape[-1];
+  (*function add_weight( name            : string;
+                            shape           : TFShape;
+                            dtype           : TF_DataType = TF_DataType.TF_FLOAT;
+                            initializer     : IInitializer = nil;
+                            regularizer     : IRegularizer = nil;
+                            synchronization : TVariableSynchronization= VARIABLE_SYNCHRONIZATION_AUTO;
+                            aggregation     : TVariableAggregation    = VARIABLE_AGGREGATION_NONE;
+                            trainable       : Boolean= true;
+                            getter          : TFunc<VariableArgs, IVariableV1>= nil): IVariableV1; virtual;*)
+  kernel := add_weight('kernel', TFShape.Create([input_shape[-1], args.Units]), TF_FLOAT, args.KernelInitializer
+                                                                                                  //regularizer = self.kernel_regularizer,
+                                                                                                  //constraint = self.kernel_constraint,
+                                                                                                  //caching_device = default_caching_device,
+                                                                                              )
+
+end;
+
+{ StackedRNNCells }
+
+constructor StackedRNNCells.Create(_args: StackedRNNCellsArgs);
+begin
+    inherited Create(_args) ;
+end;
+
+function StackedRNNCells.GetState_size: TValue;
+begin
+
+end;
+
 {$ENDREGION}
 
 {$REGION 'Merging'}
@@ -4375,6 +4707,438 @@ begin
         Result := TFTensors.Create(Res);
     end;
 end;
+{$ENDREGION}
+
+{$REGION 'PreProcessing'}
+
+{ PreprocessingLayer }
+
+constructor PreprocessingLayer.Create(_args: PreprocessingLayerArgs);
+begin
+   inherited Create(_args) ;
+end;
+
+{ Resizing }
+
+constructor Resizing.Create(_args: ResizingArgs);
+begin
+    inherited Create(_args) ;
+
+    args := _args;
+end;
+
+
+function Resizing.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+   var a : TArray<Integer> := [ args.Height, args.Width ];
+   var Res := image_ops_impl.resize_images_v2(inputs.First, a, args.Interpolation);
+   Result  := TFTensors.Create(Res);
+end;
+
+function Resizing.ComputeOutputShape(input_shape: TFShape): TFShape;
+begin
+     Result := TFShape.Create([input_shape.dims[0], args.Height, args.Width, input_shape.dims[3]]);
+end;
+
+function Resizing.from_config(config: TJSONValue): Resizing;
+var
+  LJSON: TJSONValue;
+  LReader: TNeonDeserializerJSON;
+  rREs   : Resizing;
+begin
+    rREs := nil;
+
+    LJSON := TJSONObject.ParseJSONValue(config.ToString);
+    if not Assigned(LJSON) then
+      raise Exception.Create('Error parsing JSON string');
+
+    var AConfig := TNeonConfiguration.Default;
+    try
+      LReader := TNeonDeserializerJSON.Create(AConfig);
+      try
+        LReader.JSONToObject(rREs, LJSON);
+        //LogError(LReader.Errors);
+      finally
+        LReader.Free;
+      end;
+    finally
+      LJSON.Free;
+    end;
+    Result := rREs;
+end;
+
+{ CombinerPreprocessingLayer }
+
+constructor CombinerPreprocessingLayer.Create(_args: PreprocessingLayerArgs);
+begin
+    inherited Create(_args) ;
+
+    args                := _args;
+    Fpreviously_updated := false;
+end;
+
+procedure CombinerPreprocessingLayer.adapt(data: IDatasetV2; reset_state: Boolean);
+begin
+    var accumulator : IAccumulator;
+    if not reset_state then
+        accumulator := Fcombiner.Restore;
+
+    var next_data    := data.make_one_shot_iterator;
+    var data_element := next_data.next;
+end;
+
+{ IndexLookupAccumulator }
+
+constructor IndexLookupAccumulator.Create;
+begin
+    CountDict := TDictionary<string,Integer>.Create;
+end;
+
+{ IndexLookupCombiner }
+
+constructor IndexLookupCombiner.Create(vocab_size: Integer; mask_value: string);
+begin
+    Fvocab_size := vocab_size;
+    Fmask_value := mask_value;
+end;
+
+
+procedure IndexLookupCombiner.Compute(values: TFTensor; accumulator: IAccumulator);
+begin
+    if accumulator = nil  then
+      accumulator := IndexLookupAccumulator.Create;
+end;
+
+procedure IndexLookupCombiner.Deserialize;
+begin
+
+end;
+
+procedure IndexLookupCombiner.Extract;
+begin
+
+end;
+
+procedure IndexLookupCombiner.Merge;
+begin
+
+end;
+
+function IndexLookupCombiner.Restore: IAccumulator;
+begin
+
+end;
+
+procedure IndexLookupCombiner.Serialize;
+begin
+
+end;
+
+{ IndexLookup }
+
+constructor IndexLookup.Create(max_tokens, num_oov_indices: Integer; mask_token, oov_token, encoding: string; invert: Boolean);
+var
+  num_mask_tokens, vocab_size : Integer;
+
+begin
+    if mask_token = '' then num_mask_tokens := 0
+    else                    num_mask_tokens := 1;
+    vocab_size := max_tokens - (num_oov_indices + num_mask_tokens);
+    Fcombiner := IndexLookupCombiner.Create(vocab_size, mask_token)
+end;
+
+procedure IndexLookup.adapt(data: IDatasetV2; reset_state: Boolean);
+begin
+  if not reset_state then
+      raise Exception.Create('IndexLookup does not support streaming adapts.');
+
+  inherited adapt(data,reset_state);
+end;
+
+{ StringLookup }
+
+constructor StringLookup.Create(max_tokens, num_oov_indices: Integer; mask_token: string; vocabulary: TArray<string>; oov_token, encoding: string; invert: Boolean);
+begin
+
+end;
+
+{ TextVectorization }
+
+constructor TextVectorization.Create(_args: TextVectorizationArgs);
+begin
+    inherited Create(_args) ;
+
+    args       := _args;
+    args.DType := TF_DataType.TF_STRING;
+    // string standardize = "lower_and_strip_punctuation",
+
+    var mask_token := '';
+    Findex_lookup_layer := StringLookup.Create(args.MaxTokens, 1, mask_token,  args.Vocabulary);
+end;
+
+procedure TextVectorization.Build(input_shape: TFShape);
+begin
+  inherited Build(input_shape);
+
+end;
+
+procedure TextVectorization.adapt(data: IDatasetV2; reset_state: Boolean);
+begin
+  var shape := data.output_shapes[0];
+  if shape.ndim = 1 then
+      data := data.map( function(tensor: TFTensors): TFTensors
+                         begin
+                             var Res := array_ops.expand_dims(tensor.first, -1);
+                             Result := TFTensors.Create(Res);
+                         end);
+  build(data.variant_tensor.shape);
+  var preprocessed_inputs := data.map(_preprocess);
+  Findex_lookup_layer.adapt(preprocessed_inputs);
+
+end;
+
+function TextVectorization._preprocess(inputs: TFTensors): TFTensors;
+var
+  input_tensor : TFTensor;
+begin
+    input_tensor := nil;
+    if Assigned(args.Standardize) then
+        input_tensor := args.Standardize(inputs.First);
+    if not string.IsNullOrEmpty(args.Split) then
+    begin
+        if inputs.shape.ndim > 1 then
+            input_tensor := array_ops.squeeze(inputs.First, [ -1 ]);
+        if args.Split = 'whitespace' then
+            input_tensor := tf.strings.split(input_tensor).ToTensor;
+    end;
+    Result := TFTensors.Create( input_tensor );
+end;
+
+{ Rescaling }
+
+constructor Rescaling.Create(_args: RescalingArgs);
+begin
+    inherited Create(_args) ;
+
+    args := _args;
+end;
+
+function Rescaling.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    scale   := constant_op.constant(args.Scale, args.DType,'Const');
+    offset  := constant_op.constant(args.Offset, args.DType,'Const');
+    var Res := TTensor(math_ops.cast(inputs.First, args.DType)) * scale + offset;
+    Result := TFTensors.Create(Res) ;
+end;
+
+function Rescaling.ComputeOutputShape(input_shape: TFShape): TFShape;
+begin
+   Result := input_shape;
+end;
+
+{$ENDREGION}
+
+{$REGION 'Reshaping'}
+{ ZeroPadding2D }
+
+constructor ZeroPadding2D.Create(_args: ZeroPadding2DArgs);
+begin
+    inherited Create(_args) ;
+
+    data_format  := conv_utils.normalize_data_format(data_format);
+    padding      := _args.Padding;
+    input_spec   := TInputSpec.Create(DtInvalid, 4);
+end;
+
+function ZeroPadding2D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    var Res := tf.keras.backend.spatial_2d_padding(inputs.First, padding, data_format);
+    Result := TFTensors.Create(Res) ;
+end;
+
+{ Flatten }
+
+constructor Flatten.Create(_args: FlattenArgs);
+begin
+    inherited Create(_args) ;
+
+    args             := _args;
+    args.DataFormat  := conv_utils.normalize_data_format(args.DataFormat);
+    input_spec   := TInputSpec.Create(DtInvalid, 4);
+    _channels_first := False;
+    if args.DataFormat = 'channels_first' then
+       _channels_first := True;
+end;
+
+function Flatten.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    if _channels_first then
+      raise Exception.Create('Not Implemented');
+
+    if tf.executing_eagerly then
+    begin
+        var Res := array_ops.reshape(inputs.First, [ inputs.shape[0], -1 ]);
+        Result := TFTensors.Create(Res);
+        Exit;
+    end else
+    begin
+        var input_shape := inputs.shape;
+        var rank        := inputs.shape.ndim;
+        if rank = 1 then
+        begin
+            var Res := array_ops.expand_dims(inputs.First, 1);
+            Result := TFTensors.Create(Res);
+            Exit;
+        end;
+        var batch_dim := tensor_shape.dimension_value(input_shape[0]);
+        if batch_dim <> -1 then
+        begin
+            var Res := array_ops.reshape(inputs.First, [batch_dim, -1 ]);
+            Result := TFTensors.Create(Res);
+            Exit;
+        end;
+
+        var non_batch_dims : TArray<Integer>;
+        var aShapeDims : TArray<Integer> := input_shape;
+        for var i := 1 to Length(aShapeDims)- 1 do
+             non_batch_dims := non_batch_dims + [ aShapeDims[i] ];
+
+        var num := 1;
+        if Length(non_batch_dims) > 0 then
+        begin
+            for var i := 0 to Length(non_batch_dims) - 1 do
+                num := num * non_batch_dims[i];
+        end;
+        var Res := array_ops.reshape(inputs.First, [ inputs.shape[0], num ]);
+        Result := TFTensors.Create(Res);
+    end;
+end;
+
+{ Permute }
+
+constructor Permute.Create(_args: PermuteArgs);
+begin
+    inherited Create(_args) ;
+
+    dims := _args.dims;
+end;
+
+procedure Permute.Build(input_shape: TFShape);
+begin
+    var rank := input_shape.rank;
+    if length(dims) <> (rank - 1) then
+       raise Exception.Create('Dimensions must match.');
+
+    SetLength(permute, input_shape.rank);
+    for var i := 1 to Length(dims) - 1 do
+       permute[i] := dims[i] ;
+
+    Fbuilt := true;
+end;
+
+function Permute.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+var
+  outputs : TFTensor;
+begin
+    outputs := inputs.First;
+    var aAxis : TAxis := permute;
+    var Res := tf.transpose(outputs, aAxis);
+    Result := TFTensors.Create(Res);
+end;
+
+function Permute.ComputeOutputShape(input_shape: TFShape): TFShape;
+var
+  output_shape : TFShape;
+begin
+    output_shape := TFShape(input_shape.dims);
+    for var i := 0 to Length(dims) -1 do
+    begin
+        var d := dims[i];
+        var target_dim := input_shape[d];
+        output_shape[i + 1] := target_dim;
+    end;
+    Result := output_shape;
+end;
+
+{ Reshape }
+
+constructor Reshape.Create(_args: ReshapeArgs);
+begin
+    inherited Create(_args) ;
+
+    args := _args;
+end;
+
+function Reshape.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    var shapes := TList<TFTensor>.Create;
+    shapes.Add( array_ops.shape(inputs.First)[0] );
+    var dtype := shapes[0].dtype;
+
+    if args.TargetShapeObjects <> nil then
+        // shapes.AddRange(args.TargetShapeObjects);
+        raise Exception.Create('Not Implemented');
+
+    if not args.TargetShape.isnull then
+    begin
+        for var i := 0 to Length(args.TargetShape.dims) - 1 do
+        begin
+            var t : TFTensor := constant_op.constant(args.TargetShape.dims[i], dtype,'Const') ;
+            shapes.Add(t);
+        end;
+    end;
+
+    var shape := Tops.convert_to_tensor(shapes);
+
+    var res := array_ops.reshape(inputs.First, shape);
+
+    if not tf.Context.executing_eagerly then
+        res.shape := ComputeOutputShape(inputs.shape);
+
+    Result := TFTensors.Create(res);
+end;
+
+function Reshape.ComputeOutputShape(input_shape: TFShape): TFShape;
+begin
+    var bFound : Boolean := False;
+    for var i := 1 to Length(input_shape.dims) - 1 do
+    begin
+       if input_shape.dims[i] = - 1 then
+       begin
+           bFound := True;
+           Break;
+       end;
+    end;
+
+    if bFound then
+    begin
+        raise Exception.Create('Not Implemented');
+    end else
+    begin
+        input_shape      := TFShape(input_shape.dims[0]);
+        var output_shape := input_shape.concatenate(args.TargetShape.dims);
+        Result := output_shape;
+    end;
+end;
+
+{ UpSampling2D }
+
+constructor UpSampling2D.Create(_args: UpSampling2DArgs);
+begin
+    inherited Create(_args) ;
+
+    args             := _args;
+    args.DataFormat  := conv_utils.normalize_data_format(args.DataFormat);
+    size             := conv_utils.normalize_tuple(args.Size, 2, 'size');
+    FinputSpec       := TInputSpec.Create(DtInvalid, 4);
+end;
+
+function UpSampling2D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+   var Res := tf.keras.backend.resize_images(inputs.First, size[0], size[1], data_format, interpolation);
+   Result := TFTensors.Create(res);
+end;
+
 {$ENDREGION}
 
 end.

@@ -24,7 +24,12 @@ interface
           Keras.Activations,
           Keras.Optimizer,
           Keras.Regularizers,
-          Keras.Backend;
+          Keras.Backend,
+          Keras.Preprocessing,
+          Keras.MetricsApi,
+          Keras.LayersApi,
+          Keras.LossFunc,
+          Keras.Utils;
 
 
 type
@@ -64,14 +69,14 @@ type
       Inizializers : TInitializers;
       Regularizers : TRegularizers;
       layers       : ILayersApi;
-      //public LossesApi losses { get; } = new LossesApi();
-      //public Activations activations { get; } = new Activations();
-      //public Preprocessing preprocessing { get; } = new Preprocessing();
+      losses       : LossesApi;
+      activations  : TActivations;
+      preprocessing: TPreprocessing;
       backend      : BackendImpl;
       optimizers   : OptimizerApi;
-      //public MetricsApi metrics { get; } = new MetricsApi();
+      metrics      : MetricsApi;
       //public ModelsApi models { get; } = new ModelsApi();
-      //public KerasUtils utils { get; } = new KerasUtils();
+      utils        : KerasUtils;
       constructor Create;
   end;
 
@@ -84,6 +89,12 @@ begin
     Inizializers := TInitializers.Create;
     Regularizers := TRegularizers.Create;
     optimizers   := OptimizerApi.Create;
+    metrics      := MetricsApi.Create;
+    utils        := KerasUtils.Create;
+    layers       := LayersApi.Create;
+    losses       := LossesApi.Create;
+    activations  := TActivations.Create;
+    preprocessing:= TPreprocessing.Create;
 
     backend      := BackendImpl.Create;
     optimizers   := OptimizerApi.Create;

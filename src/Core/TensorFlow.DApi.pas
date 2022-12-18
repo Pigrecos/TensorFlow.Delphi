@@ -1151,6 +1151,31 @@ TFOperation = class(ITensorOrOperation)
    /// <param name="index">the index of the input to update.</param>
    /// <param name="tensor"> the Tensor to be used as the input at the given index.</param>
    procedure _update_input(index: Integer; tensor: TFTensor);
+   /// <summary>
+   /// Transforms `elems` by applying `fn` to each element unstacked on axis 0.
+   /// </summary>
+   /// <param name="fn"></param>
+   /// <param name="elems">A tensor or (possibly nested) sequence of tensors, each of which will
+   ///                     be unstacked along their first dimension.  `fn` will be applied to the
+   ///                     nested sequence of the resulting slices.  `elems` may include ragged and
+   ///                     sparse tensors. `elems` must consist of at least one tensor.</param>
+   /// <param name="dtype">Deprecated: Equivalent to `fn_output_signature`.</param>
+   /// <param name="parallel_iterations">(optional) The number of iterations allowed to run in
+   ///                                   parallel. When graph building, the default value is 10. While executing
+   ///                                   eagerly, the default value is set to 1.</param>
+   /// <param name="back_prop">(optional) False disables support for back propagation.</param>
+   /// <param name="swap_memory">(optional) True enables GPU-CPU memory swapping.</param>
+   /// <param name="infer_shape">(optional) False disables tests for consistent output shapes.</param>
+   /// <param name="name">(optional) Name prefix for the returned tensors.</param>
+   /// <returns>A tensor or (possibly nested) sequence of tensors.</returns>
+   class function map_fn(fn                 : TFunc<TFTensor, TFTensor> ;
+                        elems               : TFTensor;
+                        dtype               : TF_DataType = DtInvalid;
+                        parallel_iterations : Integer= 10;
+                        back_prop           : Boolean = true;
+                        swap_memory         : Boolean = false;
+                        infer_shape         : Boolean = true;
+                        name                : string = ''): TFTensor;
    //
    property Graph     : TFGraph    read FGraph;
    property NumOutputs: Integer    read GeNumOutputs;
@@ -1384,7 +1409,9 @@ implementation
         TensorFlow.gen_math_ops,
         Tensorflow.array_ops,
         Tensorflow.gen_array_ops,
-        TensorFlow.Tensors.Ragged;
+        TensorFlow.control_flow_ops,
+        TensorFlow.Tensors.Ragged,
+        TensorFlow.Tensor;
 
 
 {$REGION 'FeedItem'}
@@ -4190,6 +4217,168 @@ end;
 function TFOperation.InputType(index: Integer): TF_DataType;
 begin
     Result := TF_OperationInputType( TF_Input.Create(Handle, index) );
+end;
+
+class function TFOperation.map_fn(fn: TFunc<TFTensor, TFTensor>; elems: TFTensor; dtype: TF_DataType; parallel_iterations: Integer; back_prop, swap_memory, infer_shape: Boolean;
+  name: string): TFTensor;
+var
+  input_is_sequence           : Boolean;
+  output_is_sequence          : Boolean;
+  output_flatten,input_flatten: TFunc<TValue, TArray<TFTensor>>;
+  output_pack,input_pack      : TFunc<TArray<TFTensor>, TFTensor> ;
+  elems_flat                  : TArray<TFTensor>;
+  dtype_flat                  : TArray<TF_DataType>;
+  static_shape                : TFShape;
+  elems_ta                    : TArray<TTensorArray>;
+  accs_ta                     : TArray<TTensorArray>;
+  cond                        : TFunc<BodyItem, TFTensor> ;
+  compute                     : TFunc<BodyItem, BodyItem>;
+  r_a                         : BodyItem;
+  results_flat                : TArray<TFTensor>;
+  n_static                    : Dimension;
+begin
+    input_is_sequence := nest.is_sequence(elems);
+    input_flatten := function (x: TValue): TArray<TFTensor>
+                           begin
+                               var x_a : TArray<TFTensor> := x.AsType<TArray<TFTensor>> ;
+                               if input_is_sequence then Result := nest.flatten<TFTensor>(x_a).ToArray
+                               else                      Result := [ x ];
+                           end;
+    input_pack := function (x: TArray<TFTensor>): TFTensor
+                           begin
+                               var lst := TList<TFTensor>.Create(x);
+                               if input_is_sequence then Result := nest.pack_sequence_as(elems, lst) as TFTensor
+                               else                      Result := x[0] ;
+                           end;
+
+    if dtype = TF_DataType.DtInvalid then
+    begin
+        output_is_sequence := input_is_sequence;
+        output_flatten     := input_flatten;
+        output_pack        := input_pack;
+    end else
+    begin
+        output_is_sequence := nest.is_sequence(dtype);
+
+        output_flatten := function (x: TValue): TArray<TFTensor>
+                           begin
+                               var x_a : TArray<TFTensor> := x.AsType<TArray<TFTensor>> ;
+                               if output_is_sequence then Result := nest.flatten<TFTensor>(x_a).ToArray
+                               else                       Result := [ x ];
+                           end;
+        output_pack := function (x: TArray<TFTensor>): TFTensor
+                           begin
+                               var lst := TList<TFTensor>.Create(x);
+                               if output_is_sequence then Result := nest.pack_sequence_as(elems, lst) as TFTensor
+                               else                       Result := x[0] ;
+                           end;
+    end;
+
+    elems_flat := input_flatten(elems);
+    var vvalue := TValue.From<TArray<TFTensor>>(elems_flat);
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'map', @vvalue),
+        function(v1: TNameScope): TFTensor
+          begin
+              name := string(v1.ToString);
+              //if in_graph_mode:
+              //# Any get_variable calls in fn will cache the first call locally
+              //# and not issue repeated network I/O requests for each iteration.
+              //varscope = vs.get_variable_scope()
+              //varscope_caching_device_was_none = False
+              //if varscope.caching_device is None:
+              //  # TODO(ebrevdo): Change to using colocate_with here and in other
+              //  # methods.
+              //  varscope.set_caching_device(lambda op: op.device)
+              //  varscope_caching_device_was_none = True
+
+              for var i := 0 to Length(elems_flat)-1 do
+                elems_flat[i] := Tops.convert_to_tensor(elems_flat[i], DtInvalid, 'elem');
+
+              dtype      := elems_flat[0].Dtype;
+              dtype_flat := [ dtype ];
+
+              // Convert elems to tensor array. n may be known statically.
+              static_shape := elems_flat[0].shape;
+
+              var n : Int64 := static_shape[0];
+
+              // TensorArrays are always flat
+              elems_ta := [];
+              for var i := 0 to Length(elems_flat)-1 do
+                   elems_ta := elems_ta + [ tf.TensorArray(elems_flat[i].dtype, n, false, True, nil, True, true) ];
+
+              // Unpack elements
+              var elems_ta_1 := TList<TTensorArray>.Create;
+              for var elem_ta_elem in TUtils.zip<TTensorArray,TFTensor>(elems_ta, elems_flat) do
+                  elems_ta_1.Add (elem_ta_elem.Value1.unstack(elem_ta_elem.Value2) );
+
+              elems_ta := elems_ta_1.ToArray;
+
+              var i := constant_op.constant(Integer(0));
+
+              for var x := 0 to Length(dtype_flat)-1 do
+                   accs_ta := accs_ta + [ tf.TensorArray(dtype_flat[x], n, false, True, nil, True, infer_shape) ];
+
+              compute := function (item: BodyItem): BodyItem
+                  var
+                    packed_values    : TFTensor;
+                    packed_fn_values : TFTensor;
+                    flat_fn_values   : TArray<TFTensor>;
+                  begin
+                      var tmpA : TArray<TFTensor> :=[];
+                      for var j := 0 to Length(elems_ta)-1 do
+                         tmpA  := tmpA + [ elems_ta[j].read( item.I ) ];
+
+                      packed_values    := input_pack(tmpA);
+                      packed_fn_values := fn(packed_values);
+                      //nest.assert_same_structure(dtype or elems, packed_fn_values)
+
+                      flat_fn_values := output_flatten(packed_fn_values);
+                      for var j := 0 to Length(item.Accs_ta) - 1 do
+                      begin
+                          item.Accs_ta[j].write(item.I, flat_fn_values[j]);
+                      end;
+
+                      Result := BodyItem.Create(TTensor(item.I) + Integer(1), item.Accs_ta);
+                  end;
+
+              cond  := function(x: BodyItem): TFTensor
+                        begin
+                           Result := TTensor(x.I) < n;
+                        end;
+
+              r_a := control_flow_ops.while_loop<BodyItem>(cond, compute, BodyItem.Create(i, accs_ta), [], parallel_iterations, back_prop, swap_memory, '', tf.constant(n));
+
+              for var j := 0 to Length(r_a.Accs_ta) - 1 do
+                   results_flat := results_flat + [ r_a.Accs_ta[j].stack ];
+
+              n_static :=  Dimension.Create( tensor_shape.dimension_value(elems_flat[0].shape.with_rank_at_least(1).dims[0]) );
+
+              for var j := 1 to Length(elems_flat) -1 do
+              begin
+                  var elem := elems_flat[j];
+                  n_static.merge_with(Dimension.Create(tensor_shape.dimension_value(elem.shape.with_rank_at_least(1).dims[0])));
+              end;
+
+              for var r in results_flat do
+              begin
+                 var aDims : TArray<Int64>:= [];
+                 for var j := 1 to Length(elems_flat) -1 do
+                    aDims := aDims + [ r.dims[j] ];
+
+                 r.shape := TFShape.Create([n_static]).concatenate(aDims);
+              end;
+
+
+              // todo get working when the above caching_device is fixed
+              //if (in_graph_mode && varscope_caching_device_was_none) {
+              //    varscope.set_caching_device(None);
+              //}
+
+              Result := output_pack(results_flat);
+
+          end);
+
 end;
 
 function TFOperation.InputListLength(Name: string): Integer;

@@ -379,6 +379,14 @@ nn_internal = class
     function softmax_cross_entropy_with_logits_v2(labels: TFTensor; logits: TFTensor; axis: Integer = -1; name : string= ''): TFTensor ;
     function leaky_relu(features: TFTensor; alpha: Single = 0.2; name: string = ''): TFTensor ;
     function bias_add(value: TFTensor; bias: IVariableV1; data_format: string = ''; name: string = ''): TFTensor ;
+    /// <summary>
+    /// Computes sparse softmax cross entropy between `logits` and `labels`.
+    /// </summary>
+    /// <param name="labels"></param>
+    /// <param name="logits"></param>
+    /// <param name="name"></param>
+    /// <returns></returns>
+    function sparse_softmax_cross_entropy_with_logits(labels : TFTensor= nil; logits : TFTensor= nil; name : string= ''): TFTensor;
     function fused_batch_norm(x,
                               scale,
                               offset     : TFTensor;
@@ -773,6 +781,8 @@ end;
       /// <param name="out_type"></param>
       /// <returns></returns>
       function shape(input: TFTensor; name: string = ''; out_type: TF_DataType = TF_INT32): TFTensor;
+      function TensorArray(dtype: TF_DataType; size : Integer= 0; dynamic_size: Boolean = false; clear_after_read : Boolean= true; element_shape: PTFShape = nil; colocate_with_first_write_call: Boolean = true; infer_shape: Boolean = true): TTensorArray ; overload;
+      function TensorArray(dtype: TF_DataType; size : TFTensor; dynamic_size: Boolean = false; clear_after_read : Boolean= true; element_shape: PTFShape = nil; colocate_with_first_write_call: Boolean = true; infer_shape: Boolean = true): TTensorArray ; overload;
       {$ENDREGION}
 
       {$REGION 'tf.sparse'}
@@ -1357,7 +1367,7 @@ end;
 function TTensorflow.map_fn(fn: TFunc<TFTensor, TFTensor>; elems: TFTensor; dtype: TF_DataType; parallel_iterations: Integer; back_prop, swap_memory, infer_shape: Boolean;
   name: string): TFTensor;
 begin
-
+    Result := TFOperation.map_fn(fn, elems, dtype,parallel_iterations, back_prop, swap_memory, infer_shape, name)
 end;
 
 function TTensorflow.get_collection<T>(key, scope: string): TList<T>;
@@ -1734,6 +1744,18 @@ end;
 function TTensorflow.shape(input: TFTensor; name: string; out_type: TF_DataType): TFTensor;
 begin
     Result := array_ops.shape_internal(input, name, true, out_type);
+end;
+
+function TTensorflow.TensorArray(dtype: TF_DataType; size: TFTensor; dynamic_size, clear_after_read: Boolean; element_shape: PTFShape; colocate_with_first_write_call,
+  infer_shape: Boolean): TTensorArray;
+begin
+
+end;
+
+function TTensorflow.TensorArray(dtype: TF_DataType; size: Integer; dynamic_size, clear_after_read: Boolean; element_shape: PTFShape; colocate_with_first_write_call,
+  infer_shape: Boolean): TTensorArray;
+begin
+
 end;
 
 Function TTensorflow.multinomial(logits: TFTensor; num_samples: Integer; seed: pInteger; name: string; output_dtype: TF_DataType): TFTensor;
@@ -2320,6 +2342,11 @@ begin
    Result := nn_ops.softmax_cross_entropy_with_logits_v2_helper(labels, logits, axis, name)
 end;
 
+function nn_internal.sparse_softmax_cross_entropy_with_logits(labels, logits: TFTensor; name: string): TFTensor;
+begin
+   Result := nn_ops.sparse_softmax_cross_entropy_with_logits(labels, logits, name);
+end;
+
 function nn_internal.tanh(x: TFTensor; name: string): TFTensor;
 begin
     Result := gen_nn_ops.tanh(x, name);
@@ -2476,13 +2503,3 @@ begin
 end;
 
 end.
-
-
-
-
-
-
-
-
-
-

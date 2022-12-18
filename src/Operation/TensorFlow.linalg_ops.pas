@@ -16,6 +16,7 @@ unit TensorFlow.linalg_ops;
 
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
+{$WARN SYMBOL_DEPRECATED OFF}
 
 interface
     uses

@@ -20,6 +20,7 @@ unit Keras.Backend;
 interface
     uses System.SysUtils,
          System.Generics.Collections,
+         System.TypInfo,
          rtti,
 
          Spring,

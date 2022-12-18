@@ -122,6 +122,40 @@ type
       class function Sort<T,T1>(dict_: TDictionary<T, T1> ): TEnumerable<T>;
  end;
 
+ nest = class
+   public
+      class function flatten<T>(obj : TArray<T>                        ): TList<T> ;  overload;
+      class function flatten<T>(obj : TArray<TArray<T>>                ): TList<T> ;  overload;
+      class function flatten<T>(obj : TArray<TArray<TArray<T>>>        ): TList<T> ;  overload;
+      class function flatten<T>(obj : TArray<TArray<TArray<TArray<T>>>>): TList<T> ;  overload;
+
+      class function is_Sequence(arg: TValue): Boolean;
+      /// <summary>
+      /// Returns a given flattened sequence packed into a given structure.
+      /// If `structure` is a scalar, `flat_sequence` must be a single-element list;
+      /// in this case the return value is `flat_sequence[0]`.
+      ///
+      /// If `structure` is or contains a dict instance, the keys will be sorted to
+      /// pack the flat sequence in deterministic order. This is true also for
+      /// `OrderedDict` instances: their sequence order is ignored, the sorting order of
+      /// keys is used instead. The same convention is followed in `flatten`.
+      /// This correctly repacks dicts and `OrderedDict`s after they have been
+      /// flattened, and also allows flattening an `OrderedDict` and then repacking it
+      /// back using a corresponding plain dict, or vice-versa.
+      /// Dictionaries with non-sortable keys cannot be flattened.
+      /// </summary>
+      /// <param name="structure">
+      /// Nested structure, whose structure is given by nested lists,
+      /// tuples, and dicts. Note: numpy arrays and strings are considered
+      /// scalars.
+      /// </param>
+      /// <param name="flat_sequence"> flat sequence to pack.</param>
+      /// <returns> `flat_sequence` converted to have the same recursive structure as
+      /// `structure`.
+      /// </returns>
+      class function pack_sequence_as(structure: TObject; flat_sequence: TEnumerable<TFTensor>; expand_composites: Boolean = false): TObject;
+ end;
+
  TUtils = class
   private
     class function ChangeType(x: TValue; new_system_dtype: PTypeInfo): TValue;
@@ -137,10 +171,6 @@ type
       class function IsInstance<T,T1,T2>(tipo1 : T; Tipo2: Tuple<T1,T2>): boolean;  overload;
       class function IsInstance<T,T1,T2,T3>(tipo1 : T; Tipo2: Tuple<T1,T2,T3>): boolean; overload;
 
-      class function flatten<T>(obj : TArray<T>                        ): TList<T> ;  overload;
-      class function flatten<T>(obj : TArray<TArray<T>>                ): TList<T> ;  overload;
-      class function flatten<T>(obj : TArray<TArray<TArray<T>>>        ): TList<T> ;  overload;
-      class function flatten<T>(obj : TArray<TArray<TArray<TArray<T>>>>): TList<T> ;  overload;
 
       class procedure tf_with<T>(py: T; action: TProc<T>); overload;
       class function tf_with<TIn, TOut>(py: TIn; action: TFunc<TIn, TOut>): TOut;overload;
@@ -176,8 +206,13 @@ type
       class function zip<T1, T2>(e1 : Enumerable<T1>; e2 : TEnumerable<T2>): Enumerable<Tuple<T1,T2>> ; overload;
       class function zip<T>(e1 : TNDArray; e2 : TNDArray; axis: PAxis = nil):  Enumerable<Tuple<T,T>> ; overload;
       class function zip<T>(e1 : TList<T>; e2 : TList<T>):  Enumerable<Tuple<T,T>> ; overload;
+      class function zip<T1,T2>(e1 : TList<T1>; e2 : TList<T2>):  Enumerable<Tuple<T1,T2>> ; overload;
+      class function zip<T1,T2>(e1 : TList<T1>; e2 : TArray<T2>):  Enumerable<Tuple<T1,T2>> ; overload;
+      class function zip<T1,T2>(e1 : TArray<T1>; e2 : TArray<T2>):  Enumerable<Tuple<T1,T2>> ; overload;
       class function zip<T1, T2>(tu1 : Tuple<T1,T1>; tu2 : Tuple<T2,T2>):  TArray< Tuple<T1,T2> > ; overload;
 
+      class function Reversed<T>(l1: TList<T>):TList<T>;
+      class procedure difference_update<T>(l1,l2: TList<T>);
       class procedure extendleft<T>(var queue : TQueue<T>; elements: TEnumerable<T>);
 
       class function range(start, _end: Integer): Enumerable<integer>;  overload; static;
@@ -841,60 +876,6 @@ begin
 
 end;
 
-class function TUtils.flatten<T>(obj :TArray<T>): TList<T> ;
-var
-  list : TList<T>;
-begin
-    list:= TList<T>.create;
-
-    for var i := 0 to Length(obj) -1  do
-       list.Add(obj[i]);
-
-    Result := list;
-end;
-
-class function TUtils.flatten<T>(obj: TArray<TArray<T>>): TList<T> ;
-var
-  list : TList<T>;
-begin
-    list:= TList<T>.create;
-
-    for var i := 0 to Length(obj) -1  do
-      for var j := 0 to Length(obj[i]) -1  do
-       list.Add(obj[i][j]);
-
-    Result := list;
-end;
-
-class function TUtils.flatten<T>(obj: TArray<TArray<TArray<T>>>): TList<T> ;
-var
-  list : TList<T>;
-begin
-    list:= TList<T>.create;
-
-    for var i := 0 to Length(obj) -1  do
-      for var j := 0 to Length(obj[i]) -1  do
-        for var y := 0 to Length(obj[i][j]) -1  do
-          list.Add(obj[i][j][y]);
-
-    Result := list;
-end;
-
-class function TUtils.flatten<T>(obj: TArray<TArray<TArray<TArray<T>>>>): TList<T> ;
-var
-  list : TList<T>;
-begin
-    list:= TList<T>.create;
-
-    for var i := 0 to Length(obj) -1  do
-      for var j := 0 to Length(obj[i]) -1  do
-        for var y := 0 to Length(obj[i][j]) -1  do
-          for var z := 0 to Length(obj[i][j][y]) -1  do
-             list.Add(obj[i][j][y][z]);
-
-    Result := list;
-end;
-
 class function TUtils.ConvertToDict(dny: TArray<TParameter>): TDictionary<string,TValue> ;
 var
   i : Integer;
@@ -916,6 +897,15 @@ begin
 
      Result := dictionary;
 
+end;
+
+class procedure TUtils.difference_update<T>(l1, l2: TList<T>);
+begin
+    for var el in l2 do
+    begin
+        if l1.Contains(el) then
+            l1.Remove(el);
+    end;
 end;
 
 class procedure TUtils.extendleft<T>(var queue: TQueue<T>; elements: TEnumerable<T>);
@@ -1026,6 +1016,14 @@ begin
      Result := TEnumerable.range(0, _end);
 end;
 
+class function TUtils.Reversed<T>(l1: TList<T>): TList<T>;
+begin
+    Result :=TList<T>.Create ;
+    var len := l1.Count;
+    for var i := len - 1 to 0 do
+         Result.Add( l1[i] );
+end;
+
 class function TUtils.range(start: Integer; _end: Integer): Enumerable<integer> ;
 begin
     Result := TEnumerable.range(start, _end - start);
@@ -1066,13 +1064,36 @@ begin
        raise TFException.Create('Not Implemented' );
 end;
 
+class function TUtils.zip<T1, T2>(e1: TArray<T1>; e2: TArray<T2>): Enumerable<Tuple<T1, T2>>;
+begin
+    var aArray : TArray< Tuple<T1,T2> > := [];
+    for var i: Integer := 0 to  Length(e1) - 1 do
+        aArray := aArray + [ Tuple<T1,T2>.Create(e1[i],e2[i]) ] ;
+    Result := Enumerable<Tuple<T1,T2>>.Create(aArray);
+end;
+
+class function TUtils.zip<T1, T2>(e1: TList<T1>; e2: TArray<T2>): Enumerable<Tuple<T1, T2>>;
+begin
+    var aArray : TArray< Tuple<T1,T2> > := [];
+    for var i: Integer := 0 to  e1.Count- 1 do
+        aArray := aArray + [ Tuple<T1,T2>.Create(e1[i],e2[i]) ] ;
+    Result := Enumerable<Tuple<T1,T2>>.Create(aArray);
+end;
+
+class function TUtils.zip<T1, T2>(e1: TList<T1>; e2: TList<T2>): Enumerable<Tuple<T1, T2>>;
+begin
+    var aArray : TArray< Tuple<T1,T2> > := [];
+    for var i: Integer := 0 to  e1.Count- 1 do
+        aArray := aArray + [ Tuple<T1,T2>.Create(e1[i],e2[i]) ] ;
+    Result := Enumerable<Tuple<T1,T2>>.Create(aArray);
+end;
+
 class function TUtils.zip<T>(e1 : TList<T>; e2 : TList<T>):  Enumerable<Tuple<T,T>> ;
 begin
     var aArray : TArray< Tuple<T,T> > := [];
     for var i: Integer := 0 to  e1.Count- 1 do
         aArray := aArray + [ Tuple<T,T>.Create(e1[i],e2[i]) ] ;
     Result := Enumerable<Tuple<T,T>>.Create(aArray);
-
 end;
 
 class function TUtils.constant_value(tensor: TFTensor; partial: Boolean): TNDArray;
@@ -1634,6 +1655,77 @@ end;
 class operator TValueHelp.Implicit(const Value: TArray<TArray<Single>>): TValue;
 begin
     Result := TValue.From< TArray<TArray<Single>> >(Value);
+end;
+
+{ nest }
+
+class function nest.flatten<T>(obj :TArray<T>): TList<T> ;
+var
+  list : TList<T>;
+begin
+    list:= TList<T>.create;
+
+    for var i := 0 to Length(obj) -1  do
+       list.Add(obj[i]);
+
+    Result := list;
+end;
+
+class function nest.flatten<T>(obj: TArray<TArray<T>>): TList<T> ;
+var
+  list : TList<T>;
+begin
+    list:= TList<T>.create;
+
+    for var i := 0 to Length(obj) -1  do
+      for var j := 0 to Length(obj[i]) -1  do
+       list.Add(obj[i][j]);
+
+    Result := list;
+end;
+
+class function nest.flatten<T>(obj: TArray<TArray<TArray<T>>>): TList<T> ;
+var
+  list : TList<T>;
+begin
+    list:= TList<T>.create;
+
+    for var i := 0 to Length(obj) -1  do
+      for var j := 0 to Length(obj[i]) -1  do
+        for var y := 0 to Length(obj[i][j]) -1  do
+          list.Add(obj[i][j][y]);
+
+    Result := list;
+end;
+
+class function nest.flatten<T>(obj: TArray<TArray<TArray<TArray<T>>>>): TList<T> ;
+var
+  list : TList<T>;
+begin
+    list:= TList<T>.create;
+
+    for var i := 0 to Length(obj) -1  do
+      for var j := 0 to Length(obj[i]) -1  do
+        for var y := 0 to Length(obj[i][j]) -1  do
+          for var z := 0 to Length(obj[i][j][y]) -1  do
+             list.Add(obj[i][j][y][z]);
+
+    Result := list;
+end;
+
+class function nest.is_Sequence(arg: TValue): Boolean;
+begin
+    Result := False;
+
+    var info := arg.TypeInfo;
+    var data := arg.TypeData;
+
+
+end;
+
+class function nest.pack_sequence_as(structure: TObject; flat_sequence: TEnumerable<TFTensor>; expand_composites: Boolean): TObject;
+begin
+
 end;
 
 end.

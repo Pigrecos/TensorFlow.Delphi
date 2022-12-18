@@ -19,6 +19,7 @@ unit TensorFlow.Tensors.Ragged;
 
 interface
     uses System.SysUtils,
+         System.Generics.Collections,
 
          Spring.Collections,
          rtti,
@@ -26,7 +27,8 @@ interface
          TF4D.Core.CApi,
          TensorFlow.DApi,
          TensorFlow.Slice,
-         TensorFlow.Framework;
+         TensorFlow.Framework,
+         TensorFlow.Interfaces;
 
 type
   Dimension = record
@@ -61,6 +63,7 @@ type
   tensor_shape = class
      public
       class function dimension_at_index(shape: TFShape; index: Integer): Dimension;
+      class function dimension_value(dimension: Dimension) : Integer;
   end;
 
   /// <summary>
@@ -137,6 +140,54 @@ type
         property nested_row_splits          : TArray<TFTensor> read getNest_row_splits;
         property Item[i: Integer]           : TFTensor         read GetItem; default;
         property Item[slices: TArray<Slice>]: RaggedTensor     read GetItem; default;
+  end;
+
+  /// <summary>
+  /// TensorArray is designed to hide an underlying implementation object
+  /// and as such accesses many of that object's hidden fields.
+  ///
+  /// "Class wrapping dynamic-sized, per-time-step, write-once Tensor arrays.
+  /// This class is meant to be used with dynamic iteration primitives such as
+  /// `while_loop` and `map_fn`.  It supports gradient back-propagation via special
+  /// "flow" control flow dependencies.
+  /// </summary>
+  TTensorArray = class( TInterfacedObject, ITensorOrTensorArray)
+    protected
+      Fdtype : TF_DataType;
+      Fhandle: TFTensor;
+      Fflow  : TFTensor;
+      Finfer_shape : Boolean;
+      Fcolocate_with_first_write_call : Boolean;
+    public
+      function unstack(value: TFTensor; name: string = ''): TTensorArray; virtual; abstract;
+      function stack(name: string = ''): TFTensor; virtual; abstract;
+      function gather(indices: TFTensor; name: string = ''): TFTensor; virtual; abstract;
+      function write(index: TFTensor; value: TFTensor; name: string = ''): TTensorArray; overload; virtual; abstract;
+
+      function read<T>(index: T; name: string = ''): TFTensor;
+      function write<T>(index: Integer; value: T; name: string = ''): TTensorArray; overload;
+
+      property  dtype                           : TF_DataType read Fdtype;
+      property  handle                          : TFTensor    read FHandle;
+      property  flow                            : TFTensor    read Fflow;
+      property  infer_shape                     : Boolean     read Finfer_shape;
+      property  colocate_with_first_write_call  : Boolean     read Fcolocate_with_first_write_call;
+  end;
+
+  BodyItem = class(TInterfacedObject, ICanBeFlattened, IPackable<BodyItem>, IFromMergeVars<BodyItem>)
+    private
+      FI      : TFTensor;
+      FAccs_ta: TArray<TTensorArray>;
+    public
+      constructor Create; overload;
+      constructor Create(v_I : TFTensor; v_accs_ta: TArray<TTensorArray>); overload;
+
+      function Flatten: TArray<TValue>;
+      function FromMergeVars(mergeVars: TArray<ITensorOrTensorArray>): BodyItem ;
+      function Pack(sequences: TArray<TValue>): BodyItem ;
+
+      property I       : TFTensor             read FI;
+      property Accs_ta : TArray<TTensorArray> read FAccs_ta;
   end;
 
 
@@ -390,6 +441,62 @@ class function tensor_shape.dimension_at_index(shape: TFShape; index: Integer): 
 begin
     if   shape.ndim < 0  then Result := Dimension.Create(-1)
     else                      Result := Dimension.Create(shape.dims[index])
+end;
+
+class function tensor_shape.dimension_value(dimension: Dimension): Integer;
+begin
+    Result := dimension.value
+end;
+
+{ BodyItem }
+
+constructor BodyItem.Create;
+begin
+
+end;
+
+constructor BodyItem.Create(v_I: TFTensor; v_accs_ta: TArray<TTensorArray>);
+begin
+    FI       := v_I;
+    FAccs_ta := v_accs_ta;
+end;
+
+function BodyItem.Flatten: TArray<TValue>;
+begin
+    var elements := TList<TValue>.Create([ FI ]);
+    var a : TArray<TValue> := [];
+    for var i := 0 to Length(FAccs_ta)-1 do
+        a := a + [ TValue.From<TTensorArray>(FAccs_ta[i]) ];
+
+    elements.AddRange(a);
+    Result := elements.ToArray;
+end;
+
+function BodyItem.FromMergeVars(mergeVars: TArray<ITensorOrTensorArray>): BodyItem;
+begin
+    FI       := mergeVars[1] as TFTensor;
+    FAccs_ta := [ mergeVars[2]  as TTensorArray ];
+    Result := self;
+end;
+
+function BodyItem.Pack(sequences: TArray<TValue>): BodyItem;
+begin
+    FI       := sequences[0].AsType<TFTensor>;
+    FAccs_ta := [ sequences[1].AsType<TTensorArray> ];
+
+    Result := BodyItem.Create(FI, FAccs_ta);
+end;
+
+{ TTensorArray }
+
+function TTensorArray.read<T>(index: T; name: string): TFTensor;
+begin
+ Result := nil;
+end;
+
+function TTensorArray.write<T>(index: Integer; value: T; name: string): TTensorArray;
+begin
+    Result := nil;
 end;
 
 end.

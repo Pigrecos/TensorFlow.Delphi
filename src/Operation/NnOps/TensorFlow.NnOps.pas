@@ -189,6 +189,14 @@ type
         property state_size  : TValue  read GetState_size;
   end;
 
+  StackedRNNCellsArgs = class(LayerArgs)
+    public
+        Cells : IList<RnnCell> ;
+        Kwargs: TDictionary<string, TValue>;
+
+        Constructor Create;
+  end;
+
   /// <summary>
   /// Tuple used by LSTM Cells for `state_size`, `zero_state`, and output state.
   ///
@@ -517,6 +525,15 @@ begin
                         value := Tops.convert_to_tensor(value, DtInvalid, 'input');
                         Result := gen_nn_ops.average_pool(value, ksize, strides, padding, data_format, name)
                     end );
+end;
+
+{ StackedRNNCellsArgs }
+
+constructor StackedRNNCellsArgs.Create;
+begin
+    inherited Create;
+
+    Kwargs := nil;
 end;
 
 end.

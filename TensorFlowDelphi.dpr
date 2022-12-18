@@ -4,7 +4,7 @@ program TensorFlowDelphi;
 
 uses
   Vcl.Forms,
-  untMain in 'untMain.pas' {Form1},
+  untMain in 'untMain.pas' {frmMain},
   Tensorflow in 'src\Tensorflow.pas',
   Tensorflow.Utils in 'src\Tensorflow.Utils.pas',
   ProtoGen.config in 'src\Proto\ProtoGen.config.pas',
@@ -77,14 +77,20 @@ uses
   TensorFlow.image_ops_impl in 'src\Operation\TensorFlow.image_ops_impl.pas',
   TensorFlow.gen_image_ops in 'src\Operation\TensorFlow.gen_image_ops.pas',
   TensorFlow.nn_impl in 'src\Operation\TensorFlow.nn_impl.pas',
-  TensorFlow.embedding_ops in 'src\Operation\TensorFlow.embedding_ops.pas';
+  TensorFlow.embedding_ops in 'src\Operation\TensorFlow.embedding_ops.pas',
+  Keras.Data in 'src\Keras\Keras.Data.pas',
+  Keras.Models in 'src\Keras\Keras.Models.pas',
+  TensorFlow.dataset_ops in 'src\Operation\TensorFlow.dataset_ops.pas',
+  Keras.Preprocessing in 'src\Keras\Keras.Preprocessing.pas',
+  Keras.LayersApi in 'src\Keras\Keras.LayersApi.pas',
+  Keras.MetricsApi in 'src\Keras\Keras.MetricsApi.pas';
 
 {$R *.res}
 
 begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
-  Application.CreateForm(TForm1, Form1);
+  Application.CreateForm(TfrmMain, frmMain);
   Application.Run;
 end.
 

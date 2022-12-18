@@ -543,7 +543,7 @@ var
   el : TValue;
 
 begin
-    var flatten_args := TUtils.flatten<TValue>(args);
+    var flatten_args := nest.flatten<TValue>(args);
 
     var  has_graph_arg := not tf.Context.executing_eagerly;
     for var i := 0 to flatten_args.Count -1 do

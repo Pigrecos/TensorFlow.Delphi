@@ -29,7 +29,8 @@ interface
          TensorFlow.DApi,
          Numpy.Axis,
          TensorFlow.ControlFlowState,
-         TensorFlow.Context ;
+         TensorFlow.Context,
+         TensorFlow.Interfaces ;
 
 type
   control_flow_ops = record
@@ -124,6 +125,21 @@ type
        /// callables return a singleton list, the element is extracted from the list.</returns>
        class function cond(pred: TFTensor; true_fn : TFunc<TFTensor>= nil; false_fn: TFunc<TFTensor>= nil; name: string = ''): TFTensor; overload ;static;
        class function cond<TFTensor>(pred: TFTensor; true_fn, false_fn: TFunc<TArray<TFTensor>>; name: string): TArray<TFTensor>; overload ;static;
+        /// <summary>
+        /// Repeat `body` while the condition `cond` is true.
+        /// </summary>
+        /// <param name="cond"></param>
+        /// <param name="body"></param>
+        /// <param name="loop_vars"></param>
+        /// <param name="shape_invariants"></param>
+        class function while_loop<TItem: IFromMergeVars<TItem>>(cond: TFunc<TItem, TFTensor>; body: TFunc<TItem, TItem>; loop_vars: TItem;
+                                          shape_invariants   : TArray<TFShape>= [];
+                                          parallel_iterations: Integer = 10;
+                                          back_prop          : Boolean= true;
+                                          swap_memory        : Boolean= false;
+                                          name               : string= '';
+                                          maximum_iterations : TFTensor= nil;
+                                          return_same_structure : Boolean= false): TItem; static;
   end;
 
 implementation
@@ -137,6 +153,13 @@ implementation
            TensorFlow.control_flow_util ;
 
 { control_flow_ops }
+
+class function control_flow_ops.while_loop<TItem>(cond: TFunc<TItem, TFTensor>; body: TFunc<TItem, TItem>; loop_vars: TItem; shape_invariants: TArray<TFShape>;
+  parallel_iterations: Integer; back_prop, swap_memory: Boolean; name: string; maximum_iterations: TFTensor; return_same_structure: Boolean): TItem;
+begin
+    { TODO -oMax -c : Implementare 03/12/2022 10:57:15 }
+    raise Exception.Create('control_flow_ops.while_loop');
+end;
 
 class function control_flow_ops.cond(pred: TFTensor; true_fn, false_fn: TFunc<TFTensor>; name: string): TFTensor;
 begin

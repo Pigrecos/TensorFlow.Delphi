@@ -65,24 +65,16 @@ type
   end;
 
   Conv1DArgs = class(ConvolutionalArgs)
-    private
-
-    public
-
-      constructor Create;
+     public
+       constructor Create;
   end;
 
-    Conv2DArgs = class(ConvolutionalArgs)
-    private
-
+  Conv2DArgs = class(ConvolutionalArgs)
     public
-
-      constructor Create;
+       constructor Create;
   end;
 
   RNNArgs = class(LayerArgs)
-    private
-
     public
         type
         IRnnArgCell = interface(ILayer)
@@ -100,7 +92,7 @@ type
         TimeMajor       : Boolean;
         Kwargs          : TDictionary<string,TValue>;
 
-        Unitis              : Integer;
+        Units               : Integer;
         Activation          : TActivation;
         RecurrentActivation : TActivation;
         UseBias             : boolean;
@@ -111,9 +103,12 @@ type
         Constructor Create;
   end;
 
-  OptimizerV2Args = class
-    private
+  SimpleRNNArgs = class(RNNArgs)
+    public
+        Constructor Create;
+  end;
 
+  OptimizerV2Args = class
     public
         Name         : string;
         LearningRate : Single;
@@ -125,8 +120,6 @@ type
   end;
 
   RMSpropArgs = class(OptimizerV2Args)
-    private
-
     public
         RHO      : Single;
         Momentum : Single;
@@ -137,32 +130,24 @@ type
   end;
 
   ELUArgs = class(LayerArgs)
-    private
-
     public
       Alpha   : Single ;
       constructor Create;
   end;
 
   LeakyReLuArgs = class(LayerArgs)
-    private
-
     public
       Alpha   : Single ;
       constructor Create;
   end;
 
   SoftmaxArgs = class(LayerArgs)
-    private
-
     public
       axis   : TAxis ;
       constructor Create;
   end;
 
   BaseDenseAttentionArgs = class(LayerArgs)
-    private
-
     public
       /// <summary>
       /// Boolean. Set to `true` for decoder self-attention. Adds a mask such
@@ -180,8 +165,6 @@ type
   end;
 
   AttentionArgs = class(BaseDenseAttentionArgs)
-    private
-
     public
       /// <summary>
       /// If `true`, will create a scalar variable to scale the attention scores.
@@ -199,8 +182,6 @@ type
   end;
 
   MultiHeadAttentionArgs = class(LayerArgs)
-    private
-
     public
        NumHeads          : Integer;
        KeyDim            : Integer;
@@ -220,8 +201,6 @@ type
   end;
 
   DropoutArgs = class(LayerArgs)
-    private
-
     public
        /// <summary>
        /// Float between 0 and 1. Fraction of the input units to drop.
@@ -245,8 +224,6 @@ type
   end;
 
   DenseArgs = class(LayerArgs)
-    private
-
     public
       /// <summary>
       /// Positive integer, dimensionality of the output space.
@@ -360,8 +337,6 @@ type
   end;
 
   EmbeddingArgs = class(LayerArgs)
-    private
-
     public
       InputDim    : Integer;
       OutputDim   : Integer;
@@ -373,8 +348,6 @@ type
   end;
 
   InputLayerArgs = class(LayerArgs)
-    private
-
     public
       InputTensor : TFTensor;
       Sparse      : Boolean;
@@ -384,8 +357,6 @@ type
   end;
 
   CroppingArgs = class(LayerArgs)
-    private
-
     public
       /// <summary>
       /// Accept length 1 or 2
@@ -396,8 +367,6 @@ type
   end;
 
  Cropping2DArgs = class(LayerArgs)
-    private
-
     public
       /// <summary>
       /// channel last: (b, h, w, c)
@@ -415,8 +384,6 @@ type
  end;
 
  Cropping3DArgs = class(LayerArgs)
-    private
-
     public
       /// <summary>
       /// channel last: (b, h, w, c)
@@ -553,6 +520,77 @@ type
       Constructor Create;
  end;
 
+ PreprocessingLayerArgs = class(LayerArgs)
+    public
+       Constructor Create;
+ end;
+
+ ResizingArgs = class(PreprocessingLayerArgs)
+   public
+       Height        : Integer;
+       Width         : Integer;
+       Interpolation : string;
+
+       Constructor Create;
+ end;
+
+  TextVectorizationArgs = class(PreprocessingLayerArgs)
+   public
+       Standardize          : TFunc<TFTensor, TFTensor>;
+       Split                : string ;
+       MaxTokens            : Integer;
+       OutputMode           : string;
+       OutputSequenceLength : Integer;
+       Vocabulary           : TArray<String>;
+
+       Constructor Create;
+ end;
+
+ RescalingArgs = class(LayerArgs)
+   public
+       Scale : Single;
+       Offset: Single;
+
+       Constructor Create;
+ end;
+
+ ZeroPadding2DArgs = class(LayerArgs)
+   public
+       Padding : TNDArray;
+
+       Constructor Create;
+ end;
+
+ FlattenArgs = class(LayerArgs)
+   public
+       DataFormat : string;
+
+       Constructor Create;
+ end;
+
+ PermuteArgs = class(LayerArgs)
+   public
+       dims : TArray<Integer>;
+
+       Constructor Create;
+ end;
+
+ ReshapeArgs = class(LayerArgs)
+   public
+       TargetShape       : TFShape;
+       TargetShapeObjects: TArray<TValue>;
+
+       Constructor Create;
+ end;
+
+ UpSampling2DArgs = class(LayerArgs)
+   public
+       Size      : TFShape;
+       DataFormat: string;
+
+       Constructor Create;
+ end;
+
  TensorFlowOpLayerArgs = class(LayerArgs)
     private
 
@@ -602,6 +640,13 @@ begin
     TimeMajor       := false;
     Kwargs          := nil;
     UseBias         := True;
+end;
+
+{ SimpleRNNArgs }
+
+constructor SimpleRNNArgs.Create;
+begin
+    inherited Create;
 end;
 
 { OptimizerV2Args }
@@ -865,6 +910,83 @@ begin
     inherited Create;
 
     Padding  := 'valid';
+end;
+
+{ PreprocessingLayerArgs }
+
+constructor PreprocessingLayerArgs.Create;
+begin
+   inherited Create;
+end;
+
+{ ResizingArgs }
+
+constructor ResizingArgs.Create;
+begin
+    inherited Create;
+
+    Interpolation := 'bilinear';
+end;
+
+{ TextVectorizationArgs }
+
+constructor TextVectorizationArgs.Create;
+begin
+    inherited Create;
+
+    Split     := 'standardize';
+    MaxTokens := -1;
+    OutputMode:= 'int';
+    OutputSequenceLength := -1;
+
+end;
+
+{ RescalingArgs }
+
+constructor RescalingArgs.Create;
+begin
+    inherited Create;
+end;
+
+{ ZeroPadding2DArgs }
+
+constructor ZeroPadding2DArgs.Create;
+begin
+    inherited Create;
+end;
+
+{ FlattenArgs }
+
+constructor FlattenArgs.Create;
+begin
+    inherited Create;
+end;
+
+{ PermuteArgs }
+
+constructor PermuteArgs.Create;
+begin
+    inherited Create;
+end;
+
+{ ReshapeArgs }
+
+constructor ReshapeArgs.Create;
+begin
+    inherited Create;
+
+    TargetShape        := default(TFShape);
+    TargetShapeObjects := [];
+end;
+
+{ UpSampling2DArgs }
+
+constructor UpSampling2DArgs.Create;
+begin
+    inherited Create;
+
+    Size      := default(TFShape);
+    DataFormat:= 'nearest';
 end;
 
 end.

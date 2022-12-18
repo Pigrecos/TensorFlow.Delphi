@@ -26,6 +26,47 @@ interface
 type
   TActivation = Reference To function(features: TFTensor; name: string = ''): TFTensor;
 
+   TActivations = class
+     Linear : TActivation;
+     Relu   : TActivation;
+     Sigmoid: TActivation;
+     Softmax: TActivation;
+     Tanh   : TActivation;
+
+     constructor Create;
+   end;
+
 implementation
+    uses Tensorflow;
+
+{ Activations }
+
+constructor TActivations.Create;
+begin
+    Linear :=  function(features: TFTensor; name: string = ''): TFTensor
+                begin
+                  Result := features;
+                end;
+
+    Relu :=  function(features: TFTensor; name: string = ''): TFTensor
+                begin
+                    Result := tf.Context.ExecuteOp('Relu', name, ExecuteOpArgs.Create([features])).First;
+                end;
+
+    Sigmoid :=  function(features: TFTensor; name: string = ''): TFTensor
+                begin
+                   Result := tf.Context.ExecuteOp('Sigmoid', name, ExecuteOpArgs.Create([features])).First;
+                end;
+
+    Softmax :=  function(features: TFTensor; name: string = ''): TFTensor
+                begin
+                  Result := tf.Context.ExecuteOp('Softmax', name, ExecuteOpArgs.Create([features])).First;
+                end;
+
+    Tanh :=  function(features: TFTensor; name: string = ''): TFTensor
+                begin
+                  Result := tf.Context.ExecuteOp('Tanh', name, ExecuteOpArgs.Create([features])).First;
+                end;
+end;
 
 end.

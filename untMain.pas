@@ -132,11 +132,12 @@ type
        procedure StringSplit;
   end;
 
-  TForm1 = class(TForm)
+  TfrmMain = class(TForm)
     btnTest: TBitBtn;
     mmo1: TMemo;
     btnLinReg: TBitBtn;
     btnLinReg1: TBitBtn;
+    btnKerasLayers: TBitBtn;
     procedure btnTestClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure btnLinRegClick(Sender: TObject);
@@ -149,7 +150,7 @@ type
   end;
 
 var
-  Form1: TForm1;
+  frmMain: TfrmMain;
 
 implementation
          uses Esempi,
@@ -556,9 +557,9 @@ begin
     Assert.AreEqual(Integer(an), 6);
 end;
 
-procedure TForm1.FormShow(Sender: TObject);
+procedure TfrmMain.FormShow(Sender: TObject);
 begin
-    Form1.Caption := 'TensorFlow lib ver. : ('+tf.Version +') TensoFlow.NET Commit(3fde7558e2c0a457272075219107b0dee3c8e4e5)'
+    frmMain.Caption := 'TensorFlow lib ver. : ('+tf.Version +') TensoFlow.NET Commit(3fde7558e2c0a457272075219107b0dee3c8e4e5)'
 end;
 
 type
@@ -566,7 +567,7 @@ type
 
   end;
 
-procedure TForm1.btnLinReg1Click(Sender: TObject);
+procedure TfrmMain.btnLinReg1Click(Sender: TObject);
 var
   lr_Eager : LinearRegressionEager;
 begin
@@ -582,7 +583,7 @@ begin
     mmo1.Lines.Add('===================================');
 end;
 
-procedure TForm1.btnLinRegClick(Sender: TObject);
+procedure TfrmMain.btnLinRegClick(Sender: TObject);
 var
   lr       : LinearRegression;
   lr_Eager : LinearRegressionEager;
@@ -599,7 +600,7 @@ begin
     mmo1.Lines.Add('===================================');
 end;
 
-procedure TForm1.btnTestClick(Sender: TObject);
+procedure TfrmMain.btnTestClick(Sender: TObject);
 begin
     {$HINTS OFF}
     mmo1.Clear;
@@ -745,14 +746,14 @@ begin
     {$HINTS ON}
 end;
 
-procedure TForm1.EnableEager;
+procedure TfrmMain.EnableEager;
 begin
   if not tf.executing_eagerly then
      tf.enable_eager_execution;
   tf.Context.ensure_initialized;
 end;
 
-procedure TForm1.DisableEager;
+procedure TfrmMain.DisableEager;
 begin
    tf.compat.v1.disable_eager_execution;
 end;

@@ -14,11 +14,18 @@ unit Keras.Utils;
 ******************************************************************************)
 {$ENDREGION}
 
+{$WARN IMPLICIT_STRING_CAST OFF}
+{$WARN IMPLICIT_STRING_CAST_LOSS OFF}
+
 interface
        uses System.SysUtils,
             System.Math,
             System.Character,
             System.Generics.Collections,
+            System.IOUtils,
+            System.Net.HttpClient,
+            System.Classes,
+            System.ZLib,
 
             Spring,
 
@@ -78,14 +85,46 @@ type
       class function deconv_output_length(input_length: Integer; filter_size: Integer; padding: string; output_padding: Integer = -1; stride: Integer = 0; dilation: Integer = 1): Integer; static;
   end;
 
+  losses_utils = record
+    public
+      class function compute_weighted_loss(losses: TFTensor; sample_weight: TFTensor = nil; reduction: string = ''; name: string = ''): TFTensor; static;
+      class function scale_losses_by_sample_weight(losses: TFTensor; sample_weight: TFTensor): TFTensor; static;
+      class function squeeze_or_expand_dimensions(y_pred: TFTensor; sample_weight: TFTensor): Tuple<TFTensor,TFTensor>; static;
+      class function reduce_weighted_loss(weighted_losses: TFTensor; reduction: string): TFTensor; static;
+      class function _safe_mean(losses: TFTensor; num_present: TFTensor): TFTensor; static;
+      class function _num_elements(losses: TFTensor): TFTensor; static;
+  end;
+
+  KerasUtils = class
+    public
+      /// <summary>
+      /// Downloads a file from a URL if it not already in the cache.
+      /// </summary>
+      /// <param name="fname">Name of the file</param>
+      /// <param name="origin">Original URL of the file</param>
+      /// <param name="untar"></param>
+      /// <param name="md5_hash"></param>
+      /// <param name="file_hash"></param>
+      /// <param name="cache_subdir"></param>
+      /// <param name="hash_algorithm"></param>
+      /// <param name="extract"></param>
+      /// <param name="archive_format"></param>
+      /// <param name="cache_dir"></param>
+      /// <returns></returns>
+      function get_file(fname: string; origin: string; untar: Boolean = false; md5_hash: string = ''; file_hash: string = ''; cache_subdir: string = 'datasets'; hash_algorithm: string = 'auto'; extract: Boolean = false; archive_format: string = 'auto'; cache_dir: string = '') : string;
+  end;
+
 implementation
           uses Tensorflow,
                Tensorflow.Utils,
                TensorFlow.Initializer,
                Tensorflow.NameScope,
                TensorFlow.Ops,
+               Tensorflow.math_ops,
+               Tensorflow.array_ops,
 
                Keras.ArgsDefinition,
+               Keras.LossFunc,
 
                ProtoGen.variable;
 
@@ -316,5 +355,127 @@ class function conv_utils.normalize_padding(value: string): string;
 begin
     Result := value.ToLower;
 end;
+
+{ KerasUtils }
+
+function KerasUtils.get_file(fname, origin: string; untar: Boolean; md5_hash, file_hash, cache_subdir, hash_algorithm: string; extract: Boolean; archive_format,
+  cache_dir: string): string;
+var
+  Web     : THTTPClient;
+  MS      : TMemoryStream;
+  Compress: TZDecompressionStream;
+  LInput,
+  LOutput : TFileStream;
+
+begin
+    if string.IsNullOrEmpty(cache_dir) then
+        cache_dir := TPath.GetTempPath;
+    var datadir_base := cache_dir;
+    TDirectory.CreateDirectory(datadir_base);
+
+    var datadir := TPath.Combine(datadir_base, cache_subdir);
+    TDirectory.CreateDirectory(datadir);
+
+    Web := THTTPClient.Create;
+    try
+      MS := TMemoryStream.Create;
+      try
+        Web.Get(origin, MS);
+        MS.SaveToFile(datadir+fname);
+
+        var archive := TPath.Combine(datadir, fname);
+
+        LInput   := TFileStream.Create(archive, fmOpenRead);
+        {windowBits can also be greater than 15 for optional gzip decoding.  Add
+         32 to windowBits to enable zlib and gzip decoding with automatic header
+         detection, or add 16 to decode only the gzip format (the zlib format will
+         return a Z_DATA_ERROR). }
+        Compress := TZDecompressionStream.Create(LInput,15 + 32);
+
+        LOutput := TFileStream.Create(datadir,fmOpenReadWrite);
+        try
+          LOutput.CopyFrom(Compress,0)
+          {if untar
+              Compress.ExtractTGZ(archive, datadir);
+          else if (extract && fname.EndsWith(".gz"))
+              Compress.ExtractGZip(archive, datadir);
+          else if (extract && fname.EndsWith(".zip"))
+              Compress.UnZip(archive, datadir);  }
+        finally
+          LOutput.Free;
+        end;
+      finally
+        MS.Free;
+      end;
+    finally
+      Web.Free;
+    end;
+
+    Result := datadir;
+end;
+
+{ losses_utils }
+
+class function losses_utils.compute_weighted_loss(losses, sample_weight: TFTensor; reduction, name: string): TFTensor;
+begin
+    if sample_weight = nil then
+    begin
+        if losses.dtype = TF_DataType.TF_DOUBLE then sample_weight := tf.constant(Double(1.0))
+        else                                         sample_weight := tf.constant(Single(1.0));
+    end;
+    var weighted_losses := scale_losses_by_sample_weight(losses, sample_weight);
+    // Apply reduction function to the individual weighted losses.
+    var loss := reduce_weighted_loss(weighted_losses, reduction);
+    // Convert the result back to the input type.
+    // loss = math_ops.cast(loss, losses.dtype);
+    Result := loss;
+end;
+
+class function losses_utils.scale_losses_by_sample_weight(losses, sample_weight: TFTensor): TFTensor;
+begin
+    // losses = math_ops.cast(losses, dtypes.float32);
+    // sample_weight = math_ops.cast(sample_weight, dtypes.float32);
+    // Update dimensions of `sample_weight` to match with `losses` if possible.
+    // (losses, sample_weight) = squeeze_or_expand_dimensions(losses, sample_weight);
+    Result := math_ops.multiply(losses, sample_weight);
+end;
+
+class function losses_utils.squeeze_or_expand_dimensions(y_pred, sample_weight: TFTensor): Tuple<TFTensor, TFTensor>;
+begin
+    var weights_shape := sample_weight.shape;
+    var weights_rank  := weights_shape.ndim;
+    if weights_rank = 0 then
+        Exit( Tuple.Create(y_pred, sample_weight) );
+    raise TFException.Create('Not Implemented ');
+end;
+
+class function losses_utils.reduce_weighted_loss(weighted_losses: TFTensor; reduction: string): TFTensor;
+begin
+    if reduction = ReductionV2.NONE then
+        Exit(weighted_losses)
+    else begin
+        var loss := math_ops.reduce_sum(weighted_losses);
+        if reduction = ReductionV2.SUM_OVER_BATCH_SIZE then
+            loss := _safe_mean(loss, _num_elements(weighted_losses));
+        Result := loss;
+    end;
+end;
+
+class function losses_utils._safe_mean(losses, num_present: TFTensor): TFTensor;
+begin
+    var total_loss := math_ops.reduce_sum(losses);
+    Result := math_ops.div_no_nan(total_loss, num_present, 'value');
+end;
+
+class function losses_utils._num_elements(losses: TFTensor): TFTensor;
+begin
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope('num_elements'),
+                          function(v1: TNameScope): TFTensor
+                            begin
+                                var scope : string := v1.ToString;
+                                Result := math_ops.cast(array_ops.size(losses, scope), losses.dtype);
+                            end );
+end;
+
 
 end.

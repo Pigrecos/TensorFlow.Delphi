@@ -111,6 +111,24 @@ type
     function Apply(value: TFTensor; ksize: TArray<Integer>; strides: TArray<Integer>; padding: string; data_format: string = 'NHWC'; name: string = ''): TFTensor;
   end;
 
+  IAccumulator = interface
+    ['{353EB77F-F529-43A0-8667-D513E6B5A45C}']
+  end;
+
+  /// <summary>
+  /// Functional object that defines a shardable computation.
+  /// </summary>
+  ICombiner = interface
+    ['{0C519749-3A1D-4545-813F-A81FEC5C3B69}']
+
+    procedure Compute(values: TFTensor; accumulator : IAccumulator= nil);
+    procedure Merge;
+    procedure Extract;
+    function  Restore: IAccumulator;
+    procedure Serialize;
+    procedure Deserialize;
+  end;
+
   /// <summary>
   /// A `Node` describes the connectivity between two layers.
   ///

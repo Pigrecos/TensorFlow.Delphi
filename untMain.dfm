@@ -1,4 +1,4 @@
-object Form1: TForm1
+object frmMain: TfrmMain
   Left = 0
   Top = 0
   Caption = 'TensorFlow for Delphi'
@@ -48,5 +48,13 @@ object Form1: TForm1
     Caption = 'Linear Regression -Eager mode-'
     TabOrder = 3
     OnClick = btnLinReg1Click
+  end
+  object btnKerasLayers: TBitBtn
+    Left = 495
+    Top = 8
+    Width = 168
+    Height = 25
+    Caption = 'Keras Layers'
+    TabOrder = 4
   end
 end

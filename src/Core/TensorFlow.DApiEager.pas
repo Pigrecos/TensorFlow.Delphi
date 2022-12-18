@@ -217,8 +217,14 @@ type
 
   // <summary> Configure device placement policy logging for the eager executor. Note this
   // policy is applied to any subsequent op executions.</summary>
-  procedure TFE_ContextSetLogDevicePlacement(ctx: PTFE_Context; enable: Byte;status: PTF_Status);cdecl;
+  procedure TFE_ContextSetLogDevicePlacement(ctx: PTFE_Context; enable: Byte; status: PTF_Status);cdecl;
   {$EXTERNALSYM TFE_ContextSetLogDevicePlacement}
+
+  // Adds a function (created from TF_GraphToFunction or
+  // TF_FunctionImportFunctionDef) to the context, allowing it to be executed with
+  // TFE_Execute by creating an op with the same name as the function.
+  procedure TFE_ContextAddFunction(ctx: PTFE_Context; _function: PTF_Function; status: PTF_Status);cdecl;
+  {$EXTERNALSYM TFE_ContextAddFunction}
 
   // Removes a function from the context. Once removed, you can no longer
   // TFE_Execute it or TFE_Execute any TFE_Op which has it as an attribute or any
@@ -277,6 +283,7 @@ procedure TFE_ContextClearCaches;                     external TensorFlowLib nam
 procedure TFE_ContextStartStep;                       external TensorFlowLib name 'TFE_ContextStartStep';
 procedure TFE_ContextEndStep;                         external TensorFlowLib name 'TFE_ContextEndStep';
 procedure TFE_ContextSetLogDevicePlacement;           external TensorFlowLib name 'TFE_ContextSetLogDevicePlacement';
+procedure TFE_ContextAddFunction;                     external TensorFlowLib name 'TFE_ContextAddFunction';
 procedure TFE_ContextRemoveFunction;                  external TensorFlowLib name 'TFE_ContextRemoveFunction';
 function  TFE_NewTensorHandle;                        external TensorFlowLib name 'TFE_NewTensorHandle';
 procedure TFE_DeleteTensorHandle;                     external TensorFlowLib name 'TFE_DeleteTensorHandle';
