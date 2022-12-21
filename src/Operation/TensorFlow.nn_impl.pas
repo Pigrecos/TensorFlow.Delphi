@@ -258,7 +258,7 @@ begin
                     var zeros         := array_ops.zeros_like(logits, logits.dtype);
                     var cond          := TTensor(logits) >= zeros;
                     var relu_logits   := array_ops.where(cond, logits, zeros);
-                    var neg_abs_logits:= array_ops.where(cond, -TTensor(logits), logits);
+                    var neg_abs_logits:= array_ops.where(cond, TFTensor(-TTensor(logits)), logits);
 
                     Result := math_ops.add(
                         TTensor(relu_logits) - logits * TTensor(labels),

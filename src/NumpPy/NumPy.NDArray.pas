@@ -53,6 +53,7 @@ type
     public
       class operator Implicit(t : TNDArray): NDArray;  static;
       class operator Implicit(t : NDArray): TNDArray;  static;
+      class operator Implicit(t : NDArray): TFTensors;  static;
 
       class operator Implicit(t : NDArray): Boolean;   static;
       class operator Implicit(t : NDArray): Byte;      static;
@@ -80,6 +81,8 @@ type
       Class Operator Negative(lhs: NDArray)                   : NDArray; Overload;
       Class Operator Equal(lhs: NDArray; rhs: NDArray)        : NDArray; Overload;
       Class Operator NotEqual(lhs: NDArray; rhs: NDArray)     : NDArray; Overload;
+
+      function  numpy: NDArray;
 
       property Item[indices: Integer ]         : TNDArray read GetItem write SetItem; default;
       property Item[indices: TArray<Integer> ] : TNDArray read GetItem write SetItem; default;
@@ -209,6 +212,11 @@ begin
   Result := TNDArray.Create (math_ops.not_equal(lhs,rhs));
 end;
 
+function NDArray.numpy: NDArray;
+begin
+   Result := FHandleNDArray.numpy;
+end;
+
 function NDArray.GetItem(indice: Integer): TNDArray;
 begin
      Result := FHandleNDArray.Item[indice]
@@ -276,6 +284,11 @@ class operator NDArray.Implicit(v: NDArray): string;
 begin
     var t : TTensor := v.FHandleNDArray;
     Result := string(t)
+end;
+
+class operator NDArray.Implicit(t: NDArray): TFTensors;
+begin
+   Result := TFTensors.Create(t.FHandleNDArray);
 end;
 
 { NDArrayConverter }

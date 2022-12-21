@@ -1114,7 +1114,7 @@ begin
    args.Sparse      := sparse;
    args.Ragged      := ragged ;
 
-   var input_layer := Keras.Layer.InputLayer(args);
+   var input_layer := Keras.Layer.InputLayer.Create(args);
 
    Result := input_layer.InboundNodes[0].Outputs;
 end;
@@ -1130,7 +1130,7 @@ begin
    args.Sparse      := sparse;
    args.Ragged      := ragged ;
 
-   Result := Keras.Layer.InputLayer(args);
+   Result := Keras.Layer.InputLayer.Create(args);
 end;
 
 function LayersApi.LayerNormalization(axis: TAxis; epsilon: Single; center, scale: Boolean; beta_initializer, gamma_initializer: IInitializer): ILayer;
@@ -1149,7 +1149,7 @@ begin
    args.Scale           := scale;
    args.BetaInitializer := bIniz;
 
-   Result := Keras.Layer.LayerNormalization(args);
+   Result := Keras.Layer.LayerNormalization.Create(args);
 end;
 
 function LayersApi.LeakyReLU(alpha: Single): ILayer;
@@ -1159,7 +1159,7 @@ begin
    args        := LeakyReLuArgs.Create;
    args.Alpha  := alpha;
 
-   Result := Keras.Layer.LeakyReLu(args);
+   Result := Keras.Layer.LeakyReLu.Create(args);
 end;
 
 function LayersApi.SimpleRNN(units: Integer; activation, kernel_initializer, recurrent_initializer, bias_initializer: string): ILayer;
@@ -1174,7 +1174,7 @@ begin
    args.RecurrentInitializer:= GetInitializerByName(recurrent_initializer);
    args.BiasInitializer     := GetInitializerByName(bias_initializer);
 
-   Result := Keras.Layer.SimpleRNN(args);
+   Result := Keras.Layer.SimpleRNN.Create(args);
 end;
 
 function LayersApi.LSTM(units: Integer; activation, recurrent_activation: TActivation; use_bias: Boolean; kernel_initializer, recurrent_initializer,
@@ -1220,7 +1220,7 @@ begin
    args.TimeMajor            := time_major;
    args.Unroll               := unroll ;
 
-   Result := Keras.Layer.LSTM(args);
+   Result := Keras.Layer.LSTM.Create(args);
 
 end;
 
@@ -1246,7 +1246,7 @@ begin
    args.Padding   := padding;
    args.DataFormat:= data_format;
 
-   Result := Keras.Layer.MaxPooling1D(args);
+   Result := Keras.Layer.MaxPooling1D.Create(args);
 end;
 
 function LayersApi.MaxPooling2D(pool_size, strides: PTFShape; padding, data_format: string): ILayer;
@@ -1282,7 +1282,7 @@ begin
    args.Padding   := padding;
    args.DataFormat:= data_format;
 
-   var layer := Keras.Layer.MaxPooling2D(args);
+   var layer := Keras.Layer.MaxPooling2D.Create(args);
 
    Result := layer.Apply( TFTensors.Create(inputs) ).First;
 end;
@@ -1330,7 +1330,7 @@ begin
    args.KernelConstraint    := kernel_constraint;
    args.BiasConstraint      := bias_constraint;
 
-   Result := Keras.Layer.MultiHeadAttention(args);
+   Result := Keras.Layer.MultiHeadAttention.Create(args);
 
 end;
 

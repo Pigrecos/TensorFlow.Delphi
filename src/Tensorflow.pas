@@ -1746,16 +1746,22 @@ begin
     Result := array_ops.shape_internal(input, name, true, out_type);
 end;
 
-function TTensorflow.TensorArray(dtype: TF_DataType; size: TFTensor; dynamic_size, clear_after_read: Boolean; element_shape: PTFShape; colocate_with_first_write_call,
-  infer_shape: Boolean): TTensorArray;
-begin
-
-end;
-
 function TTensorflow.TensorArray(dtype: TF_DataType; size: Integer; dynamic_size, clear_after_read: Boolean; element_shape: PTFShape; colocate_with_first_write_call,
   infer_shape: Boolean): TTensorArray;
 begin
+    if tf.executing_eagerly then
+      Result := TEagerTensorArray.Create(dtype, constant_op.constant(size), dynamic_size, clear_after_read, '', nil, nil, infer_shape, element_shape, colocate_with_first_write_call)
+    else
+      Result := TGraphTensorArray.Create(dtype, constant_op.constant(size), dynamic_size, clear_after_read, '', nil, nil, infer_shape, element_shape, colocate_with_first_write_call)
+end;
 
+function TTensorflow.TensorArray(dtype: TF_DataType; size: TFTensor; dynamic_size, clear_after_read: Boolean; element_shape: PTFShape; colocate_with_first_write_call,
+  infer_shape: Boolean): TTensorArray;
+begin
+    if tf.executing_eagerly then
+      Result := TEagerTensorArray.Create(dtype, size, dynamic_size, clear_after_read, '', nil, nil, infer_shape, element_shape, colocate_with_first_write_call)
+    else
+      Result := TGraphTensorArray.Create(dtype, size, dynamic_size, clear_after_read, '', nil, nil, infer_shape, element_shape, colocate_with_first_write_call)
 end;
 
 Function TTensorflow.multinomial(logits: TFTensor; num_samples: Integer; seed: pInteger; name: string; output_dtype: TF_DataType): TFTensor;

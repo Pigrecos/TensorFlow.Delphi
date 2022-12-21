@@ -56,5 +56,6 @@ object frmMain: TfrmMain
     Height = 25
     Caption = 'Keras Layers'
     TabOrder = 4
+    OnClick = btnKerasLayersClick
   end
 end

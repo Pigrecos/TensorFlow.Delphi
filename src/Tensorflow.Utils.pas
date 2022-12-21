@@ -686,7 +686,10 @@ begin
           begin
             raise TFException.Create('Interface not supportated. '+ tTipo.Name );
           end;
-
+     end;
+     tkPointer: begin
+          if      string.LowerCase(string(tTipo.Name)) = 'paxis'   then  Exit(TF_DataType.TF_INT32)
+          else if string.LowerCase(string(tTipo.Name)) = 'tfshape' then  Exit(TF_DataType.TF_INT64)
      end
    else
      Result := Tdtypes.as_tf_dtype(value);
@@ -1719,8 +1722,6 @@ begin
 
     var info := arg.TypeInfo;
     var data := arg.TypeData;
-
-
 end;
 
 class function nest.pack_sequence_as(structure: TObject; flat_sequence: TEnumerable<TFTensor>; expand_composites: Boolean): TObject;

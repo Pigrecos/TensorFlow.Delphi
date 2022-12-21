@@ -48,7 +48,11 @@ type
   /// https://github.com/keras-team/keras-preprocessing/blob/master/keras_preprocessing/text.py
   /// </remarks>
   Tokenizer  = class
+     private
 
+     protected
+
+     public
   end;
 
   TPreprocessing = class(TInterfacedObject, IPreprocessing)

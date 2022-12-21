@@ -411,7 +411,7 @@ begin
                                       var expanded_stop  := array_ops.expand_dims(stop,  axis);
                                       var shape := array_ops.shape(expanded_start);
                                       var ndims := array_ops.shape(shape)[0];
-                                      var axis_tensor := array_ops.where_v2(constant_op.constant(axis >= 0), TObject(axis), TTensor(ndims) + axis);
+                                      var axis_tensor := array_ops.where_v2(constant_op.constant(axis >= 0), TObject(axis), TFtensor(TTensor(ndims) + axis));
                                       // The purpose is to avoid having negative values when repeating.
                                       var num_fill := gen_math_ops.maximum( TTensor(num_int_tensor) - 2, 0);
                                       var n_steps  := gen_math_ops.maximum( TTensor(num_int_tensor) - 1, 1);

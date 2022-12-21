@@ -578,8 +578,8 @@ begin
     abs_error   := math_ops.abs(error);
     half        := Tops.convert_to_tensor(0.5, abs_error.dtype);
     Result := gen_math_ops.mean(array_ops.where_v2(TTensor(abs_error) <= delta,
-                                                TTensor(half) * math_ops.pow(error, 2),
-                                                TTensor(half) * math_ops.pow(delta, 2) + delta * (TTensor(abs_error) - delta)), -1);
+                                                TFTensor(TTensor(half) * math_ops.pow(error, 2)),
+                                                TFTensor(TTensor(half) * math_ops.pow(delta, 2) + delta * (TTensor(abs_error) - delta))), -1);
 end;
 
 {$IFNDEF AUTOREFCOUNT}

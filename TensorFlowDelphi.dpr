@@ -83,7 +83,8 @@ uses
   TensorFlow.dataset_ops in 'src\Operation\TensorFlow.dataset_ops.pas',
   Keras.Preprocessing in 'src\Keras\Keras.Preprocessing.pas',
   Keras.LayersApi in 'src\Keras\Keras.LayersApi.pas',
-  Keras.MetricsApi in 'src\Keras\Keras.MetricsApi.pas';
+  Keras.MetricsApi in 'src\Keras\Keras.MetricsApi.pas',
+  TensorFlow.tensor_array_ops in 'src\Operation\TensorFlow.tensor_array_ops.pas';
 
 {$R *.res}
 

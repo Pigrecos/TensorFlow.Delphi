@@ -142,6 +142,7 @@ type
     procedure FormShow(Sender: TObject);
     procedure btnLinRegClick(Sender: TObject);
     procedure btnLinReg1Click(Sender: TObject);
+    procedure btnKerasLayersClick(Sender: TObject);
   private
     procedure EnableEager;
 
@@ -566,6 +567,74 @@ type
   stack = class(TStack<Integer>)
 
   end;
+
+procedure TfrmMain.btnKerasLayersClick(Sender: TObject);
+var
+  k_Layers  : Keras_Layers_test;
+begin
+    //tf.keras.utils.get_file('flower_photos.tgz','https://storage.googleapis.com/download.tensorflow.org/example_images/flower_photos.tgz');
+    //tf.keras.utils.get_file('aal012022.dat.gz','https://ftp.nhc.noaa.gov/atcf/aid_public/aal012022.dat.gz') ;
+    //tf.keras.utils.get_file('v0.70.2-NET6.zip','https://github.com/SciSharp/TensorFlow.NET/archive/refs/tags/v0.70.2-NET6.zip');
+
+    mmo1.Clear;
+    mmo1.Lines.Add('Test Keras Activation Layers...');
+    mmo1.Lines.Add('========================================');
+    mmo1.Lines.Add('');
+
+    k_Layers := Keras_Layers_test.Create;
+
+    mmo1.Lines.Add('Keras Activation Layers[LeakyReLU]');
+    k_Layers.ActivationTest_LeakyReLU;
+
+    mmo1.Lines.Add('Keras Activation Layers[ELU]');
+    k_Layers.ActivationTest_ELU;
+
+    mmo1.Lines.Add('Keras Activation Layers[SELU]');
+    k_Layers.ActivationTest_SELU;
+
+    mmo1.Lines.Add('Keras Activation Layers[Softmax]');
+    k_Layers.ActivationTest_Softmax;
+
+    mmo1.Lines.Add('Keras Activation Layers[Softplus]');
+    k_Layers.ActivationTest_Softplus;
+
+    mmo1.Lines.Add('Keras Activation Layers[Softsign]');
+    k_Layers.ActivationTest_Softsign;
+
+    mmo1.Lines.Add('Keras Activation Layers[Exponential]');
+    k_Layers.ActivationTest_Exponential;
+
+    mmo1.Lines.Add('Keras Activation Layers[HardSigmoid]');
+    k_Layers.ActivationTest_HardSigmoid;
+
+    mmo1.Lines.Add('Keras Activation Layers[Swish]');
+    k_Layers.ActivationTest_Swish;
+
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('End Test Keras Activation Layers...');
+    mmo1.Lines.Add('========================================');
+
+    // Attention Layers
+    //
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('Test Keras Attention Layers...');
+    mmo1.Lines.Add('========================================');
+    mmo1.Lines.Add('');
+
+    mmo1.Lines.Add('Keras Attention Layers[BaseDenseAttention]');
+    k_Layers.Attention_BaseDenseAttention;
+
+    mmo1.Lines.Add('Keras Attention Layers[Attention]');
+    k_Layers.Attention_Attention;
+
+    mmo1.Lines.Add('Keras Attention Layers[MultiHeadAttention]');
+    k_Layers.Attention_MultiHeadAttention;
+
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('End Test Keras Attention Layers...');
+    mmo1.Lines.Add('========================================');
+end;
 
 procedure TfrmMain.btnLinReg1Click(Sender: TObject);
 var

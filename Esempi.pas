@@ -36,7 +36,8 @@ interface
 
           TensorFlow.Variable,
           TensorFlow.Tensor,
-          NumPy.NDArray;
+          NumPy.NDArray,
+          Numpy.Axis;
 
 type
   LinearRegression = class
@@ -128,9 +129,30 @@ type
         procedure Tensordot;
   end;
 
+  Keras_Layers_test = class(EagerModeTestBase)
+      public
+        constructor Create;
+
+        procedure ActivationTest_LeakyReLU;
+        procedure ActivationTest_ELU;
+        procedure ActivationTest_SELU;
+        procedure ActivationTest_Softmax;
+        procedure ActivationTest_Softplus;
+        procedure ActivationTest_Softsign;
+        procedure ActivationTest_Exponential;
+        procedure ActivationTest_HardSigmoid;
+        procedure ActivationTest_Swish;
+        //
+        procedure Attention_BaseDenseAttention;
+        procedure Attention_Attention;
+        procedure Attention_MultiHeadAttention;
+  end;
 
 implementation
-        uses DUnitX.TestFramework;
+        uses DUnitX.TestFramework,
+
+             Keras.ArgsDefinition,
+             Keras.Layer;
 
 { LinearRegression }
 
@@ -637,6 +659,190 @@ begin
     Assert.AreEqual<Integer>(c.shape.ndim, 0);
     var s1 : NDArray := c.numpy;
     Assert.AreEqual<Integer>(s1, 8);
+end;
+
+{ Keras_Layers_test }
+
+constructor Keras_Layers_test.Create;
+begin
+    inherited Create;
+end;
+
+procedure Keras_Layers_test.ActivationTest_LeakyReLU;
+begin
+    var layer := tf.keras.layers.LeakyReLU;
+
+    var nd     : NDArray  := np.np_array<Single>([-3.0, -1.0, 0.0, 2.0]);
+    var output : TTensor  := layer.Apply( nd );
+    Equal( [ -0.9, -0.3, 0.0, 2.0 ], output.ToArray<Single>);
+end;
+
+procedure Keras_Layers_test.ActivationTest_ELU;
+begin
+    var aInput : TArray<Single> := [-3, -2, -1, 0, 1, 2];
+    var input : TTensor := tf.constant( aInput );
+
+    var output : TTensor := tf.keras.layers.ELU.Apply(input);
+
+    var aexpected : TArray<Single> := [ -0.0950213, -0.08646648, -0.06321206, 0, 1, 2 ];
+    var expected : TNDArray  :=  TNDArray.Create(aexpected);
+
+    Assert.IsTrue(expected.numpy = output.numpy,'Assert - ActivationTest_ELU');
+end;
+
+procedure Keras_Layers_test.ActivationTest_SELU;
+begin
+    var aInput : TArray<Single> := [-3, -2, -1, 0, 1, 2];
+    var input : TTensor := tf.constant( aInput );
+
+    var output : TTensor := tf.keras.layers.SELU.Apply(input);
+
+    var aexpected : TArray<Single> := [ -1.6705688, -1.5201665, -1.1113307, 0, 1.050701, 2.101402 ];
+    var expected : TNDArray  :=  TNDArray.Create(aexpected);
+
+    Assert.IsTrue(expected.numpy = output.numpy,'Assert - ActivationTest_SELU');
+end;
+
+procedure Keras_Layers_test.ActivationTest_Softmax;
+begin
+    var aInput : TArray<Single> := [-3, -2, -1, 0, 1, 2];
+    var input : TTensor := tf.constant( aInput );
+
+    var output : TTensor := tf.keras.layers.Softmax(TAxis(Integer(-1))).Apply(input);
+
+    var expected : TArray<Single> := [ 0.0042697787, 0.011606461, 0.031549633, 0.085760795, 0.23312202, 0.6336913 ];
+
+    Assert.IsTrue(Equal( expected, output.ToArray<Single>),'Assert - ActivationTest_Softmax');
+end;
+
+procedure Keras_Layers_test.ActivationTest_Softplus;
+begin
+    var aInput : TArray<Single> := [-3, -2, -1, 0, 1, 2];
+    var input : TTensor := tf.constant( aInput );
+
+    var output : TTensor := tf.keras.layers.Softplus.Apply(input);
+
+    var aexpected : TArray<Single> := [ 0.04858733, 0.12692805, 0.31326166, 0.6931472, 1.3132616, 2.126928 ];
+    var expected : TNDArray  :=  TNDArray.Create(aexpected);
+
+    Assert.IsTrue(expected.numpy = output.numpy,'Assert - ActivationTest_Softplus');
+end;
+
+procedure Keras_Layers_test.ActivationTest_Softsign;
+begin
+    var aInput : TArray<Single> := [-3, -2, -1, 0, 1, 2];
+    var input : TTensor := tf.constant( aInput );
+
+    var output : TTensor := tf.keras.layers.Softsign.Apply(input);
+
+    var aexpected : TArray<Single> := [ -0.75, -0.66666667, -0.5, 0, 0.5, 0.66666667 ];
+    var expected : TNDArray  :=  TNDArray.Create(aexpected);
+
+    Assert.IsTrue(expected.numpy = output.numpy,'Assert - ActivationTest_Softsign');
+end;
+
+procedure Keras_Layers_test.ActivationTest_Exponential;
+begin
+    var aInput : TArray<Single> := [-3, -2, -1, 0, 1, 2];
+    var input : TTensor := tf.constant( aInput );
+
+    var output : TTensor := tf.keras.layers.Exponential.Apply(input);
+
+    var expected : TArray<Single> := [ 0.049787067, 0.13533528, 0.36787945, 1, 2.7182817, 7.389056 ];
+
+    Assert.IsTrue(Equal( expected, output.ToArray<Single>),'Assert - ActivationTest_Exponential');
+end;
+
+procedure Keras_Layers_test.ActivationTest_HardSigmoid;
+begin
+    var aInput : TArray<Single> := [-3, -2, -1, 0, 1, 2];
+    var input : TTensor := tf.constant( aInput );
+
+    var output : TTensor := tf.keras.layers.HardSigmoid.Apply(input);
+
+    var expected : TArray<Single> := [ 0, 0.099999994, 0.3, 0.5, 0.7, 0.9 ];
+
+    Assert.IsTrue(Equal( expected, output.ToArray<Single>),'Assert - ActivationTest_HardSigmoid');
+end;
+
+procedure Keras_Layers_test.ActivationTest_Swish;
+begin
+    var aInput : TArray<Single> := [-3, -2, -1, 0, 1, 2];
+    var input : TTensor := tf.constant( aInput );
+
+    var output : TTensor := tf.keras.layers.Swish.Apply(input);
+
+    var expected : TArray<Single> := [ -0.14227762, -0.23840584, -0.26894143, 0, 0.7310586, 1.761594 ];
+
+    Assert.IsTrue(Equal( expected, output.ToArray<Single>),'Assert - ActivationTest_Swish');
+end;
+
+procedure Keras_Layers_test.Attention_BaseDenseAttention;
+
+   procedure test_multi_dim_with_mask;
+   begin
+      // Scores tensor of shape [1, 1, 3]
+      var scores := np.np_array<Single>([ [ [ 1, 0, 1 ] ] ], np.np_float32);
+      // Value tensor of shape [1, 3, 1]
+      var v := np.np_array<Single>([ [ [ 1.6 ], [ 0.7 ], [ -0.8 ] ] ], np.np_float32);
+      // Scores mask tensor of shape [1, 1, 3]
+      var scores_mask := np.np_array<Boolean>([ [ [ true, true, false ] ] ], np.np_bool);
+      var _tup_1 :=  BaseDenseAttention.Create(BaseDenseAttentionArgs.Create )._apply_scores(scores, v, scores_mask);
+      var actual        := _tup_1.Value1;
+      var actual_scores := _tup_1.Value2;
+
+      // Expected softmax scores = softmax(scores) with zeros in positions where
+      // v_mask == False.
+      // => softmax_scores000 = exp(1)/(exp(1) + exp(0)) = 0.73105857863
+      //    softmax_scores001 = exp(0)/(exp(1) + exp(0)) = 0.26894142137
+      //    softmax_scores002 = 0
+      var expected_scores := np.np_array<Single>([ [ [ 0.73105857863, 0.26894142137, 0 ] ] ], np.np_float32);
+      Assert.IsTrue(expected_scores.Equals( actual_scores.numpy));
+
+      // Expected tensor of shape [1, 1, 1].
+      // expected000 = 0.73105857863 * 1.6 + 0.26894142137 * 0.7 - 0 * 0.8
+      //             = 1.35795272077
+      //Actually the output is 1.3579528
+      var expected := np.np_array<Single>([ [ [ 1.3579528 ] ] ], np.np_float32);
+      Assert.IsTrue(expected.Equals(actual.numpy));
+   end;
+
+   procedure test_one_dim_batch_size_two;
+   begin
+      // Scores tensor of shape [2, 1, 2]
+      var scores := np.np_array<Single>([ [ [ 1.1 ] ], [ [ 2.1 ] ] ], np.np_float32);
+      // Value tensor of shape [2, 1, 1]
+      var v := np.np_array<Single>([ [ [ 1.6 ] ], [ [ 2.6 ] ] ], np.np_float32);
+      // Scores mask tensor of shape [2, 1, 1]
+      var scores_mask := np.np_array<Boolean>([ [ [ true ] ], [ [ true ] ] ], np.np_bool);
+      var _tup_1 :=  BaseDenseAttention.Create(BaseDenseAttentionArgs.Create )._apply_scores(scores, v, scores_mask);
+      var actual        := _tup_1.Value1;
+      var actual_scores := _tup_1.Value2;
+
+      // Expected softmax_scores = [[[1]], [[1]]]
+      var expected_scores := np.np_array<Single>([ [ [ 1 ] ], [ [ 1 ] ] ], np.np_float32);
+      Assert.IsTrue(expected_scores.Equals( actual_scores.numpy));
+
+      // Expected tensor of shape [2, 1, 1].
+      // expected000 = softmax_scores[0, 0] * 1.6 = 1.6
+      // expected100 = softmax_scores[1, 0] * 2.6 = 2.6
+      var expected := np.np_array<Single>([ [ [ 1.6 ] ], [ [ 2.6 ] ] ], np.np_float32);
+      Assert.IsTrue(expected.Equals(actual.numpy));
+   end;
+
+begin
+    test_multi_dim_with_mask;
+    test_one_dim_batch_size_two;
+end;
+
+procedure Keras_Layers_test.Attention_Attention;
+begin
+
+end;
+
+procedure Keras_Layers_test.Attention_MultiHeadAttention;
+begin
+
 end;
 
 end.

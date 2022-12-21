@@ -174,7 +174,7 @@ begin
     var res := gen_ops.elu(x);
     if Abs(Falpha - 0.1) < 0.00001 then
      Exit(res);
-    Result := array_ops.where(TTensor(x) > 0, res, Falpha * TTensor(res));
+    Result := array_ops.where(TTensor(x) > 0, res, TFTensor(Falpha * TTensor(res)));
 end;
 
 { softmax }

@@ -66,6 +66,9 @@ np = record
         // numPy.creation
         class function np_array<T>(data: T): TNDArray;overload ;static;
         class function np_array<T>(data: TArray<T>): TNDArray;overload ;static;
+        class function np_array<T>(data: TArray<T>; dtype: TF_DataType): TNDArray;overload ;static;
+        class function np_array<T>(data: TArray< TArray<T> >; dtype: TF_DataType): TNDArray;overload ;static;
+        class function np_array<T>(data: TArray<TArray< TArray<T>> >; dtype: TF_DataType): TNDArray;overload ;static;
         class function arange<T>(_end: T): TNDArray;static;
         class function frombuffer(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType): TNDArray;static;
         // numPy.Math
@@ -172,6 +175,30 @@ begin
    Result := TNDArray.Create( tf.multiply(x1, x2) );
 end;
 
+class function np.np_array<T>(data: TArray<TArray<TArray<T>>>; dtype: TF_DataType): TNDArray;
+begin
+    var a := TValue.From< TArray<TArray<TArray<T>>> >(data);
+    Result := TNDarray.create(a);
+    if dtype <> DtInvalid then
+      Result := Result.astype(dtype);
+end;
+
+class function np.np_array<T>(data: TArray<TArray<T>>; dtype: TF_DataType): TNDArray;
+begin
+    var a := TValue.From< TArray<TArray<T>> >(data);
+    Result := TNDarray.create(a);
+    if dtype <> DtInvalid then
+      Result := Result.astype(dtype);
+end;
+
+class function np.np_array<T>(data: TArray<T>; dtype: TF_DataType): TNDArray;
+begin
+    var a := TValue.From< TArray<T> >(data);
+    Result := TNDarray.create(a);
+    if dtype <> DtInvalid then
+      Result := Result.astype(dtype);
+end;
+
 class function np.np_array<T>(data: TArray<T>): TNDArray;
 begin
     var a := TValue.From< TArray<T> >(data);
@@ -208,6 +235,7 @@ class function np.sum(x1: TNDArray; axis: PAxis): TNDArray;
 begin
     Result := TNDarray.create( tf.math.sum(x1, axis^) );
 end;
+
 
 { NumPyImpl }
 

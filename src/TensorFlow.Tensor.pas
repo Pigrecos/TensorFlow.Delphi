@@ -40,6 +40,8 @@ TTensor = record
   public
       class operator Implicit(t : TFTensor): TTensor;
       class operator Implicit(t : TTensor): TFTensor;
+      class operator Implicit(t : TTensor): TFTensors;
+      class operator Implicit(t : TFTensors): TTensor;
 
       // Scalar
       constructor Create(hnd: Pointer);   overload;
@@ -305,6 +307,7 @@ TTensor = record
 
       function  eval(session : TFSession; feed_dict : TArray<FeedItem>= nil) : TNDArray;
       function  numpy: NDArray;
+      function  ToArray<T>:TArray<T>;
 
       // Property
       property HTensor : TFTensor read FHandleTensor;
@@ -439,6 +442,16 @@ end;
 function TTensor.eval(session: TFSession; feed_dict: TArray<FeedItem>): TNDArray;
 begin
     Result := FHandleTensor.eval(session,feed_dict);
+end;
+
+class operator TTensor.Implicit(t: TTensor): TFTensors;
+begin
+    Result := TFTensors.Create(t.FHandleTensor);
+end;
+
+class operator TTensor.Implicit(t: TFTensors): TTensor;
+begin
+    Result := t.First;
 end;
 
 class operator TTensor.Implicit(t: TTensor): TFTensor;
@@ -915,6 +928,11 @@ end;
 class operator TTensor.negative(x: TTensor): TTensor;
 begin
    Result := gen_math_ops.neg(x);
+end;
+
+function TTensor.ToArray<T>: TArray<T>;
+begin
+    Result := FHandleTensor.ToArray<T>;
 end;
 
 function TTensor.numpy: NDArray;

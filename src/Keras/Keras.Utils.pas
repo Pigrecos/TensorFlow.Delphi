@@ -19,6 +19,7 @@ unit Keras.Utils;
 
 interface
        uses System.SysUtils,
+            Winapi.Windows,
             System.Math,
             System.Character,
             System.Generics.Collections,
@@ -26,6 +27,7 @@ interface
             System.Net.HttpClient,
             System.Classes,
             System.ZLib,
+            System.Zip,
 
             Spring,
 
@@ -126,7 +128,9 @@ implementation
                Keras.ArgsDefinition,
                Keras.LossFunc,
 
-               ProtoGen.variable;
+               ProtoGen.variable,
+
+               ipztar, ipzzip,ipzgzip;
 
 { base_layer_utils }
 
@@ -363,13 +367,11 @@ function KerasUtils.get_file(fname, origin: string; untar: Boolean; md5_hash, fi
 var
   Web     : THTTPClient;
   MS      : TMemoryStream;
-  Compress: TZDecompressionStream;
-  LInput,
-  LOutput : TFileStream;
 
 begin
     if string.IsNullOrEmpty(cache_dir) then
         cache_dir := TPath.GetTempPath;
+
     var datadir_base := cache_dir;
     TDirectory.CreateDirectory(datadir_base);
 
@@ -381,28 +383,43 @@ begin
       MS := TMemoryStream.Create;
       try
         Web.Get(origin, MS);
-        MS.SaveToFile(datadir+fname);
+        MS.SaveToFile(datadir+'\'+fname);
 
         var archive := TPath.Combine(datadir, fname);
 
-        LInput   := TFileStream.Create(archive, fmOpenRead);
-        {windowBits can also be greater than 15 for optional gzip decoding.  Add
-         32 to windowBits to enable zlib and gzip decoding with automatic header
-         detection, or add 16 to decode only the gzip format (the zlib format will
-         return a Z_DATA_ERROR). }
-        Compress := TZDecompressionStream.Create(LInput,15 + 32);
-
-        LOutput := TFileStream.Create(datadir,fmOpenReadWrite);
-        try
-          LOutput.CopyFrom(Compress,0)
-          {if untar
-              Compress.ExtractTGZ(archive, datadir);
-          else if (extract && fname.EndsWith(".gz"))
-              Compress.ExtractGZip(archive, datadir);
-          else if (extract && fname.EndsWith(".zip"))
-              Compress.UnZip(archive, datadir);  }
-        finally
-          LOutput.Free;
+        if archive.EndsWith('.zip') then
+        begin
+           var AZipFile := TipzZip.Create(nil);
+           try
+             AZipFile.ArchiveFile   := archive;
+             AZipFile.ExtractToPath := datadir;
+             AZipFile.ExtractAll;
+           finally
+              AZipFile.Free;
+           end;
+        end
+        else if archive.EndsWith('.tgz')then
+        begin
+           var ATgzFile := TipzTar.Create(nil);
+           try
+             ATgzFile.ArchiveFile        := archive;
+             ATgzFile.UseGzipCompression := true;
+             ATgzFile.ExtractToPath      := datadir;
+             ATgzFile.ExtractAll;
+           finally
+             ATgzFile.Free;
+           end;
+        end
+        else if archive.EndsWith('.gz') then
+        begin
+           var AGzFile := TipzGzip.Create(nil);
+           try
+             AGzFile.ArchiveFile     := archive;
+             AGzFile.ExtractToPath   := datadir;
+             AGzFile.ExtractAll;
+           finally
+             AGzFile.Free;
+           end;
         end;
       finally
         MS.Free;

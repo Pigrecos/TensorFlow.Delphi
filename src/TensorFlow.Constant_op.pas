@@ -250,9 +250,24 @@ begin
          var vval := Value.AsType<TFShape>;
          Result := TEagerTensor.Create(vval.dims, TFShape.Create([vval.ndim]),TUtils.GetDataType(Value) );
     end
+    else if tipoName = 'ptfshape' then
+    begin
+         var v := Value.AsType<PTFShape>;
+         var vval := v^;
+         Result := TEagerTensor.Create(vval.dims, TFShape.Create([vval.ndim]),TUtils.GetDataType(Value) );
+    end
     else if value.TypeInfo = TypeInfo(TAxis)      then
     begin
          var vval := Value.AsType<TAxis>;
+         var shape : TFShape;
+         if vval.IsScalar then shape := TFShape.Scalar
+         else                  shape := TFShape.Create([vval.size]);
+         Result := TEagerTensor.Create(vval.axis, shape,TUtils.GetDataType(Value) );
+    end
+    else if tipoName = 'paxis'      then
+    begin
+         var v := Value.AsType<PAxis>;
+         var vval := v^;
          var shape : TFShape;
          if vval.IsScalar then shape := TFShape.Scalar
          else                  shape := TFShape.Create([vval.size]);

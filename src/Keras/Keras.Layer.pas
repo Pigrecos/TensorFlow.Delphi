@@ -213,15 +213,18 @@ type
   /// x = 0 when x > 0, x = alpha( e^x-1 ) elsewhere
   /// </summary>
   ELU = class(Layer)
+  private
+      function GetAlpha: Single;
     protected
       procedure Build(input_shape: TFShape); override;
       function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
       function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
     public
       args  : ELUArgs;
-      alpha : Single;
 
       constructor Create(_args: ELUArgs);
+
+      property alpha : Single read GetAlpha;
   end;
 
   Exponential = class(Layer)
@@ -247,12 +250,16 @@ type
   /// Leaky version of a Rectified Linear Unit.
   /// </summary>
   LeakyReLu = class(Layer)
+  private
+      function GetAlpha: Single;
     protected
       function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
     public
       args  : LeakyReLuArgs;
-      alpha : Single;
+
       constructor Create(_args: LeakyReLuArgs);
+
+      property alpha : Single read GetAlpha;
   end;
 
   /// <summary>
@@ -1916,6 +1923,11 @@ begin
     args := _args;
 end;
 
+function ELU.GetAlpha: Single;
+begin
+    Result := args.Alpha;
+end;
+
 procedure ELU.Build(input_shape: TFShape);
 begin
   if alpha < 0  then
@@ -1927,7 +1939,7 @@ end;
 function ELU.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
 begin
     var output : TFTensor := inputs.first;
-    output := tf.where(TTensor(output) > 0, output,
+    output := tf.where(TTensor(output) > Single(0), output,
               tf.multiply(alpha, tf.sub(tf.exp(output), Single(1))));
     Result := TFTensors.Create(output)
 end;
@@ -1991,6 +2003,11 @@ begin
     args := _args;
 end;
 
+function LeakyReLu.GetAlpha: Single;
+begin
+    Result := args.Alpha;
+end;
+
 function LeakyReLu.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
 begin
    var Res := tf.nn.leaky_relu(inputs.first, alpha);
@@ -2016,7 +2033,7 @@ function SELU.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTe
 begin
     var output : TFTensor := inputs.first;
 
-    var res := tf.where(TTensor(output) > 0,
+    var res := tf.where(TTensor(output) > Single(0),
                         tf.multiply(scale, output),
                         tf.multiply(scale, tf.multiply(alpha, tf.sub(tf.exp(output), Single(1)))));
 
@@ -2164,7 +2181,8 @@ begin
             scores := TTensor(scores) - ( Single(1000000000) * TTensor(tf.cast(padding_mask, scores.dtype)) );
     end;
     var _training : Boolean;
-    //training := @false; // TODO: Delete this line when backend.learning_phase is available
+    var b := False;
+    training := @b; // TODO: Delete this line when backend.learning_phase is available
     if training = nil then
     begin
         if tf.keras.backend.learning_phase = GraphLearningPhase.train_mode then _training := True

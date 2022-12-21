@@ -21,6 +21,7 @@ interface
     uses System.SysUtils,
          System.Generics.Collections,
 
+         Spring,
          Spring.Collections,
          rtti,
 
@@ -190,6 +191,33 @@ type
       property Accs_ta : TArray<TTensorArray> read FAccs_ta;
   end;
 
+  TGraphTensorArray = class(TTensorArray)
+    private
+      Fdynamic_size     : Boolean;
+      Felement_shape    : TList<TFShape>;
+      Fcolocate_with    : TList<TFTensor>;
+      Fclear_after_read : Boolean;
+      Ftensor_array     : TList<TFTensor>;
+
+      function size(name: string = ''): TFTensor;
+    protected
+
+    public
+      constructor Create(_dtype: TF_DataType; size: TFTensor; dynamic_size: Boolean = false;
+                         clear_after_read : Boolean= true; tensor_array_name : string = ''; _handle : TFTensor= nil;
+                         _flow : TFTensor = nil; _infer_shape: Boolean = true; _element_shape : PTFShape= nil;
+                         _colocate_with_first_write_call : Boolean= true; _name: string = '');
+      function  scatter(indices: TFTensor; value: TFTensor; name: string = ''): TTensorArray;
+      procedure _merge_element_shape(shape: TFShape);
+      procedure _maybe_colocate_with(value: TFTensor);
+      function read<T>(index: T; name: string = ''): TFTensor; reintroduce;
+      function unstack(value: TFTensor; name: string = ''): TTensorArray; override;
+      function write(index: TFTensor; value: TFTensor; name: string = ''): TTensorArray; overload; override;
+      function write<T>(index: Integer; value: T; name: string = ''): TTensorArray; reintroduce; overload;
+      function stack(name: string = ''): TFTensor; override;
+      function gather(indices: TFTensor; name: string = ''): TFTensor; override;
+  end;
+
 
 implementation
        uses Tensorflow,
@@ -198,7 +226,11 @@ implementation
             Tensorflow.NameScope,
             TensorFlow.Ops,
             Tensorflow.math_ops,
-            Tensorflow.array_ops ;
+            Tensorflow.array_ops,
+            TensorFlow.Constant_op,
+            TensorFlow.gen_data_flow_ops,
+            TensorFlow.tensor_array_ops,
+            NumPy.NDArray ;
 
 { SparseTensor }
 
@@ -497,6 +529,161 @@ end;
 function TTensorArray.write<T>(index: Integer; value: T; name: string): TTensorArray;
 begin
     Result := nil;
+end;
+
+{ TGraphTensorArray }
+
+constructor TGraphTensorArray.Create(_dtype: TF_DataType; size: TFTensor; dynamic_size, clear_after_read: Boolean; tensor_array_name: string; _handle, _flow: TFTensor;
+  _infer_shape: Boolean; _element_shape: PTFShape; _colocate_with_first_write_call: Boolean; _name: string);
+begin
+    Fclear_after_read := clear_after_read;
+    Fdynamic_size     := dynamic_size;
+    Fdtype            := _dtype;
+
+    Fcolocate_with_first_write_call := _colocate_with_first_write_call;
+    if Fcolocate_with_first_write_call then
+        Fcolocate_with := TList<TFTensor>.Create;
+
+    // Record the current static shape for the array elements. The element
+    // shape is defined either by `element_shape` or the shape of the tensor
+    // of the first write. If `infer_shape` is true, all writes checks for
+    // shape equality.
+    if _element_shape = nil then
+    begin
+        Finfer_shape   := _infer_shape;
+        Felement_shape := TList<TFShape>.Create;
+    end else
+    begin
+        Finfer_shape   := true;
+        Felement_shape := TList<TFShape>.Create([ _element_shape ]);
+    end;
+
+    var vvalue := TValue.From< TArray<TFTensor> >([_handle, size, _flow]);
+    TUtils.tf_with<TNameScope>( TOps.name_scope(_name, 'TensorArray', @vvalue),
+        procedure(v1: TNameScope)
+          begin
+              var scope : string := v1.toString;
+              if _handle <> nil then
+              begin
+                  Fhandle := _handle;
+                  Fflow   := _flow;
+              end else
+              begin
+                  var create : TFunc< Tuple<TFTensor, TFTensor> > := function:Tuple<TFTensor, TFTensor>
+                        begin
+                            Result :=  gen_data_flow_ops.tensor_array_v3(size, _dtype, _element_shape, dynamic_size, clear_after_read, _infer_shape, tensor_array_name, scope )
+                        end;
+
+                  // Construct the TensorArray with an empty device.  The first
+                  // write into the TensorArray from a Tensor with a set device
+                  // will retroactively set the device value of this op.
+                  if _colocate_with_first_write_call then
+                  begin
+                      Tops.colocate_with(true);
+                      var t1 := create;
+                      Fhandle := t1.Value1;
+                      Fflow   := t1.Value2;
+                  end else
+                  begin
+                      var t1 := create;
+                      Fhandle := t1.Value1;
+                      Fflow   := t1.Value2;
+                  end;
+              end;
+          end);
+end;
+
+function TGraphTensorArray.gather(indices: TFTensor; name: string): TFTensor;
+var
+  element_shape : TFShape;
+  value         : TFTensor;
+begin
+    element_shape := TFShape.Null;
+
+    if Felement_shape.Count > 0 then
+       element_shape := Felement_shape[0];
+
+    value := gen_data_flow_ops.tensor_array_gather_v3(Fhandle, indices, Fflow, Fdtype, @element_shape, name) ;
+
+    //if (element_shape != null)
+    //value.set_shape(-1, element_shape.dims);
+
+    Result := value;
+end;
+
+function TGraphTensorArray.read<T>(index: T; name: string): TFTensor;
+begin
+    var value := gen_data_flow_ops.tensor_array_read_v3(Fhandle, constant_op.constant(TValue.From<T>(index)), Fflow, Fdtype, name);
+
+    if Felement_shape <> nil then
+        value.shape := Felement_shape[0].dims;
+
+    Result := value;
+end;
+
+function TGraphTensorArray.scatter(indices, value: TFTensor; name: string): TTensorArray;
+begin
+    raise Exception.Create('Error Not Implemented scatter');
+end;
+
+function TGraphTensorArray.size(name: string): TFTensor;
+begin
+    Result := gen_data_flow_ops.tensor_array_size_v3(Fhandle, Fflow, name);
+end;
+
+function TGraphTensorArray.stack(name: string): TFTensor;
+begin
+    Tops.colocate_with(Fhandle);
+
+    var vvalue := TValue.From< TArray<TFTensor> >([Fhandle]);
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'TensorArrayStack', @vvalue),
+                        function(v1: TNameScope): TFTensor
+                          begin
+                              var Limit : TValue :=  size;
+                              Result := gather(math_ops.range(0, @Limit), name);
+                          end);
+end;
+
+function TGraphTensorArray.unstack(value: TFTensor; name: string): TTensorArray;
+begin
+    var vvalue := TValue.From< TArray<TFTensor> >([Fhandle, value]);
+    Result := TUtils.tf_with<TNameScope,TTensorArray>( TOps.name_scope(name, 'TensorArrayUnstack', @vvalue),
+                        function(v1: TNameScope): TTensorArray
+                          begin
+                              var num_elements : TFTensor := array_ops.shape(value)[0];
+                              var Limit : TValue :=  num_elements;
+                              Result := scatter(math_ops.range(0, @Limit), value, name);
+                          end);
+end;
+
+function TGraphTensorArray.write(index, value: TFTensor; name: string): TTensorArray;
+begin
+    var vvalue := TValue.From< TArray<TFTensor> >([Fhandle,index, value]);
+    Result := TUtils.tf_with<TNameScope,TTensorArray>( TOps.name_scope(name, 'TensorArrayWrite', @vvalue),
+                        function(v1: TNameScope): TTensorArray
+                          begin
+                              _maybe_colocate_with(value);
+                              var flow_out := gen_data_flow_ops.tensor_array_write_v3(Fhandle, index, value, Fflow, name);
+
+                              Result := tensor_array_ops.build_ta_with_new_flow(Self, flow_out);
+                          end);
+end;
+
+function TGraphTensorArray.write<T>(index: Integer; value: T; name: string): TTensorArray;
+begin
+    var value_tensor := Tops.convert_to_tensor(TValue.From<T>(value), DtInvalid, 'value', False, Fdtype );
+    var index_tensor := Tops.convert_to_tensor(index, DtInvalid, 'index');
+    Result := write(index_tensor, value_tensor, name);
+end;
+
+procedure TGraphTensorArray._maybe_colocate_with(value: TFTensor);
+begin
+    Fcolocate_with.Add(value);
+end;
+
+procedure TGraphTensorArray._merge_element_shape(shape: TFShape);
+begin
+    Felement_shape.Add(shape);
 end;
 
 end.
