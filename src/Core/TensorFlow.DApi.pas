@@ -965,6 +965,7 @@ TFTensors = class (TList<TFTensor>)
 
    function  GetTensor(idx: Integer): TFTensor;
    procedure SetTensor(idx: Integer; const Value: TFTensor);
+    function GetShape: TFShape;
  protected
 
  public
@@ -985,7 +986,7 @@ TFTensors = class (TList<TFTensor>)
 
    property Item[idx: Integer] : TFTensor read GetTensor write SetTensor; default;
    property dtype   : TF_DataType read Fdtype ;
-   property shape   : TFShape     read Fshape ;
+   property shape   : TFShape     read GetShape ;
    property rank    : Integer     read FRank ;
    property graph   : TFGraph     read Fgraph ;
    property IsList  : Boolean     read FIsList write FIsList ;
@@ -5027,7 +5028,7 @@ end;
 
 function TFShape.IsScalar: Boolean;
 begin
-     Result := ndim = 0;
+     Result := (ndim = 0) and (FHandle <> nil);
 end;
 
 function TFShape.is_compatible_with(shape2: TFShape): Boolean;
@@ -5622,7 +5623,7 @@ begin
 
    var fFirst := FItems.First;
 
-   if fFirst.Handle <> nil then
+   if (fFirst.Handle <> nil) or (fFirst.FOp <> nil)  then
    begin
      FiLength := FItems.Count;
      Fdtype := fFirst.Dtype;
@@ -5672,6 +5673,18 @@ begin
     FItems.Free;
 
     inherited;
+end;
+
+function TFTensors.GetShape: TFShape;
+begin
+   var fFirst := FItems.First;
+
+   if (fFirst.Handle <> nil) or (fFirst.FOp <> nil)  then
+     Fshape := fFirst.Shape
+   else
+     Fshape := System.default(TFShape);
+
+   Result := Fshape;
 end;
 
 function TFTensors.GetTensor(idx: Integer): TFTensor;

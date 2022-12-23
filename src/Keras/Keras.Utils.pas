@@ -145,7 +145,7 @@ begin
     var Ps : PTFShape := nil;
     if not s.IsNil then
        Ps := @s;
-    Result := tf.Variable(init_val, args.Trainable, args.ValidateShape, args.UseResource, args.Name, variable_dtype, TVariableAggregation.VARIABLE_AGGREGATION_NONE,Ps );
+    Result := tf.Variable<TFunc<TFTensor>>(init_val, args.Trainable, args.ValidateShape, args.UseResource, args.Name, variable_dtype, TVariableAggregation.VARIABLE_AGGREGATION_NONE,Ps ) ;
 end;
 
 class function base_layer_utils.needs_keras_history(inputs: TFTensors): Boolean;

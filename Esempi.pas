@@ -152,7 +152,10 @@ implementation
         uses DUnitX.TestFramework,
 
              Keras.ArgsDefinition,
-             Keras.Layer;
+             Keras.Layer,
+             Keras.Utils,
+
+             ProtoGen.variable;
 
 { LinearRegression }
 
@@ -836,13 +839,106 @@ begin
 end;
 
 procedure Keras_Layers_test.Attention_Attention;
-begin
+    procedure test_calculate_scores_multi_dim ;
+    begin
+        // Query tensor of shape [1, 2, 4]
+        var q := np.np_array<Single>([ [
+                                        [  1, 1.1, 1.2, 1.3 ],
+                                        [  2, 2.1, 2.2, 2.3 ] ] ], np.np_float32);
 
+        // Key tensor of shape [1, 3, 4]
+        var k := np.np_array<Single>([ [
+                                        [  1.5, 1.6, 1.7, 1.8 ],
+                                        [  2.5, 2.6, 2.7, 2.8 ],
+                                        [  3.5, 3.6, 3.7, 3.8 ] ] ], np.np_float32);
+
+        var attention_layer  := tf.keras.layers.Attention;
+        //attention_layer.build(((1, 2, 4), (1, 3, 4)));
+        var actual := Attention(attention_layer)._calculate_scores(q, k);
+        // Expected tensor of shape [1, 2, 3].
+        // expected000 = 1.*1.5+1.1*1.6+1.2*1.7+1.3*1.8 = 7.64
+        // expected001 = 1.*2.5+1.1*2.6+1.2*2.7+1.3*2.8 = 12.24
+        // expected002 = 1.*3.5+1.1*3.6+1.2*3.7+1.3*3.8 = 16.84
+        // expected010 = 2.*1.5+2.1*1.6+2.2*1.7+2.3*1.8 = 14.24
+        // expected011 = 2.*2.5+2.1*2.6+2.2*2.7+2.3*2.8 = 22.84
+        // expected012 = 2.*3.5+2.1*3.6+2.2*3.7+2.3*3.8 = 31.44
+        // Actually the output000 is 7.6400003, the output012 is 31.439999
+        var expected := np.np_array<Single>([ [
+                                        [  7.6400003, 12.24, 16.84     ],
+                                        [  14.24,     22.84, 31.439999 ] ] ], np.np_float32);
+        Assert.IsTrue(expected.Equals(actual.numpy));
+
+    end;
+
+    procedure test_calculate_scores_multi_dim_concat ;
+    begin
+        // Query tensor of shape [1, 2, 4]
+        var q := np.np_array<Single>([ [
+                                        [  1, 1.1, 1.2, 1.3 ],
+                                        [  2, 2.1, 2.2, 2.3 ] ] ], np.np_float32);
+
+        // Key tensor of shape [1, 3, 4]
+        var k := np.np_array<Single>([ [
+                                        [  1.5, 1.6, 1.7, 1.8 ],
+                                        [  2.5, 2.6, 2.7, 2.8 ],
+                                        [  3.5, 3.6, 3.7, 3.8 ] ] ], np.np_float32);
+
+        var attention_layer  :=  Attention( tf.keras.layers.Attention(False,'concat') );
+        //attention_layer.concat_score_weight = 1;
+        var vArgs : VariableArgs;
+        vArgs.Name := 'concat_score_weight';
+        vArgs.Shape           := Integer(1);
+        vArgs.DType           := TF_DataType.TF_FLOAT;
+        vArgs.Overwrite       := true;
+        vArgs.Initializer     := tf.ones_initializer;
+        vArgs.Synchronization := VARIABLE_SYNCHRONIZATION_AUTO;
+        vArgs.Aggregation     := VARIABLE_AGGREGATION_NONE;
+        vArgs.Trainable       := true;
+        attention_layer.concat_score_weight := base_layer_utils.make_variable(vArgs);
+        //attention_layer.build(((1, 2, 4), (1, 3, 4)));
+        //var actual = keras.backend.get_value(attention_layer._calculate_scores(query: q, key: k));
+        var actual := attention_layer._calculate_scores(q, k);
+        // pylint:disable=line-too-long
+        // expected000 = tanh(1.+1.5) + tanh(1.1+1.6) + tanh(1.2+1.7) + tanh(1.3+1.8) = 3.96753427840
+        // expected001 = tanh(1.+2.5) + tanh(1.1+2.6) + tanh(1.2+2.7) + tanh(1.3+2.8) = 3.99558784825
+        // expected002 = tanh(1.+3.5) + tanh(1.1+3.6) + tanh(1.2+3.7) + tanh(1.3+3.8) = 3.99940254147
+        // expected010 = tanh(2.+1.5) + tanh(2.1+1.6) + tanh(2.2+1.7) + tanh(2.3+1.8) = 3.99558784825
+        // expected011 = tanh(2.+2.5) + tanh(2.1+2.6) + tanh(2.2+2.7) + tanh(2.3+2.8) = 3.99940254147
+        // expected012 = tanh(2.+3.5) + tanh(2.1+3.6) + tanh(2.2+3.7) + tanh(2.3+3.8) = 3.99991913657
+        //Actually the output012 is 3.9999194
+        var expected := np.np_array<Single>([ [
+                                        [  3.96753427840, 3.99558784825, 3.99940254147 ],
+                                        [  3.99558784825, 3.99940254147, 3.9999194     ] ] ], np.np_float32);
+        Assert.IsTrue(expected.Equals(actual.numpy));
+
+    end;
+begin
+    test_calculate_scores_multi_dim;
+    test_calculate_scores_multi_dim_concat;
 end;
 
 procedure Keras_Layers_test.Attention_MultiHeadAttention;
 begin
+    var batch_size := 3;
 
+    var query       := tf.keras.Input(TFShape.Create([4, 8]), TFShape.Null);
+    var value       := tf.keras.Input(TFShape.Create([2, 8]), TFShape.Null);
+    var mask_tensor := tf.keras.Input(TFShape.Create([4, 2]), TFShape.Null);
+
+    var attention_layer := tf.keras.layers.MultiHeadAttention(2, 2);
+    attention_layer.Apply( TFTensors.Create([ query, value, mask_tensor ]) );
+
+    var from_data := 10 * NDArray( np.random.randn([batch_size, 4, 8]) );
+    var to_data   := 10 * NDArray( np.random.randn([batch_size, 2, 8]) );
+
+    var sSize := TFShape.Create([4, 2]);
+    var mask_data := np.random.randint(2, nil, @sSize);
+    var masked_output_data := attention_layer.Apply( TFTensors.Create([ from_data, to_data, mask_data ]) );
+
+    var null_mask_data       := np.ones(TFShape.Create([batch_size, 4, 2]));
+    var unmasked_output_data := attention_layer.Apply(TFTensors.Create([ from_data, to_data, null_mask_data ]) );
+
+    Assert.isTrue(masked_output_data.first.numpy.Equals(unmasked_output_data.first.numpy))
 end;
 
 end.

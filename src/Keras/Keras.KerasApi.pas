@@ -17,6 +17,8 @@ unit Keras.KerasApi;
 interface
      uses System.SysUtils,
 
+          TF4D.Core.CApi,
+          TensorFlow.DApi,
           TensorFlow.Initializer,
 
           Keras.ILayersApi,
@@ -78,9 +80,29 @@ type
       //public ModelsApi models { get; } = new ModelsApi();
       utils        : KerasUtils;
       constructor Create;
+      /// <summary>
+      /// Instantiate a Keras tensor.
+      /// </summary>
+      /// <param name="shape"></param>
+      /// <param name="batch_size"></param>
+      /// <param name="dtype"></param>
+      /// <param name="name"></param>
+      /// <param name="sparse">
+      /// A boolean specifying whether the placeholder to be created is sparse.
+      /// </param>
+      /// <param name="ragged">
+      /// A boolean specifying whether the placeholder to be created is ragged.
+      /// </param>
+      /// <param name="tensor">
+      /// Optional existing tensor to wrap into the `Input` layer.
+      /// If set, the layer will not create a placeholder tensor.
+      /// </param>
+      /// <returns></returns>
+      function  Input(shape: TFShape; batch_input_shape : TFShape; batch_size : Integer= -1; dtype : TF_DataType = DtInvalid; name: string = ''; sparse: Boolean = false; ragged: Boolean = false; tensor: TFTensor = nil): TFTensor;
   end;
 
 implementation
+       uses Keras.ArgsDefinition;
 
 { KerasInterface }
 
@@ -117,6 +139,32 @@ end;
 function KerasInterface.GetLayers: ILayersApi;
 begin
     Result := Flayers;
+end;
+
+function KerasInterface.Input(shape, batch_input_shape: TFShape; batch_size: Integer; dtype: TF_DataType; name: string; sparse, ragged: Boolean; tensor: TFTensor): TFTensor;
+var
+  args : InputLayerArgs;
+begin
+   if not batch_input_shape.isNull then
+   begin
+        var a :=  batch_input_shape.dims;
+        Delete(a,0,1);
+        shape := a;
+   end;
+
+   args := InputLayerArgs.Create;
+   args.Name            := name;
+   args.InputShape      := shape;
+   args.BatchInputShape := batch_input_shape;
+   args.BatchSize       := batch_size;
+   args.DType           := dtype;
+   args.Sparse          := sparse;
+   args.Ragged          := ragged;
+   args.InputTensor     := tensor;
+
+   var input_layer := Keras.Layer.InputLayer.Create(args);
+
+   Result := input_layer.InboundNodes[0].Outputs.first;
 end;
 
 end.

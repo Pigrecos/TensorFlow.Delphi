@@ -666,6 +666,13 @@ type
     protected
       // Creates variable when `use_scale` is True or `score_mode` is `concat`.
       procedure Build(input_shape: TFShape); override;
+
+    public
+      concat_score_weight : IVariableV1 ;
+      scale               : IVariableV1 ;
+      args                : AttentionArgs;
+
+      constructor Create(_args: AttentionArgs);
       /// <summary>
       /// Calculates attention scores as a query-key dot product.
       /// </summary>
@@ -673,12 +680,6 @@ type
       /// <param name="key">key: Key tensor of shape `[batch_size, Tv, dim]`.</param>
       /// <returns>Tensor of shape `[batch_size, Tq, Tv]`.</returns>
       function _calculate_scores(query: TFTensor; key: TFTensor): TFTensor; override;
-    public
-      concat_score_weight : IVariableV1 ;
-      scale               : IVariableV1 ;
-      args                : AttentionArgs;
-
-      constructor Create(_args: AttentionArgs);
       function get_config: LayerArgs;
 
       property score_mode: string read  GetScoreMode;
@@ -1402,6 +1403,7 @@ begin
     // the layer's weights.
     Fbuilt := false;
     FSupportsMasking := false;
+    Fdynamic         := True;
 
     Fid := Tops.uid_layer;
     _init_set_name(args.Name);
@@ -1801,18 +1803,18 @@ begin
 
     var args : VariableArgs;
 
-        args.Name            := name;
-        args.Shape           := shape;
-        args.DType           := dtype;
+    args.Name            := name;
+    args.Shape           := shape;
+    args.DType           := dtype;
 
-        if Assigned(getter)  then args.Getter := getter
-        else                      args.Getter :=  base_layer_utils.make_variable;
+    if Assigned(getter)  then args.Getter := getter
+    else                      args.Getter :=  base_layer_utils.make_variable;
 
-        args.Overwrite       := true;
-        args.Initializer     := initializer;
-        args.Synchronization := synchronization;
-        args.Aggregation     := aggregation;
-        args.Trainable       := trainable;
+    args.Overwrite       := true;
+    args.Initializer     := initializer;
+    args.Synchronization := synchronization;
+    args.Aggregation     := aggregation;
+    args.Trainable       := trainable;
 
     var variable := _add_variable_with_custom_getter(args);
 
@@ -2372,6 +2374,7 @@ end;
 constructor Attention.Create(_args: AttentionArgs);
 begin
     inherited Create(_args);
+    args := _args ;
     if (score_mode <> 'dot') and (score_mode <> 'concat') then
        raise TFException.Create('Received: score_mode='+score_mode+'. Acceptable values are: ["dot", "concat"]');
 end;
@@ -2568,7 +2571,6 @@ begin
 
     Fkernel := add_weight('kernel', kernel_shape, DType, Fkernel_initializer, Fkernel_regularizer, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE,True);
 
-
     if bias_shape <> nil then
         Fbias := add_weight('bias', bias_shape, DType, Fbias_initializer, Fbias_regularizer, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE,True)
     else
@@ -2674,11 +2676,11 @@ begin
 
     for var dim in input_spec do
     begin
-        var input_shape_at_dim := input_shape[ input_dim_map[dim] ];
+        var input_shape_at_dim := input_shape[ input_dim_map[dim]-1 ];
         var index : Integer;
         if output_dim_map.TryGetValue(dim, index) then
         begin
-            var output_shape_at_dim := _output_shape[index];
+            var output_shape_at_dim := _output_shape[index-1];
             if (output_shape_at_dim <> -1) and (output_shape_at_dim <> input_shape_at_dim) then
                raise TFException.Create('Input shape and output shape do not match at shared dimension '+ dim + sLineBreak +
                                         '.Input shape is '+input_shape_at_dim.ToString+', and output shape is '+ output_shape[output_dim_map[dim]].ToString+'.');
@@ -2698,9 +2700,9 @@ begin
     for var dim in weight_spec do
     begin
         if input_dim_map.ContainsKey(dim) then
-            weight_shape.add( input_shape[input_dim_map[dim]] )
+            weight_shape.add( input_shape[ input_dim_map[dim]-1 ] )
         else if output_dim_map.ContainsKey(dim) then
-            weight_shape.add(_output_shape[output_dim_map[dim]])
+            weight_shape.add(_output_shape[ output_dim_map[dim]-1 ])
         else
            raise TFException.Create('Weight dimension '+dim+' did not have a match in ' + sLineBreak +
                                     'either the input spec '+ input_spec +
@@ -2715,7 +2717,7 @@ begin
 
         var idx_map := TDictionary<char, Integer>.Create;
         for var i := 1 to output_spec.Length do
-            idx_map.AddOrSetValue( output_spec[i], _output_shape[i + num_left_elided] );
+            idx_map.AddOrSetValue( output_spec[i], _output_shape[(i-1) + num_left_elided] );
 
         for var _char in bias_axes do
             if not output_spec.Contains(_char) then
@@ -2732,6 +2734,7 @@ begin
         var bias_output_spec := output_spec.Substring(first_bias_location);
 
         lstIdx.Clear;
+        lstIdx.Pack;
         for var  _char in bias_output_spec do
         begin
            if bias_axes.Contains(_char) then  lstIdx.Add( idx_map[_char] )
@@ -2740,8 +2743,10 @@ begin
         bias_shape := lstIdx ;
 
         if not left_elided then
-            for var x := 0 to elided do
+        begin
+            for var x := 0 to  elided -1 do
                 bias_shape.add(1);
+        end;
     end
     else bias_shape := nil;
 
@@ -2903,6 +2908,8 @@ begin
     Fcombine_equation     := '';
     Fsoftmax              := nil;
     Fdropout_layer        := nil;
+
+    args := _args;
 end;
 
 class function MultiHeadAttention._build_attention_equation(rank: Integer; attn_axes: TFShape): Tuple<string, string, Integer>;
@@ -2921,24 +2928,24 @@ begin
     for var i := 0 to rank-1 do
     begin
         if (batch_dims.Contains(i)) or ( i = rank - 1) then
-            source_notation := source_notation + target_notation[i]
+            source_notation := source_notation + target_notation[i+1]
         else begin
-            source_notation := source_notation + _CHR_IDX[letter_offset];
+            source_notation := source_notation + _CHR_IDX[1+letter_offset];
             letter_offset   := letter_offset + 1;
         end;
     end;
     var tn  : string :='';
     var tn1 : string :='';
     var sn  : string :='';
-    for var i in batch_dims do            tn  := tn  + target_notation[i];
-    for var i in attn_axes.as_int_list do tn1 := tn1 + target_notation[i];
-    for var i in attn_axes.as_int_list do sn  := sn  + source_notation[i];
+    for var i in batch_dims do            tn  := tn  + target_notation[i+1];
+    for var i in attn_axes.as_int_list do tn1 := tn1 + target_notation[i+1];
+    for var i in attn_axes.as_int_list do sn  := sn  + source_notation[i+1];
 
     var product_notation := tn + tn1 + sn;
 
-    var dot_product_equation := Format('%s,%s->$s',[source_notation,target_notation,product_notation]);
+    var dot_product_equation := Format('%s,%s->%s',[source_notation,target_notation,product_notation]);
     var attn_scores_rank     := product_notation.Length;
-    var combine_equation     := Format('%s,%s->$s',[product_notation,source_notation,target_notation]);
+    var combine_equation     := Format('%s,%s->%s',[product_notation,source_notation,target_notation]);
 
     Result := Tuple.Create(dot_product_equation, combine_equation, attn_scores_rank);
 end;
@@ -2953,21 +2960,21 @@ begin
     var letter_offset := 0;
     for var i in TUtils.range(free_dims) do
     begin
-        _char      := _CHR_IDX[i + letter_offset];
+        _char      := _CHR_IDX[i+1 + letter_offset];
         input_str  := input_str +_char;
         output_str := output_str + _char;
     end;
     letter_offset := letter_offset + free_dims;
     for var i in TUtils.range(bound_dims) do
     begin
-        _char      := _CHR_IDX[i + letter_offset];
+        _char      := _CHR_IDX[i+1 + letter_offset];
         input_str  := input_str + _char;
         kernel_str := kernel_str +_char;
     end;
     letter_offset := letter_offset +  bound_dims;
     for var i in TUtils.range(output_dims) do
     begin
-        _char := _CHR_IDX[i + letter_offset];
+        _char := _CHR_IDX[i+1 + letter_offset];
         kernel_str := kernel_str + _char;
         output_str := output_str + _char;
         bias_axes  := bias_axes  + _char;
@@ -3029,8 +3036,9 @@ begin
                             bias_axes       := t_bp1.Value2;
                             output_rank     := t_bp1.Value3;
 
-                            var vDim : Integer := args.ValueDim;
-                            if args.ValueDim = nil then vDim  := args.KeyDim;
+                            var vDim : Integer ;
+                            if args.ValueDim = nil then vDim  := args.KeyDim
+                            else                        vDim  := args.ValueDim;
                             Fvalue_dense := _get_dense(einsum_equation, _get_output_shape(output_rank - 1, TFShape.Create([args.NumHeads, vDim])), sBias, 'value');
                             // Builds the attention computations for multi-head dot product attention.
                             // These computations could be wrapped into the keras attention layer once
@@ -3109,11 +3117,15 @@ begin
 end;
 
 function MultiHeadAttention._compute_attention(query, key, value, attention_mask: TFTensor; training: Boolean): TFTensors;
+var
+  s : TFShape;
 begin
     // Note: Applying scalar multiply at the smaller end of einsum improves
     // XLA performance, but may introduce slight numeric differences in
     // the Transformer attention head.
+    s := query.shape;
     query := tf.multiply( query, Single(1) / TTensor(tf.sqrt( tf.convert_to_tensor( Single(args.KeyDim) ) ) ));
+    s := query.shape;
     // Take the dot product between "query" and "key" to get the raw
     // attention scores.
     var attention_scores := tf.linalg.einsum(Fdot_product_equation, TFTensors.Create([key, query]));
@@ -3175,7 +3187,7 @@ begin
     var key : TFTensor ;
     if inputs.Count = 3 then  key := inputs[2]
     else                      key := nil;
-    if Fbuilt_from_signature then
+    if not Fbuilt_from_signature then
        _build_from_signature(query, value, key);
     if key = nil then
         key := value;
@@ -5160,3 +5172,4 @@ end;
 {$ENDREGION}
 
 end.
+

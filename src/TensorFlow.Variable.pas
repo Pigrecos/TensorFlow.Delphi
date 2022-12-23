@@ -388,10 +388,12 @@ type
         /// </summary>
         Fhandle        : TFTensor;
         Fgraph_element : TFTensor;
-        Fshape         : TFShape;
+
         function GetGraph: TFGraph;
         function GetDevice: string;
       protected
+        Fshape         : TFShape;
+
         procedure NativeDispose(hnd: Pointer); override;
         function _read_variable_op: TFTensor;
      public
@@ -490,7 +492,6 @@ type
        function _dense_var_to_tensor(dtype: TF_DataType = TF_DataType.DtInvalid; name: string = ''; as_ref: Boolean = false): TFTensor;
      protected
         Finitial_value : TFTensor;
-        FShape         : TFShape;
 
      public
         constructor Create(_initial_value    : PValue;
@@ -891,7 +892,7 @@ begin
                                   if init_from_fn then
                                   begin
                                        var func :=  initial_value.AsType<TFunc<TFTensor>>;
-                                       value := TValue.From<TFunc<TFTensor>>(func)
+                                       value := func();//TValue.From<TFunc<TFTensor>>(func)
                                   end else
                                   begin
                                       value := initial_value;
@@ -1214,11 +1215,11 @@ begin
     var res := gen_resource_variable_ops.read_variable_op(Fhandle, Fdtype);
     // _maybe_set_handle_data(_dtype, _handle, result);
     // have to set shape when converting to substituent placeholder
-    if res.shape.ndim = -1 then
+    if (res.shape.ndim = -1) or( (res.shape.ndim = 0) and (res.shape.isscalar = false) ) then
     begin
         var p : PInt64 := nil;
         if Length(shape.dims) > 0 then
-           p := PInt64(shape.dims[0]);
+           p := @shape.dims[0];
         TF_GraphSetTensorShape(res.graph.Handle, res._as_tf_output, p, shape.ndim, tf.Status.Handle);
         tf.Status.RaiseEx;
     end;

@@ -32,6 +32,19 @@ interface
 
 type
 
+RandomizedImpl = record
+
+   public
+     function  permutation(x: Integer): TNDArray; overload;
+     function  permutation(x: TNDArray): TNDArray; overload;
+     procedure shuffle(x: TNDArray);
+     function  random(size: TFShape): TNDArray;
+     function  randint(low: Integer; high : pInteger = nil; size : PTFShape= nil; dtype: TF_DataType = TF_INT32): TNDArray;
+     function  randn(shape : TArray<Integer>= [] ): TNDArray;
+     function  normal(loc : Single= 0.0; scale: Single = 1.0; size : PTFShape= nil): TNDArray;
+     function  uniform(low: Single = 0.0; high: Single = 1.0; size : PTFShape= nil): TNDArray;
+end;
+
 NDArrayRender = record
    private
 
@@ -63,6 +76,8 @@ np = record
         np_complex64  : TF_DataType = TF_DataType.TF_COMPLEX64;
         np_complex128 : TF_DataType = TF_DataType.TF_COMPLEX128;
 
+    public
+        class var random : RandomizedImpl;
         // numPy.creation
         class function np_array<T>(data: T): TNDArray;overload ;static;
         class function np_array<T>(data: TArray<T>): TNDArray;overload ;static;
@@ -71,6 +86,7 @@ np = record
         class function np_array<T>(data: TArray<TArray< TArray<T>> >; dtype: TF_DataType): TNDArray;overload ;static;
         class function arange<T>(_end: T): TNDArray;static;
         class function frombuffer(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType): TNDArray;static;
+        class function ones(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_DOUBLE): TNDArray;static;
         // numPy.Math
         class function sum(x1: TNDArray; axis: PAxis = nil) : TNDArray;static;
         class function add(x: TNDArray; y: TNDArray): TNDArray;static;
@@ -95,8 +111,10 @@ NumPyImpl = class
 end;
 
 implementation
-        uses Tensorflow,
-             Tensorflow.math_ops;
+        uses Winapi.Windows,
+             Tensorflow,
+             Tensorflow.math_ops,
+             TensorFlow.random_ops;
 
 { np }
 
@@ -181,6 +199,11 @@ begin
     Result := TNDarray.create(a);
     if dtype <> DtInvalid then
       Result := Result.astype(dtype);
+end;
+
+class function np.ones(shape: TFShape; dtype: TF_DataType): TNDArray;
+begin
+   Result := TNDArray.Create(tf.ones(shape, dtype));
 end;
 
 class function np.np_array<T>(data: TArray<TArray<T>>; dtype: TF_DataType): TNDArray;
@@ -389,6 +412,73 @@ begin
     Build(s, _array);
     s.Append(')');
     Result := s.ToString;
+end;
+
+{ RandomizedImpl }
+
+function RandomizedImpl.permutation(x: Integer): TNDArray;
+begin
+    var v : TValue := x;
+    Result := TNDArray.Create(random_ops.random_shuffle(math_ops.range(0, @v)));
+end;
+
+function RandomizedImpl.permutation(x: TNDArray): TNDArray;
+begin
+   Result := TNDArray.Create(random_ops.random_shuffle(x));
+end;
+
+procedure RandomizedImpl.shuffle(x: TNDArray);
+begin
+   var y := random_ops.random_shuffle(x);
+   CopyMemory(x.TensorDataPointer,@y.BufferToArray[0], x.bytesize);
+end;
+
+function RandomizedImpl.random(size: TFShape): TNDArray;
+begin
+    if size.IsNil then
+       Result :=  uniform(0, 1, nil)
+    else
+       Result :=  uniform(0, 1, @size)
+end;
+
+function RandomizedImpl.randint(low: Integer; high: pInteger; size: PTFShape; dtype: TF_DataType): TNDArray;
+begin
+    if high = nil then
+    begin
+        var ihigh : Integer := low;
+        high := @ihigh;
+        low  := 0;
+    end ;
+    var s : TFShape := default(TFShape);
+    if size = nil then s := TFShape.Scalar
+    else               s := size^;
+
+    var tensor := random_ops.random_uniform_int(s, low, high^);
+    Result := TNDArray.Create(tensor);
+end;
+
+function RandomizedImpl.randn(shape: TArray<Integer>): TNDArray;
+begin
+    var s : TFShape := shape;
+    if Length(shape) = 0 then  s := TFShape.Scalar;
+
+    Result := TNDArray.Create(random_ops.random_normal(s));
+end;
+
+function RandomizedImpl.normal(loc, scale: Single; size: PTFShape): TNDArray;
+begin
+    var s : TFShape := TFShape.Scalar;
+    if Assigned(size) then s := size^;
+
+    Result := TNDArray.Create(random_ops.random_normal(s, loc, scale));
+end;
+
+function RandomizedImpl.uniform(low, high: Single; size: PTFShape): TNDArray;
+begin
+    var s : TFShape := TFShape.Scalar;
+    if Assigned(size) then s := size^;
+
+    Result := TNDArray.Create(random_ops.random_normal(s, low, high));
 end;
 
 end.
