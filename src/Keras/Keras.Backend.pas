@@ -392,25 +392,28 @@ begin
 end;
 
 function BackendImpl.spatial_2d_padding(x: TFTensor; padding: TNDArray; data_format: string): TFTensor;
+var
+  padArray   : TArray< TArray<Integer> >;
+  pattern    : TNDArray;
+  loc_padding: NDArray;
 begin
     if padding = nil then
     begin
-        var padArray : TArray< TArray<Integer> > := [ [ 1, 1 ], [ 1, 1 ] ] ;
-        padding := TNDArray.Create(padArray);
+        padArray := [ [ 1, 1 ], [ 1, 1 ] ] ;
+        padding  := TNDArray.Create(padArray);
     end;
-    var pattern: TNDArray;
 
-    var loc_padding : NDArray := padding;
+    loc_padding := padding;
 
     if data_format = 'channels_first' then
     begin
-        var padArray : TArray< TArray<Integer> > := [ [ 0, 0 ], [ 0, 0 ], [ Integer( loc_padding[0][0] ), Integer( loc_padding[0][1] ) ],
-                                                                          [ Integer( loc_padding[1][0] ), Integer( loc_padding[1][1] ) ] ];
+        padArray := [ [ 0, 0 ], [ 0, 0 ], [ loc_padding[0][0] , loc_padding[0][1] ],
+                                          [ loc_padding[1][0] , loc_padding[1][1] ] ];
         pattern := TNDArray.Create(padArray);
     end else
     begin
-        var padArray : TArray< TArray<Integer> > := [ [ 0, 0 ], [ Integer( loc_padding[0][0] ), Integer( loc_padding[0][1] ) ],
-                                                                [ Integer( loc_padding[1][0] ), Integer( loc_padding[1][1] ) ], [ 0, 0 ] ];
+        padArray := [ [ 0, 0 ], [ loc_padding[0][0] , loc_padding[0][1] ],
+                                [ loc_padding[1][0] , loc_padding[1][1] ], [ 0, 0 ] ];
         pattern := TNDArray.Create(padArray);
     end;
     Result := array_ops.pad(x, pattern);

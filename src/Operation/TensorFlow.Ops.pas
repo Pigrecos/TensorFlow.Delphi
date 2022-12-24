@@ -472,6 +472,19 @@ begin
 
          ret := array_ops._autopacking_conversion_function(vArray, dtype, name)
     end
+    else if value.IsType< TList<TFTEnsor> > then
+    begin
+        var obj  := value.AsType< TList<TFTensor> >;
+        var tArray : TArray<TFTensor> := obj.ToArray;
+
+        var vArray : TArray<TValue> := [];
+        for var i := 0 to Length(tArray)- 1  do
+           vArray := vArray +[ tArray[i] ];
+
+        if name = '' then name := 'packed';
+
+        ret := array_ops._autopacking_helper(vArray, dtype, name)
+    end
     else if value.IsType< TArray<TValue> > then
     begin
         var obj  := value.AsType< TArray<TValue> >;

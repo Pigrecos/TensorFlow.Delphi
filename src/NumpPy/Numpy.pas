@@ -84,7 +84,9 @@ np = record
         class function np_array<T>(data: TArray<T>; dtype: TF_DataType): TNDArray;overload ;static;
         class function np_array<T>(data: TArray< TArray<T> >; dtype: TF_DataType): TNDArray;overload ;static;
         class function np_array<T>(data: TArray<TArray< TArray<T>> >; dtype: TF_DataType): TNDArray;overload ;static;
-        class function arange<T>(_end: T): TNDArray;static;
+        class function arange<T>(_end: T): TNDArray; overload; static;
+        class function arange<T>(start: T; _end: T ): TNDArray; overload; static;
+        class function arange<T>(start: T; _end: T ; step : T ): TNDArray; overload; static;
         class function frombuffer(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType): TNDArray;static;
         class function ones(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_DOUBLE): TNDArray;static;
         // numPy.Math
@@ -145,6 +147,23 @@ begin
     var eEnd  := TValue.From<T>(_end);
 
     Result := TNDArray.Create (  tf.range( start, eEnd) );
+end;
+
+class function np.arange<T>(start, _end: T): TNDArray;
+begin
+    var eStart := TValue.From<T>(start);
+    var eEnd  := TValue.From<T>(_end);
+
+    Result := TNDArray.Create (  tf.range( eStart, eEnd) );
+end;
+
+class function np.arange<T>(start, _end, step: T): TNDArray;
+begin
+    var eStart := TValue.From<T>(start);
+    var eEnd  := TValue.From<T>(_end);
+    var eStep  := TValue.From<T>(step);
+
+    Result := TNDArray.Create (  tf.range( eStart, eEnd, eStep, nil) );
 end;
 
 class function np.cos(x: TNDArray): TNDArray;

@@ -120,7 +120,10 @@ type
                       activation         : string= '';
                       use_bias           : Boolean= true;
                       kernel_initializer : string = 'glorot_uniform';
-                      bias_initializer   : string= 'zeros'): ILayer;
+                      bias_initializer   : string= 'zeros'): ILayer; overload;
+       function Conv1D(filters           : Integer;
+                      kernel_size        : TFShape;
+                      activation         : string): ILayer; overload;
 
        /// <summary>
        /// 2D convolution layer (e.g. spatial convolution over images).
@@ -735,6 +738,11 @@ begin
     args.BiasInitializer   := GetInitializerByName(bias_initializer);
 
     Result := Keras.Layer.Conv1D.Create( args );
+end;
+
+function LayersApi.Conv1D(filters: Integer; kernel_size: TFShape; activation: string): ILayer;
+begin
+    Result := Conv1D(filters, kernel_size, 1, 'valid', 'channels_last', 1, 1, activation, true, 'glorot_uniform', 'zeros')
 end;
 
 function LayersApi.Conv2D(filters: Integer; kernel_size, strides: PTFShape; padding, data_format: string; dilation_rate: PTFShape; groups: Integer; activation: TActivation;

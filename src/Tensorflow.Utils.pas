@@ -653,6 +653,11 @@ begin
           begin
              var v : ResourceVariable := value.AsType<ResourceVariable>;
              Exit(v.dtype);
+          end
+          else if string.LowerCase(string(tTipo.Name)) = 'tlist<tensorflow.dapi.tftensor>' then
+          begin
+             var v : TList<TensorFlow.DApi.TFTensor> := value.AsType< TList<TensorFlow.DApi.TFTensor> >;
+             Exit(v.first.dtype);
           end;
      end;
      tkArray,tkDynArray: begin
@@ -1111,6 +1116,18 @@ end;
 
 class function TUtils.constant_value_as_shape(tensor: TFTensor): TFShape;
 begin
+  if tensor is TEagerTensor then
+  begin
+      if tensor.dtype = tf.int64_t then
+      begin
+          Result := TFShape.Create(tensor.ToArray<Int64>);
+          exit;
+      end else
+      begin
+          Result := TFShape.Create(tensor.ToArray<Integer>);
+          Exit;
+      end;
+  end;
   { TODO -oMax -c : Implementare 02/12/2022 15:26:52 }
   raise Exception.Create('Implementare');
 end;

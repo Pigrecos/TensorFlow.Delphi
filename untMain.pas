@@ -571,6 +571,7 @@ type
 procedure TfrmMain.btnKerasLayersClick(Sender: TObject);
 var
   k_Layers  : Keras_Layers_test;
+  k_losses  : Keras_Losses_test;
 begin
     //tf.keras.utils.get_file('flower_photos.tgz','https://storage.googleapis.com/download.tensorflow.org/example_images/flower_photos.tgz');
     //tf.keras.utils.get_file('aal012022.dat.gz','https://ftp.nhc.noaa.gov/atcf/aid_public/aal012022.dat.gz') ;
@@ -634,6 +635,223 @@ begin
     mmo1.Lines.Add('');
     mmo1.Lines.Add('End Test Keras Attention Layers...');
     mmo1.Lines.Add('========================================');
+
+    // Convolution Layers
+    //
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('Test Keras Convolution Layers...');
+    mmo1.Lines.Add('========================================');
+    mmo1.Lines.Add('');
+
+    mmo1.Lines.Add('Keras Convolution Layers[BasicConv1D]');
+    k_Layers.BasicConv1D;
+
+    mmo1.Lines.Add('Keras Convolution Layers[BasicConv1D_ksize]');
+    k_Layers.BasicConv1D_ksize;
+
+    mmo1.Lines.Add('Keras Convolution Layers[BasicConv1D_ksize_same]');
+    k_Layers.BasicConv1D_ksize_same;
+
+    mmo1.Lines.Add('Keras Convolution Layers[BasicConv1D_ksize_strides]');
+    k_Layers.BasicConv1D_ksize_strides;
+
+    mmo1.Lines.Add('Keras Convolution Layers[BasicConv1D_ksize_dilations]');
+    k_Layers.BasicConv1D_ksize_dilations;
+
+    mmo1.Lines.Add('Keras Convolution Layers[BasicConv1D_ksize_dilation_same]');
+    k_Layers.BasicConv1D_ksize_dilation_same;
+
+    mmo1.Lines.Add('Keras Convolution Layers[BasicConv2D]');
+    k_Layers.BasicConv2D;
+
+    mmo1.Lines.Add('Keras Convolution Layers[BasicConv2D_ksize]');
+    k_Layers.BasicConv2D_ksize;
+
+    mmo1.Lines.Add('Keras Convolution Layers[BasicConv2D_ksize_same]');
+    k_Layers.BasicConv2D_ksize_same;
+
+    mmo1.Lines.Add('Keras Convolution Layers[BasicConv2D_ksize_strides]');
+    k_Layers.BasicConv2D_ksize_strides;
+
+    mmo1.Lines.Add('Keras Convolution Layers[BasicConv2D_ksize_dilations]');
+    k_Layers.BasicConv2D_ksize_dilations;
+
+    mmo1.Lines.Add('Keras Convolution Layers[BasicConv2D_ksize_dilation_same]');
+    k_Layers.BasicConv2D_ksize_dilation_same;
+
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('End Test Keras Convolution Layers...');
+    mmo1.Lines.Add('========================================');
+
+    // Cropping Layers
+    //
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('Test Keras Cropping Layers...');
+    mmo1.Lines.Add('========================================');
+    mmo1.Lines.Add('');
+
+    mmo1.Lines.Add('Keras Cropping Layers[Cropping1D]');
+    k_Layers.Cropping1D;
+
+    mmo1.Lines.Add('Keras Cropping Layers[Cropping2D]');
+    k_Layers.Cropping2D;
+
+    mmo1.Lines.Add('Keras Cropping Layers[Cropping3D]');
+    k_Layers.Cropping3D;
+
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('End Test Keras Cropping Layers...');
+    mmo1.Lines.Add('========================================');
+
+    // Merging Layers
+    //
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('Test Keras Merging Layers...');
+    mmo1.Lines.Add('========================================');
+    mmo1.Lines.Add('');
+
+    mmo1.Lines.Add('Keras Merging Layers[Concatenate]');
+    k_Layers.Concatenate;
+
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('End Test Keras Merging Layers...');
+    mmo1.Lines.Add('========================================');
+
+    // Reshaping Layers
+    //
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('Test Keras Reshaping Layers...');
+    mmo1.Lines.Add('========================================');
+    mmo1.Lines.Add('');
+
+    mmo1.Lines.Add('Keras Reshaping Layers[ZeroPadding2D]');
+    k_Layers.ZeroPadding2D;
+
+    mmo1.Lines.Add('Keras Reshaping Layers[UpSampling2D]');
+    k_Layers.UpSampling2D;
+
+    mmo1.Lines.Add('Keras Reshaping Layers[Reshape]');
+    k_Layers.Reshape;
+
+    mmo1.Lines.Add('Keras Reshaping Layers[Permute]');
+    k_Layers.Permute;
+
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('End Test Keras Cropping Layers...');
+    mmo1.Lines.Add('========================================');
+
+    // Free Layer test class
+    //
+    k_Layers.Free;
+
+    //===========================
+    //===========================
+
+    k_losses  := Keras_Losses_test.Create;
+    // CosineSimilarity
+    //
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('Test Keras CosineSimilarity Losses...');
+    mmo1.Lines.Add('========================================');
+    mmo1.Lines.Add('');
+
+    mmo1.Lines.Add('Keras CosineSimilarity Losses[Default]');
+    k_losses.CosineSimilarity_Default;
+
+    mmo1.Lines.Add('Keras CosineSimilarity Losses[Sample_Weight]');
+    k_losses.CosineSimilarity_Sample_Weight;
+
+    mmo1.Lines.Add('Keras CosineSimilarity Losses[SUM]');
+    k_losses.CosineSimilarity_SUM;
+
+    mmo1.Lines.Add('Keras CosineSimilarity Losses[None]');
+    k_losses.CosineSimilarity_None;
+
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('End Test Keras CosineSimilarity Losses...');
+    mmo1.Lines.Add('========================================');
+
+    // Huber
+    //
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('Test Keras Huber Losses...');
+    mmo1.Lines.Add('========================================');
+    mmo1.Lines.Add('');
+
+    mmo1.Lines.Add('Keras Huber Losses[Default]');
+    k_losses.Huber_Default;
+
+    mmo1.Lines.Add('Keras Huber Losses[Sample_Weight]');
+    k_losses.Huber_Sample_Weight;
+
+    mmo1.Lines.Add('Keras Huber Losses[SUM]');
+    k_losses.Huber_SUM;
+
+    mmo1.Lines.Add('Keras Huber Losses[None]');
+    k_losses.Huber_None;
+
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('End Test Keras Huber Losses...');
+    mmo1.Lines.Add('========================================');
+
+    // LogCosh
+    //
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('Test Keras LogCosh Losses...');
+    mmo1.Lines.Add('========================================');
+    mmo1.Lines.Add('');
+
+    mmo1.Lines.Add('Keras LogCosh Losses[Default]');
+    k_losses.LogCosh_Default;
+
+    mmo1.Lines.Add('Keras LogCosh Losses[Sample_Weight]');
+    k_losses.LogCosh_Sample_Weight;
+
+    mmo1.Lines.Add('Keras LogCosh Losses[SUM]');
+    k_losses.LogCosh_SUM;
+
+    mmo1.Lines.Add('Keras LogCosh Losses[None]');
+    k_losses.LogCosh_None;
+
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('End Test Keras LogCosh Losses...');
+    mmo1.Lines.Add('========================================');
+
+    // MeanAbsoluteError
+    //
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('Test Keras MeanAbsoluteError Losses...');
+    mmo1.Lines.Add('========================================');
+    mmo1.Lines.Add('');
+
+    mmo1.Lines.Add('Keras MeanAbsoluteError Losses[Default]');
+    k_losses.MeanAbsoluteError_Default;
+
+    mmo1.Lines.Add('Keras MeanAbsoluteError Losses[Sample_Weight]');
+    k_losses.MeanAbsoluteError_Sample_Weight;
+
+    mmo1.Lines.Add('Keras MeanAbsoluteError Losses[SUM]');
+    k_losses.MeanAbsoluteError_SUM;
+
+    mmo1.Lines.Add('Keras MeanAbsoluteError Losses[None]');
+    k_losses.MeanAbsoluteError_None;
+
+    mmo1.Lines.Add('');
+    mmo1.Lines.Add('End Test Keras MeanAbsoluteError Losses...');
+    mmo1.Lines.Add('========================================');
+
+    // Free Layer test class
+    //
+    k_losses.Free;
+    mmo1.Lines.Add('===== All tests completed Successfully. ========================================');
 end;
 
 procedure TfrmMain.btnLinReg1Click(Sender: TObject);

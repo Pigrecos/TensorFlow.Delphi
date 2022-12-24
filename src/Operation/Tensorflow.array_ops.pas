@@ -489,6 +489,7 @@ begin
                                   if input_shape.IsFullyDefined then
                                   begin
                                       Result := constant_op.constant(input_shape.size, out_type, name);
+                                      Exit;
                                   end;
                               end;
 

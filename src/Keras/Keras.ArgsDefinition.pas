@@ -585,8 +585,12 @@ type
 
  UpSampling2DArgs = class(LayerArgs)
    public
-       Size      : TFShape;
-       DataFormat: string;
+       Size          : TFShape;
+       DataFormat    : string;
+       /// <summary>
+       /// 'nearest', 'bilinear'
+       /// </summary>
+       Interpolation : string;
 
        Constructor Create;
  end;
@@ -985,8 +989,8 @@ constructor UpSampling2DArgs.Create;
 begin
     inherited Create;
 
-    Size      := default(TFShape);
-    DataFormat:= 'nearest';
+    Size         := default(TFShape);
+    Interpolation:= 'nearest';
 end;
 
 end.

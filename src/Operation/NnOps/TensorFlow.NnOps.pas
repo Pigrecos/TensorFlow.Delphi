@@ -92,15 +92,18 @@ type
   ConvolutionInternal = class
     private
        Fargs       : ConvolutionalArgs;
-       Fdata_format: string;
        Fname       : string;
-       Fpadding    : string;
 
        function _get_sequence(value: TArray<Integer>; n, channel_index: Integer): IList<integer>;
+    function Get_data_format: string;
+    function Get_Padding: string;
     public
 
        constructor Create(args: ConvolutionalArgs);
        function Apply(input: TFTensor; filters: TFTensor): TFTensor;
+
+       property data_format: string read Get_data_format;
+       property padding    : string read Get_Padding;
   end;
 
   FusedBatchNormParams = class
@@ -244,6 +247,16 @@ begin
     Fname := args.Name;
 end;
 
+function ConvolutionInternal.Get_data_format: string;
+begin
+   Result := Fargs.DataFormat;
+end;
+
+function ConvolutionInternal.Get_Padding: string;
+begin
+     Result := Fargs.Padding;
+end;
+
 function ConvolutionInternal.Apply(input, filters: TFTensor): TFTensor;
 begin
     var filters_rank     := filters.shape.ndim;
@@ -261,7 +274,7 @@ begin
 
     // Channel dimension.
     var num_batch_dims := inputs_rank - num_spatial_dims - 1;
-    var a : TArray<Integer>;
+    var a : TArray<Integer> := [1,2,3];
     if not TArray.Contains<Integer>(a,num_spatial_dims ) then
       raise Exception.Create('num_spatial_dims (input.shape.ndims - num_batch_dims - 1) must be one of 1, 2 or 3 but saw'+IntToStr(num_spatial_dims) +'. num_batch_dims: '+ IntToStr(num_batch_dims)+'.');
 
@@ -278,14 +291,14 @@ begin
                                       Conv2dP.Input      := input;
                                       Conv2dP.Filter     := filters;
                                       Conv2dP.Strides    := strides;
-                                      Conv2dP.Padding    := Fpadding;
-                                      Conv2dP.DataFormat := Fdata_format;
+                                      Conv2dP.Padding    := padding;
+                                      Conv2dP.DataFormat := data_format;
                                       Conv2dP.Dilations  := dilations;
                                       Conv2dP.Name       := Fname;
                                       result := gen_nn_ops.conv2d(Conv2dP);
                                   end else
                                   begin
-                                      var channel_first  := Fdata_format = 'NCW';
+                                      var channel_first  := data_format = 'NCW';
                                       var spatial_start_dim : Integer ;
                                       var channel_index     : Integer;
                                       if  channel_first  then spatial_start_dim := -2
@@ -302,7 +315,7 @@ begin
                                       Conv2dP.Input      := input;
                                       Conv2dP.Filter     := filters;
                                       Conv2dP.Strides    := strides.ToArray;
-                                      Conv2dP.Padding    := Fpadding;
+                                      Conv2dP.Padding    := padding;
                                       if  channel_first  then Conv2dP.DataFormat := 'NCHW'
                                       else                    Conv2dP.DataFormat := 'NHWC';
                                       Conv2dP.Dilations  := dilations.ToArray;

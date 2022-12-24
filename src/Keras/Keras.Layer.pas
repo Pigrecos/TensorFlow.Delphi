@@ -1342,15 +1342,18 @@ type
   /// Layer that reshapes inputs into the given shape.
   /// </summary>
   UpSampling2D = class(Layer)
+  private
+    function GetInterpolation: string;
     protected
       function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
     public
       args          : UpSampling2DArgs;
       size          : TArray<Integer>;
       data_format   : string;
-      interpolation : string ;
 
       constructor Create(_args: UpSampling2DArgs) ;
+
+      property interpolation : string  read GetInterpolation;
   end;
   {$ENDREGION}
 
@@ -5060,8 +5063,8 @@ begin
        raise Exception.Create('Dimensions must match.');
 
     SetLength(permute, input_shape.rank);
-    for var i := 1 to Length(dims) - 1 do
-       permute[i] := dims[i] ;
+    for var i := 1 to Length(dims)  do
+       permute[i] := dims[i-1] ;
 
     Fbuilt := true;
 end;
@@ -5158,9 +5161,14 @@ begin
     inherited Create(_args) ;
 
     args             := _args;
-    args.DataFormat  := conv_utils.normalize_data_format(args.DataFormat);
+    data_format      := conv_utils.normalize_data_format(args.DataFormat);
     size             := conv_utils.normalize_tuple(args.Size, 2, 'size');
     FinputSpec       := TInputSpec.Create(DtInvalid, 4);
+end;
+
+function UpSampling2D.GetInterpolation: string;
+begin
+   Result := args.Interpolation;
 end;
 
 function UpSampling2D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
@@ -5172,4 +5180,5 @@ end;
 {$ENDREGION}
 
 end.
+
 

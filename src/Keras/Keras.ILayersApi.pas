@@ -72,7 +72,11 @@ type
                     activation         : string= '';
                     use_bias           : Boolean= true;
                     kernel_initializer : string = 'glorot_uniform';
-                    bias_initializer   : string= 'zeros'): ILayer;
+                    bias_initializer   : string= 'zeros'): ILayer; overload;
+
+     function Conv1D(filters           : Integer;
+                    kernel_size        : TFShape;
+                    activation         : string): ILayer; overload;
 
      function Conv2D(filters             : Integer;
                     kernel_size          : PTFShape= nil;

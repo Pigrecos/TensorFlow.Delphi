@@ -892,7 +892,7 @@ begin
                                   if init_from_fn then
                                   begin
                                        var func :=  initial_value.AsType<TFunc<TFTensor>>;
-                                       value := func();//TValue.From<TFunc<TFTensor>>(func)
+                                       value := func();
                                   end else
                                   begin
                                       value := initial_value;

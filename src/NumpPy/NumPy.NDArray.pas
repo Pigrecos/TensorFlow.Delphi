@@ -43,12 +43,13 @@ type
     private
       FHandleNDArray : TNDArray;
 
-       function  GetItem(indices: TArray<Integer>): TNDArray; overload;
-       function  GetItem(indices: TArray<Slice>): TNDArray; overload;
-       function  GetItem(indice: Integer): TNDArray; overload;
-       procedure SetItem(indices: TArray<Integer>; const Value: TNDArray); overload;
-       procedure SetItem(indices: TArray<Slice>; const Value: TNDArray); overload;
-       procedure SetItem(indice: Integer; const Value: TNDArray); overload;
+       function  GetItem(indices: TArray<Integer>): NDArray; overload;
+       function  GetItem(indices: TArray<Slice>): NDArray; overload;
+       function  GetItem(indice: Integer): NDArray; overload;
+       procedure SetItem(indices: TArray<Integer>; const Value: NDArray); overload;
+       procedure SetItem(indices: TArray<Slice>; const Value: NDArray); overload;
+       procedure SetItem(indice: Integer; const Value: NDArray); overload;
+
        function GetShape: TFShape;
     public
       class operator Implicit(t : TNDArray): NDArray;  static;
@@ -84,9 +85,9 @@ type
 
       function  numpy: NDArray;
 
-      property Item[indices: Integer ]         : TNDArray read GetItem write SetItem; default;
-      property Item[indices: TArray<Integer> ] : TNDArray read GetItem write SetItem; default;
-      property Item[slices: TArray<Slice> ]    : TNDArray read GetItem write SetItem; default;
+      property Item[indices: Integer ]         : NDArray read GetItem write SetItem; default;
+      property Item[indices: TArray<Integer> ] : NDArray read GetItem write SetItem; default;
+      property Item[slices: TArray<Slice> ]    : NDArray read GetItem write SetItem; default;
 
       property HandleNDArray  : TNDArray read FHandleNDArray;
       property Shape          : TFShape  read GetShape;
@@ -149,12 +150,12 @@ begin
       Result := NDArrayConverter.Scalar<Single>(t.FHandleNDArray);
 end;
 
-function NDArray.GetItem(indices: TArray<Integer>): TNDArray;
+function NDArray.GetItem(indices: TArray<Integer>): NDArray;
 begin
     Result := FHandleNDArray.Item[indices]
 end;
 
-function NDArray.GetItem(indices: TArray<Slice>): TNDArray;
+function NDArray.GetItem(indices: TArray<Slice>): NDArray;
 begin
      Result := FHandleNDArray.Item[indices]
 end;
@@ -217,7 +218,7 @@ begin
    Result := FHandleNDArray.numpy;
 end;
 
-function NDArray.GetItem(indice: Integer): TNDArray;
+function NDArray.GetItem(indice: Integer): NDArray;
 begin
      Result := FHandleNDArray.Item[indice]
 end;
@@ -235,17 +236,17 @@ begin
       Result := NDArrayConverter.Scalar<Double>(t.FHandleNDArray);
 end;
 
-procedure NDArray.SetItem(indices: TArray<Integer>; const Value: TNDArray);
+procedure NDArray.SetItem(indices: TArray<Integer>; const Value: NDArray);
 begin
     FHandleNDArray.Item[indices] := Value
 end;
 
-procedure NDArray.SetItem(indices: TArray<Slice>; const Value: TNDArray);
+procedure NDArray.SetItem(indices: TArray<Slice>; const Value: NDArray);
 begin
     FHandleNDArray.Item[indices] := Value
 end;
 
-procedure NDArray.SetItem(indice: Integer; const Value: TNDArray);
+procedure NDArray.SetItem(indice: Integer; const Value: NDArray);
 begin
     FHandleNDArray.Item[indice] := Value
 end;

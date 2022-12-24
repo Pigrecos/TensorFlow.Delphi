@@ -146,12 +146,77 @@ type
         procedure Attention_BaseDenseAttention;
         procedure Attention_Attention;
         procedure Attention_MultiHeadAttention;
+        //
+        procedure BasicConv1D;
+        procedure BasicConv1D_ksize;
+        procedure BasicConv1D_ksize_same;
+        procedure BasicConv1D_ksize_strides;
+        procedure BasicConv1D_ksize_dilations;
+        procedure BasicConv1D_ksize_dilation_same;
+        //
+        procedure BasicConv2D;
+        procedure BasicConv2D_ksize;
+        procedure BasicConv2D_ksize_same;
+        procedure BasicConv2D_ksize_strides;
+        procedure BasicConv2D_ksize_dilations;
+        procedure BasicConv2D_ksize_dilation_same;
+        //
+        procedure Cropping1D;
+        procedure Cropping2D;
+        procedure Cropping3D;
+        //
+        procedure Concatenate;
+        //
+        procedure ZeroPadding2D;
+        procedure UpSampling2D;
+        procedure Reshape;
+        procedure Permute;
+  end;
+
+  Keras_Losses_test = class
+      public
+        // CosineSimilarity
+        y_true_float   : TNDArray;
+        y_pred_float   : TNDArray;
+        // Huber
+        y_true_float_H : TNDArray;
+        y_pred_float_H : TNDArray;
+        // LogCosh
+        y_true_float_L : TNDArray;
+        y_pred_float_L : TNDArray;
+        // MeanAbsoluteError
+        y_true_float_MAE : TNDArray;
+        y_pred_float_MAE : TNDArray;
+
+        constructor Create;
+
+        // https://keras.io/api/losses/regression_losses/
+        procedure CosineSimilarity_Default;
+        procedure CosineSimilarity_Sample_Weight;
+        procedure CosineSimilarity_SUM;
+        procedure CosineSimilarity_None;
+        // https://keras.io/api/losses/regression_losses/#meansquarederror-class
+        procedure Huber_Default;
+        procedure Huber_Sample_Weight;
+        procedure Huber_SUM;
+        procedure Huber_None;
+        // https://keras.io/api/losses/regression_losses/#meansquarederror-class
+        procedure LogCosh_Default;
+        procedure LogCosh_Sample_Weight;
+        procedure LogCosh_SUM;
+        procedure LogCosh_None;
+        // https://keras.io/api/losses/regression_losses/
+        procedure MeanAbsoluteError_Default;
+        procedure MeanAbsoluteError_Sample_Weight;
+        procedure MeanAbsoluteError_SUM;
+        procedure MeanAbsoluteError_None;
   end;
 
 implementation
         uses DUnitX.TestFramework,
 
              Keras.ArgsDefinition,
+             Keras.LossFunc,
              Keras.Layer,
              Keras.Utils,
 
@@ -939,6 +1004,541 @@ begin
     var unmasked_output_data := attention_layer.Apply(TFTensors.Create([ from_data, to_data, null_mask_data ]) );
 
     Assert.isTrue(masked_output_data.first.numpy.Equals(unmasked_output_data.first.numpy))
+end;
+
+procedure Keras_Layers_test.BasicConv1D;
+begin
+    var filters := 8;
+    var conv := tf.keras.layers.Conv1D(filters, 3,  'linear');
+
+    var x := np.arange(Single(256.0)).reshape(TFShape.Create([8, 8, 4]));
+    var y := conv.Apply(TFTensors.Create(x));
+
+    Assert.IsTrue(y.shape = TFShape.Create([8, 6, 8]) );
+    Assert.AreEqual<Integer>(filters, y.shape[2]);
+end;
+
+procedure Keras_Layers_test.BasicConv1D_ksize;
+begin
+    var filters := 8;
+
+    var conv := tf.keras.layers.Conv1D(filters, 3,  'linear');
+
+    var x := np.arange(Single(256.0)).reshape(TFShape.Create([8, 8, 4]));
+    var y := conv.Apply(TFTensors.Create(x));
+
+    Assert.AreEqual<Integer>(3, y.shape.ndim);
+    Assert.AreEqual<Int64>(x.shape.Dims[0], y.shape.Dims[0]);
+    Assert.AreEqual<Int64>(x.shape.Dims[1] - 2, y.shape.Dims[1]);
+    Assert.AreEqual<Integer>(filters, y.shape[2]);
+end;
+
+procedure Keras_Layers_test.BasicConv1D_ksize_same;
+begin
+    var filters := 8;
+
+    var conv := tf.keras.layers.Conv1D(filters, 3, 1, 'same', 'channels_last', 1, 1, 'linear');
+
+    var x := np.arange(Single(256.0)).reshape(TFShape.Create([8, 8, 4]));
+    var y := conv.Apply(TFTensors.Create(x));
+
+    Assert.AreEqual<Integer>(3, y.shape.ndim);
+    Assert.AreEqual<Int64>(x.shape.Dims[0], y.shape.Dims[0]);
+    Assert.AreEqual<Int64>(x.shape.Dims[1], y.shape.Dims[1]);
+    Assert.AreEqual<Integer>(filters, y.shape[2]);
+end;
+
+procedure Keras_Layers_test.BasicConv1D_ksize_strides;
+begin
+    var filters := 8;
+
+    var conv := tf.keras.layers.Conv1D(filters, 3, 2, 'valid', 'channels_last', 1, 1, 'linear');
+
+    var x := np.arange(Single(256.0)).reshape(TFShape.Create([8, 8, 4]));
+    var y := conv.Apply(TFTensors.Create(x));
+
+    Assert.AreEqual<Integer>(3, y.shape.ndim);
+    Assert.AreEqual<Int64>(x.shape.Dims[0], y.shape.Dims[0]);
+    Assert.AreEqual<Int64>(x.shape.Dims[1]-5, y.shape.Dims[1]);
+    Assert.AreEqual<Integer>(filters, y.shape[2]);
+end;
+
+procedure Keras_Layers_test.BasicConv1D_ksize_dilations;
+begin
+    var filters := 8;
+
+    var conv := tf.keras.layers.Conv1D(filters, 3, 1, 'valid', 'channels_last', 2, 1, 'linear');
+
+    var x := np.arange(Single(256.0)).reshape(TFShape.Create([8, 8, 4]));
+    var y := conv.Apply(TFTensors.Create(x));
+
+    Assert.AreEqual<Integer>(3, y.shape.ndim);
+    Assert.AreEqual<Int64>(x.shape.Dims[0], y.shape.Dims[0]);
+    Assert.AreEqual<Int64>(x.shape.Dims[1]-4, y.shape.Dims[1]);
+    Assert.AreEqual<Integer>(filters, y.shape[2]);
+end;
+
+procedure Keras_Layers_test.BasicConv1D_ksize_dilation_same;
+begin
+    var filters := 8;
+
+    var conv := tf.keras.layers.Conv1D(filters, 3, 1, 'same', 'channels_last', 2, 1, 'linear');
+
+    var x := np.arange(Single(256.0)).reshape(TFShape.Create([8, 8, 4]));
+    var y := conv.Apply(TFTensors.Create(x));
+
+    Assert.AreEqual<Integer>(3, y.shape.ndim);
+    Assert.AreEqual<Int64>(x.shape.Dims[0], y.shape.Dims[0]);
+    Assert.AreEqual<Int64>(x.shape.Dims[1], y.shape.Dims[1]);
+    Assert.AreEqual<Integer>(filters, y.shape[2]);
+end;
+
+procedure Keras_Layers_test.BasicConv2D;
+begin
+    var filters := 8;
+
+    var conv := tf.keras.layers.Conv2D(filters, nil, nil, 'valid', '', nil, 1, 'linear');
+
+    var x := np.arange(Single(256.0)).reshape(TFShape.Create([1, 8, 8, 4]));
+    var y := conv.Apply(TFTensors.Create(x));
+
+    Assert.AreEqual<Integer>(4, y.shape.ndim);
+    Assert.AreEqual<Int64>(x.shape.Dims[0], y.shape.Dims[0]);
+    Assert.AreEqual<Int64>(x.shape.Dims[1] - 4, y.shape.Dims[1]);
+    Assert.AreEqual<Int64>(x.shape.Dims[2] - 4, y.shape.Dims[2]);
+    Assert.AreEqual<Integer>(filters, y.shape[3]);
+end;
+
+procedure Keras_Layers_test.BasicConv2D_ksize;
+begin
+    var filters := 8;
+    var sKsize : TFShape := 3;
+    var conv := tf.keras.layers.Conv2D(filters, @sKsize, nil, 'valid', '', nil, 1, 'linear');
+
+    var x := np.arange(Single(256.0)).reshape(TFShape.Create([1, 8, 8, 4]));
+    var y := conv.Apply(TFTensors.Create(x));
+
+    Assert.AreEqual<Integer>(4, y.shape.ndim);
+    Assert.AreEqual<Int64>(x.shape.Dims[0], y.shape.Dims[0]);
+    Assert.AreEqual<Int64>(x.shape.Dims[1] - 2, y.shape.Dims[1]);
+    Assert.AreEqual<Int64>(x.shape.Dims[2] - 2, y.shape.Dims[2]);
+    Assert.AreEqual<Integer>(filters, y.shape[3]);
+end;
+
+procedure Keras_Layers_test.BasicConv2D_ksize_same;
+begin
+    var filters := 8;
+
+    var sKsize : TFShape := 3;
+    var conv := tf.keras.layers.Conv2D(filters, @sKsize, nil, 'same', '', nil, 1, 'linear');;
+
+    var x := np.arange(Single(256.0)).reshape(TFShape.Create([1, 8, 8, 4]));
+    var y := conv.Apply(TFTensors.Create(x));
+
+    Assert.AreEqual<Integer>(4, y.shape.ndim);
+    Assert.AreEqual<Int64>(x.shape.Dims[0], y.shape.Dims[0]);
+    Assert.AreEqual<Int64>(x.shape.Dims[1] , y.shape.Dims[1]);
+    Assert.AreEqual<Int64>(x.shape.Dims[2] , y.shape.Dims[2]);
+    Assert.AreEqual<Integer>(filters, y.shape[3]);
+end;
+
+procedure Keras_Layers_test.BasicConv2D_ksize_strides;
+begin
+    var filters := 8;
+
+    var sKsize : TFShape := 3;
+    var sstrides : TFShape := 2;
+    var conv := tf.keras.layers.Conv2D(filters, @sKsize, @sstrides, 'valid', '', nil, 1, 'linear');;
+
+    var x := np.arange(Single(256.0)).reshape(TFShape.Create([1, 8, 8, 4]));
+    var y := conv.Apply(TFTensors.Create(x));
+
+    Assert.AreEqual<Integer>(4, y.shape.ndim);
+    Assert.AreEqual<Int64>(x.shape.Dims[0], y.shape.Dims[0]);
+    Assert.AreEqual<Int64>(x.shape.Dims[1]-5 , y.shape.Dims[1]);
+    Assert.AreEqual<Int64>(x.shape.Dims[2]-5 , y.shape.Dims[2]);
+    Assert.AreEqual<Integer>(filters, y.shape[3]);
+end;
+
+procedure Keras_Layers_test.BasicConv2D_ksize_dilations;
+begin
+    var filters := 8;
+
+    var sKsize : TFShape := 3;
+    var sdilation_rate : TFShape := 2;
+    var conv := tf.keras.layers.Conv2D(filters, @sKsize, nil, 'valid', '', @sdilation_rate, 1, 'linear');;
+
+    var x := np.arange(Single(256.0)).reshape(TFShape.Create([1, 8, 8, 4]));
+    var y := conv.Apply(TFTensors.Create(x));
+
+    Assert.AreEqual<Integer>(4, y.shape.ndim);
+    Assert.AreEqual<Int64>(x.shape.Dims[0], y.shape.Dims[0]);
+    Assert.AreEqual<Int64>(x.shape.Dims[1]-4 , y.shape.Dims[1]);
+    Assert.AreEqual<Int64>(x.shape.Dims[2]-4 , y.shape.Dims[2]);
+    Assert.AreEqual<Integer>(filters, y.shape[3]);
+end;
+
+procedure Keras_Layers_test.BasicConv2D_ksize_dilation_same;
+begin
+    var filters := 8;
+
+    var sKsize : TFShape := 3;
+    var sdilation_rate : TFShape := 2;
+    var conv := tf.keras.layers.Conv2D(filters, @sKsize, nil, 'same', '', @sdilation_rate, 1, 'linear');;
+
+    var x := np.arange(Single(256.0)).reshape(TFShape.Create([1, 8, 8, 4]));
+    var y := conv.Apply(TFTensors.Create(x));
+
+    Assert.AreEqual<Integer>(4, y.shape.ndim);
+    Assert.AreEqual<Int64>(x.shape.Dims[0], y.shape.Dims[0]);
+    Assert.AreEqual<Int64>(x.shape.Dims[1] , y.shape.Dims[1]);
+    Assert.AreEqual<Int64>(x.shape.Dims[2] , y.shape.Dims[2]);
+    Assert.AreEqual<Integer>(filters, y.shape[3]);
+end;
+
+procedure Keras_Layers_test.Cropping1D;
+begin
+    var input_shape : TFShape := TFShape.Create([1, 5, 2]);
+    var x := tf.zeros(input_shape);
+
+    var aCropping := np.np_array<Integer>([1,2]);
+
+    var cropping_1d := tf.keras.layers.Cropping1D(aCropping);
+    var y           := cropping_1d.Apply(TFTensors.Create(x));
+
+    Assert.IsTrue(TFShape.Create([1, 2, 2]) =  y.shape);
+end;
+
+procedure Keras_Layers_test.Cropping2D;
+begin
+    var input_shape : TFShape := TFShape.Create([1, 5, 6, 1]);
+    var x := tf.zeros(input_shape);
+
+    var aCropping := np.np_array<Integer>([ [1,2], [1,3]], np.np_int32);
+
+    var cropping_2d := tf.keras.layers.Cropping2D(aCropping);
+    var y           := cropping_2d.Apply(TFTensors.Create(x));
+
+    Assert.IsTrue(TFShape.Create([1, 2, 2, 1]) =  y.shape);
+end;
+
+procedure Keras_Layers_test.Cropping3D;
+begin
+    var input_shape : TFShape := TFShape.Create([1, 5, 6, 7, 1]);
+    var x := tf.zeros(input_shape);
+
+    var aCropping := np.np_array<Integer>([ [1,2], [1,3], [1,4] ], np.np_int32);
+
+    var cropping_3d := tf.keras.layers.Cropping3D(aCropping);
+    var y           := cropping_3d.Apply(TFTensors.Create(x));
+
+    Assert.IsTrue(TFShape.Create([1, 2, 2, 2, 1]) =  y.shape);
+end;
+
+procedure Keras_Layers_test.Concatenate;
+begin
+    var x := np.arange(20).reshape( TFShape.Create([2, 2, 5]) );
+    var y := np.arange(20, 30).reshape( TFShape.Create([2, 1, 5]) );
+    var z := tf.keras.layers.Concatenate(1).Apply(TFTensors.Create([x, y]) );
+    Assert.IsTrue(TFShape.Create([2, 3, 5]) =  z.shape);
+end;
+
+procedure Keras_Layers_test.ZeroPadding2D;
+begin
+    var input_shape : TFShape := TFShape.Create([1, 1, 2, 2]);
+    var x           := np.arange(input_shape.size).reshape( input_shape );
+
+    var aZeroPad2D := np.np_array<Integer>([ [1,0], [1,0] ], np.np_int32);
+
+    var zero_padding_2d := tf.keras.layers.ZeroPadding2D( aZeroPad2D );
+    var y           := zero_padding_2d.Apply(TFTensors.Create(x));
+
+    Assert.IsTrue(TFShape.Create([1, 2, 3, 2]) =  y.shape);
+end;
+
+procedure Keras_Layers_test.UpSampling2D;
+begin
+    var input_shape : TFShape := TFShape.Create([2, 2, 1, 3]);
+    var x           := np.arange(input_shape.size).reshape( input_shape );
+
+    var sSize : TFShape := TFShape.Create([1, 2]);
+
+    var UpSampling2D := tf.keras.layers.UpSampling2D( @sSize );
+    var y            := UpSampling2D.Apply(TFTensors.Create(x));
+
+    Assert.IsTrue(TFShape.Create([2, 2, 2, 3]) =  y.shape);
+end;
+
+procedure Keras_Layers_test.Reshape;
+begin
+    var input_shape : TFShape := TFShape.Create([10, 5, 20]);
+    var inputs      := tf.zeros(input_shape);
+    var outputs     := tf.keras.layers.LeakyReLU().Apply( TFTensors.Create(inputs) );
+
+    var sTargetShape : TFShape := TFShape.Create([20, 5]);
+    var reshape := tf.keras.layers.Reshape(sTargetShape);
+
+    outputs := reshape.Apply( outputs );
+
+    Assert.IsTrue(TFShape.Create([10, 20, 5]) =  outputs.shape);
+end;
+
+procedure Keras_Layers_test.Permute;
+begin
+    var input_shape : TFShape := TFShape.Create([2, 3, 4, 5]);
+    var inputs      := tf.zeros(input_shape);
+
+    var sDims : TFShape := TFShape.Create([3, 2, 1]);
+    var permute         := tf.keras.layers.Permute(sDims);
+    var outputs         := permute.Apply(TFTensors.Create(inputs));
+
+    Assert.IsTrue(TFShape.Create([2, 5, 4, 3]) =  outputs.shape);
+end;
+
+{ Keras_Losses_test }
+
+constructor Keras_Losses_test.Create;
+begin
+    var aTrue : TArray< TArray<Single>> := [ [ 0.0, 1.0 ], [ 1.0, 1.0 ] ];
+    var aPred : TArray< TArray<Single>> := [ [ 1.0, 0.0 ], [ 1.0, 1.0 ] ];
+    y_true_float := TNDArray.Create(aTrue);
+    y_pred_float := TNDArray.Create(aPred);
+
+    var aTrue_H : TArray< TArray<Single>> := [ [ 0.0, 1.0 ], [ 0.0, 0.0 ] ];
+    var aPred_H : TArray< TArray<Single>> := [ [ 0.6, 0.4 ], [ 0.4, 0.6 ] ];
+    y_true_float_H := TNDArray.Create(aTrue_H);
+    y_pred_float_H := TNDArray.Create(aPred_H);
+
+    var aTrue_L : TArray< TArray<Single>> := [ [ 0.0, 1.0 ], [ 0.0, 0.0 ] ];
+    var aPred_L : TArray< TArray<Single>> := [ [ 1.0, 1.0 ], [ 0.0, 0.0 ] ];
+    y_true_float_L := TNDArray.Create(aTrue_L);
+    y_pred_float_L := TNDArray.Create(aPred_L);
+
+    var aTrue_MAE : TArray< TArray<Single>> := [ [ 0.0, 1.0 ], [ 0.0, 0.0 ] ];
+    var aPred_MAE : TArray< TArray<Single>> := [ [ 1.0, 1.0 ], [ 1.0, 0.0 ] ];
+    y_true_float_MAE := TNDArray.Create(aTrue_MAE);
+    y_pred_float_MAE := TNDArray.Create(aPred_MAE);
+end;
+
+procedure Keras_Losses_test.CosineSimilarity_Default;
+begin
+    //>>> # Using 'auto'/'sum_over_batch_size' reduction type.
+    //>>> cosine_loss = tf.keras.losses.CosineSimilarity(axis = 1)
+    //>>> # l2_norm(y_true) = [[0., 1.], [1./1.414], 1./1.414]]]
+    //>>> # l2_norm(y_pred) = [[1., 0.], [1./1.414], 1./1.414]]]
+    //>>> # l2_norm(y_true) . l2_norm(y_pred) = [[0., 0.], [0.5, 0.5]]
+    //>>> # loss = mean(sum(l2_norm(y_true) . l2_norm(y_pred), axis=1))
+    //>>> #       = -((0. + 0.) +  (0.5 + 0.5)) / 2
+    //-0.5
+    var loss := tf.keras.losses.CosineSimilarity('','', 1);
+    var call := loss.Call(y_true_float, y_pred_float);
+
+    var expected := TNDArray.create(Single(-0.49999997));
+    Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.CosineSimilarity_Sample_Weight;
+begin
+    //>>> # Calling with 'sample_weight'.
+    //>>> cosine_loss(y_true, y_pred, sample_weight =[0.8, 0.2]).numpy()
+    //- 0.0999
+    var loss := tf.keras.losses.CosineSimilarity;
+    var sample_weight := Numpy.np.np_array<Single>([0.8, 0.2],np.np_float32);
+    var call := loss.Call(y_true_float, y_pred_float, sample_weight);
+
+    var expected := TNDArray.create(Single(-0.099999994));
+    Assert.IsTrue(expected.Equals(call.numpy));
+
+end;
+
+procedure Keras_Losses_test.CosineSimilarity_SUM;
+begin
+    //>>> # Using 'sum' reduction type.
+    //>>> cosine_loss = tf.keras.losses.CosineSimilarity(axis = 1,
+    //...     reduction = tf.keras.losses.Reduction.SUM)
+    //>>> cosine_loss(y_true, y_pred).numpy()
+    //- 0.999
+    var loss := tf.keras.losses.CosineSimilarity(ReductionV2.SUM,'', 1);
+    var call := loss.Call(y_true_float, y_pred_float);
+
+    var expected := TNDArray.create(Single(-0.99999994));
+    Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.CosineSimilarity_None;
+begin
+    //>>> # Using 'none' reduction type.
+    //>>> cosine_loss = tf.keras.losses.CosineSimilarity(axis = 1,
+    //...     reduction = tf.keras.losses.Reduction.NONE)
+    //>>> cosine_loss(y_true, y_pred).numpy()
+    //array([-0., -0.999], dtype = float32)
+    var loss := tf.keras.losses.CosineSimilarity(ReductionV2.NONE,'', 1);
+    var call := loss.Call(y_true_float, y_pred_float);
+
+    var expected := np.np_array<Single>([-0.0, -0.99999994],np.np_float32);
+    Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.Huber_Default;
+begin
+    //>>> # Using 'auto'/'sum_over_batch_size' reduction type.
+    //>>> h = tf.keras.losses.Huber()
+    //>>> h(y_true, y_pred).numpy()
+    //0.155
+    var loss := tf.keras.losses.Huber;
+    var call := loss.Call(y_true_float_H, y_pred_float_H);
+
+    var expected := TNDArray.create(Single(0.155));
+    Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.Huber_Sample_Weight;
+begin
+    //>>> # Calling with 'sample_weight'.
+    //>>> h(y_true, y_pred, sample_weight =[1, 0]).numpy()
+    //0.09
+    var loss := tf.keras.losses.Huber;
+    var sample_weight := Numpy.np.np_array<Single>([0.1, 0.0],np.np_float32);
+    var call := loss.Call(y_true_float_H, y_pred_float_H, sample_weight);
+
+    var expected := TNDArray.create(Single(0.009000001));
+    Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.Huber_SUM;
+begin
+    //>>> # Using 'sum' reduction type.
+    //>>> h = tf.keras.losses.Huber(
+    //...     reduction = tf.keras.losses.Reduction.SUM)
+    //>>> h(y_true, y_pred).numpy()
+    //0.31
+    var loss := tf.keras.losses.Huber(ReductionV2.SUM);
+    var call := loss.Call(y_true_float_H, y_pred_float_H);
+
+    var expected := TNDArray.create(Single(0.31));
+    Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.Huber_None;
+begin
+    //>>> # Using 'none' reduction type.
+    //>>> h = tf.keras.losses.Huber(
+    //...     reduction = tf.keras.losses.Reduction.NONE)
+    //>>> h(y_true, y_pred).numpy()
+    //array([0.18, 0.13], dtype = float32)
+    var loss := tf.keras.losses.Huber(ReductionV2.NONE);
+    var call := loss.Call(y_true_float_H, y_pred_float_H);
+
+    var expected := np.np_array<Single>([0.18, 0.13000001],np.np_float32);
+    Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.LogCosh_Default;
+begin
+    //>>> # Using 'auto'/'sum_over_batch_size' reduction type.
+    //>>> l = tf.keras.losses.LogCosh()
+    //>>> l(y_true, y_pred).numpy()
+    //0.108
+    var loss := tf.keras.losses.LogCosh;
+    var call := loss.Call(y_true_float_L, y_pred_float_L);
+
+    var expected := TNDArray.create(Single(0.1084452));
+    Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.LogCosh_Sample_Weight;
+begin
+    //>>> # Calling with 'sample_weight'.
+    //>>> l(y_true, y_pred, sample_weight =[0.8, 0.2]).numpy()
+    //0.087
+    var loss := tf.keras.losses.LogCosh;
+    var sample_weight := Numpy.np.np_array<Single>([0.8, 0.2],np.np_float32);
+    var call := loss.Call(y_true_float_L, y_pred_float_L, sample_weight);
+
+    var expected := TNDArray.create(Single(0.08675616));
+    Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.LogCosh_SUM;
+begin
+    //>>> # Using 'sum' reduction type.
+    //>>> l = tf.keras.losses.LogCosh(
+    //...     reduction = tf.keras.losses.Reduction.SUM)
+    //>>> l(y_true, y_pred).numpy()
+    //0.217
+    var loss := tf.keras.losses.LogCosh(ReductionV2.SUM);
+    var call := loss.Call(y_true_float_L, y_pred_float_L);
+
+    var expected := TNDArray.create(Single(0.2168904));
+    Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.LogCosh_None;
+begin
+    //>>> # Using 'none' reduction type.
+    //>>> l = tf.keras.losses.LogCosh(
+    //...     reduction = tf.keras.losses.Reduction.NONE)
+    //>>> l(y_true, y_pred).numpy()
+    //array([0.217, 0.], dtype = float32)
+    var loss := tf.keras.losses.LogCosh(ReductionV2.NONE);
+    var call := loss.Call(y_true_float_L, y_pred_float_L);
+
+    var expected := np.np_array<Single>([0.2168904, 0.0],np.np_float32);
+    Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.MeanAbsoluteError_Default;
+begin
+    //>>> # Using 'auto'/'sum_over_batch_size' reduction type.
+    //>>> mae = tf.keras.losses.MeanAbsoluteError()
+    //>>> mae(y_true, y_pred).numpy()
+    //0.5
+    var loss := tf.keras.losses.MeanAbsoluteError;
+    var call := loss.Call(y_true_float_MAE, y_pred_float_MAE);
+
+    var expected := TNDArray.create(Single(0.5));
+    Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.MeanAbsoluteError_Sample_Weight;
+begin
+    //>>> # Calling with 'sample_weight'.
+    //>>> mae(y_true, y_pred, sample_weight =[0.7, 0.3]).numpy()
+    //0.25
+    var loss := tf.keras.losses.MeanAbsoluteError;
+    var sample_weight := Numpy.np.np_array<Single>([0.7, 0.3],np.np_float32);
+    var call := loss.Call(y_true_float_MAE, y_pred_float_MAE, sample_weight);
+
+    var expected := TNDArray.create(Single(0.25));
+    Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.MeanAbsoluteError_SUM;
+begin
+    //>>> # Using 'sum' reduction type.
+    //>>> mae = tf.keras.losses.MeanAbsoluteError(
+    //...     reduction = tf.keras.losses.Reduction.SUM)
+    //>>> mae(y_true, y_pred).numpy()
+    //1.0
+    var loss := tf.keras.losses.MeanAbsoluteError(ReductionV2.SUM);
+    var call := loss.Call(y_true_float_MAE, y_pred_float_MAE);
+
+    var expected := TNDArray.create(Single(1.0));
+    Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.MeanAbsoluteError_None;
+begin
+    //>>> # Using 'none' reduction type.
+    //>>> mae = tf.keras.losses.MeanAbsoluteError(
+    //...     reduction = tf.keras.losses.Reduction.NONE)
+    //>>> mae(y_true, y_pred).numpy()
+    //array([0.5, 0.5], dtype = float32)
+    var loss := tf.keras.losses.MeanAbsoluteError(ReductionV2.NONE);
+    var call := loss.Call(y_true_float_MAE, y_pred_float_MAE);
+
+    var expected := np.np_array<Single>([0.5, 0.5],np.np_float32);
+    Assert.IsTrue(expected.Equals(call.numpy));
 end;
 
 end.
