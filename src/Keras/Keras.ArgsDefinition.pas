@@ -36,6 +36,21 @@ interface
 
 type
 
+ ModelArgs = class(LayerArgs)
+    public
+      Inputs  : TFTensors;
+      Outputs : TFTensors;
+
+      constructor Create;
+ end;
+
+ SequentialArgs = class(ModelArgs)
+    public
+      Layers : TList<ILayer>;
+
+      constructor Create;
+ end;
+
  ConvolutionalArgs = class(LayerArgs)
     private
 
@@ -991,6 +1006,20 @@ begin
 
     Size         := default(TFShape);
     Interpolation:= 'nearest';
+end;
+
+{ ModelArgs }
+
+constructor ModelArgs.Create;
+begin
+    inherited Create;
+end;
+
+{ SequentialArgs }
+
+constructor SequentialArgs.Create;
+begin
+     inherited Create;
 end;
 
 end.

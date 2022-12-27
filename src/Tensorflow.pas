@@ -18,10 +18,12 @@ unit Tensorflow;
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
 interface
-  uses System.SysUtils, System.Rtti,  System.TypInfo,
+  uses System.SysUtils, System.Rtti,  System.TypInfo, System.Classes, Vcl.StdCtrls,
 
        System.Generics.Collections,
        Spring,
+
+       LoggerPro,
 
 
        TF4D.Core.CApi,
@@ -447,6 +449,9 @@ end;
   TTensorflow = class(TFDisposable)
     private
       FtapeSet : TGradientTape;
+      FLog     : ILogWriter;
+      FMemoLog : TMemo;
+
       function GetVersion: string;
     protected
 		  procedure NativeDispose(hnd: Pointer); override;
@@ -494,6 +499,7 @@ end;
       orthogonal_initializer     : IInitializer;
 
       function constant_initializer<T>(value: T; dtype: TF_DataType = TF_FLOAT; verify_shape : Boolean= false): IInitializer;
+      function Logger: ILogWriter;
 
       constructor Create;
       destructor  Destroy ; override;
@@ -530,8 +536,14 @@ end;
       function Session(graph: TFGraph; config: PConfigProto = nil): TFSession;overload;
       function Session: TFSession;overload;
       function get_default_session: TFSession;
-      function Variable<T>(data: T;  trainable : Boolean= true; validate_shape: Boolean = true; use_resource: Boolean = true; name : string= '';
-                             dtype: TF_DataType = TF_DataType.DtInvalid; aggregation: TVariableAggregation = TVariableAggregation.VARIABLE_AGGREGATION_NONE; shape : PTFShape= nil):ResourceVariable; overload;
+      function Variable<T>(data           : T;
+                           trainable      : Boolean= true;
+                           validate_shape : Boolean = true;
+                           use_resource   : Boolean = true;
+                           name           : string= '';
+                           dtype          : TF_DataType = TF_DataType.DtInvalid;
+                           aggregation    : TVariableAggregation = TVariableAggregation.VARIABLE_AGGREGATION_NONE;
+                           shape          : PTFShape= nil):ResourceVariable; overload;
       function Variable<T>(data: T;  name : string; dtype: TF_DataType = TF_DataType.DtInvalid):ResourceVariable;  overload;
       // tf.tensor
       function convert_to_tensor(value: TValue; dtype: TF_DataType= DtInvalid; name: string= ''; preferred_dtype: TF_DataType=DtInvalid): TFTensor;
@@ -1166,6 +1178,7 @@ end;
       {$ENDREGION}
 
       property Version : string read GetVersion;
+      property MemoLog : TMemo  read FMemoLog write FMemoLog;
 
   end;
 {$ENDREGION}
@@ -1175,6 +1188,9 @@ end;
 
 implementation
    uses Oz.Pb.Classes, Oz.SGL.Collections,oz.Pb.StrBuffer, pbPublic, pbInput, pbOutput,
+
+        LoggerPro.VCLMemoAppender,
+
         NumPy.NDArray,
         TensorFlow.EagerTensor,
         TensorFlow.Ops ,
@@ -1225,18 +1241,8 @@ begin
     random_uniform_initializer := RandomUniform.Create;
     orthogonal_initializer     := Orthogonal.Create;
 
-    (*Logger.Providers.Add(GlobalLogFileProvider);
-    with GlobalLogFileProvider do
-    begin
-      FileName := '.\Logs.log';
-      LogLevel := LOG_ALL;
-      TimePrecission := True;
-      MaxRotateFiles := 3;
-      MaxFileSizeInMB := 5;
-      RotatedFilesPath := '.\RotatedLogs';
-      CompressRotatedFiles := False;
-      Enabled := True;
-    end; *)
+    FMemoLog := TMemo.Create(nil);
+    FLog     := BuildLogWriter([TVCLMemoLogAppender.Create(FMemoLog)]);
 end;
 
 destructor TTensorflow.Destroy;
@@ -1261,6 +1267,11 @@ begin
   image.Free;
   //
   if Assigned(gradientFunctions) then  gradientFunctions.Free;
+end;
+
+function TTensorflow.Logger: ILogWriter;
+begin
+     Result := FLog;
 end;
 
 function TTensorflow.diag(diagonal: TFTensor; name: string): TFTensor;

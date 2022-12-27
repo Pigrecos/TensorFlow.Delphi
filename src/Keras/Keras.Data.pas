@@ -25,7 +25,7 @@ interface
           TensorFlow.dataset_ops,
           TensorFlow.Framework,
 
-          Keras.Models;
+          Keras.Engine;
 
 type
 

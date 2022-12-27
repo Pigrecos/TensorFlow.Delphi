@@ -16,6 +16,7 @@ unit Keras.KerasApi;
 
 interface
      uses System.SysUtils,
+          System.Generics.Collections,
 
           TF4D.Core.CApi,
           TensorFlow.DApi,
@@ -31,8 +32,9 @@ interface
           Keras.MetricsApi,
           Keras.LayersApi,
           Keras.LossFunc,
-          Keras.Utils;
-
+          Keras.Utils,
+          Keras.Engine,
+          Keras.Models;
 
 type
 
@@ -99,6 +101,14 @@ type
       /// </param>
       /// <returns></returns>
       function  Input(shape: TFShape; batch_input_shape : TFShape; batch_size : Integer= -1; dtype : TF_DataType = DtInvalid; name: string = ''; sparse: Boolean = false; ragged: Boolean = false; tensor: TFTensor = nil): TFTensor;
+      function  Sequential(layers: TList<ILayer> = nil; name : string= ''): Sequential;
+      /// <summary>
+      /// `Model` groups layers into an object with training and inference features.
+      /// </summary>
+      /// <param name="input"></param>
+      /// <param name="output"></param>
+      /// <returns></returns>
+      function Model(inputs: TFTensors; outputs: TFTensors; name: string = ''): Functional;
   end;
 
 implementation
@@ -165,6 +175,22 @@ begin
    var input_layer := Keras.Layer.InputLayer.Create(args);
 
    Result := input_layer.InboundNodes[0].Outputs.first;
+end;
+
+function KerasInterface.Model(inputs, outputs: TFTensors; name: string): Functional;
+begin
+    Result := Functional.Create(inputs, outputs, name);
+end;
+
+function KerasInterface.Sequential(layers: TList<ILayer>; name: string): Sequential;
+ var
+   _args : SequentialArgs;
+begin
+    _args := SequentialArgs.Create;
+    _args.Layers := layers;
+    _args.Name   := name;
+
+    Result := Sequential.Create(_args);
 end;
 
 end.

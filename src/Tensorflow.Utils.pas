@@ -179,6 +179,7 @@ type
       class function GetShape<T>(Tval: TArray<TArray<TArray<TArray<T>>>>): TFShape;  overload;
       class function ConvertToDict(dny: TArray<TParameter>): TDictionary<string,TValue> ;
       class function Get<Tk,TV>(dict : TDictionary<Tk,TV>; key: Tk; defaultValue: TV): TV ;
+      class function SetDefault<TK, TV>(dic: TDictionary<TK, TV>; key: TK; defaultValue: TV) : TV;
 
       class function as_shape_proto(tshape: TFShape): TTensorShapeProto; static;
       class function as_shape<T>(dims: TArray<T>): TTensorShapeProto;
@@ -214,6 +215,7 @@ type
       class function Reversed<T>(l1: TList<T>):TList<T>;
       class procedure difference_update<T>(l1,l2: TList<T>);
       class procedure extendleft<T>(var queue : TQueue<T>; elements: TEnumerable<T>);
+      class function IsSubSet<T>(subSet: TArray<T>; source: TList<T>): Boolean;
 
       class function range(start, _end: Integer): Enumerable<integer>;  overload; static;
       class function range(_end: Integer): Enumerable<integer> ;  overload; static;
@@ -600,6 +602,15 @@ begin
     if dict.ContainsKey(key) then
       Exit( dict[key] );
 
+    Result := defaultValue;
+end;
+
+class function TUtils.SetDefault<TK, TV>(dic: TDictionary<TK, TV>; key: TK; defaultValue: TV): TV;
+begin
+     if dic.ContainsKey(key) then
+       Exit( dic[key]);
+
+    dic.Add(key, defaultValue);
     Result := defaultValue;
 end;
 
@@ -1573,6 +1584,22 @@ begin
    if PTypeInfo(TypeInfo(T)) = PTypeInfo(TypeInfo(T3)) then
       Exit(True);
 end;
+
+class function TUtils.IsSubSet<T>(subSet: TArray<T>; source: TList<T>): Boolean;
+begin
+    var lIsSubSet := true;
+    for var element in subset do
+    begin
+        if not source.Contains(element) then
+        begin
+            lIsSubSet := false;
+            continue;
+        end;
+    end;
+
+    Result := lIsSubSet;
+end;
+
 
 { TValueHelper }
 

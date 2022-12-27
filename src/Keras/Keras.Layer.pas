@@ -1357,6 +1357,33 @@ type
   end;
   {$ENDREGION}
 
+  /// <summary>
+  /// Encapsulates metric logic and state.
+  /// </summary>
+  Metric = class(Layer)
+    protected
+      total      : IVariableV1;
+      count      : IVariableV1;
+      Freduction : string;
+      Fdtype     : TF_DataType;
+
+      function add_weight(name            : string;
+                          shape           : TFShape;
+                          dtype           : TF_DataType = TF_DataType.TF_FLOAT;
+                          initializer     : IInitializer = nil;
+                          regularizer     : IRegularizer = nil;
+                          synchronization : TVariableSynchronization= VARIABLE_SYNCHRONIZATION_AUTO;
+                          aggregation     : TVariableAggregation    = VARIABLE_AGGREGATION_NONE;
+                          trainable       : Boolean= true;
+                          getter          : TFunc<VariableArgs, IVariableV1>= nil): IVariableV1; override;
+  public
+      constructor Create(name: string = ''; dtype: TF_DataType = DtInvalid);
+      function  update_state(y_true: TFTensor; y_pred: TFTensor; sample_weight: TFTensor = nil): TFTensor; virtual;
+      procedure reset_states; virtual;
+      function  R_result: TFTensor; virtual;
+      function  ToString: string; override;
+  end;
+
   TensorFlowOpLayer = class(Layer)
     public
       args     : TensorFlowOpLayerArgs;
@@ -1542,16 +1569,6 @@ begin
     Result := weights;
 end;
 
-function Layer.get_config: LayerArgs;
-begin
-    Result := Fargs
-end;
-
-procedure Layer.load_weights(filepath: string);
-begin
-
-end;
-
 procedure Layer.SetW(const Value: TList<IVariableV1>);
 begin
     if weights.Count <> value.Count then raise TFException.Create(
@@ -1570,6 +1587,16 @@ begin
         else
            raise Exception.Create('state_ops.assign Error!');
     end;
+end;
+
+function Layer.get_config: LayerArgs;
+begin
+    Result := Fargs
+end;
+
+procedure Layer.load_weights(filepath: string);
+begin
+
 end;
 
 procedure Layer.StackLayers(_layers: TArray<ILayer>);
@@ -5179,6 +5206,61 @@ end;
 
 {$ENDREGION}
 
+{ Metric }
+
+constructor Metric.Create(name: string; dtype: TF_DataType);
+var
+  lArg : LayerArgs;
+begin
+  lArg := LayerArgs.Create;
+  lArg.Name := name;
+  lArg.DType:= dtype;
+
+   inherited Create(lArg) ;
+
+   Fstateful := true;
+   Fbuilt    := true;
+end;
+
+function Metric.add_weight(name: string; shape: TFShape; dtype: TF_DataType; initializer: IInitializer; regularizer: IRegularizer; synchronization: TVariableSynchronization;
+  aggregation: TVariableAggregation; trainable: Boolean; getter: TFunc<VariableArgs, IVariableV1>): IVariableV1;
+begin
+    Result := TUtils.tf_with<TNameScope,IVariableV1>( TOps.name_scope(name),
+                    function(v1: TNameScope): IVariableV1
+                      begin
+                          Result := inherited add_weight(name, shape, dtype, initializer, nil, synchronization, aggregation, false);
+                      end);
+end;
+
+procedure Metric.reset_states;
+begin
+    for var v in weights do
+    begin
+        if      v is RefVariable          then  (v as RefVariable).assign(Integer(0))
+        else if v is BaseResourceVariable then  (v as BaseResourceVariable).assign(Integer(0))
+        else
+           raise Exception.Create('Metric.reset_states Error!');
+    end;
+end;
+
+function Metric.R_result: TFTensor;
+begin
+    raise TFException.Create('Not Implemented');
+end;
+
+function Metric.update_state(y_true, y_pred, sample_weight: TFTensor): TFTensor;
+begin
+    raise TFException.Create('Not Implemented');
+end;
+
+function Metric.ToString: string;
+begin
+    var tot : NDArray := total.numpy;
+    var c   : NDArray := count.numpy;
+    Result := Format('%s %s/%s',[Name,FormatFloat('0.0000', tot), FormatFloat('0.0000', c)]);
+end;
+
 end.
+
 
 

@@ -84,7 +84,8 @@ uses
   Keras.Preprocessing in 'src\Keras\Keras.Preprocessing.pas',
   Keras.LayersApi in 'src\Keras\Keras.LayersApi.pas',
   Keras.MetricsApi in 'src\Keras\Keras.MetricsApi.pas',
-  TensorFlow.tensor_array_ops in 'src\Operation\TensorFlow.tensor_array_ops.pas';
+  TensorFlow.tensor_array_ops in 'src\Operation\TensorFlow.tensor_array_ops.pas',
+  Keras.Saving in 'src\Keras\Keras.Saving.pas';
 
 {$R *.res}
 

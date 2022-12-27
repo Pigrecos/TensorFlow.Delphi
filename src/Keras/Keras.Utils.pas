@@ -36,7 +36,8 @@ interface
             TensorFlow.DApiBase,
             TensorFlow.Variable,
 
-            Keras.Layer;
+            Keras.Layer,
+            Keras.Engine;
 
 type
   base_layer_utils = record
@@ -67,6 +68,7 @@ type
 
     public
       class function count_params(_layer: Layer; weights: TList<IVariableV1>) : Integer ; static;
+      class function get_source_inputs(tensor: TFTensor; layer : ILayer = nil ;  node_index : Integer= -1): TFTensors; static;
   end;
 
   generic_utils = record
@@ -279,6 +281,43 @@ begin
        total := total + weight_shapes[i].Size ;
 
     Result := total;
+end;
+
+class function layer_utils.get_source_inputs(tensor: TFTensor; layer: ILayer; node_index: Integer): TFTensors;
+var
+   kT  : Tuple<ILayer, Integer, Integer>;
+begin
+    if layer = nil then
+    begin
+        kT := (tensor.KerasHistory as TKerasHistory).ToTuple;
+        layer      := kT.Value1;
+        node_index := kT.Value2;
+    end;
+    if (layer.InboundNodes = nil) or (layer.InboundNodes.Count = 0) then
+        Exit( TFTensors.Create(tensor) )
+    else
+    begin
+        var node := layer.InboundNodes[node_index];
+        if node.is_input then
+            Exit( node.input_tensors )
+        else
+        begin
+            var source_tensors := TList<TFTensor>.Create;
+            for var _layer in node.iterate_inbound do
+            begin
+                layer      := _layer.Value1;
+                node_index := _layer.Value2;
+                tensor     := _layer.Value4;
+                var previous_sources := get_source_inputs(tensor, layer, node_index);
+                for var x in previous_sources do
+                begin
+                    // should be check if exist?
+                    source_tensors.add(x);
+                end
+            end;
+            Result := TFTensors.Create(source_tensors);
+        end;
+    end;
 end;
 
 { generic_utils }

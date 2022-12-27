@@ -25,7 +25,7 @@ interface
          TensorFlow.Context,
          Tensorflow.Graph,
 
-         Keras.Models ;
+         Keras.Engine;
 
 type
   dataset_ops = record

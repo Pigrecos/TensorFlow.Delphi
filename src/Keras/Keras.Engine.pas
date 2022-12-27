@@ -26,13 +26,14 @@ interface
           TensorFlow.DApi,
           TensorFlow.Variable,
 
-          Keras.Regularizers;
+          Keras.Regularizers,
+          Keras.Saving;
 
 const null = $11111111;
 
 type
+  AutotuneAlgorithm =( HILL_CLIMB = 0, GRADIENT_DESCENT = 1 );
   ILayer     = interface;
-  NodeConfig = class;
 
   LayerArgs = class
      public
@@ -71,6 +72,25 @@ type
         ActivityRegularizer : IRegularizer;
         Autocast            : Boolean;
         IsFromConfig        : Boolean;
+        constructor Create;
+  end;
+
+  NodeConfig = class
+     public
+        Name        : string;
+        NodeIndex   : integer;
+        TensorIndex : Integer;
+
+        function ToString: string; override;
+  end;
+
+  LayerConfig = class
+     public
+        Name        : string;
+        ClassName   : string;
+        Config      : LayerArgs;
+        InboundNodes: TList<NodeConfig>;
+
         constructor Create;
   end;
 
@@ -175,15 +195,6 @@ type
       property InboundLayers: TArray<ILayer> read GetInLayers;
   end;
 
-  NodeConfig = class
-     public
-        Name        : string;
-        NodeIndex   : integer;
-        TensorIndex : Integer;
-
-        function ToString: string; override;
-  end;
-
   ILayer = interface
     ['{8B096EA0-F97B-47DA-BA05-49674F9282C5}']
     function GetName:string;
@@ -271,6 +282,25 @@ type
       property tensor_index : Integer read Ftensor_index;
   end;
 
+  /// <summary>
+  /// Handles iterating over epoch-level `tf.data.Iterator` objects.
+  /// </summary>
+  DataHandler = class
+    private
+
+    public
+
+  end;
+
+  Container  = class
+    protected
+       Foutput_names  : TArray<string>;
+       Fbuilt         : Boolean;
+    public
+
+      constructor Create(output_names: TArray<String>);
+  end;
+
 implementation
           uses Tensorflow.Utils;
 
@@ -321,13 +351,6 @@ end;
 function TCallContext.Enter(build_graph: Boolean): CallContextManager;
 begin
    Result := CallContextManager.Create(build_graph);
-end;
-
-{ NodeConfig }
-
-function NodeConfig.ToString: string;
-begin
-    Result := Format('"%s, %d, %d";',[Name, NodeIndex, TensorIndex])
 end;
 
 { LayerArgs }
@@ -500,6 +523,27 @@ begin
         end;
         Result := TFTensors.Create( flat_arguments );
     end;
+end;
+
+{ NodeConfig }
+
+function NodeConfig.ToString: string;
+begin
+    Result := Format('%s, %d, %d',[Name, NodeIndex, TensorIndex])
+end;
+
+{ LayerConfig }
+
+constructor LayerConfig.Create;
+begin
+
+end;
+
+{ Container }
+
+constructor Container.Create(output_names: TArray<String>);
+begin
+    Foutput_names := output_names;
 end;
 
 end.
