@@ -26,13 +26,11 @@ interface
           TensorFlow.DApi,
           TensorFlow.Variable,
 
-          Keras.Regularizers,
-          Keras.Saving;
+          Keras.Regularizers;
 
 const null = $11111111;
 
 type
-  AutotuneAlgorithm =( HILL_CLIMB = 0, GRADIENT_DESCENT = 1 );
   ILayer     = interface;
 
   LayerArgs = class
@@ -282,25 +280,6 @@ type
       property tensor_index : Integer read Ftensor_index;
   end;
 
-  /// <summary>
-  /// Handles iterating over epoch-level `tf.data.Iterator` objects.
-  /// </summary>
-  DataHandler = class
-    private
-
-    public
-
-  end;
-
-  Container  = class
-    protected
-       Foutput_names  : TArray<string>;
-       Fbuilt         : Boolean;
-    public
-
-      constructor Create(output_names: TArray<String>);
-  end;
-
 implementation
           uses Tensorflow.Utils;
 
@@ -537,13 +516,6 @@ end;
 constructor LayerConfig.Create;
 begin
 
-end;
-
-{ Container }
-
-constructor Container.Create(output_names: TArray<String>);
-begin
-    Foutput_names := output_names;
 end;
 
 end.

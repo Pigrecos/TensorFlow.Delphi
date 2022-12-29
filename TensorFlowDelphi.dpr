@@ -85,7 +85,9 @@ uses
   Keras.LayersApi in 'src\Keras\Keras.LayersApi.pas',
   Keras.MetricsApi in 'src\Keras\Keras.MetricsApi.pas',
   TensorFlow.tensor_array_ops in 'src\Operation\TensorFlow.tensor_array_ops.pas',
-  Keras.Saving in 'src\Keras\Keras.Saving.pas';
+  Keras.Container in 'src\Keras\Keras.Container.pas',
+  Keras.CommonDef in 'src\Keras\Keras.CommonDef.pas',
+  TensorFlow.Functions in 'src\TensorFlow.Functions.pas';
 
 {$R *.res}
 

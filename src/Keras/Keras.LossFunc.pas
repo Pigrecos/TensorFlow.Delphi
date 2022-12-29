@@ -22,6 +22,16 @@ interface
 
 
 type
+   Reduction = record
+       const
+        NONE                      : string = 'none';
+        SUM                       : string = 'sum';
+        WEIGHTED_SUM              : string = 'weighted_sum';
+        SUM_OVER_BATCH_SIZE       : string = 'weighted_sum_over_batch_size';
+        WEIGHTED_MEAN             : string = 'weighted_mean';
+        SUM_BY_NONZERO_WEIGHTS    : string = 'weighted_sum_by_nonzero_weights';
+        SUM_OVER_NONZERO_WEIGHTS  : string = 'weighted_sum_by_nonzero_weights';
+   end;
 
    ReductionV2 = record
        const

@@ -158,6 +158,7 @@ TFShape = record
    function with_rank_at_least(rank_: Integer): TFShape;
    function ToString: string;
    function is_compatible_with(shape2:TFShape):Boolean;
+   function most_specific_compatible_shape(other: TFShape): TFShape;
    function as_int_list : TArray<Integer>;
    function IsScalar: Boolean;
    function IsNull: Boolean;
@@ -2365,7 +2366,7 @@ begin
         raise TFException.Create('AllocateTensor failed.');
 
      if Assigned(data)  then
-       Move(@data[0], ttensor^, _length);
+       Move(data[0], ttensor^, _length);
 
      Result := hHandle;
 
@@ -5070,6 +5071,22 @@ begin
     finally
       new_dims.Free
     end;
+end;
+
+function TFShape.most_specific_compatible_shape(other: TFShape): TFShape;
+var
+  _Dims : TArray<Int64>;
+begin
+    _Dims := [];
+    for var i := 0 to ndim - 1 do
+       _Dims := _Dims + [ -1 ];
+
+    for var i := 0 to Length(Dims)-1 do
+    begin
+        if Dims[i] = other.Dims[i] then
+          _Dims[i] := Dims[i];
+    end;
+    Result := TFShape.Create(_Dims) ;
 end;
 
 function TFShape.unknown_shape(rank_: Integer): TFShape;

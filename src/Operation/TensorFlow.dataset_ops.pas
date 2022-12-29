@@ -23,9 +23,9 @@ interface
          TF4D.Core.CApi,
          TensorFlow.DApi,
          TensorFlow.Context,
-         Tensorflow.Graph,
+         TensorFlow.functions,
 
-         Keras.Engine;
+         Keras.CommonDef;
 
 type
   dataset_ops = record

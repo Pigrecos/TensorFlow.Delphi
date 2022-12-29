@@ -47,6 +47,8 @@ interface
        Numpy,
        Numpy.Axis,
 
+       Keras.Data,
+
        ProtoGen.Tensor,
        Protogen.tensorShape,
        ProtoGen.attrValue,
@@ -445,6 +447,21 @@ end;
 end;
 {$ENDREGION}
 
+{$REGION 'DataOps'}
+  DataOps = class
+     private
+       FDataset : DatasetManager;
+     public
+       const AUTOTUNE             : Integer = -1;
+       const INFINITE_CARDINALITY : Integer = -1;
+       const UNKNOWN_CARDINALITY  : Integer = -2;
+
+       constructor Create;
+
+       property Dataset : DatasetManager read FDataset;
+  end;
+{$ENDREGION}
+
 {$REGION 'TTensorflow'}
   TTensorflow = class(TFDisposable)
     private
@@ -478,6 +495,7 @@ end;
       compat   : CompatApi;
       strings  : StringsApi;
       GraphKeys: TGraphKeys;
+      data     : DataOps;
       //
       random   : TRandom;
       /// <summary>
@@ -1223,6 +1241,7 @@ begin
     compat    := CompatApi.Create;
     strings   := StringsApi.Create;
     GraphKeys := TGraphKeys.Create;
+    data      := DataOps.Create;
     // Get gradient Function
     TOps.RegisterFromAssembly;
     //
@@ -2493,6 +2512,15 @@ begin
     Result := math_ops.tensordot(x, y, axes, name);
 end;
 
+{$ENDREGION}
+
+{$REGION 'DataOps'}
+{ DataOps }
+
+constructor DataOps.Create;
+begin
+    FDataset := DatasetManager.Create;
+end;
 {$ENDREGION}
 
 { image_internal }

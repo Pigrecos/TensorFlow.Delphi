@@ -27,17 +27,17 @@ interface
           TensorFlow.DApiEager,
           TensorFlow.DApi,
           TensorFlow.DApiBase,
+          TensorFlow.Framework,
 
           ProtoGen.attrValue,
           ProtoGen.OpDef;
+
+         // Keras.Data;
 
 const
   EAGER_CONST_THRESHOLD : Integer = 128;
 
 type
-  ConcreteFunction  = class
-
-  end;
 
   /// <summary>
   ///     Serves as a stack for determining current default graph.

@@ -29,7 +29,9 @@ interface
           Keras.Engine,
           Keras.Layer,
           Keras.Optimizer,
-          Keras.LossFunc;
+          Keras.LossFunc,
+          Keras.Container,
+          Keras.Data;
 
 type
      ModelConfig = class
@@ -53,6 +55,9 @@ type
         Ftest_counter            : IVariableV1;
         Fpredict_counter         : IVariableV1;
         Fbase_model_initialized  : Boolean;
+        // Model.Compile
+        compiled_loss            : LossesContainer;
+        compiled_metrics         : MetricsContainer;
 
         function GetLayers: TList<ILayer>;  virtual;
         function Gettrainable_variables: TList<IVariableV1>;
@@ -72,6 +77,9 @@ type
         procedure _configure_steps_per_execution(steps_per_execution: Integer);
         procedure _reset_compile_cache;
         procedure _init_batch_counters;
+        // Model.Compile
+        procedure compile(_optimizer : OptimizerV2= nil; _loss: ILossFunc = nil; metrics : TArray<string>= nil); overload;
+        procedure compile(_optimizer: string; _loss: string; metrics: TArray<string>); overload;
 
         property Layers              : TList<ILayer> read GetLayers ;
         property trainable_variables : TList<IVariableV1> read Gettrainable_variables ;
@@ -238,6 +246,40 @@ begin
     // Used to cache `trainable` attr of `Layer`s for `fit`.
     Fcompiled_trainable_state := _get_trainable_state;
     tf.keras.backend._GRAPH := nil;
+end;
+
+procedure Model.compile(_optimizer: OptimizerV2; _loss: ILossFunc; metrics: TArray<string>);
+begin
+    if Assigned(_optimizer) then Self.optimizer := _optimizer
+    else                         Self.optimizer := TRMSprop.Create( RMSpropArgs.Create ) ;
+
+    if Assigned(_loss) then Self.loss := _loss
+    else                    Self.loss := TMeanSquaredError.Create ;
+
+    compiled_loss    := LossesContainer.Create(loss, output_names);
+    compiled_metrics := MetricsContainer.Create(metrics, output_names);
+
+    var experimental_steps_per_execution : Integer := 1;
+    _configure_steps_per_execution(experimental_steps_per_execution);
+
+    // Initialize cache attrs.
+    _reset_compile_cache;
+    Fis_compiled := true;
+end;
+
+procedure Model.compile(_optimizer, _loss: string; metrics: TArray<string>);
+var
+  _opt  : OptimizerV2;
+  l_Loss: ILossFunc;
+begin
+    if _optimizer = 'rmsprop' then _opt := TRMSprop.Create( RMSpropArgs.Create )
+    else raise Exception.Create('compile - Optimizer :'+ _optimizer+' Not Implemented');
+
+    if      _loss = 'mse' then l_Loss := TMeanSquaredError.Create
+    else if _loss = 'mae' then l_Loss := TMeanAbsoluteError.Create
+    else raise Exception.Create('compile - LossFunc :'+ _loss+' Not Implemented');
+
+    compile(_opt, l_Loss, metrics);
 end;
 
 { Functional }
@@ -966,14 +1008,11 @@ var
 begin
     if Finferred_input_shape = input_shape then
        Exit;
-
     TOps.init_scope;
-
     var inputs := tf.keras.Input(default(TFShape), input_shape, -1, input_dtype, Flayers[0].Name+'_input');
     layer_input  := TFTensors.Create(inputs);
     outputs      := nil;
     created_nodes:= TList<INode>.Create;
-
     for var layer in Flayers do
     begin
       clear_previously_created_nodes(layer, Fcreated_nodes);
@@ -983,7 +1022,6 @@ begin
       layer_input := layer_output;
       outputs     := layer_output;
     end;
-
     Fcreated_nodes        := created_nodes;
     _init_graph_network(TFTensors.Create(inputs), outputs);
     Fgraph_initialized    := true;

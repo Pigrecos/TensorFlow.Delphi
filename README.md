@@ -118,6 +118,15 @@ begin
 end;
 ```
 
+#### Compiling:
+
+To compile you need some external libraries:
+
+-  [Spring4d](https://bitbucket.org/sglienke/spring4d/src/master/) 
+-  [LoggerPro](https://github.com/danieleteti/loggerpro) 
+-  [Neon](https://github.com/paolo-rossi/delphi-neon) 
+-  [IPWorks Zip](https://www.nsoftware.com/ipworks/zip/download.aspx) 
+
 ### Contribute:
 
 Feel like contributing to one of the hottest projects in the Machine Learning field? Want to know how Tensorflow magically creates the computational graph? We appreciate every contribution however small. There are tasks for novices to experts alike, if everyone tackles only a small task the sum of contributions will be huge.
