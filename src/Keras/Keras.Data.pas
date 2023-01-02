@@ -26,21 +26,32 @@ interface
           TensorFlow.dataset_ops,
           TensorFlow.Framework,
           TensorFlow.functions,
+          TensorFlow.Variable,
 
           Keras.Engine,
           Keras.CommonDef;
 
 type
-  IDatasetV2 = class;
+  IDatasetV2    = class;
+  OwnedIterator = class;
 
-  /// <summary>
-  /// Handles iterating over epoch-level `tf.data.Iterator` objects.
-  /// </summary>
-  DataHandler = class
-    private
-
+  DataHandlerArgs = class
     public
+      X                  : TFTensor;
+      Y                  : TFTensor;
+      Dataset            : IDatasetV2;
+      BatchSize          : Integer;
+      StepsPerEpoch      : Integer;
+      InitialEpoch       : Integer;
+      Epochs             : Integer;
+      Shuffle            : Boolean;
+      MaxQueueSize       : Integer;
+      Workers            : Integer;
+      UseMultiprocessing : Boolean;
+      Model              : IModel;
+      StepsPerExecution  : IVariableV1;
 
+      constructor Create;
   end;
 
   DataAdapterArgs = class
@@ -135,6 +146,36 @@ type
       function range(count: Integer; output_type: TF_DataType = TF_INT64): IDatasetV2;overload;
       function range(start: Integer; stop: Integer; step: Integer = 1; output_type: TF_DataType = TF_INT64): IDatasetV2; overload;
       function zip(ds: TArray<IDatasetV2>): IDatasetV2;
+  end;
+
+   /// <summary>
+  /// Handles iterating over epoch-level `tf.data.Iterator` objects.
+  /// </summary>
+  DataHandler = class
+    private
+      Fargs                      : DataHandlerArgs;
+      Fadapter                   : IDataAdapter ;
+      Fdataset                   : IDatasetV2;
+      Finferred_steps            : Int64;
+      Fcurrent_step              : Int64;
+      Fstep_increment            : Int64;
+      Finsufficient_data         : Boolean;
+      Fsteps_per_execution       : IVariableV1;
+      Fsteps_per_execution_value : Int64;
+
+      function Get_epochs: Integer;
+      function Get_initial_epoch: Integer;
+    public
+      constructor Create(_args : DataHandlerArgs) ;
+      function    _infer_steps(steps_per_epoch: Integer; dataset: IDatasetV2): Int64;
+      function    enumerate_epochs:  TEnumerable< Tuple<Integer, OwnedIterator> >;
+      function    steps: TEnumerable<Int64>;
+
+      property Inferredsteps : Int64         read Finferred_steps;
+      property DataAdapter   : IDataAdapter  read Fadapter;
+      property StepIncrement : Int64         read Fstep_increment;
+      property initial_epoch : Integer       read Get_initial_epoch;
+      property epochs        : Integer       read Get_epochs;
   end;
 
   /// <summary>
@@ -648,6 +689,20 @@ begin
     _iterator_resource := tI.Value1;
     _deleter           := tI.Value2;
     ops.make_iterator(dataset.variant_tensor, _iterator_resource);
+end;
+
+{ DataHandlerArgs }
+
+constructor DataHandlerArgs.Create;
+begin
+      BatchSize          := 32;
+      StepsPerEpoch      := -1;
+      InitialEpoch       := 0;
+      Epochs             := 1;
+      Shuffle            := false;
+      MaxQueueSize       := 10;
+      Workers            := 1;
+      UseMultiprocessing := False;
 end;
 
 { DataAdapterArgs }
@@ -1620,4 +1675,139 @@ begin
     Result := ZipDataset.Create(ds);
 end;
 
+{ DataHandler }
+
+constructor DataHandler.Create(_args: DataHandlerArgs);
+begin
+    Fargs := _args;
+    if Fargs.StepsPerExecution = nil then
+    begin
+        Fsteps_per_execution       := tf.Variable(Int64(1));
+        Fsteps_per_execution_value := 1;
+    end else
+    begin
+        Fsteps_per_execution       := Fargs.StepsPerExecution;
+        var numpuVal : NDArray     := Fargs.StepsPerExecution.numpy;
+        Fsteps_per_execution_value := numpuVal;
+    end;
+
+    if Fargs.Dataset = nil then
+    begin
+        var aDataAdaptArg : DataAdapterArgs := DataAdapterArgs.Create;
+        aDataAdaptArg.X                  := Fargs.X;
+        aDataAdaptArg.Y                  := Fargs.Y;
+        aDataAdaptArg.BatchSize          := Fargs.BatchSize;
+        aDataAdaptArg.Steps              := Fargs.StepsPerEpoch;
+        aDataAdaptArg.Epochs             := Fargs.Epochs - Fargs.InitialEpoch;
+        aDataAdaptArg.Shuffle            := Fargs.Shuffle;
+        aDataAdaptArg.MaxQueueSize       := Fargs.MaxQueueSize;
+        aDataAdaptArg.Worker             := Fargs.Workers;
+        aDataAdaptArg.UseMultiprocessing := Fargs.UseMultiprocessing;
+        aDataAdaptArg.Model              := Fargs.Model;
+
+        Fadapter := TensorLikeDataAdapter.Create(aDataAdaptArg);
+    end else
+    begin
+        var aDataAdaptArg : DataAdapterArgs := DataAdapterArgs.Create;
+        aDataAdaptArg.Dataset            := Fargs.Dataset;
+        aDataAdaptArg.BatchSize          := Fargs.BatchSize;
+        aDataAdaptArg.Steps              := Fargs.StepsPerEpoch;
+        aDataAdaptArg.Epochs             := Fargs.Epochs - Fargs.InitialEpoch;
+        aDataAdaptArg.Shuffle            := Fargs.Shuffle;
+        aDataAdaptArg.MaxQueueSize       := Fargs.MaxQueueSize;
+        aDataAdaptArg.Worker             := Fargs.Workers;
+        aDataAdaptArg.UseMultiprocessing := Fargs.UseMultiprocessing;
+        aDataAdaptArg.Model              := Fargs.Model;
+
+        Fadapter := DatasetAdapter.Create(aDataAdaptArg);
+    end;
+
+    Fdataset        := Fadapter.GetDataset;
+    Finferred_steps := _infer_steps(Fargs.StepsPerEpoch, Fdataset);
+    Fcurrent_step   := 0;
+    Fstep_increment := Fsteps_per_execution_value - 1;
+    Finsufficient_data := false;
+end;
+
+function DataHandler.Get_epochs: Integer;
+begin
+    Result := Fargs.Epochs;
+end;
+
+function DataHandler.Get_initial_epoch: Integer;
+begin
+    Result := Fargs.InitialEpoch;
+end;
+
+function DataHandler._infer_steps(steps_per_epoch: Integer; dataset: IDatasetV2): Int64;
+begin
+    if steps_per_epoch > -1 then
+        Exit( steps_per_epoch );
+
+    var adapter_steps := Fadapter.GetSize;
+    if adapter_steps > -1 then
+        Exit ( adapter_steps );
+
+    var size               := dataset.cardinality;
+    var numpuVal : NDArray := size.numpy;
+    Result                 := numpuVal;
+end;
+
+function DataHandler.enumerate_epochs: TEnumerable<Tuple<Integer, OwnedIterator>>;
+var
+  epoch        : Integer;
+  data_iterator: OwnedIterator;
+begin
+  Result := TList<Tuple<Integer, OwnedIterator>>.Create;
+  for epoch := initial_epoch to epochs - 1 do
+  begin
+    if Finsufficient_data then
+      Break;
+
+    data_iterator := OwnedIterator.Create(Fdataset);
+    TList<Tuple<Integer, OwnedIterator>>(Result).Add(Tuple<Integer, OwnedIterator>.Create(epoch, data_iterator));
+  end;
+  // _adapter.on_epoch_end()
+end;
+
+function DataHandler.steps: TEnumerable<Int64>;
+var
+  can_run_full_execution : Boolean;
+  steps_remaining        : Int64;
+begin
+    Result := TList<Int64>.Create;
+
+    Fcurrent_step := 0;
+    while Fcurrent_step < Finferred_steps do
+    begin
+        if Finsufficient_data then
+          Break;
+
+        can_run_full_execution := (Fsteps_per_execution_value = 1) or (Finferred_steps < 0) or (Finferred_steps - Fcurrent_step >= Fsteps_per_execution_value);
+        if can_run_full_execution then
+        begin
+            Fstep_increment := Fsteps_per_execution_value - 1;
+            TList<Int64>(Result).Add(Fcurrent_step);
+            Fcurrent_step := Fcurrent_step + Fsteps_per_execution_value;
+        end else
+        begin
+            steps_remaining := Finferred_steps - Fcurrent_step;
+
+            if      Fsteps_per_execution is RefVariable          then  (Fsteps_per_execution as RefVariable).assign(steps_remaining)
+            else if Fsteps_per_execution is BaseResourceVariable then  (Fsteps_per_execution as BaseResourceVariable).assign(steps_remaining)
+            else    raise Exception.Create(' DataHandler.steps Error!');
+
+            Fstep_increment := steps_remaining - 1;
+
+            TList<Int64>(Result).Add(Fcurrent_step);
+            Fcurrent_step := Fcurrent_step + steps_remaining;
+
+            if      Fsteps_per_execution is RefVariable          then  (Fsteps_per_execution as RefVariable).assign(Fsteps_per_execution_value)
+            else if Fsteps_per_execution is BaseResourceVariable then  (Fsteps_per_execution as BaseResourceVariable).assign(Fsteps_per_execution_value)
+            else    raise Exception.Create(' DataHandler.steps Error!');
+        end;
+    end;
+end;
+
 end.
+

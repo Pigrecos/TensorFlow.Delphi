@@ -75,6 +75,7 @@ type
        function GetDtype: TF_DataType;
        function GetTrainW: TList<IVariableV1>;
        function GetTrainVars: TList<IVariableV1>;
+       function GetNonTrainVars: TList<IVariableV1>;
        function GetNotTrainW: TList<IVariableV1>;
        function GetName: string;
        function GetBatchShape: TFShape;
@@ -191,6 +192,7 @@ type
         property inputSpec            : TInputSpec          read FinputSpec;
         property trainable_weights    : TList<IVariableV1>  read GetTrainW;
         property trainable_variables  : TList<IVariableV1>  read GetTrainVars;
+        property non_trainable_variables  : TList<IVariableV1>  read GetNonTrainVars;
         property non_trainable_weights: TList<IVariableV1>  read GetNotTrainW;
         property Id                   : Integer             read FId;
         property Name                 : string              read GetName;
@@ -1514,6 +1516,11 @@ end;
 function Layer.GetName: string;
 begin
    Result := FName;
+end;
+
+function Layer.GetNonTrainVars: TList<IVariableV1>;
+begin
+    Result := Fnon_trainable_weights;
 end;
 
 function Layer.GetNotTrainW: TList<IVariableV1>;

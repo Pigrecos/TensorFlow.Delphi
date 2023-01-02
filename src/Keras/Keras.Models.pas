@@ -24,6 +24,7 @@ interface
           TF4D.Core.CApi,
           TensorFlow.DApi,
           TensorFlow.Variable,
+          Tensorflow.Gradient,
 
           Keras.ArgsDefinition,
           Keras.Engine,
@@ -61,6 +62,7 @@ type
 
         function GetLayers: TList<ILayer>;  virtual;
         function Gettrainable_variables: TList<IVariableV1>;
+        function GetMetrics: TList<Metric>;
       protected
         Fis_graph_network : Boolean;
         Finputs           : TFTensors;
@@ -77,12 +79,105 @@ type
         procedure _configure_steps_per_execution(steps_per_execution: Integer);
         procedure _reset_compile_cache;
         procedure _init_batch_counters;
+        procedure reset_metrics;
         // Model.Compile
+        //
         procedure compile(_optimizer : OptimizerV2= nil; _loss: ILossFunc = nil; metrics : TArray<string>= nil); overload;
         procedure compile(_optimizer: string; _loss: string; metrics: TArray<string>); overload;
+        // Model.Predict
+        //
+        /// <summary>
+        /// Generates output predictions for the input samples.
+        /// </summary>
+        /// <param name="x">Input samples</param>
+        /// <param name="batch_size">Number of samples per batch</param>
+        /// <param name="verbose">Verbosity mode</param>
+        /// <param name="steps">
+        /// Total number of steps (batches of samples)
+        /// before declaring the prediction round finished.
+        /// </param>
+        /// <param name="max_queue_size"></param>
+        /// <param name="workers"></param>
+        /// <param name="use_multiprocessing"></param>
+        /// <returns></returns>
+        function predict(x: TFTensor; batch_size : Integer= -1; verbose: Integer = 0; steps: Integer = -1; max_queue_size: Integer = 10; workers: Integer = 1; use_multiprocessing : Boolean = false): TFTensors;
+        function run_predict_step(iterator: OwnedIterator): TFTensors;
+        function predict_step(data: TFTensor): TFTensors;
+        // Model.Evaluate
+        //
+        /// <summary>
+        /// Returns the loss value & metrics values for the model in test mode.
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="batch_size"></param>
+        /// <param name="verbose"></param>
+        /// <param name="steps"></param>
+        /// <param name="max_queue_size"></param>
+        /// <param name="workers"></param>
+        /// <param name="use_multiprocessing"></param>
+        /// <param name="return_dict"></param>
+        procedure evaluate(x                  : TNDArray;
+                          y                   : TNDArray;
+                          batch_size          : Integer= -1;
+                          verbose             : Integer = 1;
+                          steps               : Integer = -1;
+                          max_queue_size      : Integer= 10;
+                          workers             : Integer= 1;
+                          use_multiprocessing : Boolean = false;
+                          return_dict         : Boolean= false); overload;
+        function evaluate(x: IDatasetV2):  TArray<TPair<string, Single> >;overload;
+        function test_function(iterator: OwnedIterator) : TList< Tuple<string, TFTensor> >;
+        function test_step(x: TFTensor; y: TFTensor): TList< Tuple<string, TFTensor> >;
+        // Model.fit
+        //
+        /// <summary>
+        /// Trains the model for a fixed number of epochs (iterations on a dataset).
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="batch_size"></param>
+        /// <param name="epochs"></param>
+        /// <param name="verbose"></param>
+        /// <param name="validation_split"></param>
+        /// <param name="shuffle"></param>
+        procedure fit(x: TNDArray; y      : TNDArray;
+                      batch_size          : Integer= -1;
+                      epochs              : Integer= 1;
+                      verbose             : Integer = 1;
+                      validation_split    : Single= 0.0;
+                      shuffle             : Boolean= true;
+                      initial_epoch       : Integer= 0;
+                      max_queue_size      : Integer= 10;
+                      workers             : Integer= 1;
+                      use_multiprocessing : Boolean= false); overload;
+        procedure fit(dataset             : IDatasetV2;
+                      batch_size          : Integer= -1;
+                      epochs              : Integer= 1;
+                      verbose             : Integer = 1;
+                      validation_split    : Single= 0.0;
+                      shuffle             : Boolean= true;
+                      initial_epoch       : Integer= 0;
+                      max_queue_size      : Integer= 10;
+                      workers             : Integer= 1;
+                      use_multiprocessing : Boolean= false); overload;
+        procedure FitInternal(epochs: Integer; verbose: Integer);
+        procedure on_epoch_begin(epoch: Integer; epochs: Integer);
+        procedure on_train_batch_begin(verbose: Integer; step: Int64; elapse: Int64; results: TList<Tuple<string, TFTensor>>) ;
+        // Model.Train
+        //
+        function train_step_function(iterator: OwnedIterator): TList<Tuple<string, TFTensor>>;
+        /// <summary>
+        /// The logic for one training step.
+        /// </summary>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        function  train_step(x: TFTensor; y: TFTensor): TList<Tuple<string, TFTensor>>;
+        procedure _minimize(tape: TGradientTape; optimizer: OptimizerV2; loss: TFTensor; trainable_variables: TList<IVariableV1>);
 
         property Layers              : TList<ILayer> read GetLayers ;
         property trainable_variables : TList<IVariableV1> read Gettrainable_variables ;
+        property Metrics             : TList<Metric> read GetMetrics ;
     end;
 
     /// <summary>
@@ -176,8 +271,12 @@ type
 
 implementation
          uses Tensorflow,
+              TensorFlow.Tensor,
               TensorFlow.Ops,
               Tensorflow.Utils,
+              TensorFlow.Slice,
+
+              NumPy.NDArray,
 
               Keras.Utils,
 
@@ -192,6 +291,334 @@ begin
     _init_batch_counters;
 end;
 
+procedure Model.evaluate(x, y: TNDArray; batch_size, verbose, steps, max_queue_size, workers: Integer; use_multiprocessing, return_dict: Boolean);
+var
+  res     : TList<Tuple<string, TFTensor> > ;
+  dataArgs: DataHandlerArgs;
+begin
+    dataArgs := DataHandlerArgs.Create;
+    dataArgs.X             :=  x;
+    dataArgs.Y             :=  y;
+    dataArgs.BatchSize     :=  batch_size;
+    dataArgs.StepsPerEpoch :=  steps;
+    dataArgs.InitialEpoch  :=  0;
+    dataArgs.Epochs        :=  1;
+    dataArgs.MaxQueueSize  :=  max_queue_size;
+    dataArgs.Workers       :=  workers;
+    dataArgs.UseMultiprocessing :=  use_multiprocessing;
+    dataArgs.Model         :=  Self;
+    dataArgs.StepsPerExecution :=  Fsteps_per_execution;
+
+    data_handler := DataHandler.Create(dataArgs);
+
+    tf.Logger.Info('Testing...','Evaluate');
+    for var epoch_iterator in data_handler.enumerate_epochs do
+    begin
+        var epoch   := epoch_iterator.Value1;
+        var iterator:= epoch_iterator.Value2;
+        reset_metrics;
+        // callbacks.on_epoch_begin(epoch)
+        // data_handler.catch_stop_iteration();
+        res := nil ;
+        for var step in data_handler.steps do
+        begin
+            // callbacks.on_train_batch_begin(step)
+            res := test_function(iterator);
+        end;
+
+        var sArray : TArray<string> := [];
+        for var i := 0 to res.Count - 1 do
+        begin
+            var tTensor     : TTensor := res[i].Value2;
+            var floatTensor : Single := Single(tTensor);
+            sArray := sArray + [ res[i].Value1, FloatToStr(floatTensor) ];
+        end;
+        var sRes := string.Join(', ',sArray) ;
+
+        tf.Logger.Info('iterator: '+ IntToStr(epoch + 1 ) +', ' + sRes, 'Evaluate');
+    end;
+end;
+
+function Model.evaluate(x: IDatasetV2): TArray<TPair<string, Single>>;
+var
+  logs     : TList<Tuple<string, TFTensor> > ;
+  dataArgs : DataHandlerArgs;
+begin
+    dataArgs := DataHandlerArgs.Create;
+    dataArgs.Dataset       :=  x;
+    dataArgs.Model         :=  Self;
+    dataArgs.StepsPerExecution :=  Fsteps_per_execution;
+
+    data_handler := DataHandler.Create(dataArgs);
+
+    tf.Logger.Info('Testing...','Evaluate');
+    logs := nil ;
+    for var epoch_iterator in data_handler.enumerate_epochs do
+    begin
+        var epoch   := epoch_iterator.Value1;
+        var iterator:= epoch_iterator.Value2;
+        reset_metrics;
+        // callbacks.on_epoch_begin(epoch)
+        // data_handler.catch_stop_iteration();
+        for var step in data_handler.steps do
+        begin
+            // callbacks.on_train_batch_begin(step)
+            logs := test_function(iterator);
+        end;
+
+        var sArray : TArray<string> := [];
+        for var i := 0 to logs.Count - 1 do
+        begin
+            var tTensor     : TTensor := logs[i].Value2;
+            var floatTensor : Single := Single(tTensor);
+            sArray := sArray + [ logs[i].Value1, FloatToStr(floatTensor) ];
+        end;
+        var sRes := string.Join(', ',sArray) ;
+
+        tf.Logger.Info('iterator: '+ IntToStr(epoch + 1 ) +', ' + sRes, 'Evaluate');
+    end;
+    Result := [];
+    for var i := 0 to logs.Count - 1 do
+    begin
+        var tTensor     : TTensor := logs[i].Value2;
+        var floatTensor : Single := Single(tTensor);
+        Result := Result + [ TPair<string, Single>.create(logs[i].Value1, floatTensor) ];
+    end;
+end;
+
+procedure Model.fit(x, y: TNDArray; batch_size, epochs, verbose: Integer; validation_split: Single; shuffle: Boolean; initial_epoch, max_queue_size, workers: Integer;
+  use_multiprocessing: Boolean);
+var
+   dataArgs        : DataHandlerArgs;
+   train_count     : Integer;
+   train_x,train_y : NDArray;
+begin
+    train_count := trunc(x.dims[0] * (1 - validation_split));
+    train_x     := x[ [Slice.Create(0, train_count)] ];
+    train_y     := y[ [Slice.Create(0, train_count)] ];
+
+    dataArgs := DataHandlerArgs.Create;
+
+    dataArgs.X             := train_x;
+    dataArgs.Y             := train_y;
+    dataArgs.BatchSize     := batch_size;
+    dataArgs.InitialEpoch  := initial_epoch;
+    dataArgs.Epochs        := epochs;
+    dataArgs.Shuffle       := shuffle;
+    dataArgs.MaxQueueSize  := max_queue_size;
+    dataArgs.Workers       := workers;
+    dataArgs.UseMultiprocessing := use_multiprocessing;
+    dataArgs.Model         := Self;
+    dataArgs.StepsPerExecution := Fsteps_per_execution;
+
+    data_handler := DataHandler.Create(dataArgs);
+
+    FitInternal(epochs, verbose);
+end;
+
+procedure Model.fit(dataset: IDatasetV2; batch_size, epochs, verbose: Integer; validation_split: Single; shuffle: Boolean; initial_epoch, max_queue_size, workers: Integer;
+  use_multiprocessing: Boolean);
+var
+   dataArgs        : DataHandlerArgs;
+begin
+    dataArgs := DataHandlerArgs.Create;
+
+    dataArgs.Dataset            := dataset;
+    dataArgs.BatchSize          := batch_size;
+    dataArgs.InitialEpoch       := initial_epoch;
+    dataArgs.Epochs             := epochs;
+    dataArgs.Shuffle            := shuffle;
+    dataArgs.MaxQueueSize       := max_queue_size;
+    dataArgs.Workers            := workers;
+    dataArgs.UseMultiprocessing := use_multiprocessing;
+    dataArgs.Model              := Self;
+    dataArgs.StepsPerExecution  := Fsteps_per_execution;
+
+    data_handler := DataHandler.Create(dataArgs);
+
+    FitInternal(epochs, verbose);
+
+end;
+
+procedure Model.FitInternal(epochs, verbose: Integer);
+var
+  iterator: OwnedIterator;
+  epoch   : Integer;
+  step    : Integer;
+  results : TList<Tuple<string, TFTensor>>;
+  sw      : TStopWatch;
+begin
+    stop_training := False;
+    if      Ftrain_counter is RefVariable          then (Ftrain_counter as RefVariable)         .assign_add(Integer(0))
+    else if Ftrain_counter is BaseResourceVariable then (Ftrain_counter as BaseResourceVariable).assign_add(Integer(0))
+    else raise Exception.Create('Model.FitInterna Error!');
+
+    sw := TStopWatch.Create;
+    for var it in data_handler.enumerate_epochs do
+    begin
+        epoch   := it.Value1;
+        iterator:= it.Value2;
+        reset_metrics;
+        on_epoch_begin(epoch, epochs);
+        // data_handler.catch_stop_iteration();
+        for step in data_handler.steps do
+        begin
+            sw.Start;
+            results := train_step_function(iterator);
+            sw.Stop;
+            on_train_batch_begin(verbose, step, sw.ElapsedMilliseconds, results);
+
+            // recycle memory more frequency
+            if sw.ElapsedMilliseconds > 100 then
+            begin
+               // GC.Collect;
+            end;
+            sw.Reset;
+        end;
+        tf.Logger.Info('','Fit');
+
+        // GC.Collect;
+        // GC.WaitForPendingFinalizers;
+    end;
+
+end;
+
+procedure Model.on_epoch_begin(epoch, epochs: Integer);
+begin
+    tf.Logger.Info(Format('Epoch: %3d/%3d',[epoch+1, epochs]),'Fit');
+end;
+
+procedure Model.on_train_batch_begin(verbose: Integer; step, elapse: Int64; results: TList<Tuple<string, TFTensor>>);
+var
+  resultPairs: string;
+  progress, remaining: string;
+  i, j: Integer;
+begin
+    if verbose = 1 then
+    begin
+        resultPairs := '';
+        for i := 0 to results.Count - 1 do
+        begin
+            var tTensor : TTensor := results[i].Value2;
+            resultPairs := resultPairs + Format('%s: %6f', [results[i].Value1, Single(tTensor)]);
+            if i < results.Count - 1 then
+              resultPairs := resultPairs + ', ';
+        end;
+
+        progress := '';
+        for i := 0 to step do
+          for j := 0 to 30 div data_handler.Inferredsteps - 1 do
+            progress := progress + '=';
+        progress := progress + '>';
+
+        remaining := '';
+        for i := 1 to 30 - Length(progress) - 1 do
+          remaining := remaining + '.';
+
+        tf.Logger.Info(Format('%4d/%4d [%s%s] - %dms/step %s', [step + 1, data_handler.Inferredsteps, progress, remaining, elapse, resultPairs]),'Fit');
+    end;
+end;
+
+function Model.test_function(iterator: OwnedIterator): TList<Tuple<string, TFTensor>>;
+begin
+    var data   := iterator.next;
+    var outputs:= test_step(data[0], data[1]);
+    TUtils.tf_with<TControlDependenciesController,TFTensor>(Tops.control_dependencies([]),
+      function(d : TControlDependenciesController ): TFtensor
+        begin
+            if      Ftest_counter is RefVariable          then Result := (Ftest_counter as RefVariable)         .assign_add(Integer(1))
+            else if Ftest_counter is BaseResourceVariable then Result := (Ftest_counter as BaseResourceVariable).assign_add(Integer(1))
+            else raise Exception.Create('Model.test_function Error!');
+        end);
+    Result := outputs;
+end;
+
+function Model.test_step(x, y: TFTensor): TList<Tuple<string, TFTensor>>;
+begin
+    var x_y  := data_handler.DataAdapter.Expand1d(x, y);
+    x := x_y.Value1;
+    y := x_y.Value2;
+    var y_pred := Apply(TFTensors.Create(x), nil, false);
+    var loss   := compiled_loss.Call(y, y_pred.first);
+
+    compiled_metrics.update_state(y, y_pred.first);
+
+    Result := TList<Tuple<string, TFTensor>>.Create;
+    for var i := 0 to Metrics.Count -1 do
+    begin
+        var t := Tuple<string, TFTensor>.Create( Metrics[i].Name, Metrics[i].R_result );
+        Result.Add(t);
+    end;
+end;
+
+function Model.train_step_function(iterator: OwnedIterator): TList<Tuple<string, TFTensor>>;
+begin
+    var data    := iterator.next();
+    var outputs := train_step(data[0], data[1]);
+    TUtils.tf_with<TControlDependenciesController,TFTensor>(Tops.control_dependencies([]),
+      function(d : TControlDependenciesController ): TFtensor
+        begin
+            if      Ftrain_counter is RefVariable          then Result := (Ftrain_counter as RefVariable)         .assign_add(Integer(1))
+            else if Ftrain_counter is BaseResourceVariable then Result := (Ftrain_counter as BaseResourceVariable).assign_add(Integer(1))
+            else raise Exception.Create('Model.train_step_function Error!');
+        end);
+    Result := outputs;
+end;
+
+function Model.train_step(x, y: TFTensor): TList<Tuple<string, TFTensor>>;
+begin
+    var x_y := data_handler.DataAdapter.Expand1d(x, y);
+    x := x_y.Value1;
+    y := x_y.Value2;
+
+    var tape   := tf.GradientTape;
+    var y_pred := Apply(TFTensors.Create(x), nil, true);
+    var loss   := compiled_loss.Call(y, y_pred.First);
+
+    // For custom training steps, users can just write:
+    // trainable_variables = self.trainable_variables
+    // gradients = tape.gradient(loss, trainable_variables)
+    // self.optimizer.apply_gradients(zip(gradients, trainable_variables))
+    // The _minimize call does a few extra steps unnecessary in most cases,
+    // such as loss scaling and gradient clipping.
+    _minimize(tape, optimizer, loss, trainable_variables);
+    compiled_metrics.update_state(y, y_pred.First);
+
+    Result := TList<Tuple<string, TFTensor>>.Create;
+    for var i := 0 to metrics.Count - 1 do
+       Result.Add(Tuple.Create(metrics[i].Name, metrics[i].R_result));
+end;
+
+procedure Model._minimize(tape: TGradientTape; optimizer: OptimizerV2; loss: TFTensor; trainable_variables: TList<IVariableV1>);
+var
+  gradients : TArray<TFTensor>;
+  gradientsAndVariables: TList<Tuple<TFTensor, IVariableV1>>;
+  gradientsAndResVariables: TList<Tuple<TFTensor, ResourceVariable>>;
+begin
+    gradients := tape.gradient(loss, trainable_variables.ToArray);
+    gradientsAndVariables := TList<Tuple<TFTensor, IVariableV1>>.Create;
+    try
+      for var i := 0 to Length(gradients) - 1 do
+        gradientsAndVariables.Add(Tuple<TFTensor, IVariableV1>.Create(gradients[i], trainable_variables[i]));
+
+      gradients := optimizer._aggregate_gradients(gradientsAndVariables.ToArray);
+      gradients := optimizer._clip_gradients(gradients);
+
+      gradientsAndResVariables := TList<Tuple<TFTensor, ResourceVariable>>.Create;
+      try
+        for var i := 0 to Length(gradients) - 1 do
+          gradientsAndResVariables.Add(Tuple<TFTensor, ResourceVariable>.Create(gradients[i], trainable_variables[i] as ResourceVariable));
+
+        optimizer.apply_gradients(gradientsAndResVariables.ToArray, '', False);
+      finally
+        gradientsAndResVariables.Free;
+      end;
+
+    finally
+     gradientsAndVariables.Free;
+    end;
+end;
+
 function Model.GetLayers: TList<ILayer>;
 var
   res   : TArray<ILayer>;
@@ -199,6 +626,30 @@ begin
     res := _flatten_layers(false, false);
 
     Result := TList<ILayer>.Create(res) ;
+end;
+
+function Model.GetMetrics: TList<Metric>;
+begin
+    var _metrics := TList<Metric>.Create;
+
+    if Fis_compiled then
+    begin
+        if compiled_loss <> nil then
+            _metrics.AddRange(compiled_loss.metrics);
+        if compiled_metrics <> nil then
+            _metrics.AddRange(compiled_metrics.metrics);
+    end;
+
+    (*foreach (var layer in _flatten_layers())
+        _metrics.extend(layer.metrics);*)
+
+    Result := _metrics;
+end;
+
+procedure Model.reset_metrics;
+begin
+    for var metric in Metrics  do
+       metric.reset_states;
 end;
 
 function Model.Gettrainable_variables: TList<IVariableV1>;
@@ -227,6 +678,52 @@ begin
     // variables.AddRange(_trainable_weights);
 
     Result := variables;
+end;
+
+function Model.predict(x: TFTensor; batch_size, verbose, steps, max_queue_size, workers: Integer; use_multiprocessing: Boolean): TFTensors;
+begin
+    var outputs : TFTensors := nil;
+
+    if      Fpredict_counter is RefVariable          then (Fpredict_counter as RefVariable)         .assign(Integer(1))
+    else if Fpredict_counter is BaseResourceVariable then (Fpredict_counter as BaseResourceVariable).assign(Integer(1))
+    else raise Exception.Create('Model.run_predict_step Error!');
+
+    // callbacks.on_predict_begin()
+    for  var it in data_handler.enumerate_epochs do
+    begin
+        var epoch   := it.Value1;
+        var iterator:= it.Value2;
+        for var step in data_handler.steps do
+        begin
+            // callbacks.on_predict_batch_begin(step)
+            var batch_outputs := run_predict_step(iterator);
+            outputs           := batch_outputs;
+            var end_step      := step + data_handler.StepIncrement;
+            // callbacks.on_predict_batch_end(end_step, {'outputs': batch_outputs})
+        end;
+
+    end ;
+    // callbacks.on_predict_end()
+    Result := outputs;
+end;
+
+function Model.run_predict_step(iterator: OwnedIterator): TFTensors;
+begin
+    var data   := iterator.next;
+    var outputs:= predict_step(data[0]);
+    TUtils.tf_with<TControlDependenciesController,TFTensor>(Tops.control_dependencies([]),
+      function(d : TControlDependenciesController ): TFtensor
+        begin
+            if      Fpredict_counter is RefVariable          then Result := (Fpredict_counter as RefVariable)         .assign_add(Integer(1))
+            else if Fpredict_counter is BaseResourceVariable then Result := (Fpredict_counter as BaseResourceVariable).assign_add(Integer(1))
+            else raise Exception.Create('Model.run_predict_step Error!');
+        end);
+    Result := outputs;
+end;
+
+function Model.predict_step(data: TFTensor): TFTensors;
+begin
+    Result := Apply(TFTensors.Create(data), nil, false);
 end;
 
 procedure Model._configure_steps_per_execution(steps_per_execution: Integer);

@@ -30,6 +30,7 @@ interface
             System.Zip,
 
             Spring,
+            Spring.Collections.Enumerable,
 
             TF4D.Core.CApi,
             TensorFlow.DApi,
@@ -37,7 +38,8 @@ interface
             TensorFlow.Variable,
 
             Keras.Layer,
-            Keras.Engine;
+            Keras.Engine,
+            Keras.Models;
 
 type
   base_layer_utils = record
@@ -69,6 +71,16 @@ type
     public
       class function count_params(_layer: Layer; weights: TList<IVariableV1>) : Integer ; static;
       class function get_source_inputs(tensor: TFTensor; layer : ILayer = nil ;  node_index : Integer= -1): TFTensors; static;
+      // for model.summary
+      //
+      class procedure print_summary(mModel: Model; line_length: Integer = -1; positions:TArray<Single>= []); static;
+      class procedure print_row(fields: TArray<string>; positions: TArray<Integer>); static;
+      /// <summary>
+      /// Prints a summary for a single layer.
+      /// </summary>
+      /// <param name="layer"></param>
+      class procedure print_layer_summary(lLayer: ILayer; positions: TArray<Integer>); static;
+      class procedure print_layer_summary_with_connections(lLayer: ILayer; positions: TArray<Integer>; relevant_nodes: TList<INode>); static;
   end;
 
   generic_utils = record
@@ -316,6 +328,210 @@ begin
                 end
             end;
             Result := TFTensors.Create(source_tensors);
+        end;
+    end;
+end;
+
+class procedure layer_utils.print_summary(mModel: Model; line_length: Integer; positions: TArray<Single>);
+var
+  sequential_like: Boolean;
+  nodes          : TList<INode>;
+  layer          : ILayer;
+  node           : INode;
+  flag           : Boolean;
+  to_display     : TArray<string>;
+  relevant_nodes : TList<INode>;
+  positions_int  : TArray<Integer>;
+  i              : Integer;
+  ePosition      : Enumerable<Single>;
+begin
+    sequential_like := mModel is Sequential;
+    if not sequential_like then
+    begin
+        sequential_like := True;
+        nodes := TList<INode>.Create;
+        for var v in mModel.NodesByDepth do
+        begin
+            if (v.Value.Count > 1) or ((v.Value.Count = 1) and (v.Value[0].KerasInputs.Count > 1)) then
+            begin
+                sequential_like := False;
+                Break;
+            end;
+            nodes.AddRange(v.Value);
+        end;
+        if sequential_like then
+        begin
+            for layer in mModel.Layers do
+            begin
+                flag := False;
+                for node in layer.InboundNodes do
+                begin
+                    if nodes.Contains(node) then
+                    begin
+                        if flag then
+                        begin
+                            sequential_like := False;
+                            Break;
+                        end
+                        else
+                          flag := True;
+                    end;
+                    if not sequential_like then
+                      Break;
+                end;
+            end;
+        end;
+    end;
+
+    relevant_nodes := TList<INode>.Create;
+    if sequential_like then
+    begin
+      if line_length < 0 then
+        line_length := 65;
+
+      if positions = nil then
+        positions := [0.45, 0.85, 1.0];
+
+      ePosition := Enumerable<Single>.Create(positions);
+      if positions[Length(positions) - 1] <= 1 then
+        positions := ePosition.Select(
+                      function (p: Single): Single
+                      begin
+                          Result := line_length * p;
+                      end).ToArray;
+      to_display := ['Layer (type)', 'Output Shape', 'Param #'];
+    end else
+    begin
+      if line_length < 0 then
+        line_length := 98;
+
+      if positions = nil then
+        positions := [0.33, 0.55, 0.67, 1.0];
+
+      ePosition := Enumerable<Single>.Create(positions);
+      if positions[Length(positions) - 1] <= 1 then
+        positions := ePosition.Select(
+                      function (p: Single): Single
+                      begin
+                        Result := line_length * p;
+                      end).ToArray;
+      to_display := ['Layer (type)', 'Output Shape', 'Param #', 'Connected to'];
+      for var v in mModel.NodesByDepth do
+        relevant_nodes.AddRange(v.Value);
+    end;
+    var ePositionI := Enumerable<Integer>.Create(positions_int);
+    positions_int := ePositionI.Select(
+                        function (x: Integer): Integer
+                        begin
+                          Result := Trunc(x);
+                        end).ToArray;
+
+    tf.Logger.Info(Format('Model: %s', [mModel.Name]),'Summary');
+
+    var sLinea := '';
+    for i := 0 to line_length -1 do sLinea := sLinea + '_';
+    tf.Logger.Info(sLinea,'Summary');
+
+    print_row(to_display, positions_int);
+
+    var sLinea1 := '';
+    for i := 0 to line_length -1 do sLinea1 := sLinea1 + '=';
+    tf.Logger.Info(sLinea1,'Summary');
+
+    for i := 0 to mModel.Layers.Count- 1 do
+    begin
+        layer := mModel.Layers[i] ;
+        if sequential_like then  print_layer_summary(layer, positions_int)
+        else                     print_layer_summary_with_connections(layer, positions_int, relevant_nodes);
+
+        if i = mModel.Layers.Count - 1 then  tf.Logger.Info(sLinea1,'Summary')
+        else                                 tf.Logger.Info(sLinea,'Summary');
+    end;
+
+    var trainable_count     := count_params(mModel, mModel.trainable_variables);
+    var non_trainable_count := count_params(mModel, mModel.non_trainable_variables);
+    tf.Logger.Info(Format('Total params: %d', [trainable_count + non_trainable_count]),'Summary');
+    tf.Logger.Info(Format('Trainable params: %d', [trainable_count]),'Summary');
+    tf.Logger.Info(Format('Non-trainable params: %d', [non_trainable_count]),'Summary');
+
+end;
+
+class procedure layer_utils.print_row(fields: TArray<string>; positions: TArray<Integer>);
+var
+  line: string;
+  i: Integer;
+  spaces : TArray<String>;
+begin
+    line := '';
+    for i := 0 to Length(fields) - 1 do
+    begin
+        if i > 0 then
+          line := line + ' ';
+
+        line := line + fields[i];
+        line := Copy(line, 1, positions[i]);
+
+        SetLength(spaces, positions[i] - Length(line));
+        FillChar(spaces[0], Length(spaces) * SizeOf(Char), ' ');
+        line := line + string.Join('', spaces);
+    end;
+    tf.Logger.Info(line,'Summary');
+end;
+
+class procedure layer_utils.print_layer_summary(lLayer: ILayer; positions: TArray<Integer>);
+var
+  sName: string;
+  fields: TArray<string>;
+begin
+  sName := lLayer.Name;
+
+  var v : TValue := TValue.From<ILayer>(lLayer);
+  var nTipoL := v.TypeInfo.Name;
+
+  fields := [sName + ' (' + nTipoL + ')',  lLayer.output_shape.ToString ,  lLayer.count_params.ToString ] ;
+
+  print_row(fields, positions);
+end;
+
+class procedure layer_utils.print_layer_summary_with_connections(lLayer: ILayer; positions: TArray<Integer>; relevant_nodes: TList<INode>);
+var
+  connections: TList<string>;
+  node: INode;
+  name: string;
+  first_connection: string;
+  i: Integer;
+  fields: TArray<string>;
+begin
+    connections := TList<string>.Create;
+    for node in lLayer.InboundNodes do
+    begin
+        if not relevant_nodes.Contains(node) then
+          Continue;
+        for var tEnum in node.iterate_inbound do
+        begin
+            var inbound_layer := tEnum.Value1;
+            var node_index    := tEnum.Value2;
+            var tensor_index  := tEnum.Value3;
+            connections.Add(inbound_layer.Name + '[' + node_index.ToString + '][' + tensor_index.ToString + ']');
+        end;
+    end;
+    name := lLayer.Name;
+    first_connection := '';
+    if connections.Count > 0 then
+      first_connection := connections[0];
+
+    var v : TValue := TValue.From<ILayer>(lLayer);
+    var nTipoL := v.TypeInfo.Name;
+
+    fields := [ name + '(' +nTipoL+ ')', lLayer.output_shape.ToString, lLayer.count_params.ToString ];
+
+    print_row(fields, positions);
+    if connections.Count > 1 then
+    begin
+        for i := 1 to connections.Count - 1 do
+        begin
+            fields := ['',  '', '', connections[i] ];
+            print_row(fields, positions);
         end;
     end;
 end;
