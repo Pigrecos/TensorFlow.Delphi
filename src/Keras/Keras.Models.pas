@@ -174,6 +174,12 @@ type
         /// <returns></returns>
         function  train_step(x: TFTensor; y: TFTensor): TList<Tuple<string, TFTensor>>;
         procedure _minimize(tape: TGradientTape; optimizer: OptimizerV2; loss: TFTensor; trainable_variables: TList<IVariableV1>);
+        // MOdel.Summary
+        //
+        /// <summary>
+        /// Prints a string summary of the network.
+        /// </summary>
+        procedure summary(line_length: Integer = -1; positions: TArray<Single> = []);
 
         property Layers              : TList<ILayer> read GetLayers ;
         property trainable_variables : TList<IVariableV1> read Gettrainable_variables ;
@@ -719,6 +725,11 @@ begin
             else raise Exception.Create('Model.run_predict_step Error!');
         end);
     Result := outputs;
+end;
+
+procedure Model.summary(line_length: Integer; positions: TArray<Single>);
+begin
+   layer_utils.print_summary(self, line_length, positions);
 end;
 
 function Model.predict_step(data: TFTensor): TFTensors;
