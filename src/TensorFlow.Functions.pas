@@ -119,7 +119,7 @@ end;
 
 constructor ConcreteFunction.Create(_name: string);
 begin
-    func_graph := TFuncGraph.Create(name);
+    func_graph := TFuncGraph.Create(_name);
 end;
 
 procedure ConcreteFunction.ToGraph(inputs, outputs: TFTensors);
@@ -139,42 +139,42 @@ end;
 
 function ConcreteFunction.CallFlat(args, captured_inputs: TArray<TFTensor>): TFTensors;
 begin
-    {TODO -oMax -cImplementare : Implementare ForwardBackwardCall}
-    (*var executing_eagerly = tf.Context.executing_eagerly();
-      var default_graph = ops.get_default_graph();
-      var tensor_inputs = new Tensors();
-      foreach (var (i, arg) in enumerate(args))
-      {
-          tensor_inputs.Add(arg);
-          // If we're graph building, shape inference is on.
-          if (!executing_eagerly)
-          {
-          }
-      }
-      tensor_inputs.AddRange(captured_inputs);
+    var executing_eagerly := tf.Context.executing_eagerly;
+    var default_graph     := Tops.get_default_graph;
+    var tensor_inputs     := TFTensors.Create;
+    for var i := 0 to Length(args) - 1 do
+    begin
+        var arg := args[i];
+        tensor_inputs.Add(arg);
+        // If we're graph building, shape inference is on.
+        if not executing_eagerly then
+        begin
+        end;
+    end;
+    tensor_inputs.AddRange(captured_inputs);
 
-      args = tensor_inputs.ToArray();
+    args := tensor_inputs.ToArray;
+    var possible_gradient_type : Integer := 0;
+    if tf.Runner.MustRecordGradient then
+      possible_gradient_type := 1;
 
-      var possible_gradient_type = tf.Runner.MustRecordGradient() ? 1 : 0;
-      // No tape is watching; skip to running the function.
-      if (possible_gradient_type == 0 && executing_eagerly)
-      {
-          var attrs = new object[]
-          {
-              "executor_type", "",
-              "config_proto", tf.Context.FunctionCallOptions.config_proto_serialized()
-          };
-          return tf.Runner.Execute(tf.Context, func_graph.FuncName, func_graph.Outputs.Length, args, attrs);
-      }
+    // No tape is watching; skip to running the function.
+    if (possible_gradient_type = 0) and (executing_eagerly) then
+    begin
+        var attrs : TArray<TValue> := ['executor_type', '', 'config_proto', tf.Context.FunctionCallOptions.config_proto_serialized];
+        var Res := tf.Runner.Execute(tf.Context, func_graph.FuncName, func_graph.Outputs.count, args, attrs);
+        Result := TFTensors.Create(Res) ;
+        Exit;
+    end;
 
-      if (forward_backward == null)
-          forward_backward = SelectForwardAndBackwardFunctions(args, possible_gradient_type, executing_eagerly);
-      var (forward_function, args_with_tangents) = forward_backward.Forward();
-      Tensors flat_outputs = null;
-      if (executing_eagerly)
-          flat_outputs = forward_function.Call(args_with_tangents);
-      forward_backward.Record(flat_outputs);
-      return flat_outputs;*)
+   { if (forward_backward == null)
+        forward_backward = SelectForwardAndBackwardFunctions(args, possible_gradient_type, executing_eagerly);
+    var (forward_function, args_with_tangents) = forward_backward.Forward();
+    Tensors flat_outputs = null;
+    if (executing_eagerly)
+        flat_outputs = forward_function.Call(args_with_tangents);
+    forward_backward.Record(flat_outputs);
+    return flat_outputs;}
 end;
 
 procedure ConcreteFunction.Enter;

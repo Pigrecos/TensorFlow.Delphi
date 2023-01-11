@@ -226,6 +226,10 @@ type
   procedure TFE_ContextAddFunction(ctx: PTFE_Context; _function: PTF_Function; status: PTF_Status);cdecl;
   {$EXTERNALSYM TFE_ContextAddFunction}
 
+  // Checks whether a function is registered under `name`.
+  function TFE_ContextHasFunction(ctx: PTFE_Context;  const name: PTFChar): Byte; cdecl;
+  {$EXTERNALSYM TFE_ContextHasFunction}
+
   // Removes a function from the context. Once removed, you can no longer
   // TFE_Execute it or TFE_Execute any TFE_Op which has it as an attribute or any
   // other function which calls it as an attribute.
@@ -284,6 +288,7 @@ procedure TFE_ContextStartStep;                       external TensorFlowLib nam
 procedure TFE_ContextEndStep;                         external TensorFlowLib name 'TFE_ContextEndStep';
 procedure TFE_ContextSetLogDevicePlacement;           external TensorFlowLib name 'TFE_ContextSetLogDevicePlacement';
 procedure TFE_ContextAddFunction;                     external TensorFlowLib name 'TFE_ContextAddFunction';
+function  TFE_ContextHasFunction;                     external TensorFlowLib name 'TFE_ContextHasFunction';
 procedure TFE_ContextRemoveFunction;                  external TensorFlowLib name 'TFE_ContextRemoveFunction';
 function  TFE_NewTensorHandle;                        external TensorFlowLib name 'TFE_NewTensorHandle';
 procedure TFE_DeleteTensorHandle;                     external TensorFlowLib name 'TFE_DeleteTensorHandle';

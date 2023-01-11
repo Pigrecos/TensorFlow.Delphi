@@ -18,13 +18,10 @@ unit Tensorflow;
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
 interface
-  uses System.SysUtils, System.Rtti,  System.TypInfo, System.Classes, Vcl.StdCtrls,
+  uses System.SysUtils, System.Rtti,  System.TypInfo, System.Classes,
 
        System.Generics.Collections,
        Spring,
-
-       LoggerPro,
-
 
        TF4D.Core.CApi,
        TensorFlow.DApiBase,
@@ -466,10 +463,9 @@ end;
   TTensorflow = class(TFDisposable)
     private
       FtapeSet : TGradientTape;
-      FLog     : ILogWriter;
-      FMemoLog : TMemo;
+      FMemoLog : TStringList;
 
-      function GetVersion: string;
+      function  GetVersion: string;
     protected
 		  procedure NativeDispose(hnd: Pointer); override;
 
@@ -516,8 +512,8 @@ end;
       random_uniform_initializer : IInitializer;
       orthogonal_initializer     : IInitializer;
 
-      function constant_initializer<T>(value: T; dtype: TF_DataType = TF_FLOAT; verify_shape : Boolean= false): IInitializer;
-      function Logger: ILogWriter;
+      procedure LogMsg(Msg: string);
+      function  constant_initializer<T>(value: T; dtype: TF_DataType = TF_FLOAT; verify_shape : Boolean= false): IInitializer;
 
       constructor Create;
       destructor  Destroy ; override;
@@ -551,7 +547,7 @@ end;
       /// <param name="name">A name for the operation (optional).</param>
       /// <returns>A `Tensor`. Has the same type as `input`.</returns>
       function placeholder_with_default<T>(input :T ; shape: TArray<Integer>; name : string= ''): TFTensor;
-      function Session(graph: TFGraph; config: PConfigProto = nil): TFSession;overload;
+      function Session(graph: TFGraph; config: TConfigProto = nil): TFSession;overload;
       function Session: TFSession;overload;
       function get_default_session: TFSession;
       function Variable<T>(data           : T;
@@ -1196,7 +1192,7 @@ end;
       {$ENDREGION}
 
       property Version : string read GetVersion;
-      property MemoLog : TMemo  read FMemoLog write FMemoLog;
+      property MemoLog : TStringList  read FMemoLog write FMemoLog;
 
   end;
 {$ENDREGION}
@@ -1260,8 +1256,7 @@ begin
     random_uniform_initializer := RandomUniform.Create;
     orthogonal_initializer     := Orthogonal.Create;
 
-    FMemoLog := TMemo.Create(nil);
-    FLog     := BuildLogWriter([TVCLMemoLogAppender.Create(FMemoLog)]);
+    FMemoLog := TStringList.Create;
 end;
 
 destructor TTensorflow.Destroy;
@@ -1284,13 +1279,15 @@ begin
   train.Free;
   linalg.Free;
   image.Free;
+  FMemoLog.Free;
   //
   if Assigned(gradientFunctions) then  gradientFunctions.Free;
 end;
 
-function TTensorflow.Logger: ILogWriter;
+procedure TTensorflow.LogMsg(Msg: string);
 begin
-     Result := FLog;
+    if Assigned(FMemoLog) then
+       FMemoLog.Add(Msg);
 end;
 
 function TTensorflow.diag(diagonal: TFTensor; name: string): TFTensor;
@@ -1905,7 +1902,7 @@ begin
     Result := compat.v1.Session;
 end;
 
-function TTensorflow.Session(graph: TFGraph; config: PConfigProto): TFSession;
+function TTensorflow.Session(graph: TFGraph; config: TConfigProto): TFSession;
 begin
     Result := TFSession.Create(graph, config).as_default;
 end;

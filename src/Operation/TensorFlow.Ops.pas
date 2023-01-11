@@ -106,8 +106,8 @@ type
       /// </param>
       /// <param name="control_inputs">A list of `Operation`s to set as control dependencies.</param>
       /// <returns>A wrapped TF_Operation*.</returns>
-      class function _create_c_op(graph: TFGraph; node_def: TNodeDef; inputs: TArray<TFTensor>; control_inputs: TArray<TFOperation>; op_def : POpDef ) : Tuple<Pointer, TFOperationDesc>;
-      class function _reconstruct_sequence_inputs(op_def: TOpDef; inputs: TArray<TFTensor>; attrs: TMultiMap<string, TAttrValue>): TArray<TFTensors>;
+      class function _create_c_op(graph: TFGraph; node_def: TNodeDef; inputs: TArray<TFTensor>; control_inputs: TArray<TFOperation>; op_def : TOpDef ) : Tuple<Pointer, TFOperationDesc>;
+      class function _reconstruct_sequence_inputs(op_def: TOpDef; inputs: TArray<TFTensor>; attrs: TDictionary<string, TAttrValue>): TArray<TFTensors>;
       function _get_op_def(graph: TFGraph; tipo: string): TOpDef;
       class function _NodeDef(op_type: string; name: string; attrs : TDictionary<string, TAttrValue> = nil): TNodeDef;
       class function name_from_scope_name(name: string): string;
@@ -263,16 +263,20 @@ implementation
                 Tensorflow.array_ops,
                 Numpy.Axis, Numpy,
                 TensorFlow.Tensor,
+
                 Tensorflow.Gradient,
                 TensorFlow.math_grad,
                 TensorFlow.resource_variable_grad,
                 TensorFlow.array_grad,
+                TensorFlow.nn_grad,
 
                 oz.Pb.Classes,
                 Oz.SGL.Collections,
                 oz.Pb.StrBuffer,
 
-                System.TypInfo;
+                System.TypInfo,
+
+                ProtoGen.Main;
 
 { TOps }
 
@@ -372,7 +376,7 @@ begin
     if dtype = TF_DataType.DtInvalid then
         dtype :=  TUtils.GetDataType( value ) ;
 
-    if value.IsType<TEagerTensor> then
+    if value.TypeInfo = TypeInfo(TEagerTensor) then
     begin
         var eager_tensor := value.AsType<TEagerTensor>;
         if tf.executing_eagerly then
@@ -392,33 +396,33 @@ begin
 
     // graph mode
     var ret : TFTensor;
-    if value.IsType<TNDArray> then
+    if (value.IsType<TNDArray>) and (string.LowerCase(value.TypeInfo.name) = 'tndarray') then
     begin
         var nd := value.AsType<TNDArray>;
         ret := constant_op.constant(nd, dtype, name);
     end
-    else if value.IsType<NDArray> then
+    else if (value.IsType<NDArray>) and (string.LowerCase(value.TypeInfo.name) = 'ndarray') then
     begin
         var nd := TNDArray(value.AsType<NDArray>);
         ret := constant_op.constant(nd, dtype, name);
     end
-    else if value.IsType<TEagerTensor> then
+    else if (value.IsType<TEagerTensor>) and (string.LowerCase(value.TypeInfo.name) = 'teagertensor') then
     begin
         var tensor := value.AsType<TEagerTensor>;
         if tensor.Dtype = TF_RESOURCE then  ret := tensor.AsPlaceholder(name)
         else                                ret := tensor.AsConstant(name)
     end
-    else if value.IsType<TFTensor> then
+    else if (value.IsType<TFTensor>) and (string.LowerCase(value.TypeInfo.name) = 'tftensor') then
     begin
         var tensor := value.AsType<TFTensor>;
         ret := tensor;
     end
-    else if value.IsType<TTensor> then
+    else if (value.IsType<TTensor>) and (string.LowerCase(value.TypeInfo.name) = 'ttensor') then
     begin
         var tensor := TFTensor(value.AsType<TTensor>);
         ret := tensor;
     end
-    else if value.IsType<TFTensors> then
+    else if (value.IsType<TFTensors>) and (string.LowerCase(value.TypeInfo.name) = 'tftensors') then
     begin
         var tensors  := value.AsType<TFTensors>;
         var vArray : TArray<TValue>;
@@ -428,51 +432,51 @@ begin
         if name = ''  then ret := array_ops._autopacking_helper(vArray, dtype, 'packed')
         else               ret := array_ops._autopacking_helper(vArray, dtype, name)
     end
-    else if value.IsType<RefVariable> then
+    else if (value.IsType<RefVariable>) and (string.LowerCase(value.TypeInfo.name) = 'refvariable') then
     begin
         var varVal  := value.AsType<RefVariable>;
         ret := varVal._TensorConversionFunction(dtype, name, as_ref)
     end
-    else if value.IsType<ResourceVariable> then
+    else if (value.IsType<ResourceVariable>) and (string.LowerCase(value.TypeInfo.name) = 'resourcevariable') then
     begin
         var varVal  := value.AsType<ResourceVariable>;
         ret := varVal._TensorConversionFunction(dtype, name, as_ref)
     end
-    else if value.IsType<IVariableV1> then
+    else if (value.IsType<IVariableV1>) and (string.LowerCase(value.TypeInfo.name) = 'ivariablev1') then
     begin
         var varVal  := value.AsType<IVariableV1>;
         ret := varVal._TensorConversionFunction(dtype, name, as_ref)
     end
-    else if value.IsType<TAxis> then
+    else if (value.IsType<TAxis>) and (string.LowerCase(value.TypeInfo.name) = 'taxis') then
     begin
         ret := constant_op.constant(value, dtype, name)
     end
-    else if value.IsType<TFShape> then
+    else if (value.IsType<TFShape>)  and (string.LowerCase(value.TypeInfo.name) = 'tfshape') then
     begin
         var ts  := value.AsType<TFShape>;
         var d   := TValue.From< TArray<Int64> >(ts.dims);
         ret := constant_op.constant(d, dtype, name);
     end
-    else if value.IsType<string> then
+    else if value.TypeInfo = TypeInfo(string) then
     begin
         ret := constant_op.constant(value, tf.string_t, name);
     end
-    else if value.IsType<AnsiString> then
+    else if value.TypeInfo = TypeInfo(AnsiString) then
     begin
         ret := constant_op.constant(value, tf.string_t, name);
     end
-    else if value.IsType< TArray<string> > then
+    else if value.TypeInfo = TypeInfo(TArray<string>) then
     begin
         ret := constant_op.constant(value, tf.string_t, name);
     end
-    else if value.IsType< IEnumerable<TValue> > then
+    else if value.TypeInfo = TypeInfo( IEnumerable<TValue> ) then
     begin
         var obj  := value.AsType< IEnumerable<TValue> >;
         var vArray : TArray<TValue> := obj.ToArray;
 
          ret := array_ops._autopacking_conversion_function(vArray, dtype, name)
     end
-    else if value.IsType< TList<TFTEnsor> > then
+    else if value.TypeInfo = TypeInfo(TList<TFTEnsor> ) then
     begin
         var obj  := value.AsType< TList<TFTensor> >;
         var tArray : TArray<TFTensor> := obj.ToArray;
@@ -485,12 +489,12 @@ begin
 
         ret := array_ops._autopacking_helper(vArray, dtype, name)
     end
-    else if value.IsType< TArray<TValue> > then
+    else if value.TypeInfo = TypeInfo( TArray<TValue> ) then
     begin
         var obj  := value.AsType< TArray<TValue> >;
         ret := array_ops._autopacking_conversion_function(obj, dtype, name)
     end
-    else if value.IsType< TArray<TFTensor> > then
+    else if value.TypeInfo = TypeInfo( TArray<TFTensor> ) then
     begin
         var obj  := value.AsType< TArray<TFTensor> >;
         var vArray : TArray<TValue> ;
@@ -772,6 +776,7 @@ begin
     var m_Grad       := math_grad.Create;
     var res_var_Grad := resource_variable_grad.Create;
     var a_Grad       := array_grad.Create;
+    var nn_Grad      := nn_grad.Create;
     try
       for var i := 0 to Length(m_Grad.GradFunction) - 1 do
          gradientFunctions.add(m_Grad.GradFunction[i].Name,m_Grad.GradFunction[i].func);
@@ -780,12 +785,16 @@ begin
          gradientFunctions.add(res_var_Grad.GradFunction[i].Name,res_var_Grad.GradFunction[i].func) ;
 
       for var i := 0 to Length(a_Grad.GradFunction) - 1 do
-         gradientFunctions.add(a_Grad.GradFunction[i].Name,a_Grad.GradFunction[i].func)
+         gradientFunctions.add(a_Grad.GradFunction[i].Name,a_Grad.GradFunction[i].func);
+
+      for var i := 0 to Length(nn_grad.GradFunction) - 1 do
+         gradientFunctions.add(nn_grad.GradFunction[i].Name,nn_grad.GradFunction[i].func)
 
     finally
       m_Grad.free;
       res_var_Grad.free;
       a_Grad.free;
+      nn_Grad.Free;
     end;
 end;
 
@@ -824,26 +833,33 @@ begin
     default_graph.colocate_with_for_gradient(op, gradient_uid, ignore_existing);
 end;
 
-class function TOps._create_c_op(graph: TFGraph; node_def: TNodeDef; inputs: TArray<TFTensor>; control_inputs: TArray<TFOperation>; op_def: POpDef): Tuple<Pointer, TFOperationDesc>;
+class function TOps._create_c_op(graph: TFGraph; node_def: TNodeDef; inputs: TArray<TFTensor>; control_inputs: TArray<TFOperation>; op_def: TOpDef): Tuple<Pointer, TFOperationDesc>;
 var
- status: TFStatus;
+ status        : TFStatus;
+ op            : TOpDef;
+ input_tensors : TArray<TFTensors>;
+ op_desc       : TFOperationDesc;
+ op_input      : TFTensors;
+ S             : TpbSaver;
+ bytes         : TBytes;
+
 begin
    // This will be set by self.inputs.
    if op_def = nil then
    begin
-        var op := graph.GetOpDef(node_def.Op);
-        op_def := @op;
+        op := graph.GetOpDef(node_def.Op);
+        op_def := op;
    end;
 
-   var input_tensors : TArray<TFTensors> := _reconstruct_sequence_inputs(op_def^, inputs, node_def.Attr);
+   input_tensors := _reconstruct_sequence_inputs(op_def, inputs, node_def.Attr);
 
-   var op_desc := graph.NewOperation(node_def.Op, node_def.Name);
+   op_desc := graph.NewOperation(node_def.Op, node_def.Name);
 
    if not string.IsNullOrEmpty(node_def.Device) then
        TF_SetDevice( op_desc.Handle, PTFChar( TF_TString(node_def.Device) ) );
 
    // Add inputs
-   for var op_input : TFTensors in input_tensors do
+   for op_input  in input_tensors do
    begin
       if op_input.IsList then
       begin
@@ -864,8 +880,6 @@ begin
    for var control_input in control_inputs do
       TF_AddControlInput(op_desc.Handle, control_input.Handle);
 
-   var S     : TpbSaver;
-   var bytes : TBytes;
    // Add attrs
    for var attr in node_def.Attr do
    begin
@@ -880,11 +894,13 @@ begin
 
    var c_op := TF_FinishOperation(op_desc.Handle, status.Handle);
    if c_op = nil then
+   begin
       MessageBoxA(0,PAnsiChar(AnsiString(status.ToString)),'Status Message',MB_OK);
+      tf.LogMsg(status.ToString);
+   end;
 
    status.CheckMaybeRaise(status,True);
    Result.Create(c_op, op_desc);
-
 end;
 
 function TOps._get_op_def(graph: TFGraph; tipo: string): TOpDef;
@@ -896,7 +912,7 @@ class function TOps._NodeDef(op_type, name: string; attrs: TDictionary<string, T
 var
   node_def : TNodeDef;
 begin
-    node_def.Init;
+    node_def := TNodeDef.Create;
     node_def.Op   := op_type;
     node_def.Name := name;
 
@@ -911,7 +927,7 @@ begin
     Result := node_def;
 end;
 
-class function TOps._reconstruct_sequence_inputs(op_def: TOpDef; inputs: TArray<TFTensor>; attrs: TMultiMap<string, TAttrValue>): TArray<TFTensors>;
+class function TOps._reconstruct_sequence_inputs(op_def: TOpDef; inputs: TArray<TFTensor>; attrs: TDictionary<string, TAttrValue>): TArray<TFTensors>;
 var
   grouped_inputs : TList<TFTensors>;
   i : Integer;
@@ -926,12 +942,12 @@ begin
 
         if not string.IsNullOrEmpty(input_arg.NumberAttr) then
         begin
-            input_len := attrs[input_arg.NumberAttr][0].Value.value.AsInteger;
+            input_len := attrs[input_arg.NumberAttr].Value.value.AsInteger;
             is_sequence := true;
         end
         else if not string.IsNullOrEmpty(input_arg.TypeListAttr) then
         begin
-            var v1 := attrs[input_arg.TypeListAttr][0].Value.Value.AsType<TListValue>;
+            var v1 := attrs[input_arg.TypeListAttr].Value.Value.AsType<TListValue>;
             input_len := v1.Types.Count;
             is_sequence := true;
         end;

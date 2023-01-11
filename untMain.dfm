@@ -2,8 +2,8 @@ object frmMain: TfrmMain
   Left = 0
   Top = 0
   Caption = 'TensorFlow for Delphi'
-  ClientHeight = 299
-  ClientWidth = 671
+  ClientHeight = 396
+  ClientWidth = 824
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -13,9 +13,9 @@ object frmMain: TfrmMain
   OnShow = FormShow
   TextHeight = 13
   object btnTest: TBitBtn
-    Left = 495
-    Top = 266
-    Width = 168
+    Left = 8
+    Top = 363
+    Width = 89
     Height = 25
     Caption = 'Test'
     TabOrder = 0
@@ -24,35 +24,35 @@ object frmMain: TfrmMain
   object mmo1: TMemo
     Left = 8
     Top = 8
-    Width = 481
-    Height = 283
+    Width = 801
+    Height = 349
     Lines.Strings = (
       'mmo1')
     ScrollBars = ssVertical
     TabOrder = 1
   end
   object btnLinReg: TBitBtn
-    Left = 495
-    Top = 224
-    Width = 168
+    Left = 103
+    Top = 363
+    Width = 162
     Height = 25
     Caption = 'Linear Regression -Graph mode-'
     TabOrder = 2
     OnClick = btnLinRegClick
   end
   object btnLinReg1: TBitBtn
-    Left = 495
-    Top = 184
-    Width = 168
+    Left = 271
+    Top = 363
+    Width = 162
     Height = 25
     Caption = 'Linear Regression -Eager mode-'
     TabOrder = 3
     OnClick = btnLinReg1Click
   end
   object btnKerasLayers: TBitBtn
-    Left = 495
-    Top = 8
-    Width = 168
+    Left = 439
+    Top = 363
+    Width = 106
     Height = 25
     Caption = 'Keras Layers'
     TabOrder = 4

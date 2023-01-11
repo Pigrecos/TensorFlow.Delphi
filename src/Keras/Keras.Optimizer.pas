@@ -669,13 +669,17 @@ begin
   _apply_state[device_dtype].AddOrSetValue('neg_lr_t', - TTEnsor(_apply_state[device_dtype]['lr_t']));
   _apply_state[device_dtype].AddOrSetValue('epsilon', Tops.convert_to_tensor(Fargs.Epsilon, device_dtype.DType));
   _apply_state[device_dtype].AddOrSetValue('rho', rho);
-  _apply_state[device_dtype].AddOrSetValue('momentum', array_ops.identity(_get_hyper('momentum"', device_dtype.DType)));
+  _apply_state[device_dtype].AddOrSetValue('momentum', array_ops.identity(_get_hyper('momentum', device_dtype.DType)));
   _apply_state[device_dtype].AddOrSetValue('one_minus_rho', Single(1.0) - TTensor(rho));
 end;
 
 function TRMSprop._resource_apply_dense(_var: IVariableV1; grad: TFTensor; _apply_state: TDictionary<DeviceDType, TDictionary<string, TFTensor>>): TFOperation;
+var
+  rms                   : IVariableV1;
+  rms_t, denom_t, var_t : TFTensor;
+  coefficients          : TDictionary<string, TFTensor>;
 begin
-    var coefficients : TDictionary<string, TFTensor> := nil;
+    coefficients := nil;
     for var state in _apply_state do
     begin
         if (state.Key.DType = Tdtypes.as_base_dtype(_var.dtype) ) and (state.Key.Device = _var.Device) then
@@ -684,20 +688,20 @@ begin
             break;
         end;
     end;
-    var rms := get_slot(_var, 'rms');
+    rms := get_slot(_var, 'rms');
     if Fmomentum then
     begin
         raise TFException.Create('NotImplemented');
     end else
     begin
-        var rms_t := TTensor(coefficients['rho']) * rms.AsTensor + TTensor(coefficients['one_minus_rho']) * math_ops.square(grad);
-        rms_t     := state_ops.assign(rms, rms_t, Fuse_locking);
-        var denom_t := rms_t;
+        rms_t   := TTensor(coefficients['rho']) * rms.AsTensor + TTensor(coefficients['one_minus_rho']) * math_ops.square(grad);
+        rms_t   := state_ops.assign(rms, rms_t, Fuse_locking);
+        denom_t := rms_t;
         if centered then
         begin
              raise TFException.Create('NotImplemented');
         end;
-        var var_t := TTensor(_var.AsTensor) - coefficients['lr_t'] * TTensor(grad) / ( TTensor(math_ops.sqrt(denom_t)) + coefficients['epsilon'] );
+        var_t := TTensor(_var.AsTensor) - coefficients['lr_t'] * TTensor(grad) / ( TTensor(math_ops.sqrt(denom_t)) + coefficients['epsilon'] );
         Result := state_ops.assign(_var, var_t, Fuse_locking).op;
     end;
 end;

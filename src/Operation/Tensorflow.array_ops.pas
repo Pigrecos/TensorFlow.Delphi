@@ -238,6 +238,33 @@ type
      class function split(value: TFTensor; size_splits: TFTensor; axis: Integer; num: Integer = -1; name: string = 'split'): TArray<TFTensor>; overload; static;
      class function split<T>(value: TFTensor; num_split: Integer; axis: T; name: string = 'split') : TArray<TFTensor>; overload; static;
      class function pad(tensor: TFTensor; paddings: TFTensor; mode: string = 'CONSTANT'; name : string= ''; constant_values: Integer = 0): TFTensor; static;
+     /// <summary>
+     ///    An identity op that triggers an error if a gradient is requested.
+     /// </summary>
+     /// <param name="input">
+     ///    any tensor.
+     /// </param>
+     /// <param name="name">
+     /// If specified, the created operation in the graph will be this one, otherwise it will be named 'PreventGradient'.
+     /// </param>
+     /// <param name="message">
+     ///    Will be printed in the error when anyone tries to differentiate
+     ///    this operation.
+     /// </param>
+     /// <returns>
+     ///    the same input tensor.
+     ///    The Operation can be fetched from the resulting Tensor, by fetching the Operation property from the result.
+     /// </returns>
+     /// <remarks>
+     ///    When executed in a graph, this op outputs its input tensor as-is.
+     ///
+     ///    When building ops to compute gradients, the TensorFlow gradient system
+     ///    will return an error when trying to lookup the gradient of this op,
+     ///    because no gradient must ever be registered for this function.  This
+     ///    op exists to prevent subtle bugs from silently returning unimplemented
+     ///    gradients in some corner cases.
+     /// </remarks>
+     class function prevent_gradient(input: TFTensor; msg: string = ''; name: string = '') : TFTensor; static;
   end;
 
 implementation
@@ -342,12 +369,20 @@ end;
 
 class function array_ops.placeholder(_dtype: TF_DataType; _shape: PTFShape; name: string): TFTensor;
 begin
+    var sShape  : TFShape := default(TFShape);
+    if Assigned(_shape) then sShape := _shape^;
+
     if tf.Context.executing_eagerly then
        raise Exception.Create('tf.placeholder is not compatible with eager execution.');
 
-   var _op := tf.OpDefLib._apply_op_helper('Placeholder', name, [ GetArg('dtype',TValue(_dtype)), GetArg('shape',TValue.From<TFShape>(_shape^)) ]);
+   var _op := tf.OpDefLib._apply_op_helper('Placeholder', name, [ GetArg('dtype',TValue.From<Integer>(Ord(_dtype))), GetArg('shape',TValue.From<TFShape>(sShape)) ]);
    Result := _op.Output;
+end;
 
+class function array_ops.prevent_gradient(input: TFTensor; msg, name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('PreventGradient', name, ExecuteOpArgs.Create([ input ])
+                           .SetAttributes(['message', msg ])).First;
 end;
 
 class function array_ops.rank(input: TFTensor; name: string ): TFTensor;
@@ -377,6 +412,11 @@ begin
 end;
 
 class function array_ops.reshape(tensor, shape: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_array_ops.reshape(tensor, shape, name);
+end;
+
+class function array_ops.reshape(tensor: TFTensor; shape: TArray<TValue>; name: string): TFTensor;
 begin
     Result := gen_array_ops.reshape(tensor, shape, name);
 end;
@@ -1204,11 +1244,6 @@ end;
 class function array_ops.broadcast_static_shape(shape_x, shape_y: TFTensor): TFTensor;
 begin
     Result := common_shapes.broadcast_shape(shape_x, shape_y);
-end;
-
-class function array_ops.reshape(tensor: TFTensor; shape: TArray<TValue>; name: string): TFTensor;
-begin
-    Result := gen_array_ops.reshape(tensor, shape, name);
 end;
 
 class function array_ops.zeros_like(tensor: TFTensor; dtype: TF_DataType; name: string; optimize: Boolean): TFTensor;

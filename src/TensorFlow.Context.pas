@@ -45,13 +45,13 @@ interface
 
 
 type
-    TPhysicalDevice = record
+  TPhysicalDevice = record
       DeviceName : AnsiString;
       DeviceType : AnsiString;
       function ToString: string;
   end;
 
-    ExecuteOpArgs = class
+  ExecuteOpArgs = class
     private
       FGetGradientAttrs : TFunc< TFOperation,TArray<TParameter> >;
       FOpAttrs          : TDictionary<string,TValue>;
@@ -104,6 +104,13 @@ type
        destructor  Destroy; override;
   end;
 
+  TFunctionCallOptions = class
+    public
+      Config : TConfigProto;
+      function config_proto_serialized : string;
+      constructor Create;
+  end;
+
   /// <summary>
   /// Environment in which eager operations execute.
   /// </summary>
@@ -124,6 +131,7 @@ type
         _seed                 : Nullable<Integer>;
         _rng                  : Nullable<Integer>;
         FConfig               : TConfigProto;
+        FFunctionCallOptions  : TFunctionCallOptions;
         /// <summary>
         /// Initializes a new instance of the <see cref="T:TensorFlow.TFE_NewContext"/> class.
         /// </summary>
@@ -162,8 +170,9 @@ type
         function ExecEagerAction(OpType: string; Name: string; args: ExecuteOpArgs): TFTensors;
         function ExecuteOp(OpType: string; Name: string; args: ExecuteOpArgs): TFTensors;
 
-        property Handle_ : Pointer      read GetHandle;
-        property Config  : TConfigProto read FConfig write FConfig;
+        property Handle_              : Pointer              read GetHandle;
+        property Config               : TConfigProto         read FConfig write FConfig;
+        property FunctionCallOptions  : TFunctionCallOptions read FFunctionCallOptions;
   end;
 
 implementation
@@ -177,7 +186,9 @@ implementation
                Oz.Pb.StrBuffer,
                pbPublic,
                pbInput,
-               pbOutput;
+               pbOutput,
+
+               ProtoGen.Main;
 
 { ExecuteOpArgs }
 
@@ -275,13 +286,17 @@ begin
     defaultExecutionMode := C_GRAPH_MODE;
     context_switches := ContextSwitchStack.Create(defaultExecutionMode = C_EAGER_MODE, false);
     initialized      := false;
-    FConfig.Init;
+    FConfig          := TConfigProto.Create;
+
+    FFunctionCallOptions  := TFunctionCallOptions.Create;
 end;
 
 destructor TContext.Destroy;
 begin
    inherited Destroy;
    context_switches.Free;
+   FFunctionCallOptions.Free;
+   FConfig.Free;
 end;
 
 procedure TContext.ensure_initialized;
@@ -294,6 +309,7 @@ begin
     var status := TFStatus.Create;
 
     FConfig := MergeConfig;
+    FFunctionCallOptions.Config := FConfig;
 
     Saver.Init;
     TpbSaver.SaveConfigProto(Saver,FConfig);
@@ -604,6 +620,28 @@ begin
     TFE_DeleteContextOptions(hnd);
 end;
 
+{ TFunctionCallOptions }
+
+constructor TFunctionCallOptions.Create;
+begin
+    Config := TConfigProto.Create;
+end;
+
+function TFunctionCallOptions.config_proto_serialized: string;
+var
+   Saver  : TpbSaver;
+begin
+    Saver.Init;
+    TpbSaver.SaveConfigProto(Saver,Config);
+
+
+    var bytes := Saver.Pb.GetBytes;
+    bytes := [50,0] ;
+    var text :=  TEncoding.UTF8.GetString(Bytes);
+    Result := text;
+
+
+   ;
+end;
+
 end.
-
-

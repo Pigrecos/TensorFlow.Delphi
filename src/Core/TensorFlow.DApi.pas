@@ -202,6 +202,7 @@ end;
 /// </summary>
 ITensorOrOperation = class abstract(TFDisposable)
   private
+    FName   : string;
     FDtype  : TF_DataType;
     FDevice : string;
     FOp     : TFOperation;
@@ -267,6 +268,11 @@ TControlFlowContext = class(TInterfacedObject,ITensorFlowObject)
      /// access the key value (e.g. a switch output guarding a cond input value).
      /// </summary>
      Fexternal_values: TDictionary<string, ITensorOrOperation>;
+
+     /// <summary>
+     /// Add `op` to the current context.
+     /// </summary>
+     procedure _AddOpInternal(op: TFOperation); virtual;
    public
      constructor Create;
      procedure _Enter_;
@@ -285,6 +291,16 @@ TControlFlowContext = class(TInterfacedObject,ITensorFlowObject)
      /// Return the while context containing this context
      /// </summary>
      function GetWhileContext : WhileContext ;virtual;
+     /// <summary>
+     /// Add `op` to the current context.
+     /// </summary>
+     procedure AddOp(op: TFOperation) ;virtual;
+     /// <summary>
+     /// Add `val` to the current context and its outer context recursively.
+     /// </summary>
+     /// <param name="val"></param>
+     /// <returns></returns>
+     function AddValue(val: TFTensor): TFTensor; virtual;
 
      property pivot  : TFTensor read Fpivot;
      property pred   : TFTensor read Fpred;
@@ -358,11 +374,11 @@ WhileContext = class(TControlFlowContext)
       Fmaximum_iterations : TFTensor;
       Fparallel_iterations: Integer;
       Fswap_memory        : Boolean;
-      Fpivot_for_pred     : TFTensor;
-      Fpivot_for_body     : TFTensor;
+     // Fpivot_for_pred     : TFTensor;
+     // Fpivot_for_body     : TFTensor;
       Floop_exits         : TList<TFTensor>;
       Floop_enters        : TList<TFTensor>;
-      Fgraph              : TFGraph;
+//      Fgraph              : TFGraph;
 
    public
 
@@ -518,7 +534,7 @@ TFSessionOptions = class(TFDisposable)
 		/// Initializes a new instance of the <see cref="T:TensorFlow.TFSessionOptions"/> class.
 		/// </summary>
    constructor Create;overload;
-   constructor Create(target : TF_TString= ''; config: PConfigProto = nil); overload;
+   constructor Create(target : TF_TString= ''; config: TConfigProto = nil); overload;
 		/// <summary>
 		/// Delete the instance.
 		/// </summary>
@@ -592,9 +608,9 @@ TFSession = class(TFDisposable)
  public
    // BaseSession
    constructor Create(hnd   : Pointer;         graph  : TFGraph); overload;
-   constructor Create(target: TF_TString = ''; g      : TFGraph = nil;    config : PConfigProto= nil; status: TFStatus = nil); overload;
+   constructor Create(target: TF_TString = ''; g      : TFGraph = nil;    config : TConfigProto= nil; status: TFStatus = nil); overload;
    // Session
-   constructor Create(g     : TFGraph;         config : PConfigProto= nil; status: TFStatus = nil); overload;
+   constructor Create(g     : TFGraph;         config : TConfigProto= nil; status: TFStatus = nil); overload;
    destructor  Destroy; override;
 
    procedure   run(op:      TFOperation;        feed_dict: TArray<FeedItem>= []); overload;
@@ -643,7 +659,6 @@ TFTensor = class(ITensorOrOperation)
    Ftf_output            : Nullable<TF_Output>;
    FValue_index          : Integer;
    FOverride_dtype       : TF_DataType;
-   FId                   : Int64;
    /// <summary>
    ///     The Graph that contains this tensor.
    /// </summary>
@@ -684,6 +699,8 @@ TFTensor = class(ITensorOrOperation)
    function GetItem(start:TFTensor; stop:TFTensor = nil; step: TFTensor = nil): TFTensor;overload;
    function GetnDim: Integer;
  protected
+   FId : Int64;
+
    procedure NativeDispose(hnd: Pointer); override;
    function  GetNDArray(ddtype: TF_DataType): TNDArray;
    function  GetShape: TFShape;  virtual;
@@ -834,7 +851,8 @@ TNDArray = class(TFTensor, IEnumerable )
      procedure SetItem(indices: TArray<Slice>; const Value: TNDArray); overload;
      procedure SetItem(indice: Integer; const Value: TNDArray); overload;
      function  GetData(slices: TArray<Slice>): TNDArray;
-     procedure SetData(slices: TArray<Slice>; aArray: TNDArray);
+     procedure SetData(slices: TArray<Slice>; aArray: TNDArray); overload;
+     procedure SetData(src: TNDArray; slices: TArray<Slice>; indices: TArray<Integer>; currentNDim: integer);overload;
      function  GetScalar(offset : UInt64 = 0): TNDArray;
      function  GetArrayData(newshape: TFShape; indices: TArray<Integer>): TNDArray;
      function  GetDataPointer: Pointer;
@@ -1081,6 +1099,7 @@ end;
 /// </remarks>
 TFOperation = class(ITensorOrOperation)
  private
+    FTipo                 : string;
     // Pointer to the graph, to keep it from collecting if there are TFOperations alive.
     FGraph                : TFGraph;
     FInputs_val           : TInputList;
@@ -1112,7 +1131,7 @@ TFOperation = class(ITensorOrOperation)
                       control_inputs : TArray<ITensorOrOperation> = [];
                       input_types    : TArray<TF_DataType> = [];
                       original_op    : string = '';
-                      op_def         : POpDef = nil);overload;
+                      op_def         : TOpDef = nil);overload;
    destructor  Destroy; override;
    /// <summary>
    /// Get operation by handle
@@ -1287,6 +1306,23 @@ TFGraph = class(TFDisposable)
    destructor  Destroy; override;
    function    NextId: Integer;
 
+   /// <summary>
+   /// Creates an `Operation` in this graph from the supplied TF_Operation.
+   ///
+   /// This method is like create_op() except the new Operation is constructed
+   /// using `c_op`. The returned Operation will have `c_op` as its _c_op
+   /// field.This is used to create Operation objects around TF_Operations created
+   /// indirectly by the C API(e.g.by TF_ImportGraphDef, TF_FinishWhile).
+   ///
+   /// This function does not call Operation._control_flow_post_processing or
+   /// Graph._control_dependencies_for_inputs (since the inputs may not be
+   /// available yet). The caller is responsible for calling these methods.
+   /// </summary>
+   /// <param name="c_op">a wrapped TF_Operation</param>
+   /// <param name="compute_device">(Optional.) If True, device functions will be executed
+   /// to compute the device property of the Operation.</param>
+   /// <returns>An `Operation` object.</returns>
+   function _create_op_from_tf_operation(c_op: Pointer; compute_device : Boolean= true) : TFOperation;
    procedure device(device_name: string);
    function  as_graph_element(obj: TValue; allow_tensor: Boolean = true; allow_operation: Boolean = true): ITensorOrOperation;
    procedure _pop_control_dependencies_controller(controller: TControlDependenciesController);
@@ -1374,7 +1410,7 @@ TFGraph = class(TFDisposable)
                       input_types    : TArray<TF_DataType> = [];
                       Name           : TF_TString= '';
                       attrs          : TDictionary<string, TAttrValue> = nil;
-                      op_def         : POpDef= nil;
+                      op_def         : TOpDef= nil;
                       compute_device : Boolean = True) : TFOperation; virtual;
    //
    property nodes_by_name       : TDictionary<string, ITensorOrOperation> read Fnodes_by_name;
@@ -1392,6 +1428,11 @@ TFGraph = class(TFDisposable)
 
 end;
 {$ENDREGION}
+
+  SliceHelper = record helper for Slice
+    public
+      class function AlignWithShape(shape: TFShape; slices: TArray<slice>): TArray<slice>; static;
+  end;
 
 implementation
    uses System.Math,
@@ -1412,9 +1453,53 @@ implementation
         Tensorflow.array_ops,
         Tensorflow.gen_array_ops,
         TensorFlow.control_flow_ops,
+        TensorFlow.control_flow_util,
         TensorFlow.Tensors.Ragged,
-        TensorFlow.Tensor;
+        TensorFlow.Tensor,
 
+        ProtoGen.Main;
+
+class function SliceHelper.AlignWithShape(shape: TFShape; slices: TArray<slice>): TArray<slice>;
+var
+  i, j, sliceIndex, ndim: Integer;
+  newSlices: TList<Slice>;
+begin
+    ndim := shape.ndim;
+    if (ndim = Length(slices)) then
+      Result := slices
+    else begin
+        // align slices
+        newSlices := TList<Slice>.Create();
+        sliceIndex := 0;
+        i := 0;
+        while i < ndim  do
+        begin
+            if (sliceIndex > Length(slices) - 1) then
+            begin
+                newSlices.Add(Slice.All);
+                Continue;
+            end;
+
+            if (slices[sliceIndex] = Slice.All) then
+            begin
+                newSlices.Add(Slice.All);
+                for j := 0 to ndim - Length(slices) - 1 do
+                begin
+                  newSlices.Add(Slice.All);
+                  Inc(i);
+                end;
+            end
+            else
+            begin
+                newSlices.Add(slices[sliceIndex]);
+            end;
+            Inc(sliceIndex);
+            Inc(i);
+        end;
+
+        Result := newSlices.ToArray();
+    end;
+end;
 
 {$REGION 'FeedItem'}
 { FeedItem }
@@ -1724,14 +1809,14 @@ begin
     inherited Destroy;
 end;
 
-constructor TFSessionOptions.Create(target: TF_TString; config: PConfigProto);
+constructor TFSessionOptions.Create(target: TF_TString; config: TConfigProto);
 begin
     inherited Create( TF_NewSessionOptions );
 
     TF_SetTarget(Handle, PAnsiChar(target));
 
     if config <> nil  then
-       SetConfig(config^)
+       SetConfig(config)
 end;
 
 procedure TFSessionOptions.NativeDispose(hnd: Pointer);
@@ -1782,7 +1867,7 @@ begin
 
 end;
 
-constructor TFSession.Create(target: TF_TString; g : TFGraph; config : PConfigProto; status: TFStatus);
+constructor TFSession.Create(target: TF_TString; g : TFGraph; config : TConfigProto; status: TFStatus);
 begin
    if Assigned(graph)  then FGraph := graph
    else                     FGraph := Tops.get_default_graph;
@@ -1805,7 +1890,7 @@ begin
 
 end;
 
-constructor TFSession.Create(g: TFGraph; config: PConfigProto; status: TFStatus);
+constructor TFSession.Create(g: TFGraph; config: TConfigProto; status: TFStatus);
 begin
     Create('', g, config, status)
 end;
@@ -2347,7 +2432,7 @@ begin
 
      FValue_index := value_index;
      FOverride_dtype := dtype;
-     FId := TOps.uid;
+     FId             := TOps.uid;
      FIsCreatedInGraphMode := not tf.executing_eagerly;
      FEagerTensorHandle    := nil;
 end;
@@ -2681,7 +2766,9 @@ begin
                                                   Result := gen_math_ops.floor_mod(x1, y1, newname)
                                                 else
                                                  raise TFException.Create('Not Implemented BinaryOpWrapper'+ name);
-                                                
+
+                                                 if  result.op <> nil then
+                                                     var tt := result.op.Inputs;
                                             end );
 end;
 
@@ -2964,6 +3051,7 @@ begin
     if Fop <> nil then
       opname := Fop.name;
 
+   FName := Result;
    Result := Format('%s:%d',[opname,value_index]);
 end;
 
@@ -3646,7 +3734,7 @@ begin
         if x < 0 then
           x := dims[0] + x;
 
-        aSlice := aSlice + [ Slice.Create(x,x,1,true) ];
+        aSlice := aSlice + [ Slice.Create(x,x+1,1,true) ];
      end;
      SetData(aSlice,Value);
 end;
@@ -3668,7 +3756,7 @@ end;
 
 procedure TNDArray.SetItem(indice: Integer; const Value: TNDArray);
 begin
-    SetData([indice],Value)
+    SetItem([indice],Value)
 end;
 
 function TNDArray.GetData(slices: TArray<Slice>): TNDArray;
@@ -3758,11 +3846,107 @@ begin
     Result := Self;
 end;
 
-
 procedure TNDArray.SetData(slices: TArray<Slice>; aArray: TNDArray);
+var
+  indici : TArray<Integer>;
 begin
-    {TODO -oMax -cNDArray : Add Setdata}
-    //SetData(array, slices.ToArray(), new int[shape.ndim].ToArray(), -1);
+    SetLength(indici,shape.ndim);
+    SetData(aarray, slices, indici, -1);
+end;
+
+procedure TNDArray.SetData(src: TNDArray; slices: TArray<Slice>; indices: TArray<Integer>; currentNDim: integer);
+var
+  i, offset, srcIndex, step: Integer;
+  start, stop : TNullableInteger;
+  dst         : Pointer;
+  Locslice    : Slice;
+begin
+    if (dtype <> src.dtype) then
+      raise Exception.CreateFmt('Required dtype %s but %s is assigned.', [Tdtypes.ToString(Dtype) , Tdtypes.ToString(src.dtype)]);
+
+    if (Length(slices) = 0) then
+      Exit;
+
+    if (shape = src.shape) then
+    begin
+        System.Move(src.data^, data^, src.bytesize);
+        Exit;
+    end;
+
+    // first iteration
+    if (currentNDim = -1) then
+      slices := Slice.AlignWithShape(shape, slices);
+
+    // last dimension
+    if (currentNDim = ndim - 1) then
+    begin
+        offset := TFShape.GetOffset(shape, indices);
+        dst := Pointer(NativeInt(data) + offset * Integer(dtypesize));
+        System.Move(src.data^, dst^, src.bytesize);
+        Exit;
+    end;
+
+    Inc(currentNDim);
+    Locslice := slices[currentNDim];
+
+    start := Locslice.Start;
+    if start = nil then  start := 0;
+
+    stop := Locslice.Stop;
+    {$WARN SYMBOL_DEPRECATED OFF}
+    if stop = nil then stop := dims[currentNDim];
+    {$WARN SYMBOL_DEPRECATED ON}
+
+    step := Locslice.Step;
+
+    if (step <> 1) then
+    begin
+        for i := start to stop.value - 1 do
+        begin
+            if (i >= dims[currentNDim]) then
+              raise Exception.CreateFmt('Index should be in [0, %d] but got %d', [dims[currentNDim], i]);
+
+            indices[currentNDim] := i;
+            if (currentNDim < ndim - src.ndim) then
+              SetData(src, slices, indices, currentNDim)
+            else
+            begin
+                srcIndex := (i - start.value) div step;
+                SetData(src[srcIndex], slices, indices, currentNDim);
+            end;
+        end;
+    end
+    else
+    begin
+        for i := start to stop.value - 1 do
+        begin
+            if (i >= dims[currentNDim]) then
+              raise Exception.CreateFmt('Index should be in [0, %d] but got %d', [dims[currentNDim], i]);
+
+            indices[currentNDim] := i;
+            if (currentNDim < ndim - src.ndim) then
+              SetData(src, slices, indices, currentNDim)
+            // last dimension
+            else if (currentNDim = ndim - 1) then
+            begin
+                SetData(src, slices, indices, currentNDim);
+                Break;
+            end
+            else if (Slice.IsContinuousBlock(slices, currentNDim)) then
+            begin
+                offset := TFShape.GetOffset(shape, indices);
+                dst := Pointer(NativeInt(data) + offset * Integer(dtypesize));
+                System.Move(src.data^, dst^, src.bytesize);
+                Exit;
+            end else
+            begin
+                srcIndex := i - start.value;
+                SetData(src[srcIndex], slices, indices, currentNDim);
+            end;
+        end;
+    end;
+    // reset indices
+    indices[currentNDim] := 0;
 end;
 
 function TNDArray.GetScalar(offset: UInt64): TNDArray;
@@ -4108,7 +4292,7 @@ constructor TFOperation.Create(node_def       : TNodeDef;
                                control_inputs : TArray<ITensorOrOperation> ;
                                input_types    : TArray<TF_DataType> ;
                                original_op    : string;
-                               op_def         : POpDef );
+                               op_def         : TOpDef );
 begin
    inherited Create;
    Fgraph := g;
@@ -4130,7 +4314,7 @@ begin
    if op_def = nil then
    begin
      var op := g.GetOpDef(node_def.Op);
-     op_def := @op;
+     op_def := op;
    end;
 
    var t := TOps._create_c_op(g, node_def, inputs, control_input_ops.ToArray, op_def);
@@ -4420,6 +4604,7 @@ begin
     Result := '';
     if Assigned(Handle) then
       Result := string( AnsiString(TF_OperationOpType(Handle)) ) ;
+    FTipo := Result;
 end;
 
 function TFOperation.Getname: string;
@@ -4427,6 +4612,7 @@ begin
     Result := '';
     if Assigned(Handle) then
       Result := string( AnsiString(TF_OperationName(Handle)) ) ;
+    FName := Result;
 end;
 
 function TFOperation.GetOperation(h: Pointer): TFOperation;
@@ -4477,6 +4663,7 @@ begin
       var aBuf := buf.toArray;
       Loader.Init;
       Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
+      Loader.Pb.saveTofile('get_attr.Proto');
 
       var AttrValue : TAttrValue ;
       loader.LoadAttrValue(AttrValue);
@@ -4523,7 +4710,7 @@ begin
           Result := [];
           for var i := 0 to lst.&Is.count-1 do
           begin
-              var Lvalue := TValue.From<Int32>( Integer(lst.&Is[i]^) );
+              var Lvalue := TValue.From<Int32>( Integer(lst.&Is[i]) );
               Result := Result + [ Lvalue.AsType<T>  ];
           end;
       end
@@ -4533,7 +4720,7 @@ begin
           Result := [];
           for var i := 0 to lst.&Is.count-1 do
           begin
-              var Lvalue := TValue.From<Int64>( lst.&Is[i]^ );
+              var Lvalue := TValue.From<Int64>( lst.&Is[i] );
               Result := Result + [ Lvalue.AsType<T>  ];
           end;
       end
@@ -4555,6 +4742,7 @@ begin
       var aBuf := buf.toArray;
       Loader.Init;
       Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
+      Loader.Pb.SaveToFile('test.proto');
 
       var NodeDef : TNodeDef ;
       loader.LoadNodeDef(NodeDef);
@@ -4595,7 +4783,11 @@ end;
 
 procedure TFOperation._control_flow_post_processing;
 begin
-    {TODO -oMax -cDApi : Add controlFlow Processing}
+    for var input_tensor: TFTensor in inputs do
+        control_flow_util.CheckInputFromValidContext(self, input_tensor.op);
+
+    if Fcontrol_flow_context <> nil then
+        Fcontrol_flow_context.AddOp(Self);
 end;
 
 function TFOperation._get_control_flow_context: TControlFlowContext;
@@ -5547,6 +5739,20 @@ begin
     Result := ret.ToArray;
 end;
 
+function TFGraph._create_op_from_tf_operation(c_op: Pointer; compute_device: Boolean): TFOperation;
+begin
+    var ret := TFOperation.Create(c_op, self);
+    add_op(ret);
+
+    var name_key := ret.name.ToLower;
+    if not Fnames_in_use.ContainsKey(name_key) then
+        Fnames_in_use.Add(name_key, 1);
+
+    _create_op_helper(ret, compute_device);
+
+    Result := ret;
+end;
+
 procedure TFGraph._create_op_helper(op: TFOperation; compute_device: Boolean);
 begin
     _record_op_seen_by_control_dependencies(op);
@@ -5576,7 +5782,7 @@ function TFGraph.Create_op(op_type       : TF_TString;
                                  input_types   : TArray<TF_DataType>;
                                  Name          : TF_TString;
                                  attrs         : TDictionary<string, TAttrValue>;
-                                 op_def        : POpDef;
+                                 op_def        : TOpDef;
                                  compute_device: Boolean): TFOperation;
 var
   Tt : Enumerable<TFTensor>;
@@ -5606,7 +5812,7 @@ begin
                                               begin
                                                 Result := x.op;
                                               end).ToArray;
-    {TODO -oMax -cException : Fix Exception}
+
     var control_inputs := _control_dependencies_for_inputs(input_ops);
 
     var op := TFOperation.Create(node_def,Self,inputs,dtypes,control_inputs,input_types,'',op_def);
@@ -5782,6 +5988,34 @@ constructor TControlFlowContext.Create;
 begin
     Fcontext_stack   := TStack<TControlFlowContext>.Create;
     Fexternal_values := TDictionary<string, ITensorOrOperation>.Create;
+end;
+
+function TControlFlowContext.AddValue(val: TFTensor): TFTensor;
+begin
+    // to be overridden
+    Result := nil;
+end;
+
+procedure TControlFlowContext.AddOp(op: TFOperation);
+begin
+    _AddOpInternal(op);
+end;
+
+procedure TControlFlowContext._AddOpInternal(op: TFOperation);
+begin
+    if op = nil then
+    begin
+        raise TFException.Create('Not Implemented');
+    end else
+    begin
+        for var index := 0 to op.inputs.Count - 1 do
+        begin
+            var x      := op.inputs[index];
+            var real_x := AddValue(x);
+            if real_x <> x then
+                op._update_input(index, real_x);
+        end;
+    end;
 end;
 
 procedure TControlFlowContext._Enter_;

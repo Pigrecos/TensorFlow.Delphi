@@ -100,13 +100,13 @@ begin
     var tp := TUtils.make_tensor_proto(value, dtype,@shape, verify_shape, allow_broadcast);
 
     var tensor_value : TAttrValue;
-    tensor_value.Init;
+    tensor_value := TAttrValue.Create;
     v.tag   := TAttrValue.ftTensor;
     v.value := TValue.From<TTensorProto>(tp);
     tensor_value.Value := v;
 
     var dtype_value : TAttrValue;
-    dtype_value.Init;
+    dtype_value := TAttrValue.Create;
     v.tag   := TAttrValue.ftType;
     v.value := TValue.From<Integer>( Ord(dtype)  );
     dtype_value.Value := v;
@@ -238,7 +238,12 @@ begin
        end;
     end;
     // non ascii char
-    if (dtype = TF_DataType.TF_STRING) and (value.IsArray) and (value.GetArrayElement(0).IsType<Byte> ) then
+    if (dtype = TF_DataType.TF_STRING) and (value.IsArray) and (tipoName.Contains('byte') ) then
+    begin
+        Result := TEagerTensor.Create(Value.AsType< TArray<Byte> >, TFShape.Scalar, TF_DataType.TF_STRING);
+        Exit;
+    end
+    else if (dtype = TF_DataType.TF_STRING) and (value.IsArray) and (tipoName.contains('uint8') ) then
     begin
         Result := TEagerTensor.Create(Value.AsType< TArray<Byte> >, TFShape.Scalar, TF_DataType.TF_STRING);
         Exit;

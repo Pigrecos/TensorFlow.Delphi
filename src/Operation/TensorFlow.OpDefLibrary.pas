@@ -96,12 +96,12 @@ begin
         begin
             if(values.IsArray) and (values.GetArrayElement(0).TypeInfo = TypeInfo(TFTensor)) then
             begin
-                var num_attr : TAttrDef;
+                var num_attr : TAttrDef := TAttrDef.Create;
                 for var i := 0 to op_def.Attrs.Count -1 do
                 begin
-                    if op_def.Attrs.Items[i]^.Name = input_arg.NumberAttr then
+                    if op_def.Attrs.Items[i].Name = input_arg.NumberAttr then
                     begin
-                        num_attr := op_def.Attrs.Items[i]^;
+                        num_attr := op_def.Attrs.Items[i];
                         Break;
                     end;
                 end;
@@ -192,7 +192,7 @@ begin
     begin
         if attr_def.&Type <> 'type' then continue;
         var key := attr_def.Name;
-        if attr_def.DefaultValue.Value.tag =  attr_def.DefaultValue.ftType then
+        if Assigned(attr_def.DefaultValue) and (attr_def.DefaultValue.Value.tag =  attr_def.DefaultValue.ftType) then
         begin
             default_type_attr_map.AddOrSetValue(key, attr_def.DefaultValue.Value.value);
         end;
@@ -216,7 +216,7 @@ begin
     // Perform input type inference
     for var i := 0 to op_def.InputArgs.Count - 1 do
     begin
-        var input_arg : TArgDef := op_def.InputArgs[i]^;
+        var input_arg : TArgDef := op_def.InputArgs[i];
         var input_name:= input_arg.Name;
 
         if keywords.ContainsKey(input_name) then
@@ -348,10 +348,10 @@ begin
         var key := attr_def.Name;
         if attrs.ContainsKey(key) then
         begin
-            attr_protos.AddOrSetValue(key, SetAttrValue(op_def, attr_def^, attrs[key] ) );
+            attr_protos.AddOrSetValue(key, SetAttrValue(op_def, attr_def, attrs[key] ) );
         end else
         begin
-            if attr_def.DefaultValue.Value.value.AsObject = nil then
+            if not attr_def.DefaultValue.Value.value.IsOrdinal  then
             begin
                 raise Exception.Create('Missing required positional argument ' + key);
             end;
@@ -403,7 +403,7 @@ begin
                               input_types.ToArray,
                               _scope_name,
                               attr_protos,
-                              @op_def);
+                              op_def);
 
     scope._exit_;
 
@@ -428,14 +428,14 @@ var
    attr_value : TAttrValue;
 
 begin
-    attr_value.Init;
+    attr_value := TAttrValue.Create;
 
     if attr_def.&Type.StartsWith('list(') then
     begin
         if attr_def.HasMinimum then
         begin
             v.tag := TAttrValue.ftList;
-            var v1 : TListValue; v1.Init;
+            var v1 : TListValue := TListValue.Create;
             v.value := TValue.From<TListValue>(v1);
 
             attr_value.Value := v;
@@ -463,11 +463,24 @@ begin
         var v1 : TListValue;
         v1 := attr_value.Value.value.AsType<TListValue>;
 
-        var l := value.AsType< TList<TF_DataType> >;
+        var l : TList<TF_DataType>;
+        if string.LowerCase(value.TypeInfo.Name).Contains('integer') then
+        begin
+            var aIntArray := value.AsType< TArray<Integer> >;
+            var typeArray : TArray<TF_DataType> := [];
+            for var i := 0 to Length(aIntArray)-1 do
+               typeArray := typeArray + [ TF_DataType(aIntArray[i])] ;
+
+            l := TList<TF_DataType>.Create(typeArray) ;
+        end else
+        begin
+            l := value.AsType< TList<TF_DataType> >;
+        end;
+
         for var i := 0 to l.Count - 1 do
         begin
             var d : TDataType := _MakeType(l[i],attr_def);
-            v1.Types.Add(@d)
+            v1.Types.Add(d)
         end;
         v.value := TValue.From<TListValue>(v1);
         attr_value.Value := v;
@@ -481,7 +494,7 @@ begin
         for var i := 0 to Length(l) - 1 do
         begin
             var d : Int64 := l[i];
-            v1.&Is.Add(@d)
+            v1.&Is.Add(d)
         end;
         v.value := TValue.From<TListValue>(v1);
         v.tag   := TAttrValue.ftList;
@@ -512,7 +525,7 @@ begin
     end
     else if attr_def.&Type = 'shape' then
     begin
-         if (value.IsEmpty) and ( not attr_def.DefaultValue.Value.value.IsEmpty) then
+         if (value.IsEmpty) and (attr_def.DefaultValue <> nil) and ( not attr_def.DefaultValue.Value.value.IsEmpty) then
              attr_value.Value := attr_def.DefaultValue.Value;
 
          if value.IsType<TArray<Integer> > then
@@ -531,10 +544,15 @@ begin
          end
          else if value.IsType< TFShape > then
          begin
-             var v1 := TUtils.as_shape<Integer>(value.AsType<  TFShape >) ;
-             v.tag  := TAttrValue.ftShape;
-             v.value:= TValue.From<TTensorShapeProto>(v1) ;
-             attr_value.Value := v;
+             var sShape := value.AsType< TFShape > ;
+             if (sShape.IsNil) and ( not attr_def.DefaultValue.Value.value.IsEmpty) then
+               attr_value.Value := attr_def.DefaultValue.Value
+             else begin
+               var v1 := TUtils.as_shape<Integer>(value.AsType<  TFShape >) ;
+               v.tag  := TAttrValue.ftShape;
+               v.value:= TValue.From<TTensorShapeProto>(v1) ;
+               attr_value.Value := v;
+             end;
          end;
     end
     else if attr_def.&Type = 'list(shape)' then

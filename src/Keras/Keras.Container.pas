@@ -34,7 +34,8 @@ type
   Reduce = class(Metric)
     public
       constructor Create(_reduction: string; name: string; dtype : TF_DataType = DtInvalid);
-      function    update_state(values: TFTensor; sample_weight : TFTensor= nil): TFTensor; reintroduce;
+
+      function    update_state(y_true: TFTensor; y_pred : TFTensor; sample_weight: TFTensor = nil): TFTensor; override;
       function    R_result: TFTensor; override;
   end;
 
@@ -44,6 +45,7 @@ type
   Mean = class(Reduce)
     public
       constructor Create(name: string = 'mean'; dtype: TF_DataType = TF_FLOAT);
+      function    update_state(values: TFTensor; sample_weight : TFTensor= nil): TFTensor; reintroduce; overload;
   end;
 
   MeanMetricWrapper = class(Mean)
@@ -51,7 +53,7 @@ type
        F_fn : TFunc<TFTensor, TFTensor, TFTensor>;
     public
        constructor Create(fn: TFunc<TFTensor, TFTensor, TFTensor>; name: string; dtype : TF_DataType = TF_FLOAT);
-       function  update_state(y_true: TFTensor; y_pred: TFTensor; sample_weight: TFTensor = nil): TFTensor;
+       function    update_state(y_true: TFTensor; y_pred: TFTensor; sample_weight: TFTensor = nil): TFTensor; override;
   end;
 
   Container  = class
@@ -89,8 +91,9 @@ type
        Flosses             : ILossFunc;
        Floss_metric        : Mean;
        Fbuilt              : Boolean;
-       Fper_output_metrics : TArray<TFTensor>;
-    function GetMetrics: TList<Metric>;
+      // Fper_output_metrics : TArray<TFTensor>;
+
+       function GetMetrics: TList<Metric>;
     public
        constructor Create(losses: ILossFunc; output_names : TArray<string>= nil);
        /// <summary>
@@ -132,56 +135,6 @@ begin
           count := add_weight('count', default(TFShape), TF_FLOAT, tf.zeros_initializer);
 end;
 
-function Reduce.update_state(values, sample_weight: TFTensor): TFTensor;
-var
- tLoss           : Tuple<TFTensor,TFTensor>;
- update_total_op,
- value_sum,
- num_values      : TFTensor;
-begin
-    if sample_weight <> nil then
-    begin
-        tLoss := losses_utils.squeeze_or_expand_dimensions(values, sample_weight);
-        values       := tLoss.Value1;
-        sample_weight:= tLoss.Value2;
-
-        sample_weight := math_ops.cast(sample_weight, values.dtype);
-        values        := math_ops.multiply(values, sample_weight);
-    end;
-
-    update_total_op := nil;
-    value_sum       := math_ops.reduce_sum(values);
-    TUtils.tf_with<TControlDependenciesController>(Tops.control_dependencies([ value_sum ]),
-            procedure(d : TControlDependenciesController )
-              begin
-                  if      total is RefVariable          then update_total_op := (total as RefVariable)         .assign_add(value_sum)
-                  else if total is BaseResourceVariable then update_total_op := (total as BaseResourceVariable).assign_add(value_sum)
-              end);
-
-    // Exit early if the reduction doesn't have a denominator.
-    if Freduction = Reduction.SUM then
-        Exit( update_total_op );
-
-    // Update `count` for reductions that require a denominator.
-    num_values := nil;
-    if Freduction = Reduction.SUM_OVER_BATCH_SIZE then
-        num_values := math_ops.cast(array_ops.size(values), Fdtype)
-    else if Freduction = ReductionV2.WEIGHTED_MEAN then
-    begin
-        if sample_weight = nil then
-            num_values := math_ops.cast(array_ops.size(values), Fdtype)
-        else
-            num_values := math_ops.reduce_sum(sample_weight);
-    end;
-    Result := TUtils.tf_with<TControlDependenciesController,TFTensor>(Tops.control_dependencies([ update_total_op ]),
-            function(d : TControlDependenciesController ): TFtensor
-              begin
-                  if      count is RefVariable          then Result := (count as RefVariable)         .assign_add(num_values)
-                  else if count is BaseResourceVariable then Result := (count as BaseResourceVariable).assign_add(num_values)
-                  else raise Exception.Create('Reduce.update_state Error!');
-              end);
-end;
-
 function Reduce.R_result: TFTensor;
 begin
     if Freduction = Reduction.SUM then
@@ -190,6 +143,11 @@ begin
         Exit( math_ops.div_no_nan(total.AsTensor, count.AsTensor) );
 
     Result := inherited R_result;
+end;
+
+function Reduce.update_state(y_true, y_pred, sample_weight: TFTensor): TFTensor;
+begin
+    raise Exception.Create('update_state');
 end;
 
 { Container }
@@ -247,7 +205,7 @@ var
   metric_obj : TFunc<TFTensor, TFTensor, TFTensor>;
 begin
     metric_obj := nil;
-    if (metric = '"accuracy') or (metric = 'acc') then
+    if (metric = 'accuracy') or (metric = 'acc') then
     begin
         var y_t_rank := y_t.rank;
         var y_p_rank := y_p.rank;
@@ -305,6 +263,56 @@ end;
 constructor Mean.Create(name: string; dtype: TF_DataType);
 begin
     inherited Create(Reduction.WEIGHTED_MEAN, name, dtype)
+end;
+
+function Mean.update_state(values, sample_weight: TFTensor): TFTensor;
+var
+ tLoss           : Tuple<TFTensor,TFTensor>;
+ update_total_op,
+ value_sum,
+ num_values      : TFTensor;
+begin
+    if sample_weight <> nil then
+    begin
+        tLoss := losses_utils.squeeze_or_expand_dimensions(values, sample_weight);
+        values       := tLoss.Value1;
+        sample_weight:= tLoss.Value2;
+
+        sample_weight := math_ops.cast(sample_weight, values.dtype);
+        values        := math_ops.multiply(values, sample_weight);
+    end;
+
+    update_total_op := nil;
+    value_sum       := math_ops.reduce_sum(values);
+    TUtils.tf_with<TControlDependenciesController>(Tops.control_dependencies([ value_sum ]),
+            procedure(d : TControlDependenciesController )
+              begin
+                  if      total is RefVariable          then update_total_op := (total as RefVariable)         .assign_add(value_sum)
+                  else if total is BaseResourceVariable then update_total_op := (total as BaseResourceVariable).assign_add(value_sum)
+              end);
+
+    // Exit early if the reduction doesn't have a denominator.
+    if Freduction = Reduction.SUM then
+        Exit( update_total_op );
+
+    // Update `count` for reductions that require a denominator.
+    num_values := nil;
+    if Freduction = Reduction.SUM_OVER_BATCH_SIZE then
+        num_values := math_ops.cast(array_ops.size(values), Fdtype)
+    else if Freduction = ReductionV2.WEIGHTED_MEAN then
+    begin
+        if sample_weight = nil then
+            num_values := math_ops.cast(array_ops.size(values), Fdtype)
+        else
+            num_values := math_ops.reduce_sum(sample_weight);
+    end;
+    Result := TUtils.tf_with<TControlDependenciesController,TFTensor>(Tops.control_dependencies([ update_total_op ]),
+            function(d : TControlDependenciesController ): TFtensor
+              begin
+                  if      count is RefVariable          then Result := (count as RefVariable)         .assign_add(num_values)
+                  else if count is BaseResourceVariable then Result := (count as BaseResourceVariable).assign_add(num_values)
+                  else raise Exception.Create('Reduce.update_state Error!');
+              end);
 end;
 
 { MeanMetricWrapper }
@@ -394,3 +402,5 @@ begin
 end;
 
 end.
+
+

@@ -3,7 +3,7 @@ unit ProtoGen.FullType;
 interface
 
 uses
-  System.Classes, System.SysUtils, Oz.SGL.Collections, Oz.Pb.Classes,Oz.SGL.Heap;
+  System.Classes, System.SysUtils,  System.Rtti, Generics.Collections, Oz.Pb.Classes;
 
 {$T+}
 
@@ -43,8 +43,7 @@ type
     TFT_MUTEX_LOCK = 10202,
     TFT_LEGACY_VARIANT = 10203);
 
-  PFullTypeDef = ^TFullTypeDef;
-  TFullTypeDef = record
+  TFullTypeDef = Class
   const
     ftTypeId = 1;
     ftArgss = 2;
@@ -52,177 +51,32 @@ type
     ftI = 4;
   private
     FTypeId: TFullTypeId;
-    FArgss: TsgRecordList<TFullTypeDef>;
+    FArgss: TList<TFullTypeDef>;
     FAttr: TpbOneof;
   public
-    procedure Init;
-    procedure Free;
+    Constructor Create;
+    destructor  Destroy; Override;
     // properties
     property TypeId: TFullTypeId read FTypeId write FTypeId;
-    property Argss: TsgRecordList<TFullTypeDef> read FArgss;
+    property Argss: TList<TFullTypeDef> read FArgss;
     property Attr: TpbOneof read FAttr write FAttr;
-  end;
-
-  TLoadHelper = record helper for TpbLoader
-  public
-    procedure LoadFullTypeDef(var Value: TFullTypeDef);
-  end;
-
-  TSaveHelper = record helper for TpbSaver
-  type
-    TSave<T> = procedure(const S: TpbSaver; const Value: T);
-    TSavePair<Key, Value> = procedure(const S: TpbSaver; const Pair: TsgPair<Key, Value>);
-  private
-
-    procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
-  public
-    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);
-
-    procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
-    class procedure SaveFullTypeDef(const S: TpbSaver; const Value: TFullTypeDef); static;
   end;
 
 implementation
 
 { TFullTypeDef }
 
-procedure TFullTypeDef.Init;
+Constructor TFullTypeDef.Create;
 begin
-  Self := Default(TFullTypeDef);
-
-  var m : TsgItemMeta;
-  m.Init<TFullTypeDef>;
-  FArgss := TsgRecordList<TFullTypeDef>.From(@m);
+  inherited Create;
+  
+  FArgss := TList<TFullTypeDef>.Create;
 end;
 
-procedure TFullTypeDef.Free;
+destructor TFullTypeDef.Destroy;
 begin
   FArgss.Free;
-end;
-
-procedure TLoadHelper.LoadFullTypeDef(var Value: TFullTypeDef);
-var
-  fieldNumber, wireType: integer;
-  tag: TpbTag;
-begin
-  Value.Init;
-  tag := Pb.readTag;
-  while tag.v <> 0 do
-  begin
-    wireType := tag.WireType;
-    fieldNumber := tag.FieldNumber;
-    case fieldNumber of
-      TFullTypeDef.ftTypeId:
-        begin
-          Assert(wireType = TWire.VARINT);
-          Value.TypeId := TFullTypeId(Pb.readInt32);
-        end;
-      TFullTypeDef.ftArgss:
-        begin
-          Assert(wireType = TWire.LENGTH_DELIMITED);
-          Pb.Push;
-          try
-            var v : TFullTypeDef;
-            LoadFullTypeDef(v);
-            Value.FArgss.Add(@v);
-          finally
-            Pb.Pop;
-          end;
-        end;
-      TFullTypeDef.ftS:
-        begin
-          Assert(wireType = TWire.LENGTH_DELIMITED);
-          var v : TpbOneof;
-          v.tag := TFullTypeDef.ftS;
-          v.value := Pb.readString;
-          Value.attr := v;
-        end;
-      TFullTypeDef.ftI:
-        begin
-          Assert(wireType = TWire.VARINT);
-          var v : TpbOneof;
-          v.tag := TFullTypeDef.ftI;
-          v.value := Pb.readInt64;
-          Value.attr := v;
-        end;
-      else
-        Pb.skipField(tag);
-    end;
-    tag := Pb.readTag;
-  end;
-end;
-
-{ TSaveHelper }
-
-procedure TSaveHelper.SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
-var
-  h: TpbSaver;
-begin
-  h.Init;
-  try
-    Save(h, obj);
-    Pb.writeMessage(tag, h.Pb^);
-  finally
-    h.Free;
-  end;
-end;
-
-procedure TSaveHelper.SaveList<T>(const List: TsgRecordList<T>;
-  Save: TSave<T>; Tag: Integer);
-var
-  i: Integer;
-  h: TpbSaver;
-begin
-  h.Init;
-  try
-    for i := 0 to List.Count - 1 do
-    begin
-      h.Clear;
-      Save(h, List[i]^);
-      Pb.writeMessage(tag, h.Pb^);
-    end;
-  finally
-    h.Free;
-  end;
-end;
-
-procedure TSaveHelper.SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-  Save: TSavePair<Key, Value>; Tag: Integer);
-var
-  h: TpbSaver;
-  Pair: TsgHashMapIterator<Key, Value>.PPair;
-  it: TsgHashMapIterator<Key, Value>;
-begin
-  h.Init;
-  try
-    it := Map.Begins;
-    while it <> Map.Ends do
-    begin
-      h.Clear;
-      Save(h, it.GetPair^);
-      Pb.writeMessage(tag, h.Pb^);
-      it.Next;
-    end;
-  finally
-    h.Free;
-  end;
-end;
-
-class procedure TSaveHelper.SaveFullTypeDef(const S: TpbSaver; const Value: TFullTypeDef);
-begin
-  S.Pb.writeInt32(TFullTypeDef.ftTypeId, Ord(Value.TypeId));
-  if Value.FArgss.Count > 0 then
-    S.SaveList<TFullTypeDef>(Value.FArgss, SaveFullTypeDef, TFullTypeDef.ftArgss);
-  case Value.attr.tag of
-    TFullTypeDef.ftS:
-      begin
-        S.Pb.writeString(Value.ftS, Value.Attr.value.AsType<string>);
-      end;
-    TFullTypeDef.ftI:
-      begin
-        S.Pb.writeInt64(Value.ftI, Value.Attr.value.AsType<Int64>);
-      end;
-  end;
+  inherited Destroy;
 end;
 
 end.

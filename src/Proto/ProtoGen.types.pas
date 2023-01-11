@@ -3,12 +3,17 @@ unit ProtoGen.Types;
 interface
 
 uses
-  System.Classes, System.SysUtils, Oz.SGL.Collections, Oz.Pb.Classes;
+  System.Classes, System.SysUtils,  System.Rtti, Generics.Collections, Oz.Pb.Classes;
 
 {$T+}
 
 type
 
+  TToggle = (
+    DEFAULT = 0,
+    ON = 1,
+    OFF = 2,
+    AGGRESSIVE = 3);
 
   TDataType = (
     DT_INVALID = 0,
@@ -58,79 +63,14 @@ type
     DT_VARIANT_REF = 121,
     DT_UINT32_REF = 122,
     DT_UINT64_REF = 123);
+	
 
-  TLoadHelper = record helper for TpbLoader
-  public
-  end;
-
-  TSaveHelper = record helper for TpbSaver
-  type
-    TSave<T> = procedure(const S: TpbSaver; const Value: T);
-    TSavePair<Key, Value> = procedure(const S: TpbSaver; const Pair: TsgPair<Key, Value>);
-  private
-
-  public
-    procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
-    procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
-    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);
-  end;
+	TInt32String     = TDictionary<Integer, string>;
+  TUint32Uint32    = TDictionary<UInt32, UInt32>;
+  TStringString    = TDictionary<string, string>;
+	TStringInt32     = TDictionary<string, Integer>;
+	TUint32String    = TDictionary<UInt32, string>;
 
 implementation
-
-{ TSaveHelper }
-
-procedure TSaveHelper.SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
-var
-  h: TpbSaver;
-begin
-  h.Init;
-  try
-    Save(h, obj);
-    Pb.writeMessage(tag, h.Pb^);
-  finally
-    h.Free;
-  end;
-end;
-
-procedure TSaveHelper.SaveList<T>(const List: TsgRecordList<T>;
-  Save: TSave<T>; Tag: Integer);
-var
-  i: Integer;
-  h: TpbSaver;
-begin
-  h.Init;
-  try
-    for i := 0 to List.Count - 1 do
-    begin
-      h.Clear;
-      Save(h, List[i]^);
-      Pb.writeMessage(tag, h.Pb^);
-    end;
-  finally
-    h.Free;
-  end;
-end;
-
-procedure TSaveHelper.SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-  Save: TSavePair<Key, Value>; Tag: Integer);
-var
-  h: TpbSaver;
-  Pair: TsgHashMapIterator<Key, Value>.PPair;
-  it: TsgHashMapIterator<Key, Value>;
-begin
-  h.Init;
-  try
-    it := Map.Begins;
-    while it <> Map.Ends do
-    begin
-      h.Clear;
-      Save(h, it.GetPair^);
-      Pb.writeMessage(tag, h.Pb^);
-      it.Next;
-    end;
-  finally
-    h.Free;
-  end;
-end;
 
 end.

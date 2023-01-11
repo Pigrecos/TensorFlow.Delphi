@@ -99,7 +99,7 @@ type
                         input_types    : TArray<TF_DataType> = [];
                         Name           : TF_TString= '';
                         attrs          : TDictionary<string, TAttrValue> = nil;
-                        op_def         : POpDef= nil;
+                        op_def         : TOpDef= nil;
                         compute_device : Boolean = True) : TFOperation; override;
 
        property FuncName         : string read getFuncName;
@@ -158,7 +158,9 @@ implementation
                TensorFlow.EagerTensor,
                TensorFlow.EagareRunner,
                Oz.Pb.Classes,
-               Oz.Pb.StrBuffer;
+               Oz.Pb.StrBuffer,
+
+               ProtoGen.Main;
 
 { DefaultGraphStack }
 
@@ -236,7 +238,7 @@ end;
 
 procedure TFuncGraph.NativeDispose(hnd: Pointer);
 begin
-  TFE_ContextRemoveFunction(tf.Context.Handle,PAnsiChar(AnsiString (Fgraph_key) ), tf.Status.Handle);
+  TFE_ContextRemoveFunction(tf.Context.Handle_,PAnsiChar(AnsiString (Fgraph_key) ), tf.Status.Handle);
   TF_DeleteFunction(F_func_graph_handle);
 
   inherited NativeDispose(hnd);
@@ -322,7 +324,7 @@ begin
 end;
 
 function TFuncGraph.Create_op(op_type: TF_TString; inputs: TArray<TFTensor>; dtypes, input_types: TArray<TF_DataType>; Name: TF_TString; attrs: TDictionary<string, TAttrValue>;
-  op_def: POpDef; compute_device: Boolean): TFOperation;
+  op_def: TOpDef; compute_device: Boolean): TFOperation;
 begin
     for var i:= 0 to Length(inputs)-1 do
     begin
@@ -405,7 +407,7 @@ begin
     begin
         var _name      := Item.Key;
         var attr_value := Item.Value;
-        serialized.Init;
+        serialized := TAttrValue.Create;
 
         v.tag := TAttrValue.ftS;
         v.value := TValue.From<TBytes>( TEncoding.UTF8.GetBytes(attr_value) );
@@ -443,7 +445,7 @@ begin
     for var i := 0 to Length(_inputs) - 1 do
       pInput := pInput + [ TF_Output.Create(_inputs[i].Op.Handle,0) ];
 
-    for var i := 0 to Length(_inputs) - 1 do
+    for var i := 0 to Length(_outputs) - 1 do
       pOutput := pOutput + [ TF_Output.Create(_outputs[i].Op.Handle,0) ];
 
     pNames := nil;
@@ -468,8 +470,7 @@ begin
 
     // c_api.TF_GraphCopyFunction(outer_graph, _func_graph_handle, IntPtr.Zero, status.Handle);
     // status.Check(true);
-
-    TFE_ContextAddFunction(tf.Context.Handle, F_func_graph_handle, status.Handle);
+    TFE_ContextAddFunction(tf.Context.Handle_, F_func_graph_handle, status.Handle);
     status.RaiseEx;
 
     Fgraph_key := string(AnsiString(TF_FunctionName(F_func_graph_handle)));

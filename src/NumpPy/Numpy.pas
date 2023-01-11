@@ -26,6 +26,7 @@ interface
 
          TF4D.Core.CApi,
          TensorFlow.DApi,
+         TensorFlow.Slice,
 
          Numpy.Axis,
          NumPy.NDArray;
@@ -78,6 +79,12 @@ np = record
 
     public
         class var random : RandomizedImpl;
+
+        /// <summary>
+        ///     A convenient alias for None, useful for indexing arrays.
+        /// </summary>
+        /// <remarks>https://docs.scipy.org/doc/numpy-1.17.0/reference/arrays.indexing.html<br></br><br></br>https://stackoverflow.com/questions/42190783/what-does-three-dots-in-python-mean-when-indexing-what-looks-like-a-number</remarks>
+        class function newaxis: Slice; static;
         // numPy.creation
         class function np_array<T>(data: T): TNDArray;overload ;static;
         class function np_array<T>(data: TArray<T>): TNDArray;overload ;static;
@@ -89,6 +96,7 @@ np = record
         class function arange<T>(start: T; _end: T ; step : T ): TNDArray; overload; static;
         class function frombuffer(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType): TNDArray;static;
         class function ones(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_DOUBLE): TNDArray;static;
+        class function zeros(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_DOUBLE): TNDArray;static;
         // numPy.Math
         class function sum(x1: TNDArray; axis: PAxis = nil) : TNDArray;static;
         class function add(x: TNDArray; y: TNDArray): TNDArray;static;
@@ -212,6 +220,12 @@ begin
    Result := TNDArray.Create( tf.multiply(x1, x2) );
 end;
 
+class function np.newaxis: Slice;
+begin
+    Result := Slice.Create(nil, nil, 1);
+    Result.IsNewAxis := true;
+end;
+
 class function np.np_array<T>(data: TArray<TArray<TArray<T>>>; dtype: TF_DataType): TNDArray;
 begin
     var a := TValue.From< TArray<TArray<TArray<T>>> >(data);
@@ -223,6 +237,11 @@ end;
 class function np.ones(shape: TFShape; dtype: TF_DataType): TNDArray;
 begin
    Result := TNDArray.Create(tf.ones(shape, dtype));
+end;
+
+class function np.zeros(shape: TFShape; dtype: TF_DataType): TNDArray;
+begin
+   Result := TNDArray.Create(tf.zeros(shape, dtype));
 end;
 
 class function np.np_array<T>(data: TArray<TArray<T>>; dtype: TF_DataType): TNDArray;
@@ -277,7 +296,6 @@ class function np.sum(x1: TNDArray; axis: PAxis): TNDArray;
 begin
     Result := TNDarray.create( tf.math.sum(x1, axis^) );
 end;
-
 
 { NumPyImpl }
 

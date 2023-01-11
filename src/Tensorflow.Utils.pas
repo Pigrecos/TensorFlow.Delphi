@@ -950,84 +950,6 @@ end;
 class function TUtils.ChangeType(x: TValue; new_system_dtype: PTypeInfo): TValue;
 begin
     Result := x.Cast(new_system_dtype) ;
-
-    {if new_system_dtype = TypeInfo(Boolean) then
-    begin
-        Result := x.Cast(new_system_dtype) ;
-    end
-    if new_system_dtype = TypeInfo(Char) then
-    begin
-        var b := TValue.From<T>(x).AsVariant ;
-        Result := VarAsType(b,varByte);
-    end
-    else if new_system_dtype = TypeInfo(UInt8) then
-    begin
-        var b := TValue.From<T>(x).AsVariant ;
-        Result := VarAsType(b,varByte);
-    end
-    else if new_system_dtype = TypeInfo(Int8) then
-    begin
-        var b := TValue.From<T>(x).AsVariant ;
-        Result := VarAsType(b,varShortInt);
-    end
-    else if new_system_dtype = TypeInfo(Int16) then
-    begin
-        var b := TValue.From<T>(x).AsVariant ;
-        Result := VarAsType(b,varSmallint);
-    end
-    else if new_system_dtype = TypeInfo(UInt16) then
-    begin
-        var b := TValue.From<T>(x).AsVariant ;
-        Result := VarAsType(b,varWord);
-    end
-    else if new_system_dtype = TypeInfo(Int32) then
-    begin
-        var b := TValue.From<T>(x).AsVariant ;
-        Result := VarAsType(b,varInteger);
-    end
-    else if new_system_dtype = TypeInfo(UInt32) then
-    begin
-        var b := TValue.From<T>(x).AsVariant ;
-        Result := VarAsType(b,varLongWord);
-    end
-    else if new_system_dtype = TypeInfo(Int64) then
-    begin
-        var b := TValue.From<T>(x).AsVariant ;
-        Result := VarAsType(b,varInt64);
-    end
-    else if new_system_dtype = TypeInfo(UInt64) then
-    begin
-        var b := TValue.From<T>(x).AsVariant ;
-        Result := VarAsType(b,varInt64);
-    end
-    else if new_system_dtype = TypeInfo(Single) then
-    begin
-        var b := TValue.From<T>(x).AsVariant ;
-        Result := VarAsType(b,varSingle);
-    end
-    else if new_system_dtype = TypeInfo(Double) then
-    begin
-        var b := TValue.From<T>(x).AsVariant ;
-        Result := VarAsType(b,varDouble);
-    end
-    else if new_system_dtype = TypeInfo(TDateTime) then
-    begin
-        var b := TValue.From<T>(x).AsVariant ;
-        Result := VarAsType(b,varDate);
-    end
-    else if new_system_dtype = TypeInfo(String) then
-    begin
-        var b := TValue.From<T>(x).AsVariant ;
-        Result := VarAsType(b,varString);
-    end
-    else if new_system_dtype = TypeInfo(AnsiString) then
-    begin
-        var b := TValue.From<T>(x).AsVariant ;
-        Result := VarAsType(b,varString);
-    end
-    else
-      raise Exception.Create('type code UnknownTypeCode');  }
-
 end;
 
 class function TUtils.range(_end: Integer): Enumerable<integer> ;
@@ -1194,13 +1116,13 @@ var
   shape : TTensorShapeProto;
   i     : Integer;
 begin
-    shape.Init;
+    shape := TTensorShapeProto.Create;
     var v := TValue.From< TArray<T> >(dims) ;
 
     for i := 0 to Length(dims) - 1 do
     begin
         var dim : TDim ;
-        dim.Init;
+        dim := TDim.Create;
         if TypeInfo(T) = TypeInfo(Integer) then
           dim.Size := v.AsType< TArray<Integer> >[i]
         else if TypeInfo(T) = TypeInfo(Int64) then
@@ -1208,7 +1130,7 @@ begin
         else
           raise TFException.Create('as_shape Not Implemented');
 
-        shape.Dims.Add(@dim);
+        shape.Dims.Add(dim);
     end;
     Result := shape;
 
@@ -1219,15 +1141,15 @@ var
   shape : TTensorShapeProto;
   i     : Integer;
 begin
-    shape.Init;
+    shape := TTensorShapeProto.Create;
 
     for i := 0 to tshape.ndim - 1 do
     begin
         var dim : TDim ;
-        dim.Init;
+        dim := TDim.Create;
         dim.Size := tshape.dims[i];
         //dim.Name = $"dim_{i}";
-        shape.Dims.Add(@dim);
+        shape.Dims.Add(dim);
     end;
     Result := shape;
 end;
@@ -1279,7 +1201,7 @@ begin
     end;
 
     var tensor_proto : TTensorProto;
-    tensor_proto.Init;
+    tensor_proto := TTensorProto.Create;
 
     tensor_proto.Dtype       := Tdtypes.as_datatype_enum(dtype);
     tensor_proto.TensorShape := TUtils.as_shape_proto(shape);
@@ -1321,7 +1243,7 @@ begin
         begin
             var str :=  values.AsType<AnsiString> ;
             bytes := TEncoding.UTF8.GetBytes(string(str));
-            tensor_proto.StringVals.Add(@bytes);
+            tensor_proto.StringVals.Add(bytes);
         end
         else if (values.IsType<TArray<string>>) or (values.IsType<TArray<AnsiString>>) then
         begin
@@ -1392,7 +1314,15 @@ begin
         if values.IsType<TAxis> then
         begin
             var vval := values.AsType<TAxis>;
-             tensor_proto.IntVals.AddRange(vval.axis);
+             tensor_proto.IntVals.AddRange(vval.axis.value);
+        end
+        else if values.IsType<PAxis> then
+        begin
+            var pVval := values.AsType<PAxis>;
+            var vVal := System.Default(TAxis);
+            if Assigned(pVval) then vVal := pVval^;
+
+            tensor_proto.IntVals.AddRange(vval.axis.value);
         end
         else if values.IsType<TFShape> then
         begin
@@ -1404,17 +1334,17 @@ begin
             var vval := values.AsType<Boolean>;
             tensor_proto.BoolVals.AddRange([ vval ]);
         end
-        else if values.IsType<Int8> then
+        else if values.IsType<Int8> and (Values.TypeInfo.Name ='Int8') then
         begin
             var vval := values.AsType<Int8>;
             tensor_proto.IntVals.AddRange([ vval ]);
         end
-        else if values.IsType<Integer> then
+        else if values.IsType<Integer> and (Values.TypeInfo.Name ='Integer')then
         begin
             var vval := values.AsType<Integer>;
             tensor_proto.IntVals.AddRange([ vval ]);
         end
-        else if values.IsType<Int64> then
+        else if values.IsType<Int64> and (Values.TypeInfo.Name ='Int64') then
         begin
             var vval := values.AsType<Int64>;
             tensor_proto.Int64Vals.AddRange([ vval ]);
@@ -1428,7 +1358,66 @@ begin
         begin
             var vval := values.AsType<Double>;
             tensor_proto.DoubleVals.AddRange([ vval ]);
-        end
+        end else
+        begin
+           if Values.TypeInfo.Kind = tkInteger      then
+           begin
+               var TipoData := values.typeinfo.TypeData;
+               if  Tipodata.OrdType = otSByte then
+               begin
+                   var vval := values.AsType<Int8>;
+                   tensor_proto.IntVals.AddRange([ vval ]);
+               end else
+               if  Tipodata.OrdType = otUByte then
+               begin
+                   var vval := values.AsType<byte>;
+                   tensor_proto.IntVals.AddRange([ vval ]);
+               end
+               else if  Tipodata.OrdType = otSWord then
+               begin
+                   var vval := values.AsType<Int16>;
+                   tensor_proto.IntVals.AddRange([ vval ]);
+               end else
+               if  Tipodata.OrdType = otUWord then
+               begin
+                   var vval := values.AsType<Word>;
+                   tensor_proto.IntVals.AddRange([ vval ]);
+               end
+               else if  Tipodata.OrdType = otSLong then
+               begin
+                   var vval := values.AsType<Int64>;
+                   tensor_proto.Int64Vals.AddRange([ vval ]);
+               end else
+               if  Tipodata.OrdType = otULong then
+               begin
+                   var vval := values.AsType<UInt64>;
+                   tensor_proto.Int64Vals.AddRange([ vval ]);
+               end
+               else if  Tipodata.OrdType = otULong then
+               begin
+                   var vval := values.AsType<Integer>;
+                   tensor_proto.IntVals.AddRange([ vval ]);
+               end;
+           end
+           else if Values.TypeInfo.Kind = tkFloat      then
+           begin
+               var TipoData := values.typeinfo.TypeData;
+               if  Tipodata.FloatType = ftSingle then
+               begin
+                   var vval := values.AsType<Single>;
+                   tensor_proto.FloatVals.AddRange([ vval ]);
+               end else
+               if  Tipodata.FloatType = ftDouble then
+               begin
+                   var vval := values.AsType<Double>;
+                   tensor_proto.DoubleVals.AddRange([ vval ]);
+               end
+           end else
+           begin
+               //var TestVAlue := values.typeinfo.TypeData;
+               raise Exception.Create('make_tensor_proto Type not supported :'+ string(values.TypeInfo.Name));
+           end;
+        end;
     end;
     Result := tensor_proto;
 
@@ -1485,7 +1474,7 @@ begin
           end;
           Inc(index);
       end;
-      Result := default(ParsedSliceArgs);
+      Result := System.default(ParsedSliceArgs);
       Result.aBegin         := abegin.ToArray;
       Result.aEnd           := aend.ToArray;
       Result.aStrides       := strides.ToArray;
@@ -1526,7 +1515,7 @@ begin
       else
           strides.Add(step);
 
-      Result := default(ParsedSliceArgs);
+      Result := System.default(ParsedSliceArgs);
       Result.tPackedBegin   := array_ops.stack(abegin.ToArray);
       Result.tPackedEnd     := array_ops.stack(aend.ToArray);
       Result.tPackedStrides := array_ops.stack(strides.ToArray);

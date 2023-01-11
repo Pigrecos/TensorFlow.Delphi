@@ -279,7 +279,7 @@ begin
     if op.graph.building_function then
         Exit( array_ops.zeros_like(op.outputs[index]) );
 
-    var dead_branch  := control_flow_util.IsSwitch(op);
+    control_flow_util.IsSwitch(op);
     var forward_ctxt := control_flow_util.GetWhileContext(op);
 
     var grad_state := nil;

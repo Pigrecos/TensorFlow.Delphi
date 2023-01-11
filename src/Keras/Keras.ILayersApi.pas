@@ -46,7 +46,8 @@ type
 
      function Add: ILayer;
 
-     function AveragePooling2D(pool_size: PTFShape = nil; strides: PTFShape = nil; padding: string = 'valid'; data_format: string = ''): ILayer;
+     function AveragePooling2D(pool_size: PTFShape = nil; strides: PTFShape = nil; padding: string = 'valid'; data_format: string = ''): ILayer; overload;
+     function AveragePooling2D(pool_size: TFShape ; strides: TFShape ;             padding: string = 'valid'; data_format: string = ''): ILayer; overload;
 
      function BatchNormalization(axis                       : Integer = -1;
                                 momentum                    : Single = 0.99;
@@ -107,10 +108,10 @@ type
 
      function Dense(units: Integer): ILayer; overload;
 
-     function Dense(units: Integer; activation: string = ''; input_shape: PTFShape = nil): ILayer; overload;
+     function Dense(units: Integer; activation: string; input_shape: PTFShape = nil): ILayer; overload;
 
      function Dense(units             : Integer;
-                    activation        : TActivation= nil;
+                    activation        : TActivation;
                     kernel_initializer: IInitializer = nil;
                     use_bias          : Boolean= true;
                     bias_initializer  : IInitializer = nil;

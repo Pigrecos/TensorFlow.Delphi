@@ -197,7 +197,7 @@ type
       Felement_shape    : TList<TFShape>;
       Fcolocate_with    : TList<TFTensor>;
       Fclear_after_read : Boolean;
-      Ftensor_array     : TList<TFTensor>;
+     // Ftensor_array     : TList<TFTensor>;
 
       function size(name: string = ''): TFTensor;
     protected

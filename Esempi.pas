@@ -16,7 +16,7 @@ unit Esempi;
 
 interface
      uses Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-          Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.Buttons,rtti, System.Math,
+          Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls, Vcl.Buttons,rtti, System.Math,  System.Generics.Collections,
 
           spring,
 
@@ -31,6 +31,7 @@ interface
           TensorFlow.Context,
           Tensorflow.NameScope,
           TensorFlow.EagerTensor,
+          TensorFlow.Slice,
 
           Keras.KerasApi,
 
@@ -82,6 +83,33 @@ type
 
       procedure clip_by_global_norm;
       procedure NeuralNetworkTest_l2_loss;
+  end;
+
+  /// <summary>
+  /// https://www.tensorflow.org/versions/r2.3/api_docs/python/tf/keras/layers
+  /// </summary>
+  LayersTest = class(EagerModeTestBase)
+    public
+      procedure AveragePooling2D;
+      procedure InputLayer;
+      procedure Sequential;
+      procedure Functional;
+      /// <summary>
+      /// Custom layer test, used in Dueling DQN
+      /// </summary>
+      procedure TensorFlowOpLayer;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/layers/Embedding
+      /// </summary>
+      procedure Embedding;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/layers/Dense
+      /// </summary>
+      procedure Dense;
+      procedure EinsumDense;
+      procedure SimpleRNN;
+      procedure Resizing;
+      procedure LayerNormalization;
   end;
 
   ActivationFunctionTest = class(EagerModeTestBase)
@@ -213,10 +241,13 @@ type
   end;
 
 implementation
-        uses DUnitX.TestFramework,
+        uses untMain,
+
+             DUnitX.TestFramework,
 
              Keras.ArgsDefinition,
              Keras.LossFunc,
+             Keras.Engine,
              Keras.Layer,
              Keras.Utils,
 
@@ -1539,6 +1570,121 @@ begin
 
     var expected := np.np_array<Single>([0.5, 0.5],np.np_float32);
     Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+{ LayersTest }
+
+procedure LayersTest.AveragePooling2D;
+begin
+    var aInput : TArray< TArray<Single> > := [[ 1, 2, 3 ], [ 4, 5, 6 ], [ 7, 8, 9 ]];
+    var x  := tf.constant( aInput );
+    x      := tf.reshape( x, TFShape.Create([1, 3, 3, 1]) );
+
+    var avg_pool_2d    := tf.keras.layers.AveragePooling2D(TFShape.Create([2,2]), TFShape.Create([1,1]), 'valid');
+    var avg : TFTensor := avg_pool_2d.Apply( TFTensors.Create(x)).First;
+
+    Assert.IsTrue(TFShape.Create([1, 2, 2, 1])= avg.shape);
+    var expected : TArray<Single> := [ 3, 4, 6, 7 ];
+    Assert.IsTrue(Equal( expected, avg.ToArray<Single>),'Assert - AveragePooling2D');
+end;
+
+procedure LayersTest.InputLayer;
+begin
+    var lLayers := TList<ILayer>.Create;
+    lLayers.Add( tf.keras.layers.InputLayer(TFShape.Create([4])) );
+    lLayers.Add( tf.keras.layers.Dense(8) );
+
+    var model := tf.keras.Sequential(lLayers );
+
+    model.compile(tf.keras.optimizers.RMSprop(Single(0.001)), tf.keras.losses.MeanSquaredError, ['accuracy']);
+    model.fit(np.zeros(TFShape.Create([10, 4]), tf.float32_t), np.ones(TFShape.Create([10, 8]), tf.float32_t));
+end;
+
+procedure LayersTest.Sequential;
+begin
+   var model := tf.keras.Sequential;
+   model.add(tf.keras.Input(TFShape.Create([16])) );
+end;
+
+procedure LayersTest.Functional;
+begin
+    var layers := tf.keras.layers;
+    var inputs := tf.keras.Input(TFShape.Create([784])) ;
+    Assert.IsTrue(TFShape.Create([-1, 784]) = inputs.shape);
+
+    var dense := layers.Dense(64, tf.keras.activations.Relu);
+    var x     := dense.Apply( TFTensors.Create(inputs));
+
+    x           := layers.Dense(64, tf.keras.activations.Relu).Apply(x);
+    var outputs := layers.Dense(10).Apply(x);
+
+    var model := tf.keras.Model( TFTensors.Create(inputs), outputs, 'mnist_model');
+    model.summary;
+end;
+
+procedure LayersTest.TensorFlowOpLayer;
+var
+  mean   : TFTensor;
+  adv    : TFTensor;
+  value  : TFTensor;
+  inputs : TFTensors;
+  x      : TFTensors;
+begin
+    var l_layers := tf.keras.layers;
+    inputs   := l_layers.Input( TFShape.Create([24]) );
+    x        := l_layers.Dense(128, 'relu').Apply(inputs);
+    value    := l_layers.Dense(24).Apply(x).first;
+    adv      := l_layers.Dense(1).Apply(x).First;
+
+    var aAxis : TAxis := 1;
+    var ggg := tf.reduce_mean(adv, @aAxis, true);
+    mean         := adv - TTensor( ggg );
+    adv          := l_layers.Subtract.Apply(TFTensors.Create([adv, mean])).first;
+    var outputs  := l_layers.Add.Apply(TFTensors.Create([value, adv]));
+    var model    := tf.keras.Model(inputs, outputs);
+
+    model.compile(tf.keras.optimizers.RMSprop(Single(0.001)), tf.keras.losses.MeanSquaredError, [ 'acc' ]);
+    model.summary;
+
+    Assert.AreEqual(model.Layers.Count, 8);
+
+    for var i := 0 to tf.MemoLog.Count-1 do
+         frmMain.mmo1.Lines.add( tf.MemoLog[i]);
+
+    var res := model.predict(tf.constant(np.arange(24).astype(np.np_float32)[ [np.newaxis, Slice.All] ]));
+
+    Assert.Istrue(res.shape= TFShape.Create([1, 24]));
+    model.fit(np.arange(24).astype(np.np_float32)[[np.newaxis, Slice.All]], np.arange(24).astype(np.np_float32)[[np.newaxis, Slice.All]], 0);
+end;
+
+procedure LayersTest.Embedding;
+begin
+
+end;
+
+procedure LayersTest.Dense;
+begin
+
+end;
+
+procedure LayersTest.EinsumDense;
+begin
+
+end;
+
+procedure LayersTest.SimpleRNN;
+begin
+
+end;
+
+procedure LayersTest.Resizing;
+begin
+
+end;
+
+procedure LayersTest.LayerNormalization;
+begin
+
 end;
 
 end.

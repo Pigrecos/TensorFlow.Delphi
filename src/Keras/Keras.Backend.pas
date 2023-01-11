@@ -49,7 +49,7 @@ type
       function  epsilon: Single;
       procedure set_epsilon(e: Single);
       function  floatx : TF_DataType;
-      procedure set_floatx(_floatx: TF_DataType);
+      procedure set_floatx(__floatx: TF_DataType);
       //public NDArray cast_to_floatx(NDArray x) => np.array(x, dtype: _FLOATX.as_numpy_datatype());
       function  image_data_format: ImageDataFormat;
       procedure set_image_data_format(data_format: ImageDataFormat);
@@ -150,6 +150,7 @@ type
 implementation
         uses Tensorflow,
              TensorFlow.Tensor,
+             TensorFlow.Functions,
              TensorFlow.Constant_op,
              TensorFlow.clip_ops,
              TensorFlow.Ops,
@@ -187,9 +188,9 @@ begin
     Result := _FLOATX;
 end;
 
-procedure BackendBase.set_floatx(_floatx: TF_DataType);
+procedure BackendBase.set_floatx(__floatx: TF_DataType);
 begin
-    _FLOATX := floatx
+    _FLOATX := __floatx
 end;
 
 //public NDArray cast_to_floatx(NDArray x) => np.array(x, dtype: _FLOATX.as_numpy_datatype());
@@ -442,8 +443,7 @@ begin
     exec_graph.Inputs  := TFTensors.Create(exec_graph.internal_captures);
     exec_graph.Outputs := outputs;
 
-    { TODO -oMax -c : Add ConcreteFunction implementation 01/12/2022 17:38:12 }
-    //var graph_fn := new ConcreteFunction(exec_graph);
+    ConcreteFunction.Create(exec_graph);
 
     _CURRENT_SCRATCH_GRAPH := nil;
     Tensorflow.tf.Context.restore_mode;
@@ -559,3 +559,4 @@ begin
 end;
 
 end.
+

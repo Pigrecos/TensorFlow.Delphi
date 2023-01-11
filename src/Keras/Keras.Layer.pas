@@ -42,6 +42,7 @@ interface
             TensorFlow.Training,
             TensorFlow.Initializer,
             TensorFlow.NnOps,
+            TensorFlow.Functions,
 
             Keras.Regularizers,
             Keras.Activations,
@@ -72,12 +73,12 @@ type
 
        function GetBuilt    : Boolean;
        function GetTrainable: Boolean;
+       function GetName:string;
        function GetDtype: TF_DataType;
        function GetTrainW: TList<IVariableV1>;
        function GetTrainVars: TList<IVariableV1>;
        function GetNonTrainVars: TList<IVariableV1>;
        function GetNotTrainW: TList<IVariableV1>;
-       function GetName: string;
        function GetBatchShape: TFShape;
        function GetInNodes: TList<INode>;
        function GetOutNodes: TList<INode>;
@@ -108,8 +109,8 @@ type
        /// Provides information about which inputs are compatible with the layer.
        /// </summary>
        FinputSpec              : TInputSpec;
-       Ftrainable_weights      : TList<IVariableV1>;
-       Fnon_trainable_weights  : TList<IVariableV1>;
+       FTrainableWeights       : TList<IVariableV1>;
+       FNonTrainableWeights    : TList<IVariableV1>;
        FName                   : string;
        FBase_Name              : string;
        FcomputePreviousMask    : Boolean;
@@ -117,7 +118,6 @@ type
        FInboundNodes           : TList<INode>;
        FOutboundNodes          : TList<INode>;
        Fself_tracked_trackables: TList<ILayer>;
-       FLayers                 : TList<ILayer>;
        {$IFNDEF AUTOREFCOUNT}
          [Volatile] FRefCount: Integer;
          class procedure __MarkDestroying(const Obj); static; inline;
@@ -190,10 +190,10 @@ type
         property dynamicc             : Boolean             read Fdynamic;
         property SupportsMasking      : Boolean             read FSupportsMasking;
         property inputSpec            : TInputSpec          read FinputSpec;
-        property trainable_weights    : TList<IVariableV1>  read GetTrainW;
-        property trainable_variables  : TList<IVariableV1>  read GetTrainVars;
-        property non_trainable_variables  : TList<IVariableV1>  read GetNonTrainVars;
-        property non_trainable_weights: TList<IVariableV1>  read GetNotTrainW;
+        property TrainableWeights     : TList<IVariableV1>  read GetTrainW;
+        property TrainableVariables   : TList<IVariableV1>  read GetTrainVars;
+        property NonTrainableVariables: TList<IVariableV1>  read GetNonTrainVars;
+        property NonTrainableWeights  : TList<IVariableV1>  read GetNotTrainW;
         property Id                   : Integer             read FId;
         property Name                 : string              read GetName;
         property BatchInputShape      : TFShape             read GetBatchShape;
@@ -202,7 +202,7 @@ type
         property CallContext          : TCallContext        read GetCallCtx write SetCallCtx;
         property input                : TArray<TFTensor>    read GetInput;
         property NodesByDepth         : TDictionary<Integer, TList<INode>> read FNodesByDepth write FNodesByDepth;
-        property output_shape         : TFShape             read GetoutShape;
+        property OutputShape          : TFShape             read GetoutShape;
         property Layers               : TList<ILayer>       read GetLayers;
         property weights              : TList<IVariableV1>  read GetW write SetW;
 
@@ -873,12 +873,12 @@ type
 
   RNN = class(Layer)
     private
-      Fargs           : RNNArgs;
-      Finput_spec     : TObject; // or NoneValue??
-      Fstate_spec     : TObject;
-      Fstates         : TObject;
-      Fconstants_spec : TObject;
-      Fnum_constants  : Integer;
+      //Fargs           : RNNArgs;
+     // Finput_spec     : TObject; // or NoneValue??
+     // Fstate_spec     : TObject;
+     // Fstates         : TObject;
+     // Fconstants_spec : TObject;
+     // Fnum_constants  : Integer;
 
       function PreConstruct(_args: RNNArgs) : RNNArgs;
     protected
@@ -1345,7 +1345,7 @@ type
   /// </summary>
   UpSampling2D = class(Layer)
   private
-    function GetInterpolation: string;
+      function GetInterpolation: string;
     protected
       function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
     public
@@ -1359,6 +1359,7 @@ type
   end;
   {$ENDREGION}
 
+  {$REGION 'Metric'}
   /// <summary>
   /// Encapsulates metric logic and state.
   /// </summary>
@@ -1385,18 +1386,34 @@ type
       function  R_result: TFTensor; virtual;
       function  ToString: string; override;
   end;
+  {$ENDREGION}
 
+  {$REGION 'TensorFlowOpLayer'}
   TensorFlowOpLayer = class(Layer)
+  private
+      function GetConsts: TDictionary<Integer, TNDArray>;
+      function GetNodeDef: TNodeDef;
+    protected
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
+    public
+      class var F_function  : ConcreteFunction;
     public
       args     : TensorFlowOpLayerArgs;
-      constants: TDictionary<Integer, TNDArray>;
-      node_def : TNodeDef;
+
       OpType   : string;
 
       TF_OP_LAYER_NAME_PREFIX : string;
 
       constructor Create(_args: TensorFlowOpLayerArgs) ;
+      function DeFunCall(inputs: TFTensors): TFTensors;
+      function mark_as_return(tensors: TFTensors): TFTensors;
+      function MakOp(inputs: TFTensors): TFTensors;
+      function GetOpLayer(_args: TensorFlowOpLayerArgs):Layer;
+
+      property constants: TDictionary<Integer, TNDArray> read GetConsts;
+      property node_def : TNodeDef                       read GetNodeDef ;
   end;
+  {$ENDREGION}
 
 implementation
         uses
@@ -1439,8 +1456,8 @@ begin
 
     Fid := Tops.uid_layer;
     _init_set_name(args.Name);
-    Ftrainable_weights      := TList<IVariableV1>.Create;
-    Fnon_trainable_weights  := TList<IVariableV1>.Create;
+    FtrainableWeights       := TList<IVariableV1>.Create;
+    FnonTrainableWeights    := TList<IVariableV1>.Create;
     FcomputePreviousMask    := false;
     Fupdates                := TList<TFOperation>.Create;
     Fself_tracked_trackables:= TList<ILayer>.Create;
@@ -1454,8 +1471,6 @@ begin
         var aShape : TArray<Int64> := [args.BatchSize] + Fargs.InputShape.dims;
         args.BatchInputShape :=  aShape;
     end;
-
-    FLayers := TList<ILayer>.Create;
 end;
 
 procedure Layer.add_loss(losses: TFunc<TFTensor>);
@@ -1515,17 +1530,17 @@ end;
 
 function Layer.GetName: string;
 begin
-   Result := FName;
+    Result := FName;
 end;
 
 function Layer.GetNonTrainVars: TList<IVariableV1>;
 begin
-    Result := Fnon_trainable_weights;
+    Result := FNonTrainableWeights;
 end;
 
 function Layer.GetNotTrainW: TList<IVariableV1>;
 begin
-    Result := Fnon_trainable_weights;
+    Result := FNonTrainableWeights;
 end;
 
 function Layer.GetInNodes: TList<INode>;
@@ -1540,7 +1555,7 @@ end;
 
 function Layer.GetLayers: TList<ILayer>;
 begin
-    Result := FLayers;
+    Result := Fself_tracked_trackables;
 end;
 
 function Layer.GetOutNodes: TList<INode>;
@@ -1560,19 +1575,19 @@ end;
 
 function Layer.GetTrainVars: TList<IVariableV1>;
 begin
-    Result := Ftrainable_weights;
+    Result := FTrainableWeights;
 end;
 
 function Layer.GetTrainW: TList<IVariableV1>;
 begin
-   Result := Ftrainable_weights;
+   Result := FTrainableWeights;
 end;
 
 function Layer.GetW: TList<IVariableV1>;
 begin
     var weights := TList<IVariableV1>.Create;
-    weights.AddRange(Ftrainable_weights);
-    weights.AddRange(Fnon_trainable_weights);
+    weights.AddRange(FTrainableWeights);
+    weights.AddRange(FNonTrainableWeights);
     Result := weights;
 end;
 
@@ -1608,7 +1623,7 @@ end;
 
 procedure Layer.StackLayers(_layers: TArray<ILayer>);
 begin
-    Flayers.AddRange(_layers);
+    Fself_tracked_trackables.AddRange(_layers);
 end;
 
 function Layer.ComputeOutputShape(input_shape: TFShape): TFShape;
@@ -1660,7 +1675,7 @@ begin
         base_layer_utils.create_keras_history(inputs);
 
     var outputs : TFTensors ;
-    var ctxManager  := CallContext.enter(true);
+    CallContext.enter(true);
 
     var graph := tf.keras.backend.get_graph;
     graph.as_default;
@@ -1700,7 +1715,7 @@ begin
         Exit( FunctionalConstructionCall(inputs) );
 
     var eager := tf.executing_eagerly;
-    var ctxManager := CallContext.enter(false);
+    CallContext.enter(false);
 
     var nameScope : string := _name_scope;
     if eager then  nameScope := Name ;
@@ -1754,7 +1769,7 @@ begin
     Fname      := _name;
     if _name = '' then
     begin
-        Fbase_name := generic_utils.to_snake_case( Ptypeinfo(TypeInfo(Layer))^.Name);
+        Fbase_name := generic_utils.to_snake_case( TObject(self).ClassName);
         Fname      := base_layer_utils.unique_layer_name(Fbase_name,nil, [], zero_based);
     end;
 end;
@@ -1801,8 +1816,8 @@ begin
     end;
 
     var seen_object_ids := TList<integer>.Create;
-    var deque           := TQueue<ILayer>.Create(Flayers);
-    while not deque.Count <= 0 do
+    var deque           := TQueue<ILayer>.Create(Fself_tracked_trackables);
+    while deque.Count > 0 do
     begin
         var layer_or_container    := deque.Dequeue;
         var layer_or_container_id : Integer := TObject(layer_or_container).GetHashCode;
@@ -1862,8 +1877,8 @@ begin
     end;
 
     //backend.track_variable(variable);
-    if trainable = true then Ftrainable_weights.Add(variable)
-    else                     Fnon_trainable_weights.Add(variable);
+    if trainable = true then FTrainableWeights.Add(variable)
+    else                     FNonTrainableWeights.Add(variable);
 
     Result := variable;
 end;
@@ -1936,22 +1951,6 @@ begin
 {$ENDIF}
 end;
 {$ENDREGION}
-
-{ TensorFlowOpLayer }
-
-constructor TensorFlowOpLayer.Create(_args: TensorFlowOpLayerArgs);
-begin
-    var l := LayerArgs.Create;
-    l.Name      := TF_OP_LAYER_NAME_PREFIX + args.Name;
-    l.Trainable := args.Trainable;
-    l.DType     := args.DType;
-    l.Autocast  := false;
-
-    inherited Create(l) ;
-
-    args   := _args;
-    Fbuilt := True;
-end;
 
 {$REGION 'Activation'}
 { ELU }
@@ -2550,7 +2549,6 @@ var
   rank    : Integer;
   nda     : TArray< TArray<Integer> >;
 begin
-    outputs := nil;
     rank    := inputs.rank;
     nda     := [ [ rank - 1 ], [ 0 ] ] ;
     if rank > 2 then
@@ -3446,7 +3444,7 @@ begin
     if input_shape.ndim <> 4 then
        raise TFException.Create('Inputs should have rank 4. Received input shape: '+input_shape.ToString);
 
-    var channel_axis := _get_channel_axis;
+    //var channel_axis := _get_channel_axis;
     var input_dim    := input_shape[-1];
     var kernel_shape := TFShape.Create([kernel_size[0], kernel_size[1], filters, input_dim]);
 
@@ -4150,7 +4148,7 @@ end;
 function LayerNormalization.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
 begin
     var outputs : TFTensor := nil;
-    var inputs_dtype := TDtypes.as_base_dtype(inputs.dtype);
+    //var inputs_dtype := TDtypes.as_base_dtype(inputs.dtype);
     var input_shape  := inputs.shape;
     var ndims        := input_shape.ndim;
 
@@ -4438,7 +4436,7 @@ end;
 
 function BatchNormalization.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
 begin
-    var outputs : TFTensor := nil;
+    var outputs : TFTensor ;
     var training_tensor : TFTensor;
     if training = nil then training_tensor := tf.placeholder(tf.bool_t, TFShape.Scalar)
     else                   training_tensor := tf.logical_and(training^, Trainable);
@@ -4450,7 +4448,7 @@ begin
         Exit;
     end;
 
-    var inputs_dtype := Tdtypes.as_base_dtype(inputs.dtype);
+    //var inputs_dtype := Tdtypes.as_base_dtype(inputs.dtype);
     var input_shape  := inputs.shape;
     var ndims        := input_shape.ndim;
 
@@ -4493,8 +4491,8 @@ begin
              function : TArray<TFTensor> begin Result := [variance] end,
              function : TArray<TFTensor> begin Result := [ Tops.convert_to_tensor(TValue.From<IVariableV1>(moving_variance)) ] end)[0] ;
 
-        var new_mean     := mean;
-        var new_variance := variance;
+        //var new_mean     := mean;
+        //var new_variance := variance;
     end;
 
     mean              := math_ops.cast(mean, inputs.dtype);
@@ -5187,7 +5185,6 @@ begin
         Result := output_shape;
     end;
 end;
-
 { UpSampling2D }
 
 constructor UpSampling2D.Create(_args: UpSampling2DArgs);
@@ -5213,6 +5210,7 @@ end;
 
 {$ENDREGION}
 
+{$REGION 'Metric'}
 { Metric }
 
 constructor Metric.Create(name: string; dtype: TF_DataType);
@@ -5266,8 +5264,108 @@ begin
     var c   : NDArray := count.numpy;
     Result := Format('%s %s/%s',[Name,FormatFloat('0.0000', tot), FormatFloat('0.0000', c)]);
 end;
+{$ENDREGION}
 
+{$REGION 'TensorFlowOpLayer'}
+{ TensorFlowOpLayer }
+
+constructor TensorFlowOpLayer.Create(_args: TensorFlowOpLayerArgs);
+begin
+    TF_OP_LAYER_NAME_PREFIX := 'tf_op_layer_';
+
+    var l := LayerArgs.Create;
+    l.Name      := TF_OP_LAYER_NAME_PREFIX + _args.Name;
+    l.Trainable := _args.Trainable;
+    l.DType     := _args.DType;
+    l.Autocast  := false;
+
+    inherited Create(l) ;
+
+    args   := _args;
+    Fbuilt := True;
+end;
+
+function TensorFlowOpLayer.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    if tf.Context.executing_eagerly then
+      Exit( DeFunCall(inputs) );
+
+    Result := MakOp(inputs);
+end;
+
+function TensorFlowOpLayer.DeFunCall(inputs: TFTensors): TFTensors;
+var
+  graph_inputs : TArray<TFTensor>;
+begin
+   if F_function = nil then
+   begin
+        F_function := ConcreteFunction.Create(name);
+        F_function.Enter;
+
+        var i : Integer := 0;
+        for i := 0 to inputs.Count - 1 do
+           graph_inputs := graph_inputs + [ tf.placeholder(inputs[i].Dtype, inputs[i].shape, 'defun_inputs_'+i.ToString) ];
+
+        var graph_outputs := MakOp(TFTensors.Create(graph_inputs));
+        graph_outputs     := mark_as_return(graph_outputs);
+
+        F_function.ToGraph(TFTensors.Create(graph_inputs), graph_outputs);
+        F_function._Exit();
+   end;
+
+    var outputs := F_function.FilteredCall(inputs);
+    Result := outputs;
+end;
+
+function TensorFlowOpLayer.mark_as_return(tensors: TFTensors): TFTensors;
+begin
+    var res := TFTensors.Create;
+    for var tensor in tensors do
+        res.Add(array_ops.identity(tensor));
+    Result := res;
+end;
+
+function TensorFlowOpLayer.MakOp(inputs: TFTensors): TFTensors;
+begin
+    var graph := inputs.graph;
+    graph.as_default;
+    for var it in constants do
+    begin
+        var constant := it.Value;
+        var g := node_def.Inputs[it.Key];
+        var value    := constant_op.constant(constant, DtInvalid, node_def.Inputs[it.Key]);
+        inputs.Insert(it.Key, value);
+    end;
+
+    var t_op := Tops._create_c_op(graph, node_def, inputs.ToArray, [], nil);
+    var op  := graph._create_op_from_tf_operation(t_op.value1);
+    op._control_flow_post_processing;
+
+    // Record the gradient because custom-made ops don't go through the
+    // code-gen'd eager call path
+    var op_type := op.NodeDef.Op;
+
+    tf.Runner.RecordGradient(op_type, op.inputs.inputs, nil, op.outputs);
+
+    graph.gExit;
+    Result := TFTensors.create(op.outputs);
+end;
+
+function TensorFlowOpLayer.GetConsts: TDictionary<Integer, TNDArray>;
+begin
+    Result := args.Constants;
+end;
+
+function TensorFlowOpLayer.GetNodeDef: TNodeDef;
+begin
+    Result := args.NodeDef;
+end;
+
+function TensorFlowOpLayer.GetOpLayer(_args: TensorFlowOpLayerArgs): Layer;
+begin
+   Result := TensorFlowOpLayer.Create(_args)
+end;
+
+{$ENDREGION}
 end.
-
-
 

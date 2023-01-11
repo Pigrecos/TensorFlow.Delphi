@@ -52,7 +52,8 @@ type
        /// <param name="padding"></param>
        /// <param name="data_format"></param>
        /// <returns></returns>
-       function AveragePooling2D(pool_size: PTFShape = nil; strides: PTFShape = nil; padding: string = 'valid'; data_format: string = ''): ILayer;
+       function AveragePooling2D(pool_size: PTFShape = nil; strides: PTFShape = nil; padding: string = 'valid'; data_format: string = ''): ILayer; overload;
+       function AveragePooling2D(pool_size: TFShape ; strides: TFShape ;             padding: string = 'valid'; data_format: string = ''): ILayer; overload;
 
        /// <summary>
        /// Layer that normalizes its inputs.
@@ -639,6 +640,28 @@ begin
     args.dropout    := dropout;
 
     Result := Keras.Layer.Attention.Create( args );
+end;
+
+function LayersApi.AveragePooling2D(pool_size, strides: TFShape; padding, data_format: string): ILayer;
+ var
+   args    : Pooling2DArgs;
+   sPSize  : TFShape;
+   sStrides: TFShape;
+begin
+    args   := Pooling2DArgs.Create;
+
+    sPSize := TFShape.Create([2,2]);
+    if not pool_size.IsNil then  sPSize:= pool_size ;
+
+    sStrides := default(TFShape) ;
+    if not strides.IsNil then  sStrides:= strides ;
+
+    args.PoolSize  := sPSize;
+    args.Strides   := sStrides;
+    args.Padding   := padding;
+    args.DataFormat:= data_format;
+
+    Result := Keras.Layer.AveragePooling2D.Create( args );
 end;
 
 function LayersApi.AveragePooling2D(pool_size, strides: PTFShape; padding, data_format: string): ILayer;

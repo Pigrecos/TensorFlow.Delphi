@@ -160,6 +160,8 @@ implementation
         Tensorflow.math_ops,
         TensorFlow.control_flow_ops,
 
+        ProtoGen.Main,
+
         NumPy.NDArray;
 
 { op_def_registry }
@@ -193,7 +195,7 @@ begin
 
     for var i := 0 to op_list.Ops.Count - 1 do
     begin
-       var op_def : TOpDef := op_list.Ops[i]^;
+       var op_def : TOpDef := op_list.Ops[i];
        registered_ops.AddOrSetValue(op_def.Name,op_def);
     end;
 
@@ -423,9 +425,4 @@ begin
 end;
 
 end.
-
-
-
-
-
 

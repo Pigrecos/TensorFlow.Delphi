@@ -18,7 +18,7 @@ unit Tensorflow.math_ops;
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
 interface
-    uses System.SysUtils,
+    uses System.SysUtils, Winapi.Windows,
          System.Generics.Collections,
          Spring,
          Spring.Collections.Enumerable,
@@ -467,11 +467,17 @@ begin
 end;
 
 class function math_ops.range(start: TValue; limit: PValue; delta: PValue; dtype: TF_DataType; name: string): TFTensor;
+var
+  tmp,tmp1 : TValue ;
 begin
     if limit = nil then
     begin
-        limit := @start;
-        start := 0;
+        tmp := TValue.From<TValue>(start) ;
+        tmp1 := TValue.From<Integer>(0);
+        start := tmp1;
+
+        tmp := tmp.AsType<TValue>;
+        limit := @tmp;
     end;
     var dtype1 : TF_DataType;
     if not (dtype = dtinvalid) then  dtype1 := dtype
@@ -486,7 +492,7 @@ begin
                                                 var start1 := Tops.convert_to_tensor(start, dtype1, 'start');
                                                 var limit1 := Tops.convert_to_tensor(limit^, dtype1, 'limit');
                                                 var v : TValue;
-                                                if delta = nil   then v := 1
+                                                if delta = nil   then v := Integer(1)
                                                 else                  v := delta^;
                                                 var delta1 := Tops.convert_to_tensor(v, dtype1, 'delta');
                                                 Result := gen_math_ops.range(start1, limit1, delta1, name);
@@ -527,7 +533,8 @@ begin
     begin
         var input_shape_val := input_shape.numpy;
         for  var axes_val in axes.ToArray<integer> do
-            input_shape_val[axes_val] := NDArray(1);
+            input_shape_val[axes_val] := NDArray(Integer(1));
+
         Result := tf.constant(input_shape_val);
         Exit;
     end;
@@ -1211,7 +1218,4 @@ begin
 end;
 
 end.
-
-
-
 

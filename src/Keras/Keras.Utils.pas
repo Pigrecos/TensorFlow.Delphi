@@ -26,8 +26,7 @@ interface
             System.IOUtils,
             System.Net.HttpClient,
             System.Classes,
-            System.ZLib,
-            System.Zip,
+            System.Rtti,
 
             Spring,
             Spring.Collections.Enumerable,
@@ -131,7 +130,9 @@ type
   end;
 
 implementation
-          uses Tensorflow,
+          uses System.TypInfo,
+
+               Tensorflow,
                Tensorflow.Utils,
                TensorFlow.Initializer,
                Tensorflow.NameScope,
@@ -211,13 +212,15 @@ begin
 end;
 
 class procedure base_layer_utils.CreateKerasHistoryHelper(tensors: TFTensors; processed_ops: TList<TFOperation>; created_layers: TList<Layer>);
+var
+  op  : TFOperation;
 begin
     for var tensor in tensors do
     begin
         if tensor.KerasHistory <> nil then
             continue;
 
-        var op := tensor.op;
+        op := tensor.op;
         if not processed_ops.Contains(op) then
         begin
             var layer_inputs := TList<TFTensor>.Create;
@@ -231,7 +234,7 @@ begin
                     TUtils.tf_with<TNameScope>( Tops.init_scope,
                           procedure(v1: TNameScope)
                             begin
-                                constants[i] := tf.keras.backend.eval_in_eager_or_function(TFTensors.Create(op_input));
+                               constants.AddOrSetValue(i, tf.keras.backend.eval_in_eager_or_function(TFTensors.Create(op_input)) );
                             end );
                 end;
             end;
@@ -250,6 +253,7 @@ begin
             processed_ops.Add(op);
         end;
     end;
+
 end;
 
 class function base_layer_utils.uses_keras_history(op_input: TFTensor): Boolean;
@@ -419,41 +423,111 @@ begin
       for var v in mModel.NodesByDepth do
         relevant_nodes.AddRange(v.Value);
     end;
-    var ePositionI := Enumerable<Integer>.Create(positions_int);
-    positions_int := ePositionI.Select(
-                        function (x: Integer): Integer
+    var ePositionI := Enumerable<Single>.Create(positions);
+    positions_int := ePositionI.Select<Integer>(
+                        function (x: Single): Integer
                         begin
                           Result := Trunc(x);
                         end).ToArray;
 
-    tf.Logger.Info(Format('Model: %s', [mModel.Name]),'Summary');
+    tf.LogMsg(Format('Model: %s', [mModel.Name]));
 
     var sLinea := '';
     for i := 0 to line_length -1 do sLinea := sLinea + '_';
-    tf.Logger.Info(sLinea,'Summary');
+    tf.LogMsg(sLinea);
 
     print_row(to_display, positions_int);
 
     var sLinea1 := '';
-    for i := 0 to line_length -1 do sLinea1 := sLinea1 + '=';
-    tf.Logger.Info(sLinea1,'Summary');
+    for i := 0 to line_length -17 do sLinea1 := sLinea1 + '=';
+    tf.LogMsg(sLinea1);
 
     for i := 0 to mModel.Layers.Count- 1 do
     begin
-        layer := mModel.Layers[i] ;
+        layer := mModel.Layers[i]  ;
         if sequential_like then  print_layer_summary(layer, positions_int)
         else                     print_layer_summary_with_connections(layer, positions_int, relevant_nodes);
 
-        if i = mModel.Layers.Count - 1 then  tf.Logger.Info(sLinea1,'Summary')
-        else                                 tf.Logger.Info(sLinea,'Summary');
+        if i = mModel.Layers.Count - 1 then  tf.LogMsg(sLinea1)
+        else                                 tf.LogMsg(sLinea);
     end;
 
-    var trainable_count     := count_params(mModel, mModel.trainable_variables);
-    var non_trainable_count := count_params(mModel, mModel.non_trainable_variables);
-    tf.Logger.Info(Format('Total params: %d', [trainable_count + non_trainable_count]),'Summary');
-    tf.Logger.Info(Format('Trainable params: %d', [trainable_count]),'Summary');
-    tf.Logger.Info(Format('Non-trainable params: %d', [non_trainable_count]),'Summary');
+    var trainable_count     := count_params(mModel, mModel.TrainableVariables);
+    var non_trainable_count := count_params(mModel, mModel.NonTrainableVariables);
+    tf.LogMsg(Format('Total params: %d', [trainable_count + non_trainable_count]));
+    tf.LogMsg(Format('Trainable params: %d', [trainable_count]));
+    tf.LogMsg(Format('Non-trainable params: %d', [non_trainable_count]));
 
+end;
+
+procedure PrintRow1(fields: TArray<String>; positions: TArray<integer>; nested_level: Integer = 0);
+var
+	left_to_print        : TArray<String>;
+	i, col               : Integer;
+	line                 : String;
+	start_pos,
+	end_pos,
+	cutoff                : Integer;
+	space                 : String;
+	fit_into_line         : String;
+	line_break_conditions : TArray<string>;
+	candidate_cutoffs     : TArray<integer>;
+  spaces                : String;
+begin
+    SetLength(left_to_print, Length(fields));
+    for i := 0 to Length(fields) - 1 do
+    begin
+        left_to_print[i] := fields[i];
+    end;
+
+    line := '';
+    for col := 0 to Length(left_to_print) - 1 do
+    begin
+        if (col > 0) then start_pos := positions[col - 1]
+        else              start_pos := 0;
+
+        end_pos := positions[col];
+        // Leave room for 2 spaces to delineate columns
+        // we don't need any if we are printing the last column
+        if (col <> Length(positions) - 1) then  space := '  '
+        else                                    space := '';
+
+        cutoff        := end_pos - start_pos - space.Length;
+        fit_into_line := Copy(left_to_print[col], 1, cutoff);
+
+        // For nicer formatting we line-break on seeing end of
+        // tuple/dict etc.
+        line_break_conditions := ['),', '},', '],', ''','];
+        SetLength(candidate_cutoffs, 0);
+        for var x in line_break_conditions do
+        begin
+            if fit_into_line.IndexOf(x) >= 0 then
+               candidate_cutoffs := candidate_cutoffs + [fit_into_line.IndexOf(x) + Length(x)];
+        end;
+
+        if Length(candidate_cutoffs) > 0 then
+        begin
+            var eCandidate_Cutoffs := enumerable<Integer>.Create(candidate_cutoffs);
+            cutoff                 := eCandidate_Cutoffs.Min;
+        end;
+        fit_into_line := Copy(fit_into_line,1, cutoff - 1);
+
+        if col = 0 then  line := ' ';
+
+        line := line + fit_into_line;
+        line := line + ' ' + space;
+
+        if space = '' then line := line + ' ';
+
+        left_to_print[col] := Copy(left_to_print[col], 1, cutoff);
+
+        if Length(line) > positions[col] then
+           line := Copy(line,1, positions[col] - 8);
+
+        spaces := string.Create(' ', positions[col] - Length(line));
+        line   := line + string.Join(' ', spaces);
+    end;
+    tf.LogMsg(line);
 end;
 
 class procedure layer_utils.print_row(fields: TArray<string>; positions: TArray<Integer>);
@@ -462,6 +536,8 @@ var
   i: Integer;
   spaces : TArray<String>;
 begin
+    PrintRow1(fields,positions);
+    Exit;
     line := '';
     for i := 0 to Length(fields) - 1 do
     begin
@@ -472,10 +548,10 @@ begin
         line := Copy(line, 1, positions[i]);
 
         SetLength(spaces, positions[i] - Length(line));
-        FillChar(spaces[0], Length(spaces) * SizeOf(Char), ' ');
+        for var j:= 0 to Length(spaces)-1 do  spaces[j] := ' ';
         line := line + string.Join('', spaces);
     end;
-    tf.Logger.Info(line,'Summary');
+    tf.LogMsg(line);
 end;
 
 class procedure layer_utils.print_layer_summary(lLayer: ILayer; positions: TArray<Integer>);
@@ -485,10 +561,10 @@ var
 begin
   sName := lLayer.Name;
 
-  var v : TValue := TValue.From<ILayer>(lLayer);
-  var nTipoL := v.TypeInfo.Name;
+  var ClassLayer :=  TObject(lLayer)  ;
+  var nTipoL :=  ClassLayer.ClassName;
 
-  fields := [sName + ' (' + nTipoL + ')',  lLayer.output_shape.ToString ,  lLayer.count_params.ToString ] ;
+  fields := [sName + ' (' + nTipoL + ') ',  lLayer.OutputShape.ToString ,  lLayer.count_params.ToString ] ;
 
   print_row(fields, positions);
 end;
@@ -520,17 +596,17 @@ begin
     if connections.Count > 0 then
       first_connection := connections[0];
 
-    var v : TValue := TValue.From<ILayer>(lLayer);
-    var nTipoL := v.TypeInfo.Name;
+    var ClassLayer :=  TObject(lLayer)  ;
+    var nTipoL :=  ClassLayer.ClassName;
 
-    fields := [ name + '(' +nTipoL+ ')', lLayer.output_shape.ToString, lLayer.count_params.ToString ];
-
+    fields := [ name + '(' +nTipoL+ ') ', lLayer.OutputShape.ToString, lLayer.count_params.ToString, first_connection];
     print_row(fields, positions);
+
     if connections.Count > 1 then
     begin
         for i := 1 to connections.Count - 1 do
         begin
-            fields := ['',  '', '', connections[i] ];
+            fields := ['', '', '', connections[i] ];
             print_row(fields, positions);
         end;
     end;
@@ -543,7 +619,7 @@ begin
     Result := '';
     for var i := 1 to name.Length do
     begin
-       if (name[i].IsUpper) and ( not name[i - 1].IsDigit ) then Result := Result + '_'+ name[i]
+       if (i > 1) and (name[i].IsUpper) and ( not name[1].IsDigit ) then Result := Result + '_'+ name[i]
        else                                                      Result := Result + name[i]
     end;
 end;

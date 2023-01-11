@@ -82,6 +82,7 @@ type
     mType,      // type
     mProc,      // procedure
     mPackage);  // proto package
+
   // Type mode
   TTypeMode = (
     tmUnknown,  // Unknown
@@ -107,9 +108,12 @@ type
     tmArray,    // array
     tmMap,      // map
     tmUnion);   // union (oneOf)
+
   TEmbeddedTypes = TTypeMode.tmUnknown .. TTypeMode.tmSint64;
+
   PObj = ^TObjDesc;
   PType = ^TTypeDesc;
+
   TObjDesc = record
   class var
     Keywords: TStringList;
@@ -135,12 +139,13 @@ type
     // if all ok then update the option value.
     procedure AddOption(const name: string; const val: TConst);
   end;
+
   TTypeDesc = record
-    form: TTypeMode;
+    form       : TTypeMode;
     declaration: PObj;    // type declaration
-    dsc: PObj;            // fields, enum values, map tuple <key, value>
-    base: PType;
-    size, len: Integer;
+    dsc        : PObj;            // fields, enum values, map tuple <key, value>
+    base       : PType;
+    size, len  : Integer;
   end;
 {$EndRegion}
 {$Region 'TpbPackage: Package specifier'}
@@ -287,6 +292,7 @@ type
     Ffwd_decl            : TDictionary<string,PObj>;
     FExtern_decl         : TDictionary<string,PObj>;
     FModuleList          : TDictionary<string,TModule>;
+    FListFuncProc        : TDictionary<string,Integer>;
     // Fill predefined elements
     procedure InitSystem;
     function GetUnknownType: PType;
@@ -366,10 +372,12 @@ const
     'program', 'property', 'raise', 'record', 'repeat', 'resourcestring',
     'set', 'shl', 'shr', 'string', 'then', 'threadvar', 'to', 'try',
     'type', 'unit', 'until', 'uses', 'var', 'while', 'with', 'xor');
+
 implementation
 uses
   Oz.Pb.Scanner,
   Oz.Pb.Parser;
+
 function GetWireType(tm: TTypeMode): TWireType;
 begin
   case tm of
@@ -542,12 +550,14 @@ begin
   TObjDesc.Keywords.Sorted := True;
   InitSystem;
 
-  FModuleList := TDictionary<string,TModule>.Create;
+  FModuleList   := TDictionary<string,TModule>.Create;
+  FListFuncProc := TDictionary<string,Integer>.Create;
 end;
 destructor TpbTable.Destroy;
 begin
   TObjDesc.Keywords.Free;
   FModuleList.Free;
+  FListFuncProc.Free;
   // todo: start using memory regions
   inherited;
 end;

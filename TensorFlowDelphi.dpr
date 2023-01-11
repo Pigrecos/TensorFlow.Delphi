@@ -87,7 +87,8 @@ uses
   TensorFlow.tensor_array_ops in 'src\Operation\TensorFlow.tensor_array_ops.pas',
   Keras.Container in 'src\Keras\Keras.Container.pas',
   Keras.CommonDef in 'src\Keras\Keras.CommonDef.pas',
-  TensorFlow.Functions in 'src\TensorFlow.Functions.pas';
+  TensorFlow.Functions in 'src\TensorFlow.Functions.pas',
+  TensorFlow.nn_grad in 'src\Gradient\TensorFlow.nn_grad.pas';
 
 {$R *.res}
 

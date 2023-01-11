@@ -50,7 +50,7 @@ type
     // Set option
     procedure SetOption(const s: string);
     // Name of the proto file (including path)
-    property SrcName: string read FSrcName;
+    property SrcName: string read FSrcName write FSrcName;
     // Specify the directory in which to search for imports.
     // May be specified multiple times; directories will be searched in order.
     // If not given, the current working directory is used.
@@ -58,7 +58,7 @@ type
     // Path for generated delphi files
     property OutPath: string read FOutPath write FOutPath;
     // The Collections library used for the generated code
-    property GenLib: TCollectionLibrary read FGenLib;
+    property GenLib: TCollectionLibrary read FGenLib write FGenLib;
   end;
 
 {$EndRegion}

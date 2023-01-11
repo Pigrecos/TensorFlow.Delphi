@@ -353,7 +353,7 @@ begin
         Result := res;
         Exit;
     end;
-    var _op := tf.OpDefLib._apply_op_helper('Slice"', name, [ GetArg('input',input), GetArg('begin',_begin ), GetArg('size',size ) ]);
+    var _op := tf.OpDefLib._apply_op_helper('Slice', name, [ GetArg('input',input), GetArg('begin',_begin ), GetArg('size',size ) ]);
     Result := _op.outputs[0];
 end;
 

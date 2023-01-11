@@ -55,7 +55,7 @@ type
         Ftrain_counter           : IVariableV1;
         Ftest_counter            : IVariableV1;
         Fpredict_counter         : IVariableV1;
-        Fbase_model_initialized  : Boolean;
+       // Fbase_model_initialized  : Boolean;
         // Model.Compile
         compiled_loss            : LossesContainer;
         compiled_metrics         : MetricsContainer;
@@ -76,6 +76,7 @@ type
         data_handler : DataHandler;
 
         constructor Create(_args: ModelArgs);
+        procedure Build(input_shape: TFShape); override;
         procedure _configure_steps_per_execution(steps_per_execution: Integer);
         procedure _reset_compile_cache;
         procedure _init_batch_counters;
@@ -182,7 +183,7 @@ type
         procedure summary(line_length: Integer = -1; positions: TArray<Single> = []);
 
         property Layers              : TList<ILayer> read GetLayers ;
-        property trainable_variables : TList<IVariableV1> read Gettrainable_variables ;
+        property TrainableVariables  : TList<IVariableV1> read Gettrainable_variables ;
         property Metrics             : TList<Metric> read GetMetrics ;
     end;
 
@@ -271,7 +272,7 @@ type
         procedure clear_previously_created_nodes(layer: ILayer; created_nodes: TList<INode>);
         procedure track_nodes_created_by_last_call(layer: ILayer; created_nodes: TList<INode>);
 
-        property output_shape : TFShape       read GetOutShape;
+        property OutputShape  : TFShape       read GetOutShape;
         property Layers       : TList<ILayer> read GetLayers;
     end;
 
@@ -281,6 +282,7 @@ implementation
               TensorFlow.Ops,
               Tensorflow.Utils,
               TensorFlow.Slice,
+              Tensorflow.Graph,
 
               NumPy.NDArray,
 
@@ -317,7 +319,7 @@ begin
 
     data_handler := DataHandler.Create(dataArgs);
 
-    tf.Logger.Info('Testing...','Evaluate');
+    tf.LogMsg('Testing...');
     for var epoch_iterator in data_handler.enumerate_epochs do
     begin
         var epoch   := epoch_iterator.Value1;
@@ -341,7 +343,7 @@ begin
         end;
         var sRes := string.Join(', ',sArray) ;
 
-        tf.Logger.Info('iterator: '+ IntToStr(epoch + 1 ) +', ' + sRes, 'Evaluate');
+        tf.LogMsg('iterator: '+ IntToStr(epoch + 1 ) +', ' + sRes);
     end;
 end;
 
@@ -357,7 +359,7 @@ begin
 
     data_handler := DataHandler.Create(dataArgs);
 
-    tf.Logger.Info('Testing...','Evaluate');
+    tf.LogMsg('Testing...');
     logs := nil ;
     for var epoch_iterator in data_handler.enumerate_epochs do
     begin
@@ -381,7 +383,7 @@ begin
         end;
         var sRes := string.Join(', ',sArray) ;
 
-        tf.Logger.Info('iterator: '+ IntToStr(epoch + 1 ) +', ' + sRes, 'Evaluate');
+        tf.LogMsg('iterator: '+ IntToStr(epoch + 1 ) +', ' + sRes);
     end;
     Result := [];
     for var i := 0 to logs.Count - 1 do
@@ -481,7 +483,7 @@ begin
             end;
             sw.Reset;
         end;
-        tf.Logger.Info('','Fit');
+        tf.LogMsg('');
 
         // GC.Collect;
         // GC.WaitForPendingFinalizers;
@@ -491,7 +493,7 @@ end;
 
 procedure Model.on_epoch_begin(epoch, epochs: Integer);
 begin
-    tf.Logger.Info(Format('Epoch: %3d/%3d',[epoch+1, epochs]),'Fit');
+    tf.LogMsg(Format('Epoch: %.3d/%.3d',[epoch+1, epochs]));
 end;
 
 procedure Model.on_train_batch_begin(verbose: Integer; step, elapse: Int64; results: TList<Tuple<string, TFTensor>>);
@@ -506,7 +508,7 @@ begin
         for i := 0 to results.Count - 1 do
         begin
             var tTensor : TTensor := results[i].Value2;
-            resultPairs := resultPairs + Format('%s: %6f', [results[i].Value1, Single(tTensor)]);
+            resultPairs := resultPairs + Format('%s: %.6f', [results[i].Value1, Single(tTensor)]);
             if i < results.Count - 1 then
               resultPairs := resultPairs + ', ';
         end;
@@ -521,7 +523,7 @@ begin
         for i := 1 to 30 - Length(progress) - 1 do
           remaining := remaining + '.';
 
-        tf.Logger.Info(Format('%4d/%4d [%s%s] - %dms/step %s', [step + 1, data_handler.Inferredsteps, progress, remaining, elapse, resultPairs]),'Fit');
+        tf.LogMsg(Format('%.4d/%.4d [%s%s] - %dms/step %s', [step + 1, data_handler.Inferredsteps, progress, remaining, elapse, resultPairs]));
     end;
 end;
 
@@ -545,7 +547,7 @@ begin
     x := x_y.Value1;
     y := x_y.Value2;
     var y_pred := Apply(TFTensors.Create(x), nil, false);
-    var loss   := compiled_loss.Call(y, y_pred.first);
+    compiled_loss.Call(y, y_pred.first);
 
     compiled_metrics.update_state(y, y_pred.first);
 
@@ -587,7 +589,7 @@ begin
     // self.optimizer.apply_gradients(zip(gradients, trainable_variables))
     // The _minimize call does a few extra steps unnecessary in most cases,
     // such as loss scaling and gradient clipping.
-    _minimize(tape, optimizer, loss, trainable_variables);
+    _minimize(tape, optimizer, loss, TrainableVariables);
     compiled_metrics.update_state(y, y_pred.First);
 
     Result := TList<Tuple<string, TFTensor>>.Create;
@@ -672,13 +674,13 @@ begin
     for var trackable_obj in Fself_tracked_trackables do
     begin
         if trackable_obj.Trainable then
-            variables.AddRange(trackable_obj.trainable_variables);
+            variables.AddRange(trackable_obj.TrainableVariables);
     end;
 
-    for var layer in Flayers do
+    for var layer in Fself_tracked_trackables do
     begin
         if layer.Trainable then
-            variables.AddRange(layer.trainable_variables);
+            variables.AddRange(layer.TrainableVariables);
     end;
 
     // variables.AddRange(_trainable_weights);
@@ -687,7 +689,23 @@ begin
 end;
 
 function Model.predict(x: TFTensor; batch_size, verbose, steps, max_queue_size, workers: Integer; use_multiprocessing: Boolean): TFTensors;
+var
+  dataArgs : DataHandlerArgs;
 begin
+    dataArgs := DataHandlerArgs.Create;
+
+    dataArgs.X             := x;
+    dataArgs.BatchSize     := batch_size;
+    dataArgs.InitialEpoch  := 0;
+    dataArgs.Epochs        := 1;
+    dataArgs.MaxQueueSize  := max_queue_size;
+    dataArgs.Workers       := workers;
+    dataArgs.UseMultiprocessing := use_multiprocessing;
+    dataArgs.Model         := self;
+    dataArgs.StepsPerExecution := Fsteps_per_execution;
+
+    data_handler := DataHandler.Create(dataArgs);
+
     var outputs : TFTensors := nil;
 
     if      Fpredict_counter is RefVariable          then (Fpredict_counter as RefVariable)         .assign(Integer(1))
@@ -773,6 +791,22 @@ begin
     // Initialize cache attrs.
     _reset_compile_cache;
     Fis_compiled := true;
+end;
+
+procedure Model.Build(input_shape: TFShape);
+var
+  graph : TFGraph;
+begin
+    if tf.executing_eagerly then graph := TFuncGraph.Create('build_graph')
+    else                      graph := tf.keras.backend.get_graph;
+
+    graph.as_default;
+    var x := tf.placeholder(DType, input_shape);
+    var pTraining := False;
+    Call(TFTensors.Create(x), nil, @pTraining );
+    graph.gExit;
+
+    inherited Build(input_shape);
 end;
 
 procedure Model.compile(_optimizer, _loss: string; metrics: TArray<string>);
@@ -1226,8 +1260,9 @@ end;
 
 procedure Functional._init_graph_network(inputs, outputs: TFTensors);
  var
-   kT  : Tuple<ILayer, Integer, Integer>;
-   mapT: Tuple<TArray<string>, TDictionary<Integer, TList<INode>>, TList<ILayer>, TDictionary<Integer, TList<ILayer>>>;
+   layer : ILayer;
+   kT    : Tuple<ILayer, Integer, Integer>;
+   mapT  : Tuple<TArray<string>, TDictionary<Integer, TList<INode>>, TList<ILayer>, TDictionary<Integer, TList<ILayer>>>;
 begin
     Fis_graph_network := true;
     Finputs           := inputs;
@@ -1239,9 +1274,9 @@ begin
     for var x in outputs do
     begin
         kT := (x.KerasHistory as TKerasHistory).ToTuple;
-        var layer        := kT.Value1;
+        layer            := kT.Value1;
         var node_index   := kT.Value2;
-        var tensor_index:=  kT.Value3;
+        var tensor_index :=  kT.Value3;
         Foutput_layers.Add(layer);
         Foutput_coordinates.Add(TKerasHistory.Create(layer, node_index, tensor_index));
     end;
@@ -1249,46 +1284,30 @@ begin
     for var x in inputs do
     begin
         kT := (x.KerasHistory as TKerasHistory).ToTuple;
-        var layer        := kT.Value1;
+        layer            := kT.Value1;
         var node_index   := kT.Value2;
-        var tensor_index:=  kT.Value3;
+        var tensor_index :=  kT.Value3;
         Finput_layers.Add(layer);
         Finput_coordinates.Add(TKerasHistory.Create(layer, node_index, tensor_index));
     end;
     // Keep track of the network's nodes and layers.
     mapT := MapGraphNetwork(inputs, outputs);
-    var nodes          := mapT.Value1;
-    var nodes_by_depth := mapT.Value2;
-    var layers         := mapT.Value3;
-    NetworkNodes := nodes;
-    NodesByDepth := nodes_by_depth;
-    if Flayers.Count = 0 then
-      Flayers := layers;
-    Fself_tracked_trackables := layers;
+    NetworkNodes             := mapT.Value1;
+    NodesByDepth             := mapT.Value2;
+    Fself_tracked_trackables := mapT.Value3;
+
     _set_output_names;
     ComputeTensorUsageCount;
 end;
 
 function Functional.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
 var
- selFunc     : TFunc<Integer, TFTensor>;
  tensor_dict : TDictionary<Int64, TQueue<TFTensor>>;
  x,y         : TFTensor;
  eKeys       : Enumerable<Integer>;
  depth_keys  : TArray<Integer>;
- OrdFun      : TFunc<integer,Integer>;
+ outputs     : TFTensors;
 begin
-    selFunc := function(v : Integer):TFTensor
-                begin
-                    Result := y;
-                end;
-    OrdFun := Function(z:integer): Integer
-                begin
-                     Result := z;
-                end ;
-
-    x := nil;
-
     tensor_dict := TDictionary<Int64, TQueue<TFTensor>>.Create;
 
     // map input values
@@ -1297,14 +1316,20 @@ begin
         x := x_y.Value1;
         y := x_y.Value2;
 
-        var enu : TArray<TFTensor> := TUtils.range(0, Ftensor_usage_count[x.Id]).Select<TFTensor>(selFunc).ToArray;
+        var enu : TArray<TFTensor> := TUtils.range(0, Ftensor_usage_count[x.Id]).Select<TFTensor>(function(v : Integer):TFTensor
+                                                                                                    begin
+                                                                                                        Result := y;
+                                                                                                    end).ToArray;
         var q := TQueue<TFTensor>.Create( TList<TFTensor>.Create(enu) );
 
         tensor_dict.AddOrSetValue(x.Id, q);
     end ;
 
     eKeys := Enumerable<Integer>.Create( NodesByDepth.Keys.ToArray);
-    depth_keys := eKeys.OrderBy<Integer>(OrdFun).Reversed.ToArray;
+    depth_keys := eKeys.OrderBy<Integer>(Function(z:integer): Integer
+                                            begin
+                                                 Result := z;
+                                            end).Reversed.ToArray;
 
     for var depth in depth_keys do
     begin
@@ -1318,27 +1343,30 @@ begin
 
             var layer_inputs := nNode.MapArguments(tensor_dict);
 
-            tf.Logger.Debug( Format('Depth %s: %s: %s',[depth.toString,(nNode.Layer as TObject).ClassName,nNode.Layer.Name]),'Layer');
+            tf.LogMsg(Format('Depth %s:  %s:  %s',[depth.toString,(nNode.Layer as TObject).ClassName,nNode.Layer.Name]));
 
             var isTarainig : Boolean := False;
             if assigned(training) then isTarainig := training^;
 
-            var outputs := nNode.Layer.Apply(layer_inputs, nil, isTarainig);
+            outputs := nNode.Layer.Apply(layer_inputs, nil, isTarainig);
             for var output in outputs do
             begin
                 if output <> nil  then
-                   tf.Logger.Info( Format('Depth %s: %s: %s %s',[depth.toString,(nNode.Layer as TObject).ClassName,nNode.Layer.Name, output.shape.ToString]),'Layer');
+                   tf.LogMsg( Format('Depth %s: %s: %s %s',[depth.toString,(nNode.Layer as TObject).ClassName,nNode.Layer.Name, output.shape.ToString]));
             end;
             // Update tensor_dict for next or later input
             for var z := 0 to nNode.Outputs.Count - 1 do
             begin
-                var x_id := outputs[z].id;
+                var x_id := nNode.outputs[z].id;
                 y        := outputs[z];
 
-                var enu : TArray<TFTensor> := TUtils.range(0, Ftensor_usage_count[x_id]).Select<TFTensor>(selFunc).ToArray;
+                var enu : TArray<TFTensor> := TUtils.range(0, Ftensor_usage_count[x_id]).Select<TFTensor>(function(v : Integer):TFTensor
+                                                                                                            begin
+                                                                                                                Result := y;
+                                                                                                            end).ToArray;
                 var q := TQueue<TFTensor>.Create( TList<TFTensor>.Create(enu) );
 
-               tensor_dict.AddOrSetValue(x.Id, q);
+                tensor_dict.AddOrSetValue(x_id, q);
             end;
         end;
     end;
@@ -1386,7 +1414,7 @@ procedure Sequential.add(layer: ILayer);
 begin
     Fbuilt         := false;
     var set_inputs := false;
-    if Flayers.Count = 0 then
+    if Fself_tracked_trackables.Count = 0 then
     begin
         if layer is InputLayer then
         begin
@@ -1517,11 +1545,11 @@ begin
     if Finferred_input_shape = input_shape then
        Exit;
     TOps.init_scope;
-    var inputs := tf.keras.Input(default(TFShape), input_shape, -1, input_dtype, Flayers[0].Name+'_input');
+    var inputs := tf.keras.Input(default(TFShape), input_shape, -1, input_dtype, Fself_tracked_trackables[0].Name+'_input');
     layer_input  := TFTensors.Create(inputs);
     outputs      := nil;
     created_nodes:= TList<INode>.Create;
-    for var layer in Flayers do
+    for var layer in Fself_tracked_trackables do
     begin
       clear_previously_created_nodes(layer, Fcreated_nodes);
       layer_output := layer.Apply(layer_input);
@@ -1539,7 +1567,7 @@ end;
 
 procedure Sequential._handle_deferred_layer_dependencies(layers: TArray<ILayer>);
 begin
-    Flayers.AddRange(layers);
+    Fself_tracked_trackables.AddRange(layers);
 end;
 
 { ModelConfig }

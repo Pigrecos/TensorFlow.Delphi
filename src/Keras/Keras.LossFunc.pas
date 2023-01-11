@@ -59,7 +59,7 @@ type
    Loss =  class abstract
      private
        Fallow_sum_over_batch_size : Boolean;
-       Fname_scope                : string;
+      // Fname_scope                : string;
      protected
        Freduction   : string;
        Fname        : string;

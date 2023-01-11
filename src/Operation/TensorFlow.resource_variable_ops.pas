@@ -77,7 +77,9 @@ implementation
 
              TensorFlow.Ops,
              Tensorflow.Utils,
-             TensorFlow.gen_resource_variable_ops;
+             TensorFlow.gen_resource_variable_ops,
+
+             ProtoGen.Main;
 
 { resorce_variable_ops }
 
@@ -126,11 +128,11 @@ begin
         (*gen_logging_ops.assert(gen_math_ops.logical_not(exists),
             new[] { exists },
             name: "EagerVariableNameReuse");*)
-        var handle_data : THandleData; handle_data.Init;
-        var item : THandleShapeAndType;  item.init;
+        var handle_data : THandleData         := THandleData.Create;
+        var item        : THandleShapeAndType :=  THandleShapeAndType.Create;
         item.Shape := TUtils.as_shape_proto(shape);
         item.Dtype := TDtypes.as_datatype_enum(dtype);
-        handle_data.ShapeAndTypes.Add(@item);
+        handle_data.ShapeAndTypes.Add(item);
         _set_handle_shapes_and_types(handle, handle_data, graph_mode);
         Result := handle;
     end;
@@ -165,11 +167,11 @@ class function resource_variable_ops.get_eager_safe_handle_data(handle: TFTensor
 begin
     if handle.Handle = nil then
     begin
-        var data : THandleData ; data.Init ;
-        var item : THandleShapeAndType ; item.Init;
+        var data : THandleData         := THandleData.Create ;
+        var item : THandleShapeAndType := THandleShapeAndType.Create;
         item.Shape := TUtils.as_shape_proto(handle.shape);
         item.Dtype := TDtypes.as_datatype_enum(handle.dtype);
-        data.ShapeAndTypes.Add(@item);
+        data.ShapeAndTypes.Add(item);
         Result := data;
     end else
     begin

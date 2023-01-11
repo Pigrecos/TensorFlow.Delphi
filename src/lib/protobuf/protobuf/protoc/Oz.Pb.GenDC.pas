@@ -31,6 +31,7 @@ type
     function  CreateMapName: string; override;
     procedure GenUses; override;
     procedure GenDecl(Load: Boolean); override;
+    procedure FieldWrite(obj: PObj);
     procedure GenEntityType(msg: PObj); override;
     procedure GenEntityDecl; override;
     procedure GenEntityImpl(msg: PObj); override;
@@ -41,6 +42,7 @@ type
     procedure GenLoadMethod(msg: PObj); override;
     function  GenRead(msg: PObj): string; override;
     procedure GenFieldRead(msg: PObj); override;
+    procedure GenInitLoaded; override;
     procedure GenSaveImpl(msg: PObj); override;
     function  GenPairStr:string; override;
   end;
@@ -51,9 +53,6 @@ uses
 {$Region 'TGenDC'}
 function TGenDC.AddItemMap(obj: PObj): string;
 begin
-    //var key := obj.typ.dsc;
-    //var value := key.next;
-
     Result := 'AddOrSetValue';
 end;
 function TGenDC.MapCollection: string;
@@ -67,6 +66,30 @@ end;
 function TGenDC.TestNil: string;
 begin
     Result :=  ' <> nil'
+end;
+
+function TGenDC.CreateName: string;
+begin
+  Result := 'Create';
+end;
+
+function TGenDC.CreateMapName: string;
+begin
+    Result := 'Create';
+end;
+
+procedure TGenDC.GenEntityType(msg: PObj);
+var
+  s: string;
+begin
+  s := AsCamel(msg.typ.declaration.name);
+  //if not FImportProcess then
+  //begin
+  //   Wrln('P%s = ^T%s;', [s, s]);
+  //   Wrln('T%s = record', [s]);
+  //end
+  //else
+     Wrln('T%s = Class', [s])
 end;
 
 procedure TGenDC.GenUses;
@@ -98,13 +121,16 @@ begin
         end;
     end else
     begin
-        Wrln('  System.Classes, System.SysUtils, Generics.Collections, Oz.Pb.Classes;');
+        Wrln('  System.Classes, System.SysUtils,  System.Rtti, Generics.Collections, Oz.Pb.Classes;');
     end;
+    Wrln;
+    Wrln('{$T+}');
     Wrln;
   finally
     Done.Free;
   end;
 end;
+
 procedure TGenDC.GenDecl(Load: Boolean);
 begin
   if Load then
@@ -119,29 +145,31 @@ begin
   else
   begin
     Wrln('type');
-    Wrln('  TSave<T> = procedure(const S: TpbSaver; const Value: T);');
+    Wrln('  TSave<T>              = procedure(const S: TpbSaver; const Value: T);');
     Wrln('  TSavePair<Key, Value> = procedure(const S: TpbSaver; const Pair: TPair<Key, Value>);');
     Wrln('private');
     Wrln('  procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);');
     Wrln('  procedure SaveList<T>(const List: TList<T>; Save: TSave<T>; Tag: Integer);');
-    Wrln('  procedure SaveMap<Key, Value>(const Map: TDictionary<Key, Value>;');
-    Wrln('    Save: TSavePair<Key, Value>; Tag: Integer);');
+    Wrln('  procedure SaveMap<Key, Value>(const Map: TDictionary<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);');
   end;
 end;
-function TGenDC.CreateMapName: string;
+
+procedure TGenDC.FieldWrite(obj: PObj);
+var
+  fg: TFieldGen;
 begin
-    Result := '';
+  if obj.cls <> TMode.mField then exit;
+  fg.Init(Self, obj, obj.aux as TFieldOptions, FieldTag(obj));
+  fg.checkNil := False;
+  fg.Gen;
 end;
 
-function TGenDC.CreateName: string;
-begin
-  Result := 'Create';
-end;
 procedure TGenDC.GenEntityDecl;
 begin
-  Wrln('constructor Create;');
-  Wrln('destructor Destroy; override;');
+    Wrln('Constructor Create;');
+    Wrln('destructor  Destroy; Override;');
 end;
+
 procedure TGenDC.GenEntityImpl(msg: PObj);
 var
   typ: PType;
@@ -149,13 +177,14 @@ var
   x: PObj;
 begin
   typ := msg.typ;
-  // parameterless constructor
+  // parameterless Init;
   t := msg.AsType;
-  Wrln('constructor %s.Create;', [t]);
+  Wrln('Constructor %s.Create;', [t]);
   Wrln('begin');
   Indent;
   try
     Wrln('inherited Create;');
+
     x := typ.dsc;
     while x <> tab.Guard do
     begin
@@ -168,6 +197,7 @@ begin
   Wrln('end;');
   Wrln;
   Wrln('destructor %s.Destroy;', [t]);
+
   Wrln('begin');
   Indent;
   try
@@ -182,10 +212,7 @@ begin
     Dedent;
   end;
 end;
-procedure TGenDC.GenEntityType(msg: PObj);
-begin
-  Wrln('%s = class', [msg.AsType]);
-end;
+
 procedure TGenDC.GenLoadDecl(msg: PObj);
 var
   t: string;
@@ -193,11 +220,96 @@ begin
   t := msg.AsType;
   Wrln('procedure Load%s(var Value: %s);', [msg.DelphiName, t]);
 end;
+
 procedure TGenDC.GenSaveDecl(msg: PObj);
 begin
-  Wrln('class procedure Save%s(const S: TpbSaver; const Value: %s); static;',
-    [msg.DelphiName, msg.AsType]);
+  Wrln('class procedure Save%s(const S: TpbSaver; const Value: %s); static;', [msg.DelphiName, msg.AsType]);
 end;
+
+procedure TGenDC.GenLoadMethod(msg: PObj);
+var
+  s, t: string;
+begin
+  s := msg.DelphiName;
+  t := msg.AsType;
+  Wrln('procedure %s.Load%s(var Value: %s);', [GetBuilderName(True), s, t]);
+end;
+
+function TGenDC.GenPairStr: string;
+begin
+    Result := 'TPair' ;
+end;
+
+function TGenDC.GenRead(msg: PObj): string;
+begin
+  Result := Format('Load%s', [msg.DelphiName]);
+  //Result := Format('Load%s(%s.Create', [msg.DelphiName, msg.AsType]);
+end;
+
+procedure TGenDC.GenFieldRead(msg: PObj);
+var
+  o: TFieldOptions;
+  n: string;
+  m,e: Boolean;
+begin
+
+  m := msg.typ.form = TTypeMode.tmMessage;
+  e := msg.typ.form = TTypeMode.tmEnum;
+  if m then
+  begin
+    Wrln('Pb.Push;');
+    Wrln('try');
+    Indent;
+  end;
+  o := msg.aux as TFieldOptions;
+  if FImportProcess then n := AsCamel(msg.name)
+  else                   n := {'F' +} AsCamel(msg.name);
+  if o.Rule <> TFieldRule.Repeated then
+  begin
+    if msg.typ.form <> TTypeMode.tmMessage then
+       Wrln('%s(Value.%s);', [GetRead(msg), n])
+    else begin
+        var tType := 'T'+msg.typ.declaration.name;
+        Wrln('var v : %s := Value.%s;', [tType,n]);
+        Wrln('%s(v);', [GetRead(msg)]);
+        Wrln('Value.%s := v;', [n]);
+    end;
+  end else
+  begin
+    n := Plural(n);
+    var tType := msg.typ.declaration.name.Replace('float','single');
+    tType := tType.Replace('bytes','TBytes');
+    tType := tType.Replace('bool','boolean');
+    if m  then
+    begin
+        tType := 'T'+ tType;
+        Wrln('var v : %s;', [tType]);
+        Wrln('%s(v);', [GetRead(msg)])
+    end
+    else if e then
+    begin
+        tType := 'T'+ tType;
+        Wrln('var v : %s := %s;', [tType, GetRead(msg)]);
+    end else
+    begin
+        Wrln('var v : %s := %s;', [tType, GetRead(msg)]);
+    end;
+    Wrln('Value.%s.Add(v);', [n]);
+  end;
+  if m then
+  begin
+    Dedent;
+    Wrln('finally');
+    Wrln('  Pb.Pop;');
+    Wrln('end;');
+  end;
+end;
+
+procedure TGenDC.GenInitLoaded;
+begin
+  Wrln('Value.Create;');
+end;
+
 procedure TGenDC.GenLoadImpl;
 begin
   Wrln('{ TLoadHelper }');
@@ -206,7 +318,9 @@ begin
   Wrln('begin');
   Wrln('  Pb.Push;');
   Wrln('  try');
-  Wrln('    obj := T.Create;');
+  Wrln('    var v : TValue := TValue.From<T>(obj);');
+  Wrln('    var vObj       := v.AsObject;');
+  Wrln('    obj := vObj.Create;');
   Wrln('    Load(obj);');
   Wrln('  finally');
   Wrln('    Pb.Pop;');
@@ -219,7 +333,9 @@ begin
   Wrln('begin');
   Wrln('  Pb.Push;');
   Wrln('  try');
-  Wrln('    obj := T.Create;');
+  Wrln('    var v : TValue := TValue.From<T>(obj);');
+  Wrln('    var vObj       := v.AsObject;');
+  Wrln('    obj := vObj.Create;');
   Wrln('    Load(obj);');
   Wrln('    List.Add(obj);');
   Wrln('  finally');
@@ -228,36 +344,7 @@ begin
   Wrln('end;');
   Wrln;
 end;
-procedure TGenDC.GenLoadMethod(msg: PObj);
-var
-  s, t: string;
-begin
-  s := msg.DelphiName;
-  t := msg.AsType;
-  Wrln('procedure %s.Load%s(var Value: %s);', [GetBuilderName(True), s, t]);
-end;
-function TGenDC.GenPairStr: string;
-begin
-    Result := 'TPair' ;
-end;
 
-function TGenDC.GenRead(msg: PObj): string;
-begin
-  Result := Format('Load%s(%s.Create)', [msg.DelphiName, msg.AsType]);
-end;
-procedure TGenDC.GenFieldRead(msg: PObj);
-var
-  o: TFieldOptions;
-  n, t: string;
-begin
-  o := msg.aux as TFieldOptions;
-  n := 'F' + AsCamel(msg.name);
-  t := AsCamel(msg.typ.declaration.name);
-  if o.Rule <> TFieldRule.Repeated then
-    Wrln('LoadObj<T%s>(Value.%s, Load%s);', [t, n, t])
-  else
-    Wrln('LoadList<T%s>(Value.%s, Load%s);', [t, Plural(n), t]);
-end;
 procedure TGenDC.GenSaveProc;
 begin
   Wrln('{ TSaveHelper }');
@@ -295,8 +382,7 @@ begin
   Wrln('  end;');
   Wrln('end;');
   Wrln;
-  Wrln('procedure TSaveHelper.SaveMap<Key, Value>(const Map: TDictionary<Key, Value>;');
-  Wrln('  Save: TSavePair<Key, Value>; Tag: Integer);');
+  Wrln('procedure TSaveHelper.SaveMap<Key, Value>(const Map: TDictionary<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);');
   Wrln('var');
   Wrln('  h: TpbSaver;');
   Wrln('  Pair: TPair<Key, Value>;');
@@ -315,14 +401,14 @@ begin
   Wrln('end;');
   Wrln;
 end;
+
 procedure TGenDC.GenSaveImpl(msg: PObj);
 var
   s, t: string;
 begin
   s := msg.DelphiName;
   t := msg.AsType;
-  Wrln('class procedure %s.Save%s(const S: TpbSaver; const Value: %s);',
-    [GetBuilderName(False), s, t]);
+  Wrln('class procedure %s.Save%s(const S: TpbSaver; const Value: %s);', [GetBuilderName(False), s, t]);
 end;
 {$EndRegion}
 end.

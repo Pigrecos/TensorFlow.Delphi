@@ -196,8 +196,12 @@ implementation
 
 function dataset_ops.anonymous_iterator_v2(output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; name: string): Tuple<TFTensor, TFTensor>;
 begin
-    var Res := tf.Context.ExecuteOp('IteratorGetNext', name, ExecuteOpArgs.Create([])
-          .SetAttributes(['output_types', TValue.From<TArray<TF_DataType>>(output_types), 'output_shapes', TValue.From<TArray<TFShape>>( output_shapes )]));
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
+    var Res := tf.Context.ExecuteOp('AnonymousIteratorV2', name, ExecuteOpArgs.Create([])
+          .SetAttributes(['output_types', TValue.From<TArray<Integer>>(typeIntArray), 'output_shapes', TValue.From<TArray<TFShape>>( output_shapes )]));
 
     Result := Tuple.Create(Res[0],Res[0])
 end;
@@ -205,20 +209,32 @@ end;
 function dataset_ops.batch_dataset_v2(input_dataset, buffer_size, drop_remainder: TFTensor; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>;
   parallel_copy: Boolean; name: string): TFTensor;
 begin
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
     Result := tf.Context.ExecuteOp('BatchDatasetV2', name, ExecuteOpArgs.Create([input_dataset, buffer_size, drop_remainder])
-                 .SetAttributes(['parallel_copy', parallel_copy, 'output_types', TValue.From<TArray<TF_DataType>>( output_types ), 'output_shapes', TValue.From<TArray<TFShape>>( output_shapes )])).First;
+                 .SetAttributes(['parallel_copy', parallel_copy, 'output_types', TValue.From<TArray<Integer>>( typeIntArray ), 'output_shapes', TValue.From<TArray<TFShape>>( output_shapes )])).First;
 end;
 
 function dataset_ops.cache_dataset_v2(input_dataset, filename, cache: TFTensor; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; name: string): TFTensor;
 begin
- Result := tf.Context.ExecuteOp('CacheDatasetV2', name, ExecuteOpArgs.Create([input_dataset, filename, cache])
-                 .SetAttributes(['output_types', TValue.From<TArray<TF_DataType>>( output_types ), 'output_shapes', TValue.From<TArray<TFShape>>( output_shapes )])).First;
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
+    Result := tf.Context.ExecuteOp('CacheDatasetV2', name, ExecuteOpArgs.Create([input_dataset, filename, cache])
+                 .SetAttributes(['output_types', TValue.From<TArray<Integer>>( typeIntArray ), 'output_shapes', TValue.From<TArray<TFShape>>( output_shapes )])).First;
 end;
 
 function dataset_ops.concatenate_dataset(input_dataset, another_dataset: TFTensor; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; name: string): TFTensor;
 begin
- Result := tf.Context.ExecuteOp('ConcatenateDataset', name, ExecuteOpArgs.Create([input_dataset, another_dataset])
-                 .SetAttributes(['output_types', TValue.From<TArray<TF_DataType>>( output_types ), 'output_shapes', TValue.From<TArray<TFShape>>( output_shapes )])).First;
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
+    Result := tf.Context.ExecuteOp('ConcatenateDataset', name, ExecuteOpArgs.Create([input_dataset, another_dataset])
+                 .SetAttributes(['output_types', TValue.From<TArray<Integer>>( typeIntArray ), 'output_shapes', TValue.From<TArray<TFShape>>( output_shapes )])).First;
 end;
 
 procedure dataset_ops.delete_iterator(handle, deleter: TFTensor; name: string);
@@ -238,26 +254,38 @@ end;
 
 function dataset_ops.filter_dataset(dataset: TFTensor; predicate: ConcreteFunction; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; name: string): TFTensor;
 begin
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
     var a : TArray<TFTensor>:= [];
     Result := tf.Context.ExecuteOp('FilterDataset', name, ExecuteOpArgs.Create([dataset, a])
                        .SetAttributes(['predicate',     TValue.From<ConcreteFunction>(predicate),
-                                       'output_types',  TValue.From<TArray<TF_DataType>>( output_types ),
+                                       'output_types',  TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes', TValue.From<TArray<TFShape>>( output_shapes )])).First;
 end;
 
 function dataset_ops.flat_map_dataset(dataset: TFTensor; f: ConcreteFunction; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; name: string): TFTensor;
 begin
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
     var a : TArray<TFTensor>:= [];
     Result := tf.Context.ExecuteOp('FlatMapDataset', name, ExecuteOpArgs.Create([dataset, a])
                        .SetAttributes(['f',     TValue.From<ConcreteFunction>(f),
-                                       'output_types',  TValue.From<TArray<TF_DataType>>( output_types ),
+                                       'output_types',  TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes', TValue.From<TArray<TFShape>>( output_shapes )])).First;
 end;
 
 function dataset_ops.iterator_get_next(iterator: TFTensor; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; name: string): TArray<TFTensor>;
 begin
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
     Result := tf.Context.ExecuteOp('IteratorGetNext', name, ExecuteOpArgs.Create([iterator])
-                       .SetAttributes(['output_types',  TValue.From<TArray<TF_DataType>>( output_types ),
+                       .SetAttributes(['output_types',  TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes', TValue.From<TArray<TFShape>>( output_shapes )])).toArray;
 end;
 
@@ -269,10 +297,14 @@ end;
 function dataset_ops.map_dataset(dataset: TFTensor; f: ConcreteFunction; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; use_inter_op_parallelism,
   preserve_cardinality: Boolean; name: string): TFTensor;
 begin
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
     var a : TArray<TFTensor>:= [];
     Result := tf.Context.ExecuteOp('MapDataset', name, ExecuteOpArgs.Create([dataset, a])
                        .SetAttributes(['f',             TValue.From<ConcreteFunction>(f),
-                                       'output_types',  TValue.From<TArray<TF_DataType>>( output_types ),
+                                       'output_types',  TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes', TValue.From<TArray<TFShape>>( output_shapes ),
                                        'use_inter_op_parallelism',  use_inter_op_parallelism,
                                        'preserve_cardinality', preserve_cardinality])).First;
@@ -281,19 +313,27 @@ end;
 function dataset_ops.model_dataset(input_dataset: TFTensor; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; algorithm: AutotuneAlgorithm; cpu_budget,
   ram_budget: Int64; name: string): TFTensor;
 begin
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
     Result := tf.Context.ExecuteOp('ModelDataset', name, ExecuteOpArgs.Create([input_dataset])
-                       .SetAttributes(['algorithm',     TValue.From<AutotuneAlgorithm>(algorithm),
+                       .SetAttributes(['algorithm',     TValue.From<Integer>(Ord(algorithm)),
                                        'cpu_budget',    cpu_budget,
                                        'ram_budget',    ram_budget,
-                                       'output_types',  TValue.From<TArray<TF_DataType>>( output_types ),
+                                       'output_types',  TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes', TValue.From<TArray<TFShape>>( output_shapes )])).First;
 end;
 
 function dataset_ops.optimize_dataset(input_dataset, optimizations: TFTensor; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>;
   optimization_configs: TArray<string>; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('OptimizeDatasetV2', name, ExecuteOpArgs.Create([input_dataset, optimizations])
-                       .SetAttributes(['output_types',  TValue.From<TArray<TF_DataType>>( output_types ),
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
+    Result := tf.Context.ExecuteOp('OptimizeDataset', name, ExecuteOpArgs.Create([input_dataset, optimizations])
+                       .SetAttributes(['output_types',  TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes', TValue.From<TArray<TFShape>>( output_shapes ),
                                        'optimization_configs', TValue.From<TArray<string>>( optimization_configs )])).First;
 end;
@@ -301,8 +341,12 @@ end;
 function dataset_ops.optimize_dataset_v2(input_dataset, optimizations_enabled, optimizations_disabled, optimizations_default: TFTensor; output_types: TArray<TF_DataType>;
   output_shapes: TArray<TFShape>; optimization_configs: TArray<string>; name: string): TFTensor;
 begin
-    Result := tf.Context.ExecuteOp('OptimizeDataset', name, ExecuteOpArgs.Create([input_dataset, optimizations_enabled, optimizations_disabled, optimizations_default])
-                       .SetAttributes(['output_types',  TValue.From<TArray<TF_DataType>>( output_types ),
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
+    Result := tf.Context.ExecuteOp('OptimizeDatasetV2', name, ExecuteOpArgs.Create([input_dataset, optimizations_enabled, optimizations_disabled, optimizations_default])
+                       .SetAttributes(['output_types',  TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes', TValue.From<TArray<TFShape>>( output_shapes ),
                                        'optimization_configs', TValue.From<TArray<string>>( optimization_configs )])).First;
 end;
@@ -310,10 +354,14 @@ end;
 function dataset_ops.parallel_map_dataset_v2(dataset, num_parallel_calls: TFTensor; f: ConcreteFunction; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>;
   use_inter_op_parallelism: Boolean; deterministic: string; preserve_cardinality: Boolean; name: string): TFTensor;
 begin
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
     var a : TArray<TFTensor>:= [];
     Result := tf.Context.ExecuteOp('ParallelMapDatasetV2', name, ExecuteOpArgs.Create([dataset, a, num_parallel_calls])
                        .SetAttributes(['f',             TValue.From<ConcreteFunction>(f),
-                                       'output_types',  TValue.From<TArray<TF_DataType>>( output_types ),
+                                       'output_types',  TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes', TValue.From<TArray<TFShape>>( output_shapes ),
                                        'use_inter_op_parallelism',  use_inter_op_parallelism,
                                        'deterministic',             deterministic,
@@ -323,8 +371,12 @@ end;
 function dataset_ops.prefetch_dataset(input_dataset, buffer_size: TFTensor; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; slack_period: Integer;
   legacy_autotune: Boolean; name: string): TFTensor;
 begin
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
     Result := tf.Context.ExecuteOp('PrefetchDataset', name, ExecuteOpArgs.Create([input_dataset, buffer_size])
-                       .SetAttributes(['output_types',   TValue.From<TArray<TF_DataType>>( output_types ),
+                       .SetAttributes(['output_types',   TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes',  TValue.From<TArray<TFShape>>( output_shapes ),
                                        'slack_period',   slack_period,
                                        'legacy_autotune',legacy_autotune])).First;
@@ -332,47 +384,71 @@ end;
 
 function dataset_ops.range_dataset(start, stop, step: TFTensor; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; name: string): TFTensor;
 begin
+   var typeIntArray : TArray<Integer> := [];
+   for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
    Result := tf.Context.ExecuteOp('RangeDataset', name, ExecuteOpArgs.Create([start, stop, step])
-                       .SetAttributes(['output_types',   TValue.From<TArray<TF_DataType>>( output_types ),
+                       .SetAttributes(['output_types',   TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes',  TValue.From<TArray<TFShape>>( output_shapes )])).First;
 end;
 
 function dataset_ops.repeat_dataset(input_dataset, count: TFTensor; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; name: string): TFTensor;
 begin
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
    Result := tf.Context.ExecuteOp('RepeatDataset', name, ExecuteOpArgs.Create([input_dataset, count])
-                       .SetAttributes(['output_types',   TValue.From<TArray<TF_DataType>>( output_types ),
+                       .SetAttributes(['output_types',   TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes',  TValue.From<TArray<TFShape>>( output_shapes )])).First;
 end;
 
 function dataset_ops.shard_dataset(input_dataset, num_shards, index: TFTensor; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; require_non_empty: Boolean;
   name: string): TFTensor;
 begin
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
    Result := tf.Context.ExecuteOp('ShardDataset', name, ExecuteOpArgs.Create([input_dataset, num_shards, index])
                        .SetAttributes(['require_non_empty', require_non_empty,
-                                       'output_types',      TValue.From<TArray<TF_DataType>>( output_types ),
+                                       'output_types',      TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes',     TValue.From<TArray<TFShape>>( output_shapes )])).First;
 end;
 
 function dataset_ops.shuffle_dataset_v3(input_dataset, buffer_size, seed, seed2, seed_generator: TFTensor; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>;
   reshuffle_each_iteration: Boolean; name: string): TFTEnsor;
 begin
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
    Result := tf.Context.ExecuteOp('ShuffleDatasetV3', name, ExecuteOpArgs.Create([input_dataset, buffer_size, seed, seed2, seed_generator])
                        .SetAttributes(['reshuffle_each_iteration', reshuffle_each_iteration,
-                                       'output_types',             TValue.From<TArray<TF_DataType>>( output_types ),
+                                       'output_types',             TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes',            TValue.From<TArray<TFShape>>( output_shapes )])).First;
 end;
 
 function dataset_ops.skip_dataset(input_dataset, count: TFTensor; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; name: string): TFTensor;
 begin
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
    Result := tf.Context.ExecuteOp('SkipDataset', name, ExecuteOpArgs.Create([input_dataset, count])
-                       .SetAttributes(['output_types',   TValue.From<TArray<TF_DataType>>( output_types ),
+                       .SetAttributes(['output_types',   TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes',  TValue.From<TArray<TFShape>>( output_shapes )])).First;
 end;
 
 function dataset_ops.take_dataset(input_dataset, count: TFTensor; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; name: string): TFTensor;
 begin
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
    Result := tf.Context.ExecuteOp('TakeDataset', name, ExecuteOpArgs.Create([input_dataset, count])
-                       .SetAttributes(['output_types',   TValue.From<TArray<TF_DataType>>( output_types ),
+                       .SetAttributes(['output_types',   TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes',  TValue.From<TArray<TFShape>>( output_shapes )])).First;
 end;
 
@@ -390,8 +466,12 @@ end;
 
 function dataset_ops.zip_dataset(input_datasets: TArray<TFTEnsor>; output_types: TArray<TF_DataType>; output_shapes: TArray<TFShape>; name: string): TFTensor;
 begin
+    var typeIntArray : TArray<Integer> := [];
+    for var i := 0 to Length(output_types)-1 do
+       typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
+
    Result := tf.Context.ExecuteOp('ZipDataset', name, ExecuteOpArgs.Create([input_datasets])
-                       .SetAttributes(['output_types',   TValue.From<TArray<TF_DataType>>( output_types ),
+                       .SetAttributes(['output_types',   TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes',  TValue.From<TArray<TFShape>>( output_shapes )])).First;
 end;
 

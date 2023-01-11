@@ -151,6 +151,7 @@ implementation
 
 constructor TEagerTensor.Create(h: Pointer);
 begin
+    FId  := TOps.uid;
     EagerTensorHandle := h;
     Resolve;
 end;
@@ -584,6 +585,7 @@ end;
 
 procedure TEagerTensor.NewEagerTensorHandle(h: Pointer);
 begin
+    FId := Tops.uid;
     EagerTensorHandle := TFE_NewTensorHandle(h,tf.Status.Handle) ;
     tf.Status.RaiseEx;
 end;

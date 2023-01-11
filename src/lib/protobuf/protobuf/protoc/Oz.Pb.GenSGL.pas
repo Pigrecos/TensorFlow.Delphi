@@ -19,6 +19,7 @@ unit Oz.Pb.GenSGL;
 interface
 uses
   System.SysUtils, System.Generics.Collections, Oz.Cocor.Utils, Oz.Pb.Tab, Oz.Pb.CustomGen;
+
 {$Region 'TGenSGL: code generator for Oz.SGL.Collections'}
 type
   TGenSGL = class(TCustomGen)
@@ -50,6 +51,7 @@ type
 implementation
 uses
   Oz.Pb.Parser;
+
 {$Region 'TGenSGL'}
 function TGenSGL.AddItemMap(obj: PObj): string;
 begin
@@ -183,7 +185,7 @@ begin
   try
     if not FImportProcess then
     begin
-      Wrln('Self := Default(%s);', [t]);
+      Wrln('Self := System.Default(%s);', [t]);
       Wrln('var m : TsgItemMeta;');
     end else
     begin
@@ -266,7 +268,7 @@ begin
   end;
   o := msg.aux as TFieldOptions;
   if FImportProcess then n := AsCamel(msg.name)
-  else                   n := 'F' + AsCamel(msg.name);
+  else                   n := {'F' +} AsCamel(msg.name);
   if o.Rule <> TFieldRule.Repeated then
   begin
     if msg.typ.form <> TTypeMode.tmMessage then

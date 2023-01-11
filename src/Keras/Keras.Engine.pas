@@ -218,10 +218,10 @@ type
     property Layers                  : TList<ILayer>       read GetLayers;
     property InboundNodes            : TList<INode>        read GetInNodes;
     property OutboundNodes           : TList<INode>        read GetOutNodes;
-    property trainable_variables     : TList<IVariableV1>  read GetTrainVars;
-    property trainable_weights       : TList<IVariableV1>  read GetTrainW;
-    property non_trainable_weights   : TList<IVariableV1>  read GetNotTrainW;
-    property output_shape            : TFShape             read GetOutShape;
+    property TrainableVariables      : TList<IVariableV1>  read GetTrainVars;
+    property TrainableWeights        : TList<IVariableV1>  read GetTrainW;
+    property NonTrainableWeights     : TList<IVariableV1>  read GetNotTrainW;
+    property OutputShape             : TFShape             read GetOutShape;
     property BatchInputShape         : TFShape             read GetBatchShape;
     property DType                   : TF_DataType         read GetDtype;
   end;
@@ -392,7 +392,8 @@ begin
     for var i := 0 to Outputs.Count - 1 do
     begin
         var tensor          := Outputs[i];
-        tensor.KerasHistory :=  TKerasHistory.Create(layer, node_index, i);
+        var name := tensor.Op.Tipo;
+        {tensor.KerasHistory} Outputs[i].KerasHistory :=  TKerasHistory.Create(layer, node_index, i);
     end;
 end;
 

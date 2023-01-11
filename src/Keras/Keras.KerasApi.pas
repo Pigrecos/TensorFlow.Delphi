@@ -100,7 +100,15 @@ type
       /// If set, the layer will not create a placeholder tensor.
       /// </param>
       /// <returns></returns>
-      function  Input(shape: TFShape; batch_input_shape : TFShape; batch_size : Integer= -1; dtype : TF_DataType = DtInvalid; name: string = ''; sparse: Boolean = false; ragged: Boolean = false; tensor: TFTensor = nil): TFTensor;
+      function  Input(shape             : TFShape;
+                      batch_input_shape : TFShape;
+                      batch_size        : Integer= -1;
+                      dtype             : TF_DataType = DtInvalid;
+                      name              : string = '';
+                      sparse            : Boolean = false;
+                      ragged            : Boolean = false;
+                      tensor            : TFTensor = nil): TFTensor; overload;
+      function  Input(shape             : TFShape): TFTensor; overload;
       function  Sequential(layers: TList<ILayer> = nil; name : string= ''): Sequential;
       /// <summary>
       /// `Model` groups layers into an object with training and inference features.
@@ -151,6 +159,11 @@ begin
     Result := Flayers;
 end;
 
+function KerasInterface.Input(shape: TFShape): TFTensor;
+begin
+    Result := Input(shape, default(TFShape), -1, DtInvalid, '', false, false, nil);
+end;
+
 function KerasInterface.Input(shape, batch_input_shape: TFShape; batch_size: Integer; dtype: TF_DataType; name: string; sparse, ragged: Boolean; tensor: TFTensor): TFTensor;
 var
   args : InputLayerArgs;
@@ -190,7 +203,7 @@ begin
     _args.Layers := layers;
     _args.Name   := name;
 
-    Result := Sequential.Create(_args);
+    Result := Keras.Models.Sequential.Create(_args);
 end;
 
 end.

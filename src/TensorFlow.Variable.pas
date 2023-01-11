@@ -309,7 +309,7 @@ type
                            validate_shape : Boolean = true;
                            caching_device : string = '';
                            name           : string = '';
-                           variable_def   : PVariableDef= nil;
+                           variable_def   : TVariableDef= nil;
                            dtype          : TF_DataType = DtInvalid;
                            import_scope   : string = '');
         function _as_graph_element: TFTEnsor;
@@ -500,7 +500,7 @@ type
                            validate_shape   : Boolean = true;
                            caching_device   : string = '';
                            name             : string= '';
-                           variable_def     : PVariableDef= nil;
+                           variable_def     : TVariableDef= nil;
                            dtype            : TF_DataType = TF_DataType.DtInvalid;
                            import_scope     : string = '';
                            aggregation      : TVariableAggregation = TVariableAggregation.VARIABLE_AGGREGATION_NONE;
@@ -706,7 +706,7 @@ begin
 end;
 
 constructor RefVariable.Create(initial_value: PValue; trainable: Boolean; collections: TList<string>; validate_shape: Boolean; caching_device, name: string;
-  variable_def: PVariableDef; dtype: TF_DataType; import_scope: string);
+  variable_def: TVariableDef; dtype: TF_DataType; import_scope: string);
 begin
 
 end;
@@ -812,13 +812,13 @@ end;
 { ResourceVariable }
 
 constructor ResourceVariable.Create(_initial_value: PValue; _trainable: Boolean; collections: TList<string>; validate_shape: Boolean; caching_device, name: string;
-                                       variable_def: PVariableDef; dtype: TF_DataType; import_scope: string; aggregation: TVariableAggregation; shape: PTFShape);
+                                       variable_def: TVariableDef; dtype: TF_DataType; import_scope: string; aggregation: TVariableAggregation; shape: PTFShape);
 begin
     if Assigned(variable_def) then
     begin
         if Assigned(_initial_value) then
            raise  TFException.Create('variable_def and initial_value are mutually exclusive.');
-        _init_from_proto(variable_def^, import_scope);
+        _init_from_proto(variable_def, import_scope);
     end else
     begin
         _init_from_args(_initial_value, _trainable, collections, caching_device, name, dtype, aggregation, shape);
@@ -871,10 +871,10 @@ begin
                           unique_id   := handle_name+'_'+IntTostr(Tops.uid);
                           shared_name := tf.Context.shared_name;
                       end;
-                      var attr : TAttrValue; attr.Init;
-                      var lst : TListValue; lst.Init;
+                      var attr : TAttrValue := TAttrValue.Create;
+                      var lst : TListValue := TListValue.Create;
                       var b := TEncoding.UTF8.GetBytes('loc:@'+handle_name);
-                      lst.Ss.Add(@b);
+                      lst.Ss.Add(b);
                       var v : TpbOneof;
                       v.tag := TAttrValue.ftList;
                       v.value := TValue.From<TListValue>(lst);
@@ -978,7 +978,7 @@ function ResourceVariable.to_proto(export_scope: string): TVariableDef;
 begin
     if (string.IsNullOrEmpty(export_scope)) or (FHandle.name.StartsWith(export_scope)) then
     begin
-        var var_def : TVariableDef; var_def.Init;
+        var var_def : TVariableDef := TVariableDef.Create;
         var_def.VariableName := Tops.strip_name_scope(FHandle.name, export_scope);
 
         if Finitial_value <> nil then
@@ -1155,6 +1155,8 @@ end;
 function BaseResourceVariable.assign<T>(value: T; use_locking: Boolean; name: string; read_value: Boolean): TFTensor;
 begin
     var vValue := TValue.From<T>(value) ;
+    if String.lowercase(vValue.typeinfo.name) = 'tvalue' then
+          vValue := vValue.AsType<TValue>;
     if string.LowerCase(string(vValue.TypeInfo.Name)) = 'tftensor' then
     begin
         var assign := gen_state_ops.assign(FHandle, TValue.From<T>(value), True,use_locking, name);

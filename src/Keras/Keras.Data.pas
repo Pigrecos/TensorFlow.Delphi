@@ -425,9 +425,6 @@ type
   end;
 
   FlatMapDataset = class(UnaryDataset)
-    private
-      Fbatch_size    : TFTensor;
-      Fdrop_remainder: TFTensor;
     public
       constructor Create(input_dataset: IDatasetV2; map_func : TFunc<TFTensor, IDatasetV2> ) ;
   end;
@@ -538,8 +535,6 @@ type
   /// Creates a `Dataset` that prefetches elements from this dataset.
   /// </summary>
   PrefetchDataset = class(UnaryUnchangedStructureDataset)
-    private
-      Foptions : DatasetOptions;
     public
       constructor Create(input_dataset: IDatasetV2; buffer_size : int64= -1; slack_period : Integer = 0) ;
   end;
@@ -1241,7 +1236,7 @@ begin
             Fstructure := Fstructure + [ input_dataset.element_spec[i]._batch(-1) ];
     end;
 
-    variant_tensor := Fops.batch_dataset_v2(input_dataset.variant_tensor, Fbatch_size, Fdrop_remainder, Foutput_types, Foutput_shapes);
+    variant_tensor := Fops.batch_dataset_v2(input_dataset.variant_tensor, Fbatch_size, Fdrop_remainder, output_types, output_shapes);
 end;
 
 { FilterDataset }
@@ -1270,7 +1265,7 @@ begin
 
     Fstructure := func.OutputStructure;
 
-    variant_tensor := Fops.filter_dataset(input_dataset.variant_tensor, func, Foutput_types, Foutput_shapes);
+    variant_tensor := Fops.filter_dataset(input_dataset.variant_tensor, func, output_types, output_shapes);
 end;
 
 constructor FilterDataset.Create(input_dataset: IDatasetV2; predicate_func: TFunc<TFTensors, TFTensors>;  predicate_func_name: string);
@@ -1290,7 +1285,7 @@ begin
 
     Fstructure := func.OutputStructure;
 
-    variant_tensor := Fops.filter_dataset(input_dataset.variant_tensor, func, Foutput_types, Foutput_shapes);
+    variant_tensor := Fops.filter_dataset(input_dataset.variant_tensor, func, output_types, output_shapes);
 end;
 
 { FlatMapDataset }
@@ -1304,7 +1299,7 @@ begin
     func := ConcreteFunction.Create(map_func, input_dataset.element_spec[0].dtype);
     Fstructure := func.OutputStructure;
 
-    variant_tensor := Fops.flat_map_dataset(input_dataset.variant_tensor, func, Foutput_types, Foutput_shapes);
+    variant_tensor := Fops.flat_map_dataset(input_dataset.variant_tensor, func, output_types, output_shapes);
 end;
 
 { MapDataset }
@@ -1322,7 +1317,7 @@ begin
     FPreserveCardinality   := PreserveCardinality;
     FUseLegacyFunction     := UseLegacyFunction;
 
-    Func := ConcreteFunction(Format('%s_%s', [MapFunc_Name, Tops.uid_function]));
+    Func := ConcreteFunction.Create(Format('%s_%d', [MapFunc_Name, Tops.uid_function]));
     Func.Enter;
     Inputs := TFTensors.Create;
     for var Input in InputDataset.element_spec do
@@ -1333,7 +1328,7 @@ begin
 
     structure := Func.OutputStructure;
 
-    variant_tensor := Fops.map_dataset(InputDataset.variant_tensor, Func, Foutput_types, Foutput_shapes, UseInterOpParallelism, PreserveCardinality);
+    variant_tensor := Fops.map_dataset(InputDataset.variant_tensor, Func, output_types, output_shapes, UseInterOpParallelism, PreserveCardinality);
 end;
 
 
@@ -1348,7 +1343,7 @@ var
 begin
     inherited Create(InputDataset);
 
-    Func := ConcreteFunction(Format('%s_%s', [Map_Func_Name, Tops.uid_function]));
+    Func := ConcreteFunction.Create(Format('%s_%d', [Map_Func_Name, Tops.uid_function]));
     Func.Enter;
     Inputs := TFTensors.Create;
     for var Input in InputDataset.element_spec do
@@ -1361,7 +1356,7 @@ begin
 
     var _num_parallel_calls := tf.convert_to_tensor(num_parallel_calls, tf.int64_t, 'num_parallel_calls');
 
-    variant_tensor := Fops.parallel_map_dataset_v2(InputDataset.variant_tensor, _num_parallel_calls, func, Foutput_types, Foutput_shapes, use_inter_op_parallelism,'default', preserve_cardinality);
+    variant_tensor := Fops.parallel_map_dataset_v2(InputDataset.variant_tensor, _num_parallel_calls, func, output_types, output_shapes, use_inter_op_parallelism,'default', preserve_cardinality);
 end;
 
 { UnaryUnchangedStructureDataset }
@@ -1407,7 +1402,7 @@ begin
     for var i := 0 to Length(Ftensors)-1 do
       Fstructure := Fstructure + [ Ftensors[i].ToTensorSpec ];
 
-    variant_tensor := Fops.tensor_dataset(Ftensors, Foutput_shapes);
+    variant_tensor := Fops.tensor_dataset(Ftensors, output_shapes);
 end;
 
 constructor TensorDataset.Create(element: TNDArray);
@@ -1417,7 +1412,7 @@ begin
     for var i := 0 to Length(Ftensors)-1 do
       Fstructure := Fstructure + [ Ftensors[i].ToTensorSpec ];
 
-    variant_tensor := Fops.tensor_dataset(Ftensors, Foutput_shapes);
+    variant_tensor := Fops.tensor_dataset(Ftensors, output_shapes);
 end;
 
 { TensorSliceDataset }
@@ -1431,7 +1426,7 @@ begin
      for var i := 0 to Length(batched_spec)-1 do
       Fstructure := Fstructure + [ batched_spec[i]._unbatch ];
 
-     variant_tensor := Fops.tensor_slice_dataset(Ftensors, Foutput_shapes);
+     variant_tensor := Fops.tensor_slice_dataset(Ftensors, output_shapes);
 end;
 
 constructor TensorSliceDataset.Create(nArray: TNDArray);
@@ -1443,7 +1438,7 @@ begin
      for var i := 0 to Length(batched_spec)-1 do
       Fstructure := Fstructure + [ batched_spec[i]._unbatch ];
 
-     variant_tensor := Fops.tensor_slice_dataset(Ftensors, Foutput_shapes);
+     variant_tensor := Fops.tensor_slice_dataset(Ftensors, output_shapes);
 end;
 
 constructor TensorSliceDataset.Create(tTensor: TFTensor);
@@ -1454,7 +1449,7 @@ begin
      for var i := 0 to Length(batched_spec)-1 do
       Fstructure := Fstructure + [ batched_spec[i]._unbatch ];
 
-     variant_tensor := Fops.tensor_slice_dataset(Ftensors, Foutput_shapes);
+     variant_tensor := Fops.tensor_slice_dataset(Ftensors, output_shapes);
 end;
 
 constructor TensorSliceDataset.Create(tTensor, labels: TFTensor);
@@ -1465,7 +1460,7 @@ begin
      for var i := 0 to Length(batched_spec)-1 do
       Fstructure := Fstructure + [ batched_spec[i]._unbatch ];
 
-     variant_tensor := Fops.tensor_slice_dataset(Ftensors, Foutput_shapes);
+     variant_tensor := Fops.tensor_slice_dataset(Ftensors, output_shapes);
 end;
 
 { ConcatenateDataset }
@@ -1483,7 +1478,7 @@ begin
     end;
     Fstructure := _structure.ToArray();
 
-    variant_tensor := Fops.concatenate_dataset(input_dataset.variant_tensor, dataset_to_concatenate.variant_tensor, Foutput_types, Foutput_shapes);
+    variant_tensor := Fops.concatenate_dataset(input_dataset.variant_tensor, dataset_to_concatenate.variant_tensor, output_types, output_shapes);
 end;
 
 { CacheDataset }
@@ -1493,7 +1488,7 @@ begin
     inherited Create(input_dataset);
 
     Ffilename      := tf.convert_to_tensor(filename, TF_DataType.TF_STRING, 'filename');
-    variant_tensor := Fops.cache_dataset_v2(input_dataset.variant_tensor, Ffilename, Fops.dummy_memory_cache, Foutput_types, Foutput_shapes);
+    variant_tensor := Fops.cache_dataset_v2(input_dataset.variant_tensor, Ffilename, Fops.dummy_memory_cache, output_types, output_shapes);
 end;
 
 { ModelDataset }
@@ -1502,7 +1497,7 @@ constructor ModelDataset.Create(input_dataset: IDatasetV2; algorithm: AutotuneAl
 begin
     inherited Create(input_dataset);
 
-    variant_tensor := Fops.model_dataset(input_dataset.variant_tensor, Foutput_types, Foutput_shapes, algorithm, cpu_budget, ram_budget);
+    variant_tensor := Fops.model_dataset(input_dataset.variant_tensor, output_types, output_shapes, algorithm, cpu_budget, ram_budget);
 end;
 
 { OptimizeDataset }
@@ -1515,7 +1510,7 @@ begin
     var _optimizations_disabled := tf.convert_to_tensor(optimizations_disabled, TF_STRING, 'optimizations_disabled');
     var _optimizations_default  := tf.convert_to_tensor(optimizations_default,  TF_STRING, 'optimizations_default');
 
-    variant_tensor := Fops.optimize_dataset_v2(Finput_dataset.variant_tensor, _optimizations_enabled, _optimizations_disabled, _optimizations_default, Foutput_types, Foutput_shapes, optimization_configs);
+    variant_tensor := Fops.optimize_dataset_v2(Finput_dataset.variant_tensor, _optimizations_enabled, _optimizations_disabled, _optimizations_default, output_types, output_shapes, optimization_configs);
 end;
 
 { OptionsDataset }
@@ -1580,7 +1575,7 @@ begin
 
     var seed_generator := Fops.dummy_seed_generator;
     if tf.Context.executing_eagerly then
-        variant_tensor := Fops.shuffle_dataset_v3(input_dataset.variant_tensor, Fbuffer_size, Fseed, Fseed2, seed_generator, Foutput_types, Foutput_shapes, Freshuffle_each_iteration)
+        variant_tensor := Fops.shuffle_dataset_v3(input_dataset.variant_tensor, Fbuffer_size, Fseed, Fseed2, seed_generator, output_types, output_shapes, Freshuffle_each_iteration)
     else
         raise Exception.Create('Not Implemented');
 end;
@@ -1592,7 +1587,7 @@ begin
     inherited Create(input_dataset);
 
     Fcount := tf.convert_to_tensor(count, Tdtypes.cint64, 'count');
-    variant_tensor := Fops.skip_dataset(input_dataset.variant_tensor, Fcount, Foutput_types, Foutput_shapes);
+    variant_tensor := Fops.skip_dataset(input_dataset.variant_tensor, Fcount, output_types, output_shapes);
 end;
 
 { TakeDataset }
@@ -1602,7 +1597,7 @@ begin
     inherited Create(input_dataset);
 
     Fcount := tf.convert_to_tensor(count, Tdtypes.cint64, 'count');
-    variant_tensor := Fops.take_dataset(input_dataset.variant_tensor, Fcount, Foutput_types, Foutput_shapes);
+    variant_tensor := Fops.take_dataset(input_dataset.variant_tensor, Fcount, output_types, output_shapes);
 end;
 
 { ZipDataset }
@@ -1620,7 +1615,7 @@ begin
         ;
     Fstructure := _structure.ToArray;
 
-    variant_tensor := Fops.zip_dataset(input_datasets, Foutput_types, Foutput_shapes);
+    variant_tensor := Fops.zip_dataset(input_datasets, output_types, output_shapes);
 end;
 
 { DatasetManager }
@@ -1758,16 +1753,16 @@ var
   epoch        : Integer;
   data_iterator: OwnedIterator;
 begin
-  Result := TList<Tuple<Integer, OwnedIterator>>.Create;
-  for epoch := initial_epoch to epochs - 1 do
-  begin
-    if Finsufficient_data then
-      Break;
+    Result := TList<Tuple<Integer, OwnedIterator>>.Create;
+    for epoch := initial_epoch to epochs - 1 do
+    begin
+      if Finsufficient_data then
+        Break;
 
-    data_iterator := OwnedIterator.Create(Fdataset);
-    TList<Tuple<Integer, OwnedIterator>>(Result).Add(Tuple<Integer, OwnedIterator>.Create(epoch, data_iterator));
-  end;
-  // _adapter.on_epoch_end()
+      data_iterator := OwnedIterator.Create(Fdataset);
+      TList<Tuple<Integer, OwnedIterator>>(Result).Add(Tuple<Integer, OwnedIterator>.Create(epoch, data_iterator));
+    end;
+    // _adapter.on_epoch_end()
 end;
 
 function DataHandler.steps: TEnumerable<Int64>;

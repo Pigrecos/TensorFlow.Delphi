@@ -147,6 +147,7 @@ end;
 implementation
       uses Tensorflow,
            TensorFlow.EagerTensor,
+           TensorFlow.Functions,
            TensorFlow.Ops,
            Tensorflow.Utils,
            Oz.SGL.Collections;
@@ -340,20 +341,24 @@ begin
     end;
 end;
 function TEagerRunner.SetOpAttrList(ctx: TContext; op: PTFE_Op; key: string; values: TValue; Tipo: TF_AttrType; attr_list_sizes: TDictionary<string, Int64>; status: TFStatus): Boolean;
+var
+   StrArrray : TArray<string>;
+   pStrArray : TArray<AnsiString>;
+   vlen      : TArray<UInt64>;
 begin
     if (tipo = TF_AttrType.TF_ATTR_STRING) and (values.IsType< TArray<string> > ) then
     begin
-        var values3 := values.AsType< TArray<string> >;
-        var vvalues3 : TArray<PAnsiChar>;
-        var vlen     : TArray<UInt64>;
-        for var i := 0 to Length(values3) - 1 do
+        StrArrray := values.AsType< TArray<string> >;
+        pStrArray := [];
+        vlen     := [];
+        for var i := 0 to Length(StrArrray) - 1 do
         begin
-            vvalues3 := vvalues3 + [ PAnsiChar(AnsiString(values3[i])) ];
-            vlen     := vlen + [ Length( values3[i] ) ];
+            pStrArray := pStrArray + [ AnsiString(StrArrray[i]) ];
+            vlen      := vlen + [ Length( pStrArray[i] ) ];
         end;
-        TFE_OpSetAttrStringList(op, PAnsiChar(AnsiString(key)), @vvalues3[0],@vlen[0], Length(values3));
+        TFE_OpSetAttrStringList(op, PAnsiChar(AnsiString(key)), @pStrArray[0],@vlen[0], Length(pStrArray));
         if attr_list_sizes <> nil then
-          attr_list_sizes.Add(key, Length(values3) );
+          attr_list_sizes.Add(key, Length(pStrArray) );
     end
     else if (tipo = TF_AttrType.TF_ATTR_SHAPE) and (values.IsType< TArray<TFShape> >) then
     begin
@@ -436,12 +441,13 @@ begin
          end;
       TF_AttrType.TF_ATTR_FUNC:
          begin
-           raise Exception.Create('Not Implemented, SetOpAttrScalar for'+ TEnum.GetName(tipo));
-           (* if (value is ConcreteFunction func)
-                TFE_OpSetAttrFunctionName(op, PAnsiChar(AnsiString(key)), func.Name, func.Name.Length);
-            else
-                throw new NotImplementedException("TF_AttrType.TF_ATTR_FUNC");
-           *)
+             if value.IsType<ConcreteFunction> then
+             begin
+                 var func := value.AsType<ConcreteFunction>;
+                 TFE_OpSetAttrFunctionName(op, PAnsiChar(AnsiString(key)), PAnsiChar(AnsiString(func.Name)), func.Name.Length);
+             end else
+                 raise Exception.Create('Not Implemented, SetOpAttrScalar for'+ TEnum.GetName(tipo));
+
          end;
       else
          raise Exception.Create('Not Implemented, SetOpAttrScalar for'+ TEnum.GetName(tipo));
@@ -459,7 +465,7 @@ begin
         TFE_OpReset(op, PAnsiChar(op_or_function_name), PAnsiChar(AnsiString(ctx.DeviceName)), status.Handle);
     end else
     begin
-        op := TFE_NewOp(ctx.Handle, PAnsiChar(op_or_function_name), status.Handle);
+        op := TFE_NewOp(ctx.Handle_, PAnsiChar(op_or_function_name), status.Handle);
         thread_local_eager_operation_map.Add(op_or_function_name,op);
     end;
     status.RaiseEx;
@@ -554,15 +560,15 @@ end;
 
 function TEagerRunner.TFE_FastPathExecute(op_exec_info: TFastPathOpExecInfo): TArray<TFTensor>;
 
-   function FindAttr(a: TsgRecordList<TAttrDef>; sName : AnsiString): PAttrDef;
+   function FindAttr(a: TList<TAttrDef>; sName : AnsiString): TAttrDef;
    var
      i : Integer;
    begin
        Result := nil;
        for i := 0 to a.Count-1 do
        begin
-           if AnsiString(a[i]^.Name) = sName then
-             Exit( PAttrDef(a[i]) );
+           if AnsiString(a[i].Name) = sName then
+             Exit( a[i] );
        end;
    end;
 
@@ -599,9 +605,9 @@ begin
             var attr := FindAttr(op_def.Attrs, attr1.Key);
             if attr <> nil then
             begin
-                flattened_attrs.Add(attr^.Name);
+                flattened_attrs.Add(attr.Name);
                 flattened_attrs.Add(attr1.Value);
-                SetOpAttrWithDefaults(op_exec_info.ctx, op, attr^, attr.Name, attr1.Value, attr_list_sizes, status);
+                SetOpAttrWithDefaults(op_exec_info.ctx, op, attr, attr.Name, attr1.Value, attr_list_sizes, status);
                 status.RaiseEx;
             end
         end;
@@ -612,7 +618,7 @@ begin
     for var i := 0 to op_def.InputArgs.Count - 1 do
     begin
         var input     := op_exec_info.args[i];
-        var input_arg := op_def.InputArgs[i]^;
+        var input_arg := op_def.InputArgs[i];
         if not string.IsNullOrEmpty(input_arg.NumberAttr) then
         begin
             var len : Int64 := input.GetArrayLength ;

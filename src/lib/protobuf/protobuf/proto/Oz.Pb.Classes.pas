@@ -21,8 +21,6 @@ uses
   System.Classes, System.SysUtils, System.Math, System.Rtti, System.TypInfo,
   Oz.Pb.StrBuffer, Oz.SGL.Heap, Oz.SGL.Collections;
 {$T+}
-{$HINTS OFF}
-
 const
   TAG_TYPE_BITS = 3;
   TAG_TYPE_MASK = (1 shl TAG_TYPE_BITS) - 1;
@@ -83,6 +81,7 @@ type
     value: TValue;
   end;
 {$EndRegion}
+
 {$Region 'TpbInput: Decode data from the buffer and place them to object fields'}
   PpbInput = ^TpbInput;
   TpbInput = record
@@ -93,10 +92,13 @@ type
     FBuf: PByte;
     FLast: PByte;
     FCurrent: PByte;
+    FPosition : UInt64;
     FLastTag: TpbTag;
+    FHasNextTag    : Boolean;
     FOwnsData: Boolean;
     FRecursionDepth: ShortInt;
     FStack: array [0 .. RECURSION_LIMIT - 1] of PByte;
+    function GetPos: UInt64;
   public
     procedure Init; overload;
     procedure Init(const pb: TpbInput); overload;
@@ -181,6 +183,8 @@ type
     procedure skipRawBytes(size: Integer);
     // Return the content as a string
     function ToString(lo: Integer = 0): string;
+
+    property Position : UInt64 read GetPos;
   end;
 {$EndRegion}
 {$Region 'TpbOutput: Encode the object fields and and write them to buffer'}
@@ -375,11 +379,53 @@ type
   end;
 {$EndRegion}
 {$Region 'Procedures'}
+function Is_Packable(wType: TWireType) : Boolean;
+function IsPackedRepeatedField(tag :TpbTag; tInfo: TValue): Boolean;
 function decodeZigZag32(n: Integer): Integer;
 function decodeZigZag64(n: Int64): Int64;
 {$EndRegion}
 implementation
 {$Region 'Procedures'}
+
+(*
+inline static bool is_packable(WireFormatLite::WireType type) {
+    switch (type) {
+      case WireFormatLite::WIRETYPE_VARINT:
+      case WireFormatLite::WIRETYPE_FIXED64:
+      case WireFormatLite::WIRETYPE_FIXED32:
+        return true;
+      case WireFormatLite::WIRETYPE_LENGTH_DELIMITED:
+      case WireFormatLite::WIRETYPE_START_GROUP:
+      case WireFormatLite::WIRETYPE_END_GROUP:
+        return false;
+
+        // Do not add a default statement. Let the compiler complain when
+        // someone
+        // adds a new wire type.
+    }
+*)
+function Is_Packable(wType: TWireType) : Boolean;
+begin
+   case wType of
+    TWire.VARINT,
+    TWire.FIXED64,
+    TWire.FIXED32          : Result := True;
+    TWire.LENGTH_DELIMITED,
+    TWire.START_GROUP,
+    TWire.END_GROUP        : Result := False;
+   else
+      Result := False ;
+   end;
+end;
+
+function IsPackedRepeatedField(tag :TpbTag; tInfo: TValue): Boolean;
+begin
+    Result := (tInfo.IsOrdinal) or (tInfo.TypeInfo.Kind = tkFloat);
+
+    Result := Result and (tag.WireType = TWire.LENGTH_DELIMITED) ;
+end;
+
+
 function decodeZigZag32(n: Integer): Integer;
 begin
   Result := (n shr 1) xor -(n and 1);
@@ -427,6 +473,8 @@ end;
 procedure TpbInput.Init;
 begin
   Self := Default(TpbInput);
+  FHasNextTag    := True;
+  FPosition      := 0;
 end;
 procedure TpbInput.Init(Buf: PByte; BufSize: Integer; OwnsData: Boolean);
 begin
@@ -442,6 +490,8 @@ begin
   end;
   FCurrent := FBuf;
   FLast := FBuf + BufSize;
+  FHasNextTag    := True;
+  FPosition      := 0;
 end;
 procedure TpbInput.Init(const pb: TpbInput);
 begin
@@ -449,6 +499,8 @@ begin
   FCurrent := FBuf;
   FLast := pb.FLast;
   Self.FOwnsData := False;
+  FHasNextTag    := True;
+  FPosition      := 0;
 end;
 class function TpbInput.From(const Buf: TBytes): TpbInput;
 begin
@@ -459,6 +511,11 @@ class function TpbInput.From(Buf: PByte; BufSize: Integer;
 begin
   Result.Init(Buf, BufSize, OwnsData);
 end;
+function TpbInput.GetPos: UInt64;
+begin
+    Result :=FPosition
+end;
+
 function TpbInput.Eof: Boolean;
 begin
   Result := FCurrent >= FLast;
@@ -467,8 +524,11 @@ function TpbInput.ConsumeTag(tag : Integer): Boolean;
 begin
     Result := False;
     var tTag := readTag;
+
     if tTag.v = tag then
-       Result := True;
+       Result := True
+    else
+       FHasNextTag := False;
 end;
 procedure TpbInput.Free;
 begin
@@ -478,6 +538,15 @@ begin
 end;
 function TpbInput.readTag: TpbTag;
 begin
+  if FHasNextTag = False then
+  begin
+      FHasNextTag := True;
+      Exit(FLastTag);
+  end;
+
+  if FPosition >= 6600 then
+     FPosition :=FPosition;
+
   if FCurrent < FLast then
     FLastTag.v := readRawVarint32
   else
@@ -631,6 +700,7 @@ begin
     raise EProtobufError.Create(EProtobufError.EofEncounterd);
   Result := ShortInt(FCurrent^);
   Inc(FCurrent);
+  Inc(FPosition);
 end;
 procedure TpbInput.readRawBytes(var data; size: Integer);
 begin
@@ -638,6 +708,7 @@ begin
     raise EProtobufError.Create(EProtobufError.EofEncounterd);
   Move(FCurrent^, data, size);
   Inc(FCurrent, size);
+  Inc(FPosition, size);
 end;
 function TpbInput.readBytes: TBytes;
 var
@@ -651,6 +722,7 @@ begin
   SetLength(Result, size);
   Move(FCurrent^, Pointer(Result)^, size);
   Inc(FCurrent, size);
+  Inc(FPosition, size);
 end;
 procedure TpbInput.skipRawBytes(size: Integer);
 begin
@@ -659,6 +731,7 @@ begin
   if FCurrent > FLast then
     raise EProtobufError.Create(EProtobufError.TruncatedMessage);
   Inc(FCurrent, size);
+  Inc(FPosition, size);
 end;
 function TpbInput.ToString(lo: Integer): string;
 var
@@ -716,6 +789,7 @@ begin
   FCurrent := FBuf;
   FLast := FBuf + Size;
   Stream.Position := 0;
+  FPosition := 0;
   Stream.Read(Pointer(FBuf)^, Size);
 end;
 procedure TpbInput.mergeFrom(const builder: TpbInput);
@@ -743,7 +817,7 @@ begin
    if FCurrent <> FLast then
        var position := FCurrent - FBuf ;
 
-  Assert(FCurrent = FLast);
+  Assert(FCurrent = FLast, 'Stream.Position ='+FPosition.ToString);
   dec(FRecursionDepth);
   FLast := FStack[FRecursionDepth];
 end;
