@@ -888,6 +888,15 @@ begin
        TpbSaver.SaveAttrValue(S,attr.Value);
        bytes:= s.Pb.GetBytes;
        var Len : NativeInt := Length(bytes);
+
+       (*  // Solo per test
+       var Loader : TpbLoader ; Loader.Init;
+       Loader.Pb.Init(@bytes[0],Length(bytes),false);
+
+       var AttrValue : TAttrValue ;
+       loader.LoadAttrValue(AttrValue);
+       *)
+
        TF_SetAttrValueProto(op_desc.Handle, PTFChar( TF_TString(attr.Key)), @bytes[0], Len, status.Handle);
        status.CheckMaybeRaise(status,True);
    end;

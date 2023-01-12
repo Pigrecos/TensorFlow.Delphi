@@ -1649,7 +1649,7 @@ begin
     Assert.AreEqual(model.Layers.Count, 8);
 
     for var i := 0 to tf.MemoLog.Count-1 do
-         frmMain.mmo1.Lines.add( tf.MemoLog[i]);
+      frmMain.mmo1.Lines.add( tf.MemoLog[i]);
 
     var res := model.predict(tf.constant(np.arange(24).astype(np.np_float32)[ [np.newaxis, Slice.All] ]));
 

@@ -564,7 +564,7 @@ begin
           for var i := 0 to Length(l) - 1 do
           begin
               var d : TTensorShapeProto := _MakeShape(l[i],attr_def);
-              v1.Shapes.Add(@d)
+              v1.Shapes.Add(d)
           end;
           v.value := TValue.From<TListValue>(v1);
           v.tag   := TAttrValue.ftList;

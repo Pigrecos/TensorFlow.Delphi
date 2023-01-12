@@ -1203,8 +1203,6 @@ end;
 implementation
    uses Oz.Pb.Classes, Oz.SGL.Collections,oz.Pb.StrBuffer, pbPublic, pbInput, pbOutput,
 
-        LoggerPro.VCLMemoAppender,
-
         NumPy.NDArray,
         TensorFlow.EagerTensor,
         TensorFlow.Ops ,
@@ -2545,4 +2543,5 @@ begin
 end;
 
 end.
+
 

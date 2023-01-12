@@ -280,7 +280,7 @@ begin
     var c := tf.strings.substr(a, 4, 8);
     var sess := tf.Session;
     var res : TArray<TF_TString> := c.eval(sess).StringData;
-    //Assert.AreEqual<String>( res[0], 'heythere');
+    Assert.AreEqual<String>( res[0], 'heythere');
 
 end;
 
@@ -297,9 +297,9 @@ end;
 
 procedure TUnitTest_Basic.Tensor_boolean_mask;
 begin
-   var tensor := [ 0, 1, 2, 3 ];
+   var tensor : TArray<Integer> := [ 0, 1, 2, 3 ];
    var mask   := np.np_array<Boolean>([ true, false, true, false ]);
-   var masked := tf.boolean_mask(tensor, mask);
+   var masked := tf.boolean_mask<TArray<Integer>, TNDArray>(tensor, mask);
 
    var sess := tf.Session;
    var res := sess.run(masked);

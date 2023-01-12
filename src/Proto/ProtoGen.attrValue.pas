@@ -30,14 +30,14 @@ type
     ftTensors = 8;
     ftFuncs = 9;
   private
-    FSs: TList<TBytes>;
-    FIs: TList<Int64>;
-    FFs: TList<Single>;
-    FBs: TList<Boolean>;
-    FTypes: TList<TDataType>;
-    FShapes: TList<TTensorShapeProto>;
+    FSs     : TList<TBytes>;
+    FIs     : TList<Int64>;
+    FFs     : TList<Single>;
+    FBs     : TList<Boolean>;
+    FTypes  : TList<TDataType>;
+    FShapes : TList<TTensorShapeProto>;
     FTensors: TList<TTensorProto>;
-    FFuncs: TList<TNameAttrList>;
+    FFuncs  : TList<TNameAttrList>;
   public
     Constructor Create;
     destructor  Destroy; Override;

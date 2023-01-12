@@ -93,25 +93,27 @@ end;
 class function constant_op.convert_to_graph_tensor(value: TValue; dtype: TF_DataType; shape: TFShape; name: AnsiString; verify_shape,
   allow_broadcast: Boolean): TFTensor;
 var
-  v : TpbOneof;
+  v            : TpbOneof;
+  tp           : TTensorProto;
+  tensor_value,
+  dtype_value  : TAttrValue;
+   attrs       : TDictionary<string, TAttrValue>;
 begin
     var g : TFGraph := TOps.get_default_graph;
 
-    var tp := TUtils.make_tensor_proto(value, dtype,@shape, verify_shape, allow_broadcast);
+    tp := TUtils.make_tensor_proto(value, dtype,@shape, verify_shape, allow_broadcast);
 
-    var tensor_value : TAttrValue;
-    tensor_value := TAttrValue.Create;
-    v.tag   := TAttrValue.ftTensor;
-    v.value := TValue.From<TTensorProto>(tp);
+    v.tag        := TAttrValue.ftTensor;
+    v.value      := TValue.From<TTensorProto>(tp);
+    tensor_value       := TAttrValue.Create;
     tensor_value.Value := v;
-
-    var dtype_value : TAttrValue;
-    dtype_value := TAttrValue.Create;
+    //
     v.tag   := TAttrValue.ftType;
     v.value := TValue.From<Integer>( Ord(dtype)  );
+    dtype_value       := TAttrValue.Create;
     dtype_value.Value := v;
 
-    var attrs := TDictionary<string, TAttrValue>.Create;
+    attrs := TDictionary<string, TAttrValue>.Create;
 
     attrs.Add('value',tensor_value);
     attrs.Add('dtype',dtype_value);

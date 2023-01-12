@@ -726,7 +726,8 @@ begin
                 while not Pb.Eof do
                 begin
                   var v : TBytes := Pb.readBytes;
-                  Value.StringVals.Add(v);
+                  if Length(v) > 0   then
+                      Value.StringVals.Add(v);
                 end
               finally
                 Pb.Pop;
@@ -735,7 +736,8 @@ begin
             else begin
               repeat
                 var v : TBytes := Pb.readBytes;
-                Value.StringVals.Add(v);
+                if Length(v) > 0   then
+                    Value.StringVals.Add(v);
               until not Pb.ConsumeTag(tag.v);
             end;
         end;
@@ -958,109 +960,133 @@ begin
   S.Pb.writeInt32(TTensorProto.ftDtype, Ord(Value.Dtype));
   if Value.TensorShape <> nil then
     S.SaveObj<TTensorShapeProto>(Value.TensorShape, SaveTensorShapeProto, TTensorProto.ftTensorShape);
+
   S.Pb.writeInt32(TTensorProto.ftVersionNumber, Value.VersionNumber);
   S.Pb.writeBytes(TTensorProto.ftTensorContent, Value.TensorContent);
+
   h.Init;
   try
     for i := 0 to Value.HalfVals.Count - 1 do
       h.Pb.writeRawVarint32(Value.HalfVals[i]);
-    S.Pb.writeMessage(TTensorProto.ftHalfVals, h.Pb^);
+    if Value.HalfVals.Count > 0 then
+      S.Pb.writeMessage(TTensorProto.ftHalfVals, h.Pb^);
   finally
     h.Free;
   end;
+
   h.Init;
   try
     for i := 0 to Value.FloatVals.Count - 1 do
-   begin
+    begin
       var vVar : Single := Value.FloatVals[i];
       h.Pb.writeRawData(@vVar, sizeof(Single));
-   end;
-    S.Pb.writeMessage(TTensorProto.ftFloatVals, h.Pb^);
+    end;
+    if Value.FloatVals.Count > 0 then
+      S.Pb.writeMessage(TTensorProto.ftFloatVals, h.Pb^);
   finally
     h.Free;
   end;
+
   h.Init;
   try
     for i := 0 to Value.DoubleVals.Count - 1 do
-   begin
+    begin
       var vVar : Double := Value.DoubleVals[i];
       h.Pb.writeRawData(@vVar, sizeof(Double));
-   end;
-    S.Pb.writeMessage(TTensorProto.ftDoubleVals, h.Pb^);
+    end;
+    if Value.DoubleVals.Count > 0 then
+      S.Pb.writeMessage(TTensorProto.ftDoubleVals, h.Pb^);
   finally
     h.Free;
   end;
+
   h.Init;
   try
     for i := 0 to Value.IntVals.Count - 1 do
       h.Pb.writeRawVarint32(Value.IntVals[i]);
-    S.Pb.writeMessage(TTensorProto.ftIntVals, h.Pb^);
+    if Value.IntVals.Count > 0 then
+      S.Pb.writeMessage(TTensorProto.ftIntVals, h.Pb^);
   finally
     h.Free;
   end;
+
   h.Init;
   try
     for i := 0 to Value.StringVals.Count - 1 do
-      h.Pb.writeRawBytes(Value.StringVals[i]);
-    S.Pb.writeMessage(TTensorProto.ftStringVals, h.Pb^);
+      h.Pb.writeRawData(Value.StringVals[i], Length(Value.StringVals[i]));
+    if Value.StringVals.Count > 0 then  
+      S.Pb.writeMessage(TTensorProto.ftStringVals, h.Pb^);
   finally
     h.Free;
   end;
+
   h.Init;
   try
     for i := 0 to Value.ScomplexVals.Count - 1 do
-   begin
+    begin
       var vVar : Single := Value.ScomplexVals[i];
       h.Pb.writeRawData(@vVar, sizeof(Single));
-   end;
-    S.Pb.writeMessage(TTensorProto.ftScomplexVals, h.Pb^);
+    end;
+    if Value.ScomplexVals.Count > 0 then
+      S.Pb.writeMessage(TTensorProto.ftScomplexVals, h.Pb^);
   finally
     h.Free;
   end;
+
   h.Init;
   try
     for i := 0 to Value.Int64Vals.Count - 1 do
       h.Pb.writeRawVarint64(Value.Int64Vals[i]);
-    S.Pb.writeMessage(TTensorProto.ftInt64Vals, h.Pb^);
+    if Value.Int64Vals.Count > 0then
+      S.Pb.writeMessage(TTensorProto.ftInt64Vals, h.Pb^);
   finally
     h.Free;
   end;
+
   h.Init;
   try
     for i := 0 to Value.BoolVals.Count - 1 do
       h.Pb.writeRawVarint32(Integer(Value.BoolVals[i]));
-    S.Pb.writeMessage(TTensorProto.ftBoolVals, h.Pb^);
+    if Value.BoolVals.Count > 0 then
+      S.Pb.writeMessage(TTensorProto.ftBoolVals, h.Pb^);
   finally
     h.Free;
   end;
+
   h.Init;
   try
     for i := 0 to Value.DcomplexVals.Count - 1 do
-   begin
+    begin
       var vVar : Double := Value.DcomplexVals[i];
       h.Pb.writeRawData(@vVar, sizeof(Double));
-   end;
-    S.Pb.writeMessage(TTensorProto.ftDcomplexVals, h.Pb^);
+    end;
+    if Value.DcomplexVals.Count > 0 then
+      S.Pb.writeMessage(TTensorProto.ftDcomplexVals, h.Pb^);
   finally
     h.Free;
   end;
+  
   if Value.ResourceHandleVals.Count > 0 then
     S.SaveList<TResourceHandleProto>(Value.ResourceHandleVals, SaveResourceHandleProto, TTensorProto.ftResourceHandleVals);
   if Value.VariantVals.Count > 0 then
     S.SaveList<TVariantTensorDataProto>(Value.VariantVals, SaveVariantTensorDataProto, TTensorProto.ftVariantVals);
+
   h.Init;
   try
     for i := 0 to Value.Uint32Vals.Count - 1 do
       h.Pb.writeRawVarint32(Value.Uint32Vals[i]);
-    S.Pb.writeMessage(TTensorProto.ftUint32Vals, h.Pb^);
+    if Value.Uint32Vals.Count > 0 then
+      S.Pb.writeMessage(TTensorProto.ftUint32Vals, h.Pb^);
   finally
     h.Free;
   end;
+
   h.Init;
   try
     for i := 0 to Value.Uint64Vals.Count - 1 do
       h.Pb.writeRawVarint64(Value.Uint64Vals[i]);
-    S.Pb.writeMessage(TTensorProto.ftUint64Vals, h.Pb^);
+    if Value.Uint64Vals.Count > 0 then
+      S.Pb.writeMessage(TTensorProto.ftUint64Vals, h.Pb^);
   finally
     h.Free;
   end;
@@ -1099,7 +1125,8 @@ begin
                 while not Pb.Eof do
                 begin
                   var v : TBytes := Pb.readBytes;
-                  Value.Ss.Add(v);
+                  if Length(v) > 0   then
+                     Value.Ss.Add(v);
                 end
               finally
                 Pb.Pop;
@@ -1108,7 +1135,8 @@ begin
             else begin
               repeat
                 var v : TBytes := Pb.readBytes;
-                Value.Ss.Add(v);
+                if Length(v) > 0   then
+                    Value.Ss.Add(v);
               until not Pb.ConsumeTag(tag.v);
             end;
         end;
@@ -1418,51 +1446,64 @@ begin
   try
     for i := 0 to Value.Ss.Count - 1 do
       h.Pb.writeRawBytes(Value.Ss[i]);
-    S.Pb.writeMessage(TListValue.ftSs, h.Pb^);
+    if Value.Ss.Count > 0 then
+      S.Pb.writeMessage(TListValue.ftSs, h.Pb^);
   finally
     h.Free;
   end;
+
   h.Init;
   try
     for i := 0 to Value.&Is.Count - 1 do
       h.Pb.writeRawVarint64(Value.&Is[i]);
-    S.Pb.writeMessage(TListValue.ftIs, h.Pb^);
+    if Value.&Is.Count > 0 then
+      S.Pb.writeMessage(TListValue.ftIs, h.Pb^);
   finally
     h.Free;
   end;
+
   h.Init;
   try
     for i := 0 to Value.Fs.Count - 1 do
-   begin
+    begin
       var vVar : Single := Value.Fs[i];
       h.Pb.writeRawData(@vVar, sizeof(Single));
-   end;
-    S.Pb.writeMessage(TListValue.ftFs, h.Pb^);
+    end;
+    if  Value.Fs.Count > 0 then
+      S.Pb.writeMessage(TListValue.ftFs, h.Pb^);
   finally
     h.Free;
   end;
+
   h.Init;
   try
     for i := 0 to Value.Bs.Count - 1 do
       h.Pb.writeRawVarint32(Integer(Value.Bs[i]));
-    S.Pb.writeMessage(TListValue.ftBs, h.Pb^);
+    if Value.Bs.Count > 0 then
+      S.Pb.writeMessage(TListValue.ftBs, h.Pb^);
   finally
     h.Free;
   end;
+
   h.Init;
   try
     for i := 0 to Value.&Types.Count - 1 do
       h.Pb.writeRawVarint32(Ord(Value.&Types[i]));
-    S.Pb.writeMessage(TListValue.ftTypes, h.Pb^);
+    if Value.&Types.Count >0  then
+      S.Pb.writeMessage(TListValue.ftTypes, h.Pb^);
   finally
     h.Free;
   end;
+
   if Value.Shapes.Count > 0 then
     S.SaveList<TTensorShapeProto>(Value.Shapes, SaveTensorShapeProto, TListValue.ftShapes);
+
   if Value.Tensors.Count > 0 then
     S.SaveList<TTensorProto>(Value.Tensors, SaveTensorProto, TListValue.ftTensors);
+
   if Value.Funcs.Count > 0 then
     S.SaveList<TNameAttrList>(Value.Funcs, SaveNameAttrList, TListValue.ftFuncs);
+
 end;
 
 class procedure TSaveHelper.SaveAttrValue(const S: TpbSaver; const Value: TAttrValue);
@@ -1859,7 +1900,8 @@ begin
   try
     for i := 0 to Value.ControlInputs.Count - 1 do
       h.Pb.writeRawVarint32(Value.ControlInputs[i]);
-    S.Pb.writeMessage(TNode.ftControlInputs, h.Pb^);
+    if Value.ControlInputs.Count > 0 then
+      S.Pb.writeMessage(TNode.ftControlInputs, h.Pb^);
   finally
     h.Free;
   end;
@@ -2115,7 +2157,8 @@ begin
   try
     for i := 0 to Value.CoordinatedJobss.Count - 1 do
       h.Pb.writeRawString(Value.CoordinatedJobss[i]);
-    S.Pb.writeMessage(TCoordinationServiceConfig.ftCoordinatedJobss, h.Pb^);
+    if Value.CoordinatedJobss.Count > 0 then
+      S.Pb.writeMessage(TCoordinationServiceConfig.ftCoordinatedJobss, h.Pb^);
   finally
     h.Free;
   end;
@@ -2503,7 +2546,8 @@ begin
   try
     for i := 0 to Value.ControlOutputs.Count - 1 do
       h.Pb.writeRawString(Value.ControlOutputs[i]);
-    S.Pb.writeMessage(TOpDef.ftControlOutputs, h.Pb^);
+    if Value.ControlOutputs.Count > 0 then
+      S.Pb.writeMessage(TOpDef.ftControlOutputs, h.Pb^);
   finally
     h.Free;
   end;
@@ -2832,7 +2876,8 @@ begin
   try
     for i := 0 to Value.DebugOpss.Count - 1 do
       h.Pb.writeRawString(Value.DebugOpss[i]);
-    S.Pb.writeMessage(TDebugTensorWatch.ftDebugOpss, h.Pb^);
+    if Value.DebugOpss.Count >0 then
+      S.Pb.writeMessage(TDebugTensorWatch.ftDebugOpss, h.Pb^);
   finally
     h.Free;
   end;
@@ -2840,7 +2885,8 @@ begin
   try
     for i := 0 to Value.DebugUrlss.Count - 1 do
       h.Pb.writeRawString(Value.DebugUrlss[i]);
-    S.Pb.writeMessage(TDebugTensorWatch.ftDebugUrlss, h.Pb^);
+    if Value.DebugUrlss.Count > 0 then
+      S.Pb.writeMessage(TDebugTensorWatch.ftDebugUrlss, h.Pb^);
   finally
     h.Free;
   end;
@@ -2869,7 +2915,8 @@ begin
   try
     for i := 0 to Value.Liness.Count - 1 do
       h.Pb.writeRawString(Value.Liness[i]);
-    S.Pb.writeMessage(TDebuggedSourceFile.ftLiness, h.Pb^);
+    if Value.Liness.Count > 0 then
+      S.Pb.writeMessage(TDebuggedSourceFile.ftLiness, h.Pb^);
   finally
     h.Free;
   end;
@@ -2947,7 +2994,8 @@ begin
   try
     for i := 0 to Value.BadConsumerss.Count - 1 do
       h.Pb.writeRawVarint32(Value.BadConsumerss[i]);
-    S.Pb.writeMessage(TVersionDef.ftBadConsumerss, h.Pb^);
+    if Value.BadConsumerss.Count > 0 then
+      S.Pb.writeMessage(TVersionDef.ftBadConsumerss, h.Pb^);
   finally
     h.Free;
   end;
@@ -3181,7 +3229,8 @@ begin
   try
     for i := 0 to Value.FullShapes.Count - 1 do
       h.Pb.writeRawVarint64(Value.FullShapes[i]);
-    S.Pb.writeMessage(TSaveSliceInfoDef.ftFullShapes, h.Pb^);
+    if  Value.FullShapes.Count > 0 then
+      S.Pb.writeMessage(TSaveSliceInfoDef.ftFullShapes, h.Pb^);
   finally
     h.Free;
   end;
@@ -3189,7 +3238,8 @@ begin
   try
     for i := 0 to Value.VarOffsets.Count - 1 do
       h.Pb.writeRawVarint64(Value.VarOffsets[i]);
-    S.Pb.writeMessage(TSaveSliceInfoDef.ftVarOffsets, h.Pb^);
+    if  Value.VarOffsets.Count > 0 then
+      S.Pb.writeMessage(TSaveSliceInfoDef.ftVarOffsets, h.Pb^);
   finally
     h.Free;
   end;
@@ -3197,7 +3247,8 @@ begin
   try
     for i := 0 to Value.VarShapes.Count - 1 do
       h.Pb.writeRawVarint64(Value.VarShapes[i]);
-    S.Pb.writeMessage(TSaveSliceInfoDef.ftVarShapes, h.Pb^);
+    if Value.VarShapes.Count > 0 then
+      S.Pb.writeMessage(TSaveSliceInfoDef.ftVarShapes, h.Pb^);
   finally
     h.Free;
   end;
@@ -3761,7 +3812,8 @@ begin
   try
     for i := 0 to Value.InputTensorsNeededs.Count - 1 do
       h.Pb.writeRawVarint32(Value.InputTensorsNeededs[i]);
-    S.Pb.writeMessage(TCppShapeInferenceInputsNeeded.ftInputTensorsNeededs, h.Pb^);
+    if Value.InputTensorsNeededs.Count > 0 then
+      S.Pb.writeMessage(TCppShapeInferenceInputsNeeded.ftInputTensorsNeededs, h.Pb^);
   finally
     h.Free;
   end;
@@ -3769,7 +3821,8 @@ begin
   try
     for i := 0 to Value.InputTensorsAsShapesNeededs.Count - 1 do
       h.Pb.writeRawVarint32(Value.InputTensorsAsShapesNeededs[i]);
-    S.Pb.writeMessage(TCppShapeInferenceInputsNeeded.ftInputTensorsAsShapesNeededs, h.Pb^);
+    if Value.InputTensorsAsShapesNeededs.Count > 0 then
+      S.Pb.writeMessage(TCppShapeInferenceInputsNeeded.ftInputTensorsAsShapesNeededs, h.Pb^);
   finally
     h.Free;
   end;
@@ -4135,7 +4188,8 @@ begin
   try
     for i := 0 to Value.EnableOps.Count - 1 do
       h.Pb.writeRawString(Value.EnableOps[i]);
-    S.Pb.writeMessage(TScopedAllocatorOptions.ftEnableOps, h.Pb^);
+    if Value.EnableOps.Count > 0 then
+      S.Pb.writeMessage(TScopedAllocatorOptions.ftEnableOps, h.Pb^);
   finally
     h.Free;
   end;
@@ -4205,7 +4259,8 @@ begin
   try
     for i := 0 to Value.Optimizerss.Count - 1 do
       h.Pb.writeRawString(Value.Optimizerss[i]);
-    S.Pb.writeMessage(TRewriterConfig.ftOptimizerss, h.Pb^);
+    if  Value.Optimizerss.Count > 0 then
+      S.Pb.writeMessage(TRewriterConfig.ftOptimizerss, h.Pb^);
   finally
     h.Free;
   end;
@@ -4514,7 +4569,8 @@ begin
   try
     for i := 0 to Value.OriginalNodeNamess.Count - 1 do
       h.Pb.writeRawString(Value.OriginalNodeNamess[i]);
-    S.Pb.writeMessage(TExperimentalDebugInfo.ftOriginalNodeNamess, h.Pb^);
+    if Value.OriginalNodeNamess.Count > 0 then
+      S.Pb.writeMessage(TExperimentalDebugInfo.ftOriginalNodeNamess, h.Pb^);
   finally
     h.Free;
   end;
@@ -4522,7 +4578,8 @@ begin
   try
     for i := 0 to Value.OriginalFuncNamess.Count - 1 do
       h.Pb.writeRawString(Value.OriginalFuncNamess[i]);
-    S.Pb.writeMessage(TExperimentalDebugInfo.ftOriginalFuncNamess, h.Pb^);
+    if Value.OriginalFuncNamess.Count > 0 then
+      S.Pb.writeMessage(TExperimentalDebugInfo.ftOriginalFuncNamess, h.Pb^);
   finally
     h.Free;
   end;
@@ -4540,7 +4597,8 @@ begin
   try
     for i := 0 to Value.Inputs.Count - 1 do
       h.Pb.writeRawString(Value.Inputs[i]);
-    S.Pb.writeMessage(TNodeDef.ftInputs, h.Pb^);
+    if Value.Inputs.Count > 0 then
+      S.Pb.writeMessage(TNodeDef.ftInputs, h.Pb^);
   finally
     h.Free;
   end;
@@ -5732,11 +5790,12 @@ begin
   h.Init;
   try
     for i := 0 to Value.MemoryLimitMbs.Count - 1 do
-   begin
+    begin
       var vVar : Single := Value.MemoryLimitMbs[i];
       h.Pb.writeRawData(@vVar, sizeof(Single));
-   end;
-    S.Pb.writeMessage(TVirtualDevices.ftMemoryLimitMbs, h.Pb^);
+    end;
+    if Value.MemoryLimitMbs.Count > 0 then
+      S.Pb.writeMessage(TVirtualDevices.ftMemoryLimitMbs, h.Pb^);
   finally
     h.Free;
   end;
@@ -5744,7 +5803,8 @@ begin
   try
     for i := 0 to Value.Prioritys.Count - 1 do
       h.Pb.writeRawVarint32(Value.Prioritys[i]);
-    S.Pb.writeMessage(TVirtualDevices.ftPrioritys, h.Pb^);
+    if Value.Prioritys.Count > 0 then
+      S.Pb.writeMessage(TVirtualDevices.ftPrioritys, h.Pb^);
   finally
     h.Free;
   end;
@@ -5891,7 +5951,8 @@ begin
   try
     for i := 0 to Value.DeviceFilterss.Count - 1 do
       h.Pb.writeRawString(Value.DeviceFilterss[i]);
-    S.Pb.writeMessage(TConfigProto.ftDeviceFilterss, h.Pb^);
+    if Value.DeviceFilterss.Count > 0 then
+      S.Pb.writeMessage(TConfigProto.ftDeviceFilterss, h.Pb^);
   finally
     h.Free;
   end;
@@ -5968,7 +6029,8 @@ begin
   try
     for i := 0 to Value.Feeds.Count - 1 do
       h.Pb.writeRawString(Value.Feeds[i]);
-    S.Pb.writeMessage(TCallableOptions.ftFeeds, h.Pb^);
+    if Value.Feeds.Count > 0  then
+      S.Pb.writeMessage(TCallableOptions.ftFeeds, h.Pb^);
   finally
     h.Free;
   end;
@@ -5976,7 +6038,8 @@ begin
   try
     for i := 0 to Value.Fetchs.Count - 1 do
       h.Pb.writeRawString(Value.Fetchs[i]);
-    S.Pb.writeMessage(TCallableOptions.ftFetchs, h.Pb^);
+    if Value.Fetchs.Count > 0 then
+      S.Pb.writeMessage(TCallableOptions.ftFetchs, h.Pb^);
   finally
     h.Free;
   end;
@@ -5984,7 +6047,8 @@ begin
   try
     for i := 0 to Value.Targets.Count - 1 do
       h.Pb.writeRawString(Value.Targets[i]);
-    S.Pb.writeMessage(TCallableOptions.ftTargets, h.Pb^);
+    if Value.Targets.Count > 0 then
+      S.Pb.writeMessage(TCallableOptions.ftTargets, h.Pb^);
   finally
     h.Free;
   end;
@@ -6470,7 +6534,8 @@ begin
   try
     for i := 0 to Value.PersistentTensorAllocIdss.Count - 1 do
       h.Pb.writeRawVarint64(Value.PersistentTensorAllocIdss[i]);
-    S.Pb.writeMessage(TMemoryStats.ftPersistentTensorAllocIdss, h.Pb^);
+    if Value.PersistentTensorAllocIdss.Count > 0 then
+      S.Pb.writeMessage(TMemoryStats.ftPersistentTensorAllocIdss, h.Pb^);
   finally
     h.Free;
   end;
@@ -6480,7 +6545,8 @@ begin
   try
     for i := 0 to Value.DevicePersistentTensorAllocIdss.Count - 1 do
       h.Pb.writeRawVarint64(Value.DevicePersistentTensorAllocIdss[i]);
-    S.Pb.writeMessage(TMemoryStats.ftDevicePersistentTensorAllocIdss, h.Pb^);
+    if Value.DevicePersistentTensorAllocIdss.Count > 0 then
+      S.Pb.writeMessage(TMemoryStats.ftDevicePersistentTensorAllocIdss, h.Pb^);
   finally
     h.Free;
   end;

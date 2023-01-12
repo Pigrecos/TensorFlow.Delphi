@@ -4663,7 +4663,6 @@ begin
       var aBuf := buf.toArray;
       Loader.Init;
       Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
-      Loader.Pb.saveTofile('get_attr.Proto');
 
       var AttrValue : TAttrValue ;
       loader.LoadAttrValue(AttrValue);
@@ -4742,7 +4741,7 @@ begin
       var aBuf := buf.toArray;
       Loader.Init;
       Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
-      Loader.Pb.SaveToFile('test.proto');
+      // Loader.Pb.SaveToFile('test.proto');   For testing
 
       var NodeDef : TNodeDef ;
       loader.LoadNodeDef(NodeDef);
