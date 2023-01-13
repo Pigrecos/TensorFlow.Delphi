@@ -36,7 +36,9 @@ type
       private
         procedure LoadObj<T: constructor>(var obj: T; Load: TLoad<T>);
         procedure LoadList<T: constructor>(const List: TList<T>; Load: TLoad<T>);
+        procedure LoadMap<Key, Value>(var map: TDictionary<Key, Value>; Load: TLoadPair<Key, Value>; Tag: Integer);
       public
+        procedure LoadStringAttrValue(var Value: TPair<string, TAttrValue>);
 	      // ProtoGen.TensorShape
 		    procedure LoadTensorShapeProto(var Value: TTensorShapeProto);
         procedure LoadDim(var Value: TDim);
@@ -290,12 +292,43 @@ begin
   S.Pb.writeString(2, Value.Value);
 end;
 
-procedure TSaveHelper.SaveStringAttrValue(Value: TPair<string, TAttrValue>);
+procedure TLoadHelper.LoadStringAttrValue(var Value: TPair<string, TAttrValue>);
 var
-  S: TpbSaver;
+  tTag        : TpbTag;
+  fieldNumber : Integer;
+  key         : string;
+  vAttr       : TAttrValue;
 begin
-  S.Pb.writeString(1, Value.Key);
-  S.SaveObj<TAttrValue>(Value.Value, SaveAttrValue, 2);
+    key   := '';
+    vAttr := nil;
+    
+    tTag := pb.readTag;
+    while tTag.v <> 0 do
+    begin
+        fieldNumber := tTag.FieldNumber;
+        case fieldNumber of
+           1:  key  := Pb.readString;
+           2:  begin
+                 Pb.push; 
+                 try 
+                   LoadAttrValue(vAttr)
+                 finally
+                   pb.pop;
+                 end;
+           end
+        else
+          pb.skipField(tTag);  
+        end;
+        tTag := pb.readTag;
+    end;
+    Value.Key   := key;
+    Value.Value := vAttr;
+end;
+
+procedure TSaveHelper.SaveStringAttrValue(Value: TPair<string, TAttrValue>);
+begin
+  Pb.writeString(1, Value.Key);
+  SaveObj<TAttrValue>(Value.Value, SaveAttrValue, 2);
 end;
 
 procedure TSaveHelper.SaveInt32String(Value: TPair<Integer, string>);
@@ -335,6 +368,24 @@ begin
   finally
     Pb.Pop;
   end;
+end;
+
+procedure TLoadHelper.LoadMap<Key, Value>(var map: TDictionary<Key, Value>; Load: TLoadPair<Key, Value>; Tag: Integer);
+var
+  Pair        : TPair<Key, Value>;
+begin
+   repeat
+      Pb.Push;
+      try
+        Load(pair);
+        if map = nil then
+           map := TDictionary<Key, Value>.Create;
+
+        map.Add(Pair.Key,Pair.Value);
+      finally
+        Pb.pop
+      end;
+   until not Pb.ConsumeTag(Tag);
 end;
 
 { TSaveHelper }
@@ -1425,9 +1476,11 @@ begin
         end;
       TNameAttrList.ftAttr:
         begin
-          var v1 : TAttrValue;
-          LoadAttrValue(v1);
-          Value.Attr.AddOrSetValue(Pb.readString, v1);
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+
+          var map : TDictionary<string, TAttrValue>  := nil ;
+          LoadMap<string, TAttrValue>(map, LoadStringAttrValue,tag.v);
+          Value.Attr := map;
         end;
       else
         Pb.skipField(tag);
@@ -3314,20 +3367,23 @@ end;
 
 procedure TLoadHelper.LoadArgAttrs(var Value: TArgAttrs);
 var
-  fieldNumber: integer;
+  fieldNumber, wireType: integer;
   tag: TpbTag;
 begin
   Value := TArgAttrs.Create;
   tag := Pb.readTag;
   while tag.v <> 0 do
   begin
+    wireType := tag.WireType;
     fieldNumber := tag.FieldNumber;
     case fieldNumber of
       TArgAttrs.ftAttr:
         begin
-          var v1 : TAttrValue;
-          LoadAttrValue(v1);
-          Value.Attr.AddOrSetValue(Pb.readString, v1);
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+
+          var map : TDictionary<string, TAttrValue>  := nil ;
+          LoadMap<string, TAttrValue>(map, LoadStringAttrValue,tag.v);
+          Value.Attr := map;
         end;
       else
         Pb.skipField(tag);
@@ -3362,9 +3418,11 @@ begin
         end;
       TFunctionDef.ftAttr:
         begin
-          var v1 : TAttrValue;
-          LoadAttrValue(v1);
-          Value.Attr.AddOrSetValue(Pb.readString, v1);
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+
+          var map : TDictionary<string, TAttrValue>  := nil ;
+          LoadMap<string, TAttrValue>(map, LoadStringAttrValue,tag.v);
+          Value.Attr := map;
         end;
       TFunctionDef.ftArgAttr:
         begin
@@ -3919,9 +3977,11 @@ begin
         end;
       TCustomGraphOptimizer.ftParameterMap:
         begin
-          var v1 : TAttrValue;
-          LoadAttrValue(v1);
-          Value.ParameterMap.AddOrSetValue(Pb.readString, v1);
+         Assert(wireType = TWire.LENGTH_DELIMITED);
+
+          var map : TDictionary<string, TAttrValue>  := nil ;
+          LoadMap<string, TAttrValue>(map, LoadStringAttrValue,tag.v);
+          Value.ParameterMap := map;
         end;
       else
         Pb.skipField(tag);
@@ -4524,9 +4584,11 @@ begin
         end;
       TNodeDef.ftAttr:
         begin
-          var v1 : TAttrValue;
-          LoadAttrValue(v1);
-          Value.Attr.AddOrSetValue(Pb.readString, v1);
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+
+          var map : TDictionary<string, TAttrValue>  := nil ;
+          LoadMap<string, TAttrValue>(map, LoadStringAttrValue,tag.v);
+          Value.Attr := map;
         end;
       TNodeDef.ftExperimentalDebugInfo:
         begin

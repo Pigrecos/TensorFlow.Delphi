@@ -751,17 +751,18 @@ begin
       TTypeMode.tmFixed64, TTypeMode.tmSfixed64, TTypeMode.tmDouble,
       TTypeMode.tmSfixed32, TTypeMode.tmFixed32, TTypeMode.tmFloat:
         begin
-            g.Wrln(' begin');
+            g.Wrln('  begin');
             g.Wrln('    var vVar : %s := Value.%s%s[i];', [t, FFieldPrefix, n]);
             g.Wrln('    h.Pb.writeRawData(@vVar, sizeof(%s));', [t]);
-            g.Wrln(' end;');
+            g.Wrln('  end;');
         end;
       TTypeMode.tmString:
         g.Wrln('    h.Pb.writeRawString(Value.%s%s[i]);', [FFieldPrefix, n]);
       TTypeMode.tmBytes:
         g.Wrln('    h.Pb.writeRawBytes(Value.%s%s[i]);', [FFieldPrefix,n]);
     end;
-    g.Wrln('  S.Pb.writeMessage(%s, h.Pb^);', [GetTag]);
+    g.Wrln('  if Value.%s.Count > 0 then', [n]);
+    g.Wrln('    S.Pb.writeMessage(%s, h.Pb^);', [GetTag]);
     g.Wrln('finally');
     g.Wrln('  h.Free;');
     g.Wrln('end;');
@@ -781,7 +782,8 @@ begin
     n := Plural(n);
     g.Wrln('  for i := 0 to Value.%s.Count - 1 do', [n]);
     g.Wrln('    h.Pb.writeRawVarint32(Ord(Value.%s[i]));', [n]);
-    g.Wrln('  S.Pb.writeMessage(%s, h.Pb^);', [GetTag]);
+    g.Wrln('  if Value.%s.Count > 0 then', [n]);
+    g.Wrln('    S.Pb.writeMessage(%s, h.Pb^);', [GetTag]);
     g.Wrln('finally');
     g.Wrln('  h.Free;');
     g.Wrln('end;');
