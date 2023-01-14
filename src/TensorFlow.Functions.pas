@@ -27,8 +27,87 @@ interface
           TensorFlow.DApi,
           TensorFlow.DApiBase,
           Tensorflow.Graph,
-          TensorFlow.Framework;
+          TensorFlow.Framework,
+          Tensorflow.Gradient;
 type
+    ConcreteFunction     = class;
+    EagerDefinedFunction = class ;
+
+   /// <summary>
+   /// Caches forward and backward functions compatible with eager gradients.
+   /// </summary>
+   TapeGradientFunctions = class
+     private
+
+     protected
+       Ffunc_graph                 : TFuncGraph;
+       Fforward                    : EagerDefinedFunction;
+       Fforwardprop_output_indices : TList<Integer>;
+       Fnum_forwardprop_outputs    : Integer;
+       Fbackward                   : ConcreteFunction;
+       Fbackward_function_wrapper  : BackwardFunction;
+
+       function BuildFunctionsForOutputs(outputs: TFTensors; inference_args: TFTensors): Tuple<EagerDefinedFunction,TFuncGraph,ConcreteFunction> ;
+     public
+      const
+        FORWARD_FUNCTION_ATTRIBUTE_NAME  : string = 'forward_function_name';
+        BACKWARD_FUNCTION_ATTRIBUTE_NAME : string = 'backward_function_name';
+        _FORWARD_PREFIX                  : string = '__forward_';
+        _BACKWARD_PREFIX                 : string = '__backward_';
+        _INFERENCE_PREFIX                : string = '__inference_';
+     public
+
+       constructor Create(f_func_graph: TFuncGraph);
+       function    &Forward(inference_args: TFTensors): EagerDefinedFunction;
+       /// <summary>
+       /// Record the function call operation.
+       /// </summary>
+       /// <param name="flat_outputs"></param>
+       /// <param name="inference_args"></param>
+       procedure &Record(flat_outputs: TFTensors; inference_args: TFTensors);
+       /// <summary>
+       /// Create a backward function given `outputs` from the forward function.
+       /// </summary>
+       /// <param name="forward_graph"></param>
+       /// <param name="backward"></param>
+       /// <param name="outputs"></param>
+       /// <returns></returns>
+       function _wrap_backward_function(forward_graph: TFuncGraph; backward: ConcreteFunction; outputs: TFTensors): Tuple<BackwardFunction, TFTensors>;
+
+       function ForwardAndBackwardFunctions(inference_args: TFTensors): EagerDefinedFunction; virtual;
+   end;
+
+   EagerDefinedFunction = class
+    private
+
+       function Get_Name: string;
+     protected
+       func_graph      : TFuncGraph;
+       fnum_outputs    : Integer;
+
+     public
+       constructor Create(name: string; graph: TFuncGraph; inputs: TFTensors; outputs: TFTensors; attrs: TDictionary<string, string> );
+       function Call(args: TFTensors): TFTensors;
+
+       property Name : string  read Get_Name;
+   end;
+
+   /// <summary>
+   /// Holds the state of a function call between execution and recording.
+   /// </summary>
+   ForwardBackwardCall = class
+     private
+       Ffunctions       : TapeGradientFunctions;
+       Finference_args  : TFTensors;
+       Finput_tangents  : TFTensors;
+       Ftape_watching   : Boolean;
+       Fforward_function: EagerDefinedFunction ;
+     public
+
+       constructor Create(functions: TapeGradientFunctions; inference_args: TFTensors; tape_watching: Boolean);
+       function  &Forward:  Tuple<EagerDefinedFunction, TFTensors>;
+       procedure &Record(flat_outputs: TFTensors);
+   end;
 
    ConcreteFunction  = class
      private
@@ -36,9 +115,8 @@ type
         function Get_Inputs: TArray<TFTensor>;
         function Get_Name: string;
      protected
-        func_graph : TFuncGraph;
-        {TODO -oMax -cImplementare : Implementare ForwardBackwardCall}
-        //forward_backward: ForwardBackwardCall;
+        func_graph      : TFuncGraph;
+        forward_backward: ForwardBackwardCall;
         Outputs         : TArray<TFTensor>;
         ReturnType      : PTypeInfo;
      public
@@ -166,15 +244,15 @@ begin
         Result := TFTensors.Create(Res) ;
         Exit;
     end;
-
-   { if (forward_backward == null)
+{TODO -oOwner -cGeneral : ActionItem}
+  (*  if (forward_backward == null)
         forward_backward = SelectForwardAndBackwardFunctions(args, possible_gradient_type, executing_eagerly);
     var (forward_function, args_with_tangents) = forward_backward.Forward();
     Tensors flat_outputs = null;
     if (executing_eagerly)
         flat_outputs = forward_function.Call(args_with_tangents);
     forward_backward.Record(flat_outputs);
-    return flat_outputs;}
+    return flat_outputs;  *)
 end;
 
 procedure ConcreteFunction.Enter;
@@ -210,6 +288,100 @@ end;
 function ConcreteFunction.ToString: string;
 begin
     Result := Name
+end;
+
+{ ForwardBackwardCall }
+
+constructor ForwardBackwardCall.Create(functions: TapeGradientFunctions; inference_args: TFTensors; tape_watching: Boolean);
+begin
+    Ffunctions      := functions;
+    Finference_args := inference_args;
+    Ftape_watching  := tape_watching;
+end;
+
+function ForwardBackwardCall.Forward: Tuple<EagerDefinedFunction, TFTensors>;
+begin
+    if Fforward_function = nil then
+      Fforward_function := Ffunctions.Forward(Finference_args);
+    Result := Tuple.Create(Fforward_function, Finference_args);
+end;
+
+procedure ForwardBackwardCall.&Record(flat_outputs: TFTensors);
+begin
+   if (Ftape_watching) and (flat_outputs <> nil) then
+     Ffunctions.&Record(flat_outputs, Finference_args);
+end;
+
+{ EagerDefinedFunction }
+
+constructor EagerDefinedFunction.Create(name: string; graph: TFuncGraph; inputs, outputs: TFTensors; attrs: TDictionary<string, string>);
+var
+  operations  : TArray<TFOperation>;
+  input_ops   : TArray<TFOperation>;
+  output_names: TArray<string>;
+  num_outputs : integer;
+  i, j        : integer;
+begin
+    num_outputs := outputs.Count;
+    for i:= 0 to inputs.Count - 1 do
+      input_ops := input_ops + [ inputs[i].op ];
+
+    j := 0;
+    var IOperation := graph.get_operations;
+    for i := 0 to Length(IOperation) - 1 do
+    begin
+        var operation := IOperation[i];
+        if not Tarray.Contains<TFOperation>(input_ops, operation.op) then
+          operations := operations + [ operation as TFOperation ];
+    end;
+    func_graph := TFuncGraph.Create(graph, name, attrs);
+    func_graph.ToGraph(operations, inputs.ToArray, outputs.ToArray, output_names);
+end;
+
+function EagerDefinedFunction.Call(args: TFTensors): TFTensors;
+begin
+    var attrs : TArray<TValue> := ['executor_type', '', 'config_proto', tf.Context.FunctionCallOptions.config_proto_serialized];
+
+    var results := tf.Runner.TFE_Execute(tf.Context, tf.Context.DeviceName, func_graph.FuncName, args.ToArray, attrs, Fnum_outputs);
+
+    Result := TFTensors.Create(results);
+end;
+
+function EagerDefinedFunction.Get_Name: string;
+begin
+    Result := func_graph.FuncName
+end;
+
+{ TapeGradientFunctions }
+
+constructor TapeGradientFunctions.Create(f_func_graph: TFuncGraph);
+begin
+
+end;
+
+function TapeGradientFunctions.BuildFunctionsForOutputs(outputs, inference_args: TFTensors): Tuple<EagerDefinedFunction, TFuncGraph, ConcreteFunction>;
+begin
+
+end;
+
+function TapeGradientFunctions.Forward(inference_args: TFTensors): EagerDefinedFunction;
+begin
+
+end;
+
+function TapeGradientFunctions.ForwardAndBackwardFunctions(inference_args: TFTensors): EagerDefinedFunction;
+begin
+
+end;
+
+procedure TapeGradientFunctions.&Record(flat_outputs, inference_args: TFTensors);
+begin
+
+end;
+
+function TapeGradientFunctions._wrap_backward_function(forward_graph: TFuncGraph; backward: ConcreteFunction; outputs: TFTensors): Tuple<BackwardFunction, TFTensors>;
+begin
+
 end;
 
 end.

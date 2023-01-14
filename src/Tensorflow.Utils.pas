@@ -1304,9 +1304,11 @@ begin
             var len := Tdtypes.get_datatype_size(dtype) * shape.size;
             var src := values.GetReferenceToRawArrayElement(0);
             SetLength(bytes,len);
-            var dst := @bytes[0];
-
-            CopyMemory(dst,src,len);
+            if Length(bytes) > 0 then
+            begin
+               var dst := @bytes[0];
+               CopyMemory(dst,src,len);
+            end;
             tensor_proto.TensorContent := bytes;
         end;
     end else

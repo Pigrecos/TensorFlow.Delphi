@@ -148,8 +148,8 @@ begin
                               begin
                                   var _chcw_ := _ImageDimensions(images, 4);
 
-                                  var scale_factor_height := math_ops.cast(size[0], Tdtypes.cfloat32) / TTEnsor(_chcw_[1]);
-                                  var scale_factor_width  := math_ops.cast(size[1], Tdtypes.cfloat32) / TTEnsor(_chcw_[2]);
+                                  var scale_factor_height := TTensor(math_ops.cast(size[0], Tdtypes.cfloat32)) / _chcw_[1];
+                                  var scale_factor_width  := TTensor(math_ops.cast(size[1], Tdtypes.cfloat32)) /  _chcw_[2];
 
                                   var scale_factor        := math_ops.minimum(scale_factor_height, scale_factor_width);
 

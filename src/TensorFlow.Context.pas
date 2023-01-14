@@ -634,14 +634,9 @@ begin
     Saver.Init;
     TpbSaver.SaveConfigProto(Saver,Config);
 
-
     var bytes := Saver.Pb.GetBytes;
-    bytes := [50,0] ;
     var text :=  TEncoding.UTF8.GetString(Bytes);
     Result := text;
-
-
-   ;
 end;
 
 end.

@@ -390,45 +390,35 @@ begin
     relevant_nodes := TList<INode>.Create;
     if sequential_like then
     begin
-      if line_length < 0 then
-        line_length := 65;
+        if line_length < 0 then line_length := 65;
 
-      if positions = nil then
-        positions := [0.45, 0.85, 1.0];
+        if positions = nil then positions := [0.45, 0.85, 1.0];
 
-      ePosition := Enumerable<Single>.Create(positions);
-      if positions[Length(positions) - 1] <= 1 then
-        positions := ePosition.Select(
-                      function (p: Single): Single
-                      begin
-                          Result := line_length * p;
-                      end).ToArray;
-      to_display := ['Layer (type)', 'Output Shape', 'Param #'];
+        if positions[Length(positions) - 1] <= 1 then
+        begin
+            for var j := 0 to Length(positions) -1 do
+               positions[j] := line_length * positions[j];
+        end;
+        to_display := ['Layer (type)', 'Output Shape', 'Param #'];
     end else
     begin
-      if line_length < 0 then
-        line_length := 98;
+        if line_length < 0 then line_length := 98;
 
-      if positions = nil then
-        positions := [0.33, 0.55, 0.67, 1.0];
+        if positions = nil then  positions := [0.33, 0.55, 0.67, 1.0];
 
-      ePosition := Enumerable<Single>.Create(positions);
-      if positions[Length(positions) - 1] <= 1 then
-        positions := ePosition.Select(
-                      function (p: Single): Single
-                      begin
-                        Result := line_length * p;
-                      end).ToArray;
-      to_display := ['Layer (type)', 'Output Shape', 'Param #', 'Connected to'];
-      for var v in mModel.NodesByDepth do
-        relevant_nodes.AddRange(v.Value);
+        if positions[Length(positions) - 1] <= 1 then
+        begin
+            for var j := 0 to Length(positions) -1 do
+                positions[j] := line_length * positions[j];
+        end;
+        to_display := ['Layer (type)', 'Output Shape', 'Param #', 'Connected to'];
+
+        for var v in mModel.NodesByDepth do
+          relevant_nodes.AddRange(v.Value);
     end;
-    var ePositionI := Enumerable<Single>.Create(positions);
-    positions_int := ePositionI.Select<Integer>(
-                        function (x: Single): Integer
-                        begin
-                          Result := Trunc(x);
-                        end).ToArray;
+    for var j := 0 to Length(positions) -1 do
+       positions_int := positions_int + [ Trunc(positions[j]) ] ;
+   
 
     tf.LogMsg(Format('Model: %s', [mModel.Name]));
 
@@ -525,7 +515,7 @@ begin
            line := Copy(line,1, positions[col] - 8);
 
         spaces := string.Create(' ', positions[col] - Length(line));
-        line   := line + string.Join(' ', spaces);
+        line   := line + string.Join('', spaces);
     end;
     tf.LogMsg(line);
 end;
@@ -564,7 +554,7 @@ begin
   var ClassLayer :=  TObject(lLayer)  ;
   var nTipoL :=  ClassLayer.ClassName;
 
-  fields := [sName + ' (' + nTipoL + ') ',  lLayer.OutputShape.ToString ,  lLayer.count_params.ToString ] ;
+  fields := [sName + ' (' + nTipoL + ')',  lLayer.OutputShape.ToString ,  lLayer.count_params.ToString ] ;
 
   print_row(fields, positions);
 end;
@@ -599,7 +589,7 @@ begin
     var ClassLayer :=  TObject(lLayer)  ;
     var nTipoL :=  ClassLayer.ClassName;
 
-    fields := [ name + '(' +nTipoL+ ') ', lLayer.OutputShape.ToString, lLayer.count_params.ToString, first_connection];
+    fields := [ name + '(' +nTipoL+ ')', lLayer.OutputShape.ToString, lLayer.count_params.ToString, first_connection];
     print_row(fields, positions);
 
     if connections.Count > 1 then

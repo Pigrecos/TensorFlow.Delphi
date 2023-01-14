@@ -205,7 +205,7 @@ type
     // Encode and write tag
     procedure writeTag(fieldNo: Integer; wireType: Integer);
     // Encode and write single byte
-    procedure writeRawByte(value: ShortInt); inline;
+    procedure writeRawByte(value: Byte); inline;
     // Encode and write bytes
     procedure writeRawBytes(const value: TBytes);
     // Encode and write string
@@ -835,7 +835,7 @@ procedure TpbOutput.Clear;
 begin
   FBuffer.Clear;
 end;
-procedure TpbOutput.writeRawByte(value: ShortInt);
+procedure TpbOutput.writeRawByte(value: Byte);
 begin
   // -128..127
   FBuffer.Add(Byte(value));
@@ -866,24 +866,24 @@ begin
   writeRawVarint32(tag.v);
 end;
 procedure TpbOutput.writeRawVarint32(value: Integer);
-var b: ShortInt;
+var b: byte;
 begin
   repeat
     b := value and $7F;
     value := value shr 7;
     if value <> 0 then
-      b := b + $80;
+      b := b or $80;
     writeRawByte(b);
   until value = 0;
 end;
 procedure TpbOutput.writeRawVarint64(value: Int64);
-var b: ShortInt;
+var b: byte;
 begin
   repeat
     b := value and $7F;
     value := value shr 7;
     if value <> 0 then
-      b := b + $80;
+      b := b or $80;
     writeRawByte(b);
   until value = 0;
 end;

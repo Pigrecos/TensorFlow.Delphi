@@ -17,6 +17,8 @@ unit TensorFlow.EagareRunner;
 {$WARN IMPLICIT_STRING_CAST OFF}
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
+{$POINTERMATH ON}
+
 interface
      uses System.SysUtils,
           System.Rtti,
@@ -356,7 +358,15 @@ begin
             pStrArray := pStrArray + [ AnsiString(StrArrray[i]) ];
             vlen      := vlen + [ Length( pStrArray[i] ) ];
         end;
-        TFE_OpSetAttrStringList(op, PAnsiChar(AnsiString(key)), @pStrArray[0],@vlen[0], Length(pStrArray));
+        var pStrValue : PAnsiChar := nil;
+        var pLen      : PUInt64   := nil;
+        if Length(pStrArray) > 0 then
+        begin
+            pStrValue := @pStrArray[0];
+            pLen      := @vlen[0];
+        end;
+
+        TFE_OpSetAttrStringList(op, PAnsiChar(AnsiString(key)), pStrValue,pLen, Length(pStrArray));
         if attr_list_sizes <> nil then
           attr_list_sizes.Add(key, Length(pStrArray) );
     end
@@ -377,9 +387,18 @@ begin
         for var i := 0 to num_values - 1 do
         begin
             dims[i] := AllocMem(SizeOf(Int64) * values1[i].ndim);
-            CopyMemory(dims[i], @values1[i].dims[0], values1[i].ndim * sizeof(Int64));
+            if values1[i].ndim > 0 then
+               CopyMemory(dims[i], @values1[i].dims[0], values1[i].ndim * sizeof(Int64));
         end;
-        TFE_OpSetAttrShapeList(op, PAnsiChar(AnsiString(key)), @dims[0], @num_dims[0], num_values, status.Handle);
+        var pIntValues : PInteger := nil;
+        var pLen       : PInteger := nil;
+        if Length(dims) > 0 then
+        begin
+            pIntValues := @dims[0];
+            pLen       := @num_dims[0];
+        end;
+
+        TFE_OpSetAttrShapeList(op, PAnsiChar(AnsiString(key)), pIntValues, pLen, num_values, status.Handle);
         for var i := 0 to num_values - 1 do
            FreeMem(dims[i]);
     end
@@ -392,11 +411,16 @@ begin
     end
     else if (tipo = TF_AttrType.TF_ATTR_INT) and (values.IsType< TArray<Integer> >) then
     begin
+
         var values4 := values.AsType< TArray<Integer> >;
         var vvalues4 : TArray<Int64>;
         for var i := 0 to Length(values4) - 1 do
             vvalues4 := vvalues4 + [ values4[i] ] ;
-        TFE_OpSetAttrIntList(op, PAnsiChar(AnsiString(key)), @vvalues4[0], Length(values4));
+
+        var pInt64Value : PInt64 := nil;
+        if Length(vvalues4) > 0 then pInt64Value := @vvalues4[0];
+
+        TFE_OpSetAttrIntList(op, PAnsiChar(AnsiString(key)), pInt64Value, Length(values4));
         if attr_list_sizes <> nil then
           attr_list_sizes.Add(key, Length(values4));
     end else
@@ -434,9 +458,12 @@ begin
          end;
       TF_AttrType.TF_ATTR_SHAPE:
          begin
-            var value1 := value.AsType<  TArray<Int64>>;
-            var dims := value1;
-            TFE_OpSetAttrShape(op, PAnsiChar(AnsiString(key)), @dims[0], Length(dims), status.Handle);
+            var dims := value.AsType<  TArray<Int64>>;
+
+            var pInt64Value : PInt64 := nil;
+            if Length(dims) > 0 then pInt64Value := @dims[0];
+
+            TFE_OpSetAttrShape(op, PAnsiChar(AnsiString(key)), pInt64Value, Length(dims), status.Handle);
             status.RaiseEx;
          end;
       TF_AttrType.TF_ATTR_FUNC:
@@ -662,7 +689,10 @@ begin
                 flattened_attrs.Add(attr_name);
                 flattened_attrs.Add( TValue.From< TArray<Integer> >( Tdtypes.ToIntArray(attr_values) ));
             end;
-            TFE_OpSetAttrTypeList(op, PAnsiChar(AnsiString(attr_name)), @attr_values[0], Length(attr_values));
+            var pDatatypes : PTF_DataType := nil;
+            if Length(attr_values) > 0  then  pDatatypes := @attr_values[0];
+
+            TFE_OpSetAttrTypeList(op, PAnsiChar(AnsiString(attr_name)), pDatatypes, Length(attr_values));
             attr_list_sizes.Add(attr_name, len);
         end else
         begin
@@ -686,7 +716,11 @@ begin
 
     var retVals : TArray<PTFE_Op> ;
     SetLength(retVals,num_retvals);
-    TensorFlow.DApiEager.TFE_Execute(op, @retVals[0], num_retvals, status.Handle);
+
+    var pRetVals : Pointer := nil;
+    if Length(retVals) > 0 then pRetVals := @retVals[0];
+
+    TensorFlow.DApiEager.TFE_Execute(op, pRetVals, num_retvals, status.Handle);
     status.RaiseEx;
 
     var flat_result : TArray<TFTensor> ;

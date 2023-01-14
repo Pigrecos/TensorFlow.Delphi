@@ -88,7 +88,8 @@ uses
   Keras.Container in 'src\Keras\Keras.Container.pas',
   Keras.CommonDef in 'src\Keras\Keras.CommonDef.pas',
   TensorFlow.Functions in 'src\TensorFlow.Functions.pas',
-  TensorFlow.nn_grad in 'src\Gradient\TensorFlow.nn_grad.pas';
+  TensorFlow.nn_grad in 'src\Gradient\TensorFlow.nn_grad.pas',
+  ProtoGen.Main in 'src\Proto\ProtoGen.Main.pas';
 
 {$R *.res}
 

@@ -1000,7 +1000,7 @@ begin
     var Comparer := TDelegatedComparer<TFOperation>.Construct(
           function (const L, R: TFOperation): Integer
           begin
-            Result := NativeUInt(L.Handle) - NativeUInt(R.Handle);
+            Result := NativeInt(L.Handle) - NativeInt(R.Handle);
           end);
 
     // Mark reachable ops from from_ops.
@@ -1200,7 +1200,7 @@ begin
     var Comparer := TDelegatedComparer<TFOperation>.Construct(
     function (const L, R: TFOperation): Integer
     begin
-       Result := NativeUInt(L.Handle) - NativeUInt(R.Handle);
+       Result := NativeInt(L.Handle) - NativeInt(R.Handle);
     end);
 
     var queue : TQueue<TFOperation> := TQueue<TFOperation>.Create(from_ops);

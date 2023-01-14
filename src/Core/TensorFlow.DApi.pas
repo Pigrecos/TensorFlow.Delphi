@@ -1306,6 +1306,7 @@ TFGraph = class(TFDisposable)
    destructor  Destroy; override;
    function    NextId: Integer;
 
+   function get_operations: TArray<ITensorOrOperation>;
    /// <summary>
    /// Creates an `Operation` in this graph from the supplied TF_Operation.
    ///
@@ -2008,6 +2009,12 @@ begin
 end;
 
 function TFSession._call_tf_sessionrun(feed_dict: TArray<TPair<TF_Output, TFTensor>>; fetch_list: TArray<TF_Output>; target_list: TList<TFOperation>): TArray<TNDArray>;
+var
+  inputs       : TArray<TF_Output>;
+  input_values : TArray<PTF_Tensor>;
+  output       : TArray<TF_Output>;
+  output_values: TArray<PTF_Tensor>;
+  target_opers : TArray<PTF_Operation>;
 begin
     // Ensure any changes to the graph are reflected in the runtime.
     _extend_graph();
@@ -2015,39 +2022,49 @@ begin
 
     // Input tensors
     //
-    var inputs : TArray<TF_Output> := [];
+    inputs := [];
     for var i := 0 to Length(feed_dict) - 1 do
        inputs := inputs + [ feed_dict[i].Key ];
+    var pInputs : PTF_Output := nil;
+    if Length(inputs) > 0 then  pInputs := @(inputs[0]);
 
-    var input_values : TArray<PTF_Tensor> := [];
+    input_values := [];
     for var i := 0 to Length(feed_dict) - 1 do
        input_values := input_values + [ feed_dict[i].Value.Handle ];
+    var pInput_values : PTF_Tensor := nil;
+    if Length(input_values) > 0 then  pInput_values := @(input_values[0]);
 
     // Output tensors
     //
-    var output : TArray<TF_Output> := [];
+    output := [];
     for var i := 0 to Length(fetch_list) - 1 do
        output := output + [ fetch_list[i] ];
+    var pOutput : PTF_Output := nil;
+    if Length(output) > 0 then  pOutput := @(output[0]);
 
-    var output_values : TArray<PTF_Tensor>;
+    output_values := [];
     for var i := 0  to Length(fetch_list) - 1 do
         output_values := output_values + [ nil ];
+    var pOutput_values : PTF_Tensor := nil;
+    if Length(output_values) > 0 then  pOutput_values := @(output_values[0]);
 
     // Target operations
     //
-    var target_opers : TArray<PTF_Operation> := [];
+    target_opers := [];
     for var i := 0 to target_list.Count - 1 do
        target_opers := target_opers + [ target_list[i].Handle ];
+    var pTarget_opers : PTF_Operation := nil;
+    if Length(target_opers) > 0 then  pTarget_opers :=  @(target_opers[0]);
 
     TF_SessionRun(Handle,
                   // RunOptions
                   nil,
                   // Input tensors
-                  @(inputs[0]), @(input_values[0]),Length(input_values),
+                  pInputs, pInput_values,Length(input_values),
                   // Output tensors
-                  @(output[0]), @(output_values[0]), Length(output_values),
+                  pOutput, pOutput_values, Length(output_values),
                   // Target operations
-                  @(target_opers[0]), target_list.Count,
+                  pTarget_opers, target_list.Count,
                   // RunMetadata
                   nil,
                   // Output status
@@ -2654,9 +2671,12 @@ begin
     end;
 
     SetLength(res,size);
-    l_pVal  := @res[0];
+    l_pVal  := nil;
+    if Length(res) > 0 then  l_pVal := @res[0];
+
     l_iFullByteSize :=  size * dtypesize;
-    Move(l_pData^, l_pVal^, l_iFullByteSize);
+    if l_pVal <> nil then
+      Move(l_pData^, l_pVal^, l_iFullByteSize);
 
     Result := res;
 end;
@@ -2850,7 +2870,10 @@ begin
          Result := StringTensor(v1, shape);
      end else
      begin
-         l_pData := PByte(@aArray[0]);
+         l_pData := nil;
+         if Length(aArray) > 0  then
+            l_pData := PByte(@aArray[0]);
+
          Result  := TF_NewTensor(shape,dtype,l_pData) ;
      end;
 end;
@@ -3081,7 +3104,10 @@ begin
 
     if not Assigned(Handle) then
     begin
-        var pDim : PInt64 := @dims.Dims[0];
+
+        var pDim : PInt64 := nil;
+        if Length(dims.Dims) > 0 then pDim := @dims.Dims[0];
+
         TF_GraphGetTensorShape(op.graph.Handle, _as_tf_output(), pDim, rank, tf.Status.Handle);
         FShape := dims;
     end else
@@ -3096,7 +3122,7 @@ end;
 
 procedure TFTensor.Setshape(const Value: TFShape);
 begin
-    if value.IsNil then
+    if (value.IsNil) or (Value.ndim < 1) then
       TF_GraphSetTensorShape(graph.Handle, _as_tf_output, nil, -1, tf.Status.Handle)
     else
       TF_GraphSetTensorShape(graph.Handle, _as_tf_output, @value.dims[0], value.ndim, tf.Status.Handle);
@@ -5498,6 +5524,11 @@ end;
 function TFGraph.get_name_scope: TF_TString;
 begin
     Result:= Fname_stack;
+end;
+
+function TFGraph.get_operations: TArray<ITensorOrOperation>;
+begin
+    Result := Fnodes_by_name.Values.ToArray;
 end;
 
 function TFGraph.name_scope(name: TF_TString): TF_TString;
