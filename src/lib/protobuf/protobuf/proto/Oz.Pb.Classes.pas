@@ -242,6 +242,8 @@ type
     procedure writeTo(buffer: TpbOutput);
     // Return the content as a string
     function ToString(lo: Integer = 0): string;
+    // Converts this Google.Protobuf.ByteString into a string by applying the UTF-8  encoding.
+    function ToStringUtf8: AnsiString;
   end;
 {$EndRegion}
 {$Region 'TpbLoader: Load object'}
@@ -965,6 +967,18 @@ procedure TpbOutput.writeTo(buffer: TpbOutput);
 begin
   buffer.FBuffer.Add(GetBytes);
 end;
+
+function TpbOutput.ToStringUtf8: AnsiString;
+var
+  bytes: TBytes;
+  text : AnsiString;
+begin
+    bytes := FBuffer.GetBytes;
+    SetString(text, PAnsiChar(@bytes[0]), Length(bytes));
+
+    Result := text;
+end;
+
 function TpbOutput.ToString(lo: Integer): string;
 var
   i, hi: Integer;

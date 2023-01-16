@@ -3832,6 +3832,7 @@ begin
             tensor := tf.get_default_session.eval(tensor);
     end;
     Result := TNDArray.Create(tensor, tf.executing_eagerly);
+
 end;
 
 function TNDArray.GetDataPointer: Pointer;
@@ -4197,13 +4198,37 @@ begin
 end;
 
 function TNDArray.astype(dtype: TF_DataType): TNDArray;
+var
+  FChangedMode : Boolean;
 begin
-    Result := TNDArray.Create( math_ops.cast(self, dtype) )
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
+    Result := TNDArray.Create( math_ops.cast(self, dtype) );
+
+    if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 function TNDArray.reshape(newshape: TFShape): TNDArray;
+var
+  FChangedMode : Boolean;
 begin
-    Result := TNDArray.Create( tf.reshape(self, newshape) )
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
+    Result := TNDArray.Create( tf.reshape(self, newshape) ) ;
+
+    if FChangedMode then
+      tf.Context.restore_mode;
 end;
 
 class function TNDArray.Scalar<T>(value: T): TNDArray;

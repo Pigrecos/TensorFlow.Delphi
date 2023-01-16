@@ -96,7 +96,9 @@ type
 implementation
       uses TensorFlow.gen_math_ops,
            Tensorflow.math_ops,
-           TensorFlow.Tensor;
+           TensorFlow.Tensor,
+
+           Tensorflow;
 
 { NDArray }
 
@@ -161,56 +163,176 @@ begin
 end;
 
 class operator NDArray.Add(lhs, rhs: NDArray): NDArray;
+var
+  FChangedMode : Boolean;
 begin
-  Result := TNDArray.Create (TFTensor.BinaryOpWrapper('add', lhs, rhs));
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
+    Result := TNDArray.Create (TFTensor.BinaryOpWrapper('add', lhs, rhs));
+
+    if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 class operator NDArray.Subtract(lhs, rhs: NDArray): NDArray;
+var
+  FChangedMode : Boolean;
 begin
-  Result := TNDArray.Create (TFTensor.BinaryOpWrapper('sub', lhs, rhs));
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
+    Result := TNDArray.Create (TFTensor.BinaryOpWrapper('sub', lhs, rhs));
+
+    if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 class operator NDArray.Multiply(lhs, rhs: NDArray): NDArray;
+var
+  FChangedMode : Boolean;
 begin
-  Result := TNDArray.Create (TFTensor.BinaryOpWrapper('mul', lhs, rhs));
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
+    Result := TNDArray.Create (TFTensor.BinaryOpWrapper('mul', lhs, rhs));
+
+    if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 class operator NDArray.Divide(lhs, rhs: NDArray): NDArray;
+var
+  FChangedMode : Boolean;
 begin
-  Result := TNDArray.Create (TFTensor.BinaryOpWrapper('div', lhs, rhs));
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
+    Result := TNDArray.Create (TFTensor.BinaryOpWrapper('div', lhs, rhs));
+
+    if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 class operator NDArray.Modulus(lhs, rhs: NDArray): NDArray;
+var
+  FChangedMode : Boolean;
 begin
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
     Result := TNDArray.Create (TFTensor.BinaryOpWrapper('mod', lhs, rhs));
+
+    if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 class operator NDArray.GreaterThan(lhs, rhs: NDArray): NDArray;
+var
+  FChangedMode : Boolean;
 begin
-   Result := TNDArray.Create (gen_math_ops.greater(lhs, rhs));
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
+    Result := TNDArray.Create (gen_math_ops.greater(lhs, rhs));
+
+    if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 class operator NDArray.LessThan(lhs, rhs: NDArray): NDArray;
+var
+  FChangedMode : Boolean;
 begin
-  Result := TNDArray.Create (gen_math_ops.less(lhs, rhs));
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
+    Result := TNDArray.Create (gen_math_ops.less(lhs, rhs));
+
+    if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 class operator NDArray.Negative(lhs: NDArray): NDArray;
+var
+  FChangedMode : Boolean;
 begin
-  Result := TNDArray.Create (gen_math_ops.neg(lhs));
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
+    Result := TNDArray.Create (gen_math_ops.neg(lhs));
+
+    if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 class operator NDArray.Equal(lhs, rhs: NDArray): NDArray;
+var
+  FChangedMode : Boolean;
 begin
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
     if rhs.FHandleNDArray = nil then
       Result := TNDArray.scalar(False)
     else
       Result := TNDArray.Create(math_ops.equal(lhs, rhs));
+
+    if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 class operator NDArray.NotEqual(lhs, rhs: NDArray): NDArray;
+var
+  FChangedMode : Boolean;
 begin
-  Result := TNDArray.Create (math_ops.not_equal(lhs,rhs));
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
+    Result := TNDArray.Create (math_ops.not_equal(lhs,rhs));
+
+    if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 function NDArray.numpy: NDArray;
@@ -288,8 +410,20 @@ begin
 end;
 
 class operator NDArray.Implicit(t: NDArray): TFTensors;
+var
+  FChangedMode : Boolean;
 begin
-   Result := TFTensors.Create(t.FHandleNDArray);
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
+    Result := TFTensors.Create(t.FHandleNDArray);
+
+    if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 { NDArrayConverter }

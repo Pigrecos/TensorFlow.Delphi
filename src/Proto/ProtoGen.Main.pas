@@ -6003,36 +6003,50 @@ begin
       h.Free;
     end;
   end;
+
   S.Pb.writeInt32(TConfigProto.ftIntraOpParallelismThreads, Value.IntraOpParallelismThreads);
   S.Pb.writeInt32(TConfigProto.ftInterOpParallelismThreads, Value.InterOpParallelismThreads);
   S.Pb.writeBoolean(TConfigProto.ftUsePerSessionThreads, Value.UsePerSessionThreads);
-  if Value.SessionInterOpThreadPools.Count > 0 then
+
+  if (Value.SessionInterOpThreadPools <> nil) and (Value.SessionInterOpThreadPools.Count > 0) then
     S.SaveList<TThreadPoolOptionProto>(Value.SessionInterOpThreadPools, SaveThreadPoolOptionProto, TConfigProto.ftSessionInterOpThreadPools);
   S.Pb.writeInt32(TConfigProto.ftPlacementPeriod, Value.PlacementPeriod);
+
   h.Init;
   try
-    for i := 0 to Value.DeviceFilterss.Count - 1 do
-      h.Pb.writeRawString(Value.DeviceFilterss[i]);
-    if Value.DeviceFilterss.Count > 0 then
-      S.Pb.writeMessage(TConfigProto.ftDeviceFilterss, h.Pb^);
+    if Assigned(Value.DeviceFilterss) then
+    begin
+        for i := 0 to Value.DeviceFilterss.Count - 1 do
+          h.Pb.writeRawString(Value.DeviceFilterss[i]);
+        if Value.DeviceFilterss.Count > 0 then
+         S.Pb.writeMessage(TConfigProto.ftDeviceFilterss, h.Pb^);
+    end;
   finally
     h.Free;
   end;
+
   if Value.GpuOptions <> nil then
     S.SaveObj<TGPUOptions>(Value.GpuOptions, SaveGPUOptions, TConfigProto.ftGpuOptions);
+
   S.Pb.writeBoolean(TConfigProto.ftAllowSoftPlacement, Value.AllowSoftPlacement);
   S.Pb.writeBoolean(TConfigProto.ftLogDevicePlacement, Value.LogDevicePlacement);
+
   if Value.GraphOptions <> nil then
     S.SaveObj<TGraphOptions>(Value.GraphOptions, SaveGraphOptions, TConfigProto.ftGraphOptions);
+
   S.Pb.writeInt64(TConfigProto.ftOperationTimeoutInMs, Value.OperationTimeoutInMs);
+
   if Value.RpcOptions <> nil then
     S.SaveObj<TRPCOptions>(Value.RpcOptions, SaveRPCOptions, TConfigProto.ftRpcOptions);
+
   if Value.ClusterDef <> nil then
     S.SaveObj<TClusterDef>(Value.ClusterDef, SaveClusterDef, TConfigProto.ftClusterDef);
+
   S.Pb.writeBoolean(TConfigProto.ftIsolateSessionState, Value.IsolateSessionState);
   S.Pb.writeBoolean(TConfigProto.ftShareClusterDevicesInSession, Value.ShareClusterDevicesInSession);
+
   if Value.Experimental <> nil then
-    S.SaveObj<TConfigProto.TExperimental>(Value.Experimental, SaveExperimental, TConfigProto.ftExperimental);
+     S.SaveObj<TConfigProto.TExperimental>(Value.Experimental, SaveExperimental, TConfigProto.ftExperimental);
 end;
 
 class procedure TSaveHelper.SaveRunHandlerPoolOptions(const S: TpbSaver; const Value: TRunHandlerPoolOptions);

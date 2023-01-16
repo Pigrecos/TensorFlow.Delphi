@@ -18,7 +18,7 @@ unit TensorFlow.Functions;
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
 interface
-     uses System.SysUtils,
+     uses System.SysUtils, Winapi.Windows,
           System.Generics.Collections,
 
           Spring,
@@ -42,6 +42,7 @@ type
      protected
        Ffunc_graph                 : TFuncGraph;
        Fforward                    : EagerDefinedFunction;
+       Fforward_graph              : TFuncGraph;
        Fforwardprop_output_indices : TList<Integer>;
        Fnum_forwardprop_outputs    : Integer;
        Fbackward                   : ConcreteFunction;
@@ -57,7 +58,7 @@ type
         _INFERENCE_PREFIX                : string = '__inference_';
      public
 
-       constructor Create(f_func_graph: TFuncGraph);
+       constructor Create(f_func_graph: TFuncGraph; need_gradients_for_jvps : Boolean);
        function    &Forward(inference_args: TFTensors): EagerDefinedFunction;
        /// <summary>
        /// Record the function call operation.
@@ -77,8 +78,15 @@ type
        function ForwardAndBackwardFunctions(inference_args: TFTensors): EagerDefinedFunction; virtual;
    end;
 
+   FirstOrderTapeGradientFunctions = class(TapeGradientFunctions)
+     public
+
+       constructor Create(func_graph: TFuncGraph; need_gradients_for_jvps: Boolean);
+       function    ForwardAndBackwardFunctions(inference_args: TFTensors): EagerDefinedFunction; override;
+   end;
+
    EagerDefinedFunction = class
-    private
+     private
 
        function Get_Name: string;
      protected
@@ -127,6 +135,7 @@ type
         constructor Create(func: TFunc<TFTensor, TFTensor>; dtype: TF_DataType; func_name: string = ''); overload;
         procedure   ToGraph(inputs: TFTensors; outputs: TFTensors);
         function    FilteredCall(inputs: TFTensors): TFTensors;
+        function    SelectForwardAndBackwardFunctions(args: TFTensors; possible_gradient_type: Integer; executing_eagerly: Boolean) : ForwardBackwardCall;
         /// <summary>
         /// Executes the wrapped function.
         /// </summary>
@@ -151,6 +160,7 @@ type
 
 implementation
           uses Tensorflow,
+               Tensorflow.EagerTensor,
                TensorFlow.Ops;
 
 { TFTensor_helper }
@@ -214,11 +224,9 @@ begin
         OutputStructure :=  OutputStructure + [ outputs[i].ToTensorSpec ] ;
 end;
 
-
 function ConcreteFunction.CallFlat(args, captured_inputs: TArray<TFTensor>): TFTensors;
 begin
     var executing_eagerly := tf.Context.executing_eagerly;
-    var default_graph     := Tops.get_default_graph;
     var tensor_inputs     := TFTensors.Create;
     for var i := 0 to Length(args) - 1 do
     begin
@@ -244,15 +252,18 @@ begin
         Result := TFTensors.Create(Res) ;
         Exit;
     end;
-{TODO -oOwner -cGeneral : ActionItem}
-  (*  if (forward_backward == null)
-        forward_backward = SelectForwardAndBackwardFunctions(args, possible_gradient_type, executing_eagerly);
-    var (forward_function, args_with_tangents) = forward_backward.Forward();
-    Tensors flat_outputs = null;
-    if (executing_eagerly)
-        flat_outputs = forward_function.Call(args_with_tangents);
-    forward_backward.Record(flat_outputs);
-    return flat_outputs;  *)
+    if forward_backward = nil then
+        forward_backward := SelectForwardAndBackwardFunctions(TFTensors.Create(args), possible_gradient_type, executing_eagerly);
+    var tFunc := forward_backward.&Forward;
+    var forward_function   := tFunc.Value1;
+    var args_with_tangents := tFunc.Value2;
+
+    var flat_outputs : TFTensors := nil;
+    if executing_eagerly then
+        flat_outputs := forward_function.Call(args_with_tangents);
+
+    forward_backward.&Record(flat_outputs);
+    Result := flat_outputs;
 end;
 
 procedure ConcreteFunction.Enter;
@@ -283,6 +294,12 @@ end;
 function ConcreteFunction.Get_Name: string;
 begin
     Result := func_graph.FuncName
+end;
+
+function ConcreteFunction.SelectForwardAndBackwardFunctions(args: TFTensors; possible_gradient_type: Integer; executing_eagerly: Boolean): ForwardBackwardCall;
+begin
+    var functions := FirstOrderTapeGradientFunctions.Create(func_graph, false);
+    Result        := ForwardBackwardCall.Create(functions, args, true);
 end;
 
 function ConcreteFunction.ToString: string;
@@ -319,14 +336,12 @@ var
   operations  : TArray<TFOperation>;
   input_ops   : TArray<TFOperation>;
   output_names: TArray<string>;
-  num_outputs : integer;
-  i, j        : integer;
+  i           : integer;
 begin
-    num_outputs := outputs.Count;
+    fnum_outputs := outputs.Count;
     for i:= 0 to inputs.Count - 1 do
       input_ops := input_ops + [ inputs[i].op ];
 
-    j := 0;
     var IOperation := graph.get_operations;
     for i := 0 to Length(IOperation) - 1 do
     begin
@@ -334,7 +349,7 @@ begin
         if not Tarray.Contains<TFOperation>(input_ops, operation.op) then
           operations := operations + [ operation as TFOperation ];
     end;
-    func_graph := TFuncGraph.Create(graph, name, attrs);
+    func_graph := TFuncGraph.Create(graph.Handle, name, attrs);
     func_graph.ToGraph(operations, inputs.ToArray, outputs.ToArray, output_names);
 end;
 
@@ -354,34 +369,172 @@ end;
 
 { TapeGradientFunctions }
 
-constructor TapeGradientFunctions.Create(f_func_graph: TFuncGraph);
+constructor TapeGradientFunctions.Create(f_func_graph: TFuncGraph; need_gradients_for_jvps : Boolean);
 begin
-
+    Ffunc_graph := f_func_graph;
 end;
 
 function TapeGradientFunctions.BuildFunctionsForOutputs(outputs, inference_args: TFTensors): Tuple<EagerDefinedFunction, TFuncGraph, ConcreteFunction>;
 begin
+    var trainable_outputs := TList<TFTensor>.Create;
+    var trainable_indices := TList<Integer>.Create;
+    for var i := 0 to outputs.Count -1 do
+    begin
+        var output := outputs[i];
+        if gradients_util.IsTrainable(output) then
+        begin
+            trainable_outputs.Add(output);
+            trainable_indices.Add(i);
+        end;
+    end;
 
+    var gradients_wrt_outputs := TList<TFTensor>.Create;
+    var backwards_graph       := TFuncGraph.Create(_BACKWARD_PREFIX+'_'+Ffunc_graph.FuncName+'_'+ Tops.uid.ToString);
+    backwards_graph.as_default;
+    for var output in trainable_outputs do
+        gradients_wrt_outputs.Add(tf.placeholder(output.dtype, output.shape));
+
+    var gradients_wrt_inputs := gradients_util._GradientsHelper(trainable_outputs.ToArray, Ffunc_graph.Inputs.ToArray, gradients_wrt_outputs.ToArray,'gradients', False, False, 0, nil, Ffunc_graph);
+
+    var captures_from_forward : TArray<TFTensor> := [];
+    for var i := 0 to Length(backwards_graph.external_captures) - 1 do
+    begin
+         var it := backwards_graph.external_captures[i];
+         if ((it is TEagerTensor) = False) and ((it is TNDArray) = False) and (it.graph = Ffunc_graph) then
+            captures_from_forward := captures_from_forward + [ it ];
+    end;
+    for var capture in captures_from_forward do
+    begin
+        if not Ffunc_graph.Outputs.Contains(capture) then
+            Ffunc_graph.Outputs.Add(capture);
+    end;
+    backwards_graph.gExit;
+
+    var forward_function_name  := _FORWARD_PREFIX +'_'+Ffunc_graph.FuncName+'_'+ Tops.uid.ToString;
+    var backward_function_attr := TDictionary<string, string>.Create;
+
+    backward_function_attr.AddOrSetValue(FORWARD_FUNCTION_ATTRIBUTE_NAME, forward_function_name);
+    gradients_wrt_outputs.AddRange(backwards_graph.internal_captures);
+    backwards_graph.Inputs  := TFTensors.Create(gradients_wrt_outputs.ToArray);
+    backwards_graph.Outputs := TFTensors.Create(gradients_wrt_inputs);
+
+    var backward_function     := ConcreteFunction.Create(backwards_graph, backward_function_attr);
+    var forward_function_attr := TDictionary<string, string>.Create;
+    forward_function_attr.AddOrSetValue(BACKWARD_FUNCTION_ATTRIBUTE_NAME, backward_function.Name);
+
+    var forward_function := EagerDefinedFunction.Create(forward_function_name, Ffunc_graph, Ffunc_graph.Inputs, Ffunc_graph.Outputs, forward_function_attr);
+
+    Result := Tuple.Create(forward_function, Ffunc_graph, backward_function);
 end;
 
 function TapeGradientFunctions.Forward(inference_args: TFTensors): EagerDefinedFunction;
 begin
-
+    Result := ForwardAndBackwardFunctions(inference_args);
 end;
 
 function TapeGradientFunctions.ForwardAndBackwardFunctions(inference_args: TFTensors): EagerDefinedFunction;
 begin
-
+    raise Exception.Create('ForwardAndBackwardFunctions .  Virtual method');
 end;
 
 procedure TapeGradientFunctions.&Record(flat_outputs, inference_args: TFTensors);
 begin
+   var tWrapFun          := _wrap_backward_function(Fforward_graph, Fbackward, flat_outputs);
+   var backward_function := tWrapFun.Value1;
+   var to_record         := tWrapFun.Value2;
 
+   tf.Runner.RecordGradient(Fforward.Name, inference_args.ToArray, [], to_record.ToArray, backward_function);
 end;
 
 function TapeGradientFunctions._wrap_backward_function(forward_graph: TFuncGraph; backward: ConcreteFunction; outputs: TFTensors): Tuple<BackwardFunction, TFTensors>;
 begin
+    var backward_function_inputs := Length(backward.Inputs) - Length(backward.CapturedInputs);
+    var recorded_outputs := TFTensors.Create;
+    var trainable_recorded_outputs := 0;
+    for  var i := 0 to outputs.Count - 1 do
+    begin
+        var output       :=  outputs[i];
+        if trainable_recorded_outputs < backward_function_inputs then
+            recorded_outputs.Add(output);
+        if gradients_util.IsTrainable(output) then
+            trainable_recorded_outputs := trainable_recorded_outputs + 1;
+    end;
 
+    if not Assigned(Fbackward_function_wrapper) then
+    begin
+        var capture_mapping := TDictionary<Int64, TFTensor>.Create;
+        for var i := 0 to outputs.Count -1 do
+            capture_mapping.AddOrSetValue(forward_graph.Outputs[i].Id, outputs[i]);
+
+        var remapped_captures := TFTensors.Create;
+        for var capture in backward.CapturedInputs do
+        begin
+            if capture_mapping.ContainsKey(capture.Id) then
+                remapped_captures.Add( capture_mapping[capture.Id] );
+        end;
+
+        var skip_positions := TList<Integer>.Create;
+        for  var i := 0 to outputs.Count - 1 do
+        begin
+            var output_index :=  i;
+            var output       :=  outputs[i];
+            if not gradients_util.IsTrainable(output) then
+               skip_positions.Add(output_index);
+        end;
+
+        Fbackward_function_wrapper := function (args : TArray<TFTensor>; unneeded_gradients: TArray<Int64>): TArray<TFTensor>
+                begin
+                    var processed_args := TFTensors.Create;
+                    var input_index    := 0;
+                    for var output_index := 0 to Length(args) - 1 do
+                    begin
+                        var arg := args[output_index];
+                        if skip_positions.Contains(output_index) then
+                            continue;
+                        if arg = nil then
+                            raise Exception.Create('Not Implemented');
+                        processed_args.Add(arg);
+                        input_index := input_index + 1;
+                        if input_index >= backward_function_inputs then
+                            break;
+                    end;
+
+                    tf.LogMsg('Invoke backward function: '+backward.Name);
+                    var gradients := backward.CallFlat(processed_args.ToArray, remapped_captures.ToArray);
+
+                    for var unneeded_gradient_index in unneeded_gradients do
+                    begin
+                        var index : Integer := unneeded_gradient_index;
+                        if gradients.Count <= index then
+                            gradients.Insert(index, nil);
+                    end;
+
+                    Result := gradients.ToArray;
+                end;
+    end;
+
+    Result := Tuple<BackwardFunction, TFTensors>.Create(Fbackward_function_wrapper, recorded_outputs);
+end;
+
+{ FirstOrderTapeGradientFunctions }
+
+constructor FirstOrderTapeGradientFunctions.Create(func_graph: TFuncGraph; need_gradients_for_jvps: Boolean);
+begin
+    inherited Create(func_graph, need_gradients_for_jvps);
+end;
+
+function FirstOrderTapeGradientFunctions.ForwardAndBackwardFunctions(inference_args: TFTensors): EagerDefinedFunction;
+begin
+    var outputs := Ffunc_graph.Outputs;
+    var tRes     := BuildFunctionsForOutputs(outputs, inference_args);
+
+    Fforward       := tRes.Value1;
+    Fforward_graph := tRes.Value2;
+    Fbackward      := tRes.Value3;
+    Fforwardprop_output_indices := nil;
+    Fnum_forwardprop_outputs    := 0;
+
+    Result := Fforward;
 end;
 
 end.

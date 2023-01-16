@@ -645,10 +645,10 @@ end;
 Constructor TConfigProto.Create;
 begin
   inherited Create;
-  FDeviceCount := TDictionary<string, Integer>.Create;
+  FDeviceCount               := TDictionary<string, Integer>.Create;
   FSessionInterOpThreadPools := TList<TThreadPoolOptionProto>.Create;
-  FDeviceFilterss := TList<string>.Create;
-  FExperimental := TExperimental.Create;
+  FDeviceFilterss            := TList<string>.Create;
+  FExperimental              := TExperimental.Create;
 end;
 
 destructor TConfigProto.Destroy;

@@ -223,6 +223,8 @@ end;
 
 constructor TFuncGraph.Create(_handle: Pointer; name: string; _attrs: TDictionary<string, string>);
 begin
+   inherited Create;
+
    Fouter_graph := Tops.get_default_graph;
 
    while Fouter_graph.building_function do
@@ -232,7 +234,7 @@ begin
    Fbuilding_function := true;
    Attrs := attrs;
    // Will to test if FuncGraph has memory leak
-   // c_api.TF_DeleteGraph(_handle);
+   TF_DeleteGraph(Handle);
    Handle := _handle
 end;
 
@@ -252,7 +254,7 @@ end;
 
 function TFuncGraph.as_default: TFGraph;
 begin
-    tf.Context.graph_mode(true);
+    tf.Context.graph_mode(True);
     Tops.set_default_graph(self);
     Result := self;
 end;

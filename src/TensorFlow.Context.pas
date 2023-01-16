@@ -283,7 +283,7 @@ end;
 constructor TContext.Create;
 begin
     _device_policy       := TFE_DEVICE_PLACEMENT_SILENT;
-    defaultExecutionMode := C_GRAPH_MODE;
+    defaultExecutionMode := C_EAGER_MODE;
     context_switches := ContextSwitchStack.Create(defaultExecutionMode = C_EAGER_MODE, false);
     initialized      := false;
     FConfig          := TConfigProto.Create;
@@ -633,10 +633,7 @@ var
 begin
     Saver.Init;
     TpbSaver.SaveConfigProto(Saver,Config);
-
-    var bytes := Saver.Pb.GetBytes;
-    var text :=  TEncoding.UTF8.GetString(Bytes);
-    Result := text;
+    Result := Saver.Pb.ToStringUtf8;
 end;
 
 end.

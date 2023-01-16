@@ -347,7 +347,7 @@ var
   relevant_nodes : TList<INode>;
   positions_int  : TArray<Integer>;
   i              : Integer;
-  ePosition      : Enumerable<Single>;
+
 begin
     sequential_like := mModel is Sequential;
     if not sequential_like then
@@ -450,25 +450,20 @@ begin
 
 end;
 
-procedure PrintRow1(fields: TArray<String>; positions: TArray<integer>; nested_level: Integer = 0);
+procedure PrintRow1(fields: TArray<String>; positions: TArray<Integer>; nested_level: Integer = 0);
 var
-	left_to_print        : TArray<String>;
-	i, col               : Integer;
-	line                 : String;
-	start_pos,
-	end_pos,
-	cutoff                : Integer;
-	space                 : String;
-	fit_into_line         : String;
-	line_break_conditions : TArray<string>;
-	candidate_cutoffs     : TArray<integer>;
-  spaces                : String;
+  left_to_print         : TArray<String>;
+  line: String;
+  col: Integer;
+  start_pos,
+  end_pos,
+  cutoff                : Integer;
+  space                 : Integer;
+  fit_into_line         : String;
 begin
     SetLength(left_to_print, Length(fields));
-    for i := 0 to Length(fields) - 1 do
-    begin
-        left_to_print[i] := fields[i];
-    end;
+    for var i := 0 to Length(fields) - 1 do
+       left_to_print[i] := fields[i];
 
     line := '';
     for col := 0 to Length(left_to_print) - 1 do
@@ -476,49 +471,34 @@ begin
         if (col > 0) then start_pos := positions[col - 1]
         else              start_pos := 0;
 
-        end_pos := positions[col];
-        // Leave room for 2 spaces to delineate columns
-        // we don't need any if we are printing the last column
-        if (col <> Length(positions) - 1) then  space := '  '
-        else                                    space := '';
+          end_pos := positions[col];
+          // Leave room for 2 spaces to delineate columns
+          // we don't need any if we are printing the last column
+          if (col <> Length(positions) - 1) then  space := 2
+          else                                    space := 0;
 
-        cutoff        := end_pos - start_pos - space.Length;
-        fit_into_line := Copy(left_to_print[col], 1, cutoff);
+          cutoff        := end_pos - start_pos - space;
+          fit_into_line := Copy(left_to_print[col], 1, cutoff);
+          fit_into_line := Copy(fit_into_line,1, cutoff - 1);
 
-        // For nicer formatting we line-break on seeing end of
-        // tuple/dict etc.
-        line_break_conditions := ['),', '},', '],', ''','];
-        SetLength(candidate_cutoffs, 0);
-        for var x in line_break_conditions do
-        begin
-            if fit_into_line.IndexOf(x) >= 0 then
-               candidate_cutoffs := candidate_cutoffs + [fit_into_line.IndexOf(x) + Length(x)];
-        end;
+          if Length(fit_into_line) > end_pos then
+             line := Copy(line,1, positions[col]);
 
-        if Length(candidate_cutoffs) > 0 then
-        begin
-            var eCandidate_Cutoffs := enumerable<Integer>.Create(candidate_cutoffs);
-            cutoff                 := eCandidate_Cutoffs.Min;
-        end;
-        fit_into_line := Copy(fit_into_line,1, cutoff - 1);
+          if col = 0 then  line := StringOfChar('|', nested_level) + ' ';
 
-        if col = 0 then  line := ' ';
+          line := line + fit_into_line;
+          line := line + StringOfChar(' ', space);
 
-        line := line + fit_into_line;
-        line := line + ' ' + space;
+          left_to_print[col] := Copy(left_to_print[col], cutoff+1, Length(left_to_print[col]));
 
-        if space = '' then line := line + ' ';
-
-        left_to_print[col] := Copy(left_to_print[col], 1, cutoff);
-
-        if Length(line) > positions[col] then
-           line := Copy(line,1, positions[col] - 8);
-
-        spaces := string.Create(' ', positions[col] - Length(line));
-        line   := line + string.Join('', spaces);
+          // Pad out to the next position
+          if nested_level <> 0 then  line := line + StringOfChar(' ', positions[col] - Length(line) - nested_level)
+          else                       line := line + StringOfChar(' ', positions[col] - Length(line));
     end;
+    line := line + StringOfChar('|', nested_level);
     tf.LogMsg(line);
 end;
+
 
 class procedure layer_utils.print_row(fields: TArray<string>; positions: TArray<Integer>);
 var
@@ -526,7 +506,7 @@ var
   i: Integer;
   spaces : TArray<String>;
 begin
-    PrintRow1(fields,positions);
+    PrintRow1(fields, positions);
     Exit;
     line := '';
     for i := 0 to Length(fields) - 1 do
@@ -535,12 +515,21 @@ begin
           line := line + ' ';
 
         line := line + fields[i];
-        line := Copy(line, 1, positions[i]);
+        if Length(line) > positions[i]-5 then
+          line := Copy(line,1, positions[i]-5);
 
-        SetLength(spaces, positions[i] - Length(line));
-        for var j:= 0 to Length(spaces)-1 do  spaces[j] := ' ';
-        line := line + string.Join('', spaces);
+        line := Format('%-*s', [positions[i], line]);
+        spaces := spaces + [line] ;
+        line := '';
+
+       // line := Copy(line, 1, positions[i]);
+
+        //SetLength(spaces, positions[i] - Length(line));
+        //for var j:= 0 to Length(spaces)-1 do  spaces[j] := ' ';
+        //line := line + string.Join('', spaces);
+        //line := Format('%-*s', [positions[i], line]);
     end;
+    line := string.Join('', spaces);
     tf.LogMsg(line);
 end;
 

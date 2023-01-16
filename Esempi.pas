@@ -1654,17 +1654,37 @@ begin
     var res := model.predict(tf.constant(np.arange(24).astype(np.np_float32)[ [np.newaxis, Slice.All] ]));
 
     Assert.Istrue(res.shape= TFShape.Create([1, 24]));
-    model.fit(np.arange(24).astype(np.np_float32)[[np.newaxis, Slice.All]], np.arange(24).astype(np.np_float32)[[np.newaxis, Slice.All]], 0);
+    model.fit(np.arange(24).astype(np.np_float32)[[np.newaxis, Slice.All]], np.arange(24).astype(np.np_float32)[[np.newaxis, Slice.All]],{Batch_Size} -1,{Epochs} 1,{Verbose} 0);
 end;
 
 procedure LayersTest.Embedding;
 begin
+    var model := tf.keras.Sequential;
+    var layer := tf.keras.layers.Embedding(1000, 64, {embeddings_initializer}nil, {mask_zero}False, {input_shape}nil, {input_length}10);
+    model.add(layer);
 
+    var size : TFShape := TFShape.Create([32, 10]);
+    var input_array := np.random.randint(1000, nil, @size);
+
+    model.compile('rmsprop', 'mse', [ 'accuracy' ]);
+
+    var output_array := model.predict(input_array);
+
+    Assert.IsTrue(TFShape.Create([32, 10, 64]) =  output_array.shape);
 end;
 
 procedure LayersTest.Dense;
 begin
-
+    // Create a `Sequential` model and add a Dense layer as the first layer.
+    var model := tf.keras.Sequential;
+    model.add(tf.keras.Input(TFShape.Create([16])));
+    model.add(tf.keras.layers.Dense(32, tf.keras.activations.Relu));
+    // Now the model will take as input arrays of shape (None, 16)
+    // and output arrays of shape (None, 32).
+    // Note that after the first layer, you don't need to specify
+    // the size of the input anymore:
+    model.add(tf.keras.layers.Dense(32));
+    Assert.IsTrue(TFShape.Create([-1, 32]) = model.OutputShape );
 end;
 
 procedure LayersTest.EinsumDense;

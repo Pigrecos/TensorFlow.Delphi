@@ -454,20 +454,56 @@ end;
 { RandomizedImpl }
 
 function RandomizedImpl.permutation(x: Integer): TNDArray;
+var
+  FChangedMode : Boolean;
 begin
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
     var v : TValue := x;
     Result := TNDArray.Create(random_ops.random_shuffle(math_ops.range(0, @v)));
+
+    if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 function RandomizedImpl.permutation(x: TNDArray): TNDArray;
+var
+  FChangedMode : Boolean;
 begin
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
    Result := TNDArray.Create(random_ops.random_shuffle(x));
+
+   if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 procedure RandomizedImpl.shuffle(x: TNDArray);
+var
+  FChangedMode : Boolean;
 begin
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
    var y := random_ops.random_shuffle(x);
    CopyMemory(x.TensorDataPointer,@y.BufferToArray[0], x.bytesize);
+
+   if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 function RandomizedImpl.random(size: TFShape): TNDArray;
@@ -479,7 +515,16 @@ begin
 end;
 
 function RandomizedImpl.randint(low: Integer; high: pInteger; size: PTFShape; dtype: TF_DataType): TNDArray;
+var
+  FChangedMode : Boolean;
 begin
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
     if high = nil then
     begin
         var ihigh : Integer := low;
@@ -492,35 +537,70 @@ begin
 
     var tensor := random_ops.random_uniform_int(s, low, high^);
     Result := TNDArray.Create(tensor);
+
+   if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 function RandomizedImpl.randn(shape: TArray<Integer>): TNDArray;
+var
+  FChangedMode : Boolean;
 begin
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
     var s : TFShape := shape;
     if Length(shape) = 0 then  s := TFShape.Scalar;
 
     Result := TNDArray.Create(random_ops.random_normal(s));
+
+   if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 function RandomizedImpl.normal(loc, scale: Single; size: PTFShape): TNDArray;
+var
+  FChangedMode : Boolean;
 begin
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
     var s : TFShape := TFShape.Scalar;
     if Assigned(size) then s := size^;
 
     Result := TNDArray.Create(random_ops.random_normal(s, loc, scale));
+
+   if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 function RandomizedImpl.uniform(low, high: Single; size: PTFShape): TNDArray;
+var
+  FChangedMode : Boolean;
 begin
+    FChangedMode := False;
+    if not tf.executing_eagerly then
+    begin
+        tf.Context.eager_mode;
+        FchangedMode := true;
+    end;
+
     var s : TFShape := TFShape.Scalar;
     if Assigned(size) then s := size^;
 
     Result := TNDArray.Create(random_ops.random_normal(s, low, high));
+
+   if FChangedMode then
+       tf.Context.restore_mode;
 end;
 
 end.
-
-
-
-
 

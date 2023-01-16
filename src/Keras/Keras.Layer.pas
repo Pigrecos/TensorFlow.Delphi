@@ -205,7 +205,6 @@ type
         property OutputShape          : TFShape             read GetoutShape;
         property Layers               : TList<ILayer>       read GetLayers;
         property weights              : TList<IVariableV1>  read GetW write SetW;
-
   end;
 {$ENDREGION}
 
@@ -1394,9 +1393,9 @@ type
       function GetConsts: TDictionary<Integer, TNDArray>;
       function GetNodeDef: TNodeDef;
     protected
+      F_function  : ConcreteFunction;
+
       function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
-    public
-      class var F_function  : ConcreteFunction;
     public
       args     : TensorFlowOpLayerArgs;
 
@@ -1455,7 +1454,7 @@ begin
     Fdynamic         := True;
 
     Fid := Tops.uid_layer;
-    _init_set_name(args.Name);
+    _init_set_name(Fargs.Name);
     FtrainableWeights       := TList<IVariableV1>.Create;
     FnonTrainableWeights    := TList<IVariableV1>.Create;
     FcomputePreviousMask    := false;
@@ -1466,10 +1465,10 @@ begin
     FoutboundNodes := TList<INode>.Create;
 
     // Manage input shape information if passed.
-    if (Fargs.BatchInputShape.isNull) and (not args.InputShape.isNull) then
+    if (Fargs.BatchInputShape.isNull) and (not Fargs.InputShape.isNull) then
     begin
-        var aShape : TArray<Int64> := [args.BatchSize] + Fargs.InputShape.dims;
-        args.BatchInputShape :=  aShape;
+        var aShape : TArray<Int64> := [Fargs.BatchSize] + Fargs.InputShape.dims;
+        Fargs.BatchInputShape :=  aShape;
     end;
 end;
 
@@ -2799,20 +2798,22 @@ end;
 constructor Embedding.Create(_args: EmbeddingArgs);
 begin
     var lArg : LayerArgs := LayerArgs.Create;
+
     lArg.DType      := _args.DType;
     lArg.Name       := _args.Name;
     lArg.InputShape := _args.InputShape;
     lArg.BatchSize  := _args.BatchSize;
 
+    if _args.InputShape.isNull then
+        lArg.InputShape := _args.InputLength;
+
+    var a : TArray<Int64> := [ _args.BatchSize ] + _args.InputShape.dims;
+    if _args.BatchInputShape.isNull then
+        lArg.BatchInputShape := a;
+
     inherited Create(lArg);
 
     args := _args;
-    if args.InputShape.isNull then
-        args.InputShape := args.InputLength;
-
-    var a : TArray<Int64> := [ args.BatchSize ] + args.InputShape.dims;
-    if args.BatchInputShape.isNull then
-        args.BatchInputShape := a;
 
     if Assigned( args.EmbeddingsInitializer) then embeddings_initializer :=  args.EmbeddingsInitializer
     else                                          embeddings_initializer :=  tf.random_uniform_initializer;
@@ -5279,6 +5280,8 @@ begin
     l.DType     := _args.DType;
     l.Autocast  := false;
 
+    F_function := nil;
+
     inherited Create(l) ;
 
     args   := _args;
@@ -5310,7 +5313,7 @@ begin
         graph_outputs     := mark_as_return(graph_outputs);
 
         F_function.ToGraph(TFTensors.Create(graph_inputs), graph_outputs);
-        F_function._Exit();
+        F_function._Exit;
    end;
 
     var outputs := F_function.FilteredCall(inputs);

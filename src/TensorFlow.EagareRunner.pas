@@ -527,9 +527,13 @@ begin
         SetOpAttrs(op, attrs);
     var outputs : TArray<PTFE_Op>;
     SetLength( outputs,num_outputs);
+    var pOutputs : PTFE_TensorHandle := nil;
+    if num_outputs > 0 then
+        pOutputs := @outputs[0];
     if status.ok then
     begin
-        TensorFlow.DApiEager.TFE_Execute(op, @outputs[0], num_outputs, status.Handle);
+    //procedure TFE_Execute(op: PTFE_Op; retvals: PTFE_TensorHandle; var num_retvals: Integer; status: PTF_Status);cdecl;
+        TensorFlow.DApiEager.TFE_Execute(op, pOutputs, num_outputs, status.Handle);
         status.RaiseEx;
     end;
     Result := [];
@@ -658,7 +662,9 @@ begin
             attr_list_sizes.Add(input_arg.NumberAttr,len);
             if len > 0 then
             begin
-                var fast_input_array := op_exec_info.args[i];
+                var fast_input_array := op_exec_info.args[i] ;
+                var rr := fast_input_array.GetArrayLength;
+                //var x : TArray<TFTensor> := fast_input_array.AsType<TArray<TFTensor>>;
                 // First item adds the type attr.
                 if not AddInputToOp(fast_input_array.GetArrayElement(i), true, input_arg, flattened_attrs, flattened_inputs, op, status) then
                     Exit;

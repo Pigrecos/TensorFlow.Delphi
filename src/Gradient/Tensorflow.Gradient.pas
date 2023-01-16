@@ -39,7 +39,7 @@ interface
 
 type
 
-   BackwardFunction = Reference to function(grads : TArray<TFTensor>; unneeded_gradients: TArray<Int64>): TArray<TFTensor>;
+  BackwardFunction = Reference to function(grads : TArray<TFTensor>; unneeded_gradients: TArray<Int64>): TArray<TFTensor>;
 
   TGradFunc = record
     Name : string;
@@ -279,7 +279,6 @@ type
         class function _MultiDeviceAddN(tensor_list: TArray<TFTensor>; gradient_uid: string): TFTensor; static;
         class function _IsPartitionedCall(op: TFOperation) : Boolean; static;
         class function _IsTrainable(tensor: TFTensor): Boolean; static;
-        class function IsTrainable(tensor: TFTensor): Boolean; static;
         class function _MaybeCompile(scope: string; op: TFOperation; out_grads: TArray<TFTensor>; grad_fn: TFunc<TFOperation, TArray<TFTensor>, TArray<TFTensor>>): Enumerable<TFTensor>; static;
         class procedure _VerifyGeneratedGradients(grads: TArray<TFTensor>; op: TFOperation); static;
         class function _NonEagerInputs(op: TFOperation; xs: TArray<TFTensor>): Enumerable<TFTensor>; static;
@@ -314,6 +313,8 @@ type
                                                       loop_state   : ControlFlowState;
                                                       xs           : TArray<TFTensor>); static;
      public
+        class function IsTrainable(tensor: TFTensor): Boolean; static;
+
         class function  _GradientsHelper(ys                          : TArray<TFTensor>;
                                          xs                          : TArray<TFTensor>;
                                          grad_ys                     : TArray<TFTensor> = nil;
@@ -1273,7 +1274,7 @@ const
   cc_Trainable : array[0..5] of TF_DataType = (TF_HALF, TF_FLOAT, TF_DOUBLE, TF_COMPLEX64, TF_COMPLEX128, TF_RESOURCE);
 begin
      var dtype := TDTypes.as_base_dtype(tensor.dtype);
-     Result := TArray.Contains<TF_DataType>(cc_Trainable,dtype )
+     Result    := TArray.Contains<TF_DataType>(cc_Trainable,dtype )
 end;
 
 class function gradients_util._IsTrainable(tensor: TFTensor): Boolean;
