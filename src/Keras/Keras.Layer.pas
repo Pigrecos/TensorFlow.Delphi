@@ -20,6 +20,8 @@ unit Keras.Layer;
 
 interface
        uses System.SysUtils,
+            System.Rtti,
+            System.TypInfo,
             System.JSON,
             System.Generics.Collections,
             System.RegularExpressions,
@@ -872,7 +874,7 @@ type
 
   RNN = class(Layer)
     private
-      //Fargs           : RNNArgs;
+      Fargs           : RNNArgs;
      // Finput_spec     : TObject; // or NoneValue??
      // Fstate_spec     : TObject;
      // Fstates         : TObject;
@@ -880,11 +882,18 @@ type
      // Fnum_constants  : Integer;
 
       function PreConstruct(_args: RNNArgs) : RNNArgs;
+      function _generate_zero_filled_state_for_cell(cell: LSTMCell; batch_size: TFTensor): TFTensor;
     protected
       kernel : IVariableV1;
       bias   : IVariableV1;
+      cell   : ILayer;
+
+      function  get_initial_state(inputs: TFTEnsor): TFTensor;
     public
 
+      // Check whether the state_size contains multiple states.
+      class function _is_multiple_state(state_size: TValue): Boolean;
+      procedure Build(input_shape: TFShape); override;
       constructor Create(_args: RNNArgs) ;
   end;
 
@@ -898,7 +907,6 @@ type
   private
       function getUnits: Integer;
     protected
-      procedure Build(input_shape: TFShape); override;
       function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
       function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
     public
@@ -914,21 +922,24 @@ type
     protected
       procedure Build(input_shape: TFShape); override;
     public
+     args               : SimpleRNNArgs;
+     kernel             : IVariableV1;
+     bias               : IVariableV1;
+     recurrent_kernel   : IVariableV1;
 
-      constructor Create(_args: SimpleRNNArgs) ;
+     constructor Create(_args: SimpleRNNArgs) ;
   end;
 
   SimpleRNN = class(RNN)
-    protected
-      procedure Build(input_shape: TFShape); override;
     public
-      args : SimpleRNNArgs;
-      cell : SimpleRNNCell;
+      args               : SimpleRNNArgs;
 
       constructor Create(_args: SimpleRNNArgs) ;
   end;
 
   StackedRNNCells = class(Layer, RNNArgs.IRnnArgCell)
+  private
+    function GetOuputSize: TValue;
     public
       Cells              : IList<RnnCell> ;
       reverse_state_order: Boolean;
@@ -938,6 +949,8 @@ type
       {$ENDREGION}
 
       constructor Create(_args: StackedRNNCellsArgs) ;
+
+      property output_size : TValue read GetOuputSize;
   end;
   {$ENDREGION}
 
@@ -3911,11 +3924,68 @@ end;
 
 constructor RNN.Create(_args: RNNArgs);
 begin
-    inherited Create(_args) ;
+    inherited Create(PreConstruct(_args)) ;
+    Fargs := _args;
+    FSupportsMasking := True;
+end;
+
+function RNN.get_initial_state(inputs: TFTEnsor): TFTensor;
+begin
+    Result := _generate_zero_filled_state_for_cell(nil, nil);
 end;
 
 function RNN.PreConstruct(_args: RNNArgs): RNNArgs;
 begin
+    if _args.Kwargs = nil then
+      _args.Kwargs := TDictionary<string,TValue>.Create;
+
+    // If true, the output for masked timestep will be zeros, whereas in the
+    // false case, output from previous timestep is returned for masked timestep.
+    var zeroOutputForMask : Boolean := TUtils.Get<string,TValue>(_args.Kwargs,'zero_output_for_mask', false).AsType<Boolean>;
+
+    var input_shape: TFShape;
+    var propIS : TFShape := TUtils.Get<string,TValue>(_args.Kwargs,'input_shape', TValue.From<TFShape>(System.Default(TFShape))).AsType<TFShape>;
+    var propID : Integer := TUtils.Get<string,TValue>(_args.Kwargs,'input_dim', $CC).AsType<Integer>;
+    var propIL : Integer := TUtils.Get<string,TValue>(_args.Kwargs,'input_length', $CC).AsType<Integer>;
+
+    if (propIS.isNil) and ((propID <> $CC) or (propIL <> $CC)) then
+    begin
+        if propIL = $CC then  propIL := -1;
+        if propID = $CC then  propID := -1;
+
+        input_shape := TFShape.Create([propIL, propID]) ;
+        _args.Kwargs.AddOrSetValue('input_shape', TValue.From<TFShape>(input_shape));
+    end;
+
+    Result := _args;
+end;
+
+function RNN._generate_zero_filled_state_for_cell(cell: LSTMCell; batch_size: TFTensor): TFTensor;
+begin
+    raise Exception.Create('Not Implemented');
+end;
+
+class function RNN._is_multiple_state(state_size: TValue): Boolean;
+var
+  tt : TRttiType;
+  p  : TRttiProperty;
+  ctx: TRttiContext;
+begin
+    ctx := TRttiContext.Create;
+    try
+      tt := ctx.GetType(state_size.TypeInfo);
+      p  := tt.GetProperty('Count');
+
+      Result := p <> nil;
+    finally
+      ctx.Free;
+    end;
+end;
+
+procedure RNN.build(input_shape: TFShape);
+begin
+  if not cell.Built then
+     cell.build(input_shape);
 
 end;
 
@@ -3933,11 +4003,6 @@ begin
      var sShape : TFShape := TFShape.Create([-1, a[i]]);
      state_spec := state_spec + [ TInputSpec.Create(DtInvalid, null, null,nil, @sShape) ];
    end;
-
-end;
-
-procedure LSTM.Build(input_shape: TFShape);
-begin
 
 end;
 
@@ -3965,8 +4030,14 @@ end;
 
 procedure SimpleRNNCell.Build(input_shape: TFShape);
 begin
-  inherited;
+  var input_dim := input_shape[-1];
 
+  kernel := add_weight('kernel',           TFShape.Create([input_shape[-1], args.Units]), TF_FLOAT, args.KernelInitializer);
+  kernel := add_weight('recurrent_kernel', TFShape.Create([args.Units, args.Units]),      TF_FLOAT, args.RecurrentInitializer);
+  if args.UseBias then
+    bias := add_weight('bias', TFShape.Create([args.Units]), TF_FLOAT, args.RecurrentInitializer );
+
+  Fbuilt := true;
 end;
 
 { SimpleRNN }
@@ -3976,26 +4047,7 @@ begin
     inherited Create(_args) ;
 
     args := _args;
-end;
-
-procedure SimpleRNN.Build(input_shape: TFShape);
-begin
-  var input_dim := input_shape[-1];
-  (*function add_weight( name            : string;
-                            shape           : TFShape;
-                            dtype           : TF_DataType = TF_DataType.TF_FLOAT;
-                            initializer     : IInitializer = nil;
-                            regularizer     : IRegularizer = nil;
-                            synchronization : TVariableSynchronization= VARIABLE_SYNCHRONIZATION_AUTO;
-                            aggregation     : TVariableAggregation    = VARIABLE_AGGREGATION_NONE;
-                            trainable       : Boolean= true;
-                            getter          : TFunc<VariableArgs, IVariableV1>= nil): IVariableV1; virtual;*)
-  kernel := add_weight('kernel', TFShape.Create([input_shape[-1], args.Units]), TF_FLOAT, args.KernelInitializer
-                                                                                                  //regularizer = self.kernel_regularizer,
-                                                                                                  //constraint = self.kernel_constraint,
-                                                                                                  //caching_device = default_caching_device,
-                                                                                              )
-
+    cell := SimpleRNNCell.Create(_args)
 end;
 
 { StackedRNNCells }
@@ -4003,6 +4055,36 @@ end;
 constructor StackedRNNCells.Create(_args: StackedRNNCellsArgs);
 begin
     inherited Create(_args) ;
+
+    if _args.Kwargs = nil then
+       _args.Kwargs := TDictionary<string,TValue>.Create;
+
+    Cells := _args.Cells;
+    reverse_state_order := TUtils.Get<string,TValue>(_args.Kwargs,'reverse_state_order', false).AsType<Boolean>;
+
+    if reverse_state_order then
+    raise Exception.Create('reverse_state_order=True in StackedRNNCells will soon ' +
+                           'be deprecated. Please update the code to work with the ' +
+                           'natural order of states if you rely on the RNN states, eg RNN(return_state=True).');
+
+end;
+
+function StackedRNNCells.GetOuputSize: TValue;
+begin
+    var lastCell := Cells[Cells.Count - 1];
+
+    if lastCell.output_size <> -1 then
+    begin
+        Result := lastCell.output_size;
+    end
+    else if RNN._is_multiple_state(lastCell.state_size) then
+    begin
+        // return ((dynamic)Cells[-1].state_size)[0];
+        raise Exception.Create('Not Implemented');
+    end else
+    begin
+        Result := Cells[-1].state_size;
+    end;
 end;
 
 function StackedRNNCells.GetState_size: TValue;
@@ -4170,8 +4252,8 @@ begin
     if fused then
     begin
         var tensor_shape := tf.shape(inputs.First);
-        var pre_dim      := tf.constant(1);
-        var in_dim       := tf.constant(1);
+        var pre_dim      := tf.constant(Integer(1));
+        var in_dim       := tf.constant(Integer(1));
         for var dim in TUtils.range(ndims) do
         begin
             var dim_tensor := tensor_shape[dim];
@@ -4180,7 +4262,7 @@ begin
             else
                 in_dim := TTensor(in_dim) * dim_tensor;
         end;
-        var vObj : TArray<TValue> := [ 1, pre_dim, in_dim, 1 ];
+        var vObj : TArray<TValue> := [ Integer(1), pre_dim, in_dim, Integer (1) ];
         inputs := TFTensors.Create( tf.reshape(inputs.first, vObj) );
 
         var scale  := tf.ones (TFShape.Create([Integer(TTensor(pre_dim))]), DType);
@@ -5371,5 +5453,4 @@ end;
 
 {$ENDREGION}
 end.
-
 

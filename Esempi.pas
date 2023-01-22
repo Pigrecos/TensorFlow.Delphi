@@ -1689,7 +1689,13 @@ end;
 
 procedure LayersTest.EinsumDense;
 begin
+    var ed := tf.keras.layers.EinsumDense('...b,bc->...c', TFShape.Create([4]), 'c', nil, tf.constant_initializer(0.5), tf.constant_initializer(0.03) );
 
+    var inp := np.np_array<Single>([ [ 1, 2 ], [ 3, 4 ] ],np.np_float32);
+
+    var expected_output := np.np_array<Single>( [[1.53, 1.53, 1.53, 1.53  ], [3.53, 3.53, 3.53, 3.53 ]],np.np_float32);
+    var actual_output  := ed.Apply(TFtensors.create(inp))[0].numpy;
+    Assert.IsTrue(expected_output.Equals(actual_output));
 end;
 
 procedure LayersTest.SimpleRNN;
@@ -1699,12 +1705,22 @@ end;
 
 procedure LayersTest.Resizing;
 begin
-
+    var inputs := tf.random.uniform(TFShape.Create([10, 32, 32, 3]));
+    var layer  := tf.keras.layers.preprocessing.Resizing(16, 16);
+    var output := layer.Apply(TFTensors.Create(inputs));
+    Assert.IsTrue(TFShape.Create([10, 16, 16, 3]) = output.shape );
 end;
 
 procedure LayersTest.LayerNormalization;
 begin
+    var inputs := tf.constant( TTensor(np.arange(10).reshape(TFShape.Create([5, 2]))) * Integer(10) , tf.float32_t);
+    var layer  := tf.keras.layers.LayerNormalization(1);
+    var output : TFTensor := layer.Apply(TFTensors.Create(inputs)).first;
+    Assert.IsTrue(TFShape.Create([5, 2]) = output.shape );
 
+    var expected : TArray<Single> := [ -0.99998, 0.99998 ];
+
+    Assert.IsTrue(Equal( expected, output[0].ToArray<Single>),'Assert - LayerNormalization');
 end;
 
 end.

@@ -102,8 +102,12 @@ type
 
   Orthogonal = class (IInitializer)
      private
+        FGain : Single;
+        FSeed : pInteger;
 
+        function _generate_init_val(shape: TFShape; dtype: TF_DataType): TFTensor;
      public
+        constructor Create(gain: Single = 1.0; seed : pInteger= nil);
         function Apply(args: InitializerArgs): TFTensor; override;
   end;
 
@@ -122,8 +126,10 @@ implementation
         uses TensorFlow.Constant_op,
              Tensorflow.Utils,
              TensorFlow.Context,
-         TensorFlow.random_ops,
-         Tensorflow.array_ops;
+             TensorFlow.random_ops,
+             Tensorflow.array_ops,
+             TensorFlow.Tensor,
+             Tensorflow;
 
 { InitializerArgs }
 
@@ -256,9 +262,46 @@ end;
 
 { Orthogonal }
 
+constructor Orthogonal.Create(gain: Single; seed: pInteger);
+begin
+    FGain := gain ;
+    FSeed := seed;
+end;
+
 function Orthogonal.Apply(args: InitializerArgs): TFTensor;
 begin
-   raise TFException.Create('Not Implemented - Orthogonal --> IInitializer)');
+   var tipo : TF_DataType := TF_FLOAT;
+   if args.DType <>  DtInvalid then   tipo := args.DType;
+
+   Result := _generate_init_val(args.Shape, tipo);
+end;
+
+function Orthogonal._generate_init_val(shape: TFShape; dtype: TF_DataType): TFTensor;
+begin
+    var num_rows : Int64 := 1;
+    for var i := 0 to Length(shape.dims) -2 do
+    begin
+        num_rows := num_rows * shape.dims[i];
+    end;
+    var num_cols := shape.dims[ High(shape.dims) ];
+    var flat_shape := TFShape.Create([ Max(num_cols, num_rows), Min(num_cols, num_rows) ]);
+
+    var a := tf.random.stateless_normal(flat_shape, 0.0, 1.0, dtype);
+    // Compute the qr factorization
+    var q_r := tf.linalg.qr(a, false);
+    var q := q_r[0];
+    var r:= q_r[1];
+    // Make Q uniform
+    var d := tf.linalg.tensor_diag_part(r);
+    q := TTensor(q)  * tf.sign(d);
+
+    if num_rows < num_cols then
+    begin
+        // q = tf.linalg.matrix_transpose(q);
+        raise Exception.Create('Not Implemented');
+    end;
+
+    Result := Fgain * TTensor( tf.reshape(q, shape) );
 end;
 
 { Constant<T> }

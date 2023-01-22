@@ -89,7 +89,8 @@ uses
   Keras.CommonDef in 'src\Keras\Keras.CommonDef.pas',
   TensorFlow.Functions in 'src\TensorFlow.Functions.pas',
   TensorFlow.nn_grad in 'src\Gradient\TensorFlow.nn_grad.pas',
-  ProtoGen.Main in 'src\Proto\ProtoGen.Main.pas';
+  ProtoGen.Main in 'src\Proto\ProtoGen.Main.pas',
+  TensorFlow.stateless_random_ops in 'src\Operation\TensorFlow.stateless_random_ops.pas';
 
 {$R *.res}
 

@@ -128,6 +128,7 @@ type
      ///   </code>
      /// </remarks>
      class function diag(diagonal: TFTensor; name: string = ''): TFTensor; static;
+     class function diag_part(diagonal: TFTensor; name: string = '') : TFTensor; static;
      class function pad(input: TFTensor; paddings: TFTensor; name: string = ''): TFTensor; static;
      class function invert_permutation(x: TFTensor; name: string = ''): TFTensor; static;
      class function log(x: TFTensor; name: string = ''): TFTensor; static;
@@ -563,6 +564,11 @@ end;
 class function gen_array_ops.diag(diagonal: TFTensor; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('Diag', name, ExecuteOpArgs.Create([diagonal])).First;
+end;
+
+class function gen_array_ops.diag_part(diagonal: TFTensor; name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('DiagPart', name, ExecuteOpArgs.Create([diagonal])).First;
 end;
 
 end.

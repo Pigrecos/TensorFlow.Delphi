@@ -20,6 +20,7 @@ unit TensorFlow.NnOps;
 interface
     uses System.SysUtils,
          System.Generics.Collections,
+         system.TypInfo,
 
          Spring,
          Spring.Collections,
@@ -31,9 +32,12 @@ interface
          Tensorflow.NameScope,
          TensorFlow.Variable,
          TensorFlow.Interfaces,
+         TensorFlow.Initializer,
 
          Keras.Engine,
-         Keras.ArgsDefinition;
+         Keras.ArgsDefinition,
+
+         ProtoGen.variable;
 
 type
   LSTMStateTuple = class;
@@ -162,8 +166,12 @@ type
         /// <returns></returns>
         function zero_state(batch_size: TFTensor; dtype: TF_DataType) : TFTensor;
         function _zero_state_tensors(_state_size: TValue; batch_size: TFTensor; dtype: TF_DataType) : TFTensor ;
+        {$REGION 'Property Accessors'}
+        function GetState_size : TValue;  virtual;
+        function GetOutputSize: Integer;  virtual;
+        {$ENDREGION}
      public
-        output_size          : Integer;
+
 
         constructor Create(trainable: Boolean = true; name: string = ''; dtype: TF_DataType = DtInvalid; _reuse: pBoolean = nil);
         function get_initial_state(inputs: TFTensor = nil; batch_size : TFTensor= nil; dtype: TF_DataType = DtInvalid): TValue;
@@ -181,15 +189,85 @@ type
         function GetBatchShape: TFShape;
         function GetDtype     : TF_DataType;
         function Apply(inputs: TFTensors; state: TFTensor = nil; is_training: Boolean = false): TFTensors;
+        procedure build(input_shape: TFShape);
         function count_params: Integer;
         function get_config: LayerArgs;
-        {$ENDREGION}
-        {$REGION 'Property Accessors'}
-        function GetState_size : TValue;
         {$ENDREGION}
 
         property Built       : Boolean read Fbuilt;
         property state_size  : TValue  read GetState_size;
+        property output_size : Integer read GetOutputSize;
+  end;
+
+  LayerRnnCell = class(RnnCell)
+    private
+
+    protected
+        FinputSpec : TInputSpec;
+        Fbuilt     : Boolean;
+        Fgraph     : TFGraph;
+
+        Fscope         : VariableScope;
+        Fcurrent_scope : VariableScope;
+
+        Freuse                  : pBoolean;
+        Fuse_resource_variables : Boolean;
+        Fkeras_style            : Boolean;
+
+        function _name_scope: string;
+        procedure _set_scope(scope: VariableScope = nil);
+        procedure build(inputs_shape: TFShape); virtual;
+        function apply(inputs: TFTensor; training : TFTensor = nil): Tuple<TFTensor,TFTensor>; virtual;
+        procedure _add_elements_to_collection(elements: TArray<TFOperation>; collection_list: TArray<String>) ; virtual;
+        /// <summary>
+        /// Adds a new variable to the layer, or gets an existing one; returns it.
+        /// </summary>
+        /// <param name="name"></param>
+        /// <param name="shape"></param>
+        /// <param name="dtype"></param>
+        /// <param name="initializer"></param>
+        /// <param name="trainable"></param>
+        /// <param name="synchronization"></param>
+        /// <param name="aggregation"></param>
+        /// <returns></returns>
+        function add_weight(name            : string;
+                            shape           : TArray<Integer>;
+                            dtype           : TF_DataType = DtInvalid;
+                            initializer     : IInitializer = nil;
+                            trainable       : Boolean= true;
+                            synchronization : TVariableSynchronization = VARIABLE_SYNCHRONIZATION_AUTO;
+                            aggregation     : TVariableAggregation     = VARIABLE_AGGREGATION_NONE): IVariableV1; virtual;
+    public
+        constructor Create(trainable : Boolean  = true; name: string = '';  dtype : TF_DataType = DtInvalid;  _reuse: PBoolean = nil);
+        function  __call__(inputs: TFTensors; state : TFTensor = nil; training : TFTensor= nil;  scope : VariableScope= nil): TFTensors;
+  end;
+
+  BasicRnnCell = class(LayerRnnCell)
+    private
+        Fnum_units             : Integer;
+        Factivation            : TFunc<TFTensor, string, TFTensor>;
+        FWEIGHTS_VARIABLE_NAME : string ;
+        FBIAS_VARIABLE_NAME    : string ;
+
+        function GetState_size : TValue;  override;
+        function GetOutputSize : Integer;  override;
+    protected
+        procedure build(inputs_shape: TFShape) ; override;
+        function Call(inputs: TFTensors; state: TFTensor = nil; is_training : boolean= false): TFTensors;
+    public
+        _kernel : IVariableV1;
+        _bias   : IVariableV1;
+
+        constructor Create(num_units: Integer; activation :  TFunc<TFTensor, string, TFTensor> = nil; reuse: PBoolean = nil; name: string = ''; dtype: TF_DataType = DtInvalid);
+  end;
+
+  rnn_cell_impl = record
+    private
+
+    public
+        function BasicRNNCell(num_units: Integer): BasicRnnCell;
+        class function _concat(prefix: TFTensor; suffix: Integer; &static : Boolean = false):TFTensor; overload; static;
+        class function _concat(prefix: TArray<Integer>; suffix: Integer; &static: Boolean = false): TFShape; overload; static;
   end;
 
   StackedRNNCellsArgs = class(LayerArgs)
@@ -237,7 +315,13 @@ implementation
       uses TensorFlow.DApiBase,
            TensorFlow.Ops,
            TensorFlow.gen_nn_ops,
-           Tensorflow.array_ops;
+           Tensorflow.array_ops,
+           Tensorflow.math_ops,
+           Tensorflow.nn_ops,
+           TensorFlow.Constant_op,
+           TensorFlow,
+
+           NumPy.NDArray;
 
 { ConvolutionInternal }
 
@@ -377,6 +461,11 @@ begin
    raise TFException.Create('Not Implemented - Apply()');
 end;
 
+procedure RnnCell.build(input_shape: TFShape);
+begin
+    raise TFException.Create('Not Implemented - build()');
+end;
+
 function RnnCell.count_params: Integer;
 begin
     raise TFException.Create('Not Implemented - count_params()');
@@ -428,6 +517,11 @@ begin
     raise TFException.Create('Not Implemented - GetOutNodes()');
 end;
 
+function RnnCell.GetOutputSize: Integer;
+begin
+    raise TFException.Create('Not Implemented - GetOutputSize()');
+end;
+
 function RnnCell.GetOutShape: TFShape;
 begin
     raise TFException.Create('Not Implemented - GetOutShape()');
@@ -435,7 +529,7 @@ end;
 
 function RnnCell.GetState_size: TValue;
 begin
-    result := state_size;
+    raise TFException.Create('Not Implemented - GetState_size()');
 end;
 
 function RnnCell.GetTrainable: Boolean;
@@ -476,21 +570,22 @@ end;
 
 function RnnCell._zero_state_tensors(_state_size: TValue; batch_size: TFTensor; dtype: TF_DataType): TFTensor;
 begin
-    (*
-    if (state_size is int state_size_int)
-    {
-        var output = nest.map_structure(s =>
-        {
-            var c = rnn_cell_impl._concat(batch_size, s);
-            var size = array_ops.zeros(c, dtype: dtype);
-            var c_static = rnn_cell_impl._concat(batch_size, s, @static: true);
-            size.set_shape(c_static);
-            return size;
-        }, state_size_int);
-        return output;
-    }
-    throw new NotImplementedException("_zero_state_tensors");
-    *)
+    if state_size.TypeInfo = TypeInfo(Integer)  then
+    begin
+        var state_size_int := state_size.AsType<Integer>;
+        var mapFun : TFunc<Integer, TFTensor> := function(s : Integer): TFTensor
+                       begin
+                          var c        := rnn_cell_impl._concat(batch_size, s);
+                          var size     := array_ops.zeros(c, dtype);
+                          var c_static := rnn_cell_impl._concat(batch_size, s, true);
+                          size.set_shape(c_static);
+                          Result := size;
+                       end ;
+        var output := nest.map_structure<Integer>(mapFun, state_size_int);
+        Result := output;
+        exit;
+    end;
+    raise Exception.Create('Not Implemented _zero_state_tensors');
 end;
 
 { LSTMStateTuple }
@@ -547,6 +642,238 @@ begin
     inherited Create;
 
     Kwargs := nil;
+end;
+
+{ LayerRnnCell }
+
+constructor LayerRnnCell.Create(trainable: Boolean; name: string; dtype: TF_DataType; _reuse: PBoolean);
+begin
+    inherited Create(True,name, dtype, _reuse);
+    // For backwards compatibility, legacy layers do not use `ResourceVariable`
+    // by default.
+    Fuse_resource_variables := false;
+    Freuse                  := _reuse;
+
+    // Avoid an incorrect lint error
+    Fbuilt       := false;
+    Fkeras_style := false;
+end;
+
+procedure LayerRnnCell.build(inputs_shape: TFShape);
+begin
+
+end;
+
+function LayerRnnCell.apply(inputs, training: TFTensor): Tuple<TFTensor, TFTensor>;
+begin
+    var results := __call__(TFTensors.Create(inputs), training);
+    Result := Tuple.Create(results[0], results[1]);
+end;
+
+function LayerRnnCell.__call__(inputs: TFTensors; state, training: TFTensor; scope: VariableScope): TFTensors;
+begin
+    _set_scope(scope);
+    Fgraph := Tops._get_graph_from_inputs(inputs.First, Fgraph);
+
+    var scope_context_manager : variable_scope;
+    if Fbuilt then
+    begin
+        var lReuse : Boolean  := True;
+        scope_context_manager := tf.variable_scope(Fscope,'',nil , @lReuse, false);
+    end else
+    begin
+        scope_context_manager := tf.variable_scope(Fscope, '', nil, Freuse, false);
+    end;
+
+    var outputs : TFTensors := nil;
+    TUtils.tf_with<variable_scope>(scope_context_manager, procedure(scope2 : variable_scope)
+              begin
+                  Fcurrent_scope := scope2.scope;
+                  // Actually call layer
+              end);
+    // Update global default collections.
+    Result := outputs;
+end;
+
+procedure LayerRnnCell._add_elements_to_collection(elements: TArray<TFOperation>; collection_list: TArray<String>);
+begin
+    for var name in collection_list do
+    begin
+        var collection := Tops.get_collection_ref<TFOperation>(name);
+
+        for var element in elements do
+            if not collection.Contains(element) then
+                collection.Add(element);
+    end;
+end;
+
+function LayerRnnCell.add_weight(name: string; shape: TArray<Integer>; dtype: TF_DataType; initializer: IInitializer; trainable: Boolean; synchronization: TVariableSynchronization;
+  aggregation: TVariableAggregation): IVariableV1;
+begin
+    var default_graph := Tops.get_default_graph;
+    var init_graph : TFGraph := nil;
+    var existing_variables : TArray<IVariableV1> := [];
+
+    if synchronization = VARIABLE_SYNCHRONIZATION_ON_READ then
+        trainable := false;
+
+    if default_graph.building_function then
+    begin
+        raise Exception.Create('Not Implemented');
+    end else
+    begin
+        init_graph         := default_graph;
+        existing_variables := variables.global_variables.ToArray;
+    end;
+
+    if dtype = TF_DataType.DtInvalid then
+        dtype := TF_DataType.TF_FLOAT;
+
+    _set_scope;
+    var reuse := (Fbuilt) or ( (Freuse <> nil) and (Freuse^) );
+    Result := tf.Variable(Integer(0));
+end;
+
+function LayerRnnCell._name_scope: string;
+begin
+    Result  := Fcurrent_scope.original_name_scope;
+end;
+
+procedure LayerRnnCell._set_scope(scope: VariableScope);
+begin
+    if Fscope = nil then
+    begin
+        if (Freuse <> nil) and  (Freuse^) then
+        begin
+            raise Exception.Create('Not Implemented _set_scope _reuse.HasValue');
+            (*with(tf.variable_scope(scope == null ? _base_name : scope),
+                captured_scope => _scope = captured_scope);*)
+        end else
+        begin
+
+        end;
+    end;
+end;
+
+{ BasicRnnCell }
+
+constructor BasicRnnCell.Create(num_units: Integer; activation: TFunc<TFTensor, string, TFTensor>; reuse: PBoolean; name: string; dtype: TF_DataType);
+begin
+     FWEIGHTS_VARIABLE_NAME := 'kernel';
+     FBIAS_VARIABLE_NAME    := 'bias';
+
+     inherited Create(True,  name, dtype, reuse);
+
+     // Inputs must be 2-dimensional.
+     FinputSpec := TInputSpec.Create(dtInvalid, 2);
+
+     Fnum_units := num_units;
+     if not Assigned(activation)  then
+        Factivation := math_ops.tanh
+     else
+        Factivation := activation;
+end;
+
+procedure BasicRnnCell.build(inputs_shape: TFShape);
+begin
+    var input_depth := inputs_shape.dims[inputs_shape.ndim - 1];
+
+    _kernel := add_weight( FWEIGHTS_VARIABLE_NAME,  [ (input_depth + Fnum_units), Fnum_units ]);
+    _bias   := add_weight( FBIAS_VARIABLE_NAME, [ Fnum_units ], DtInvalid, tf.zeros_initializer);
+
+    Fbuilt := true;
+end;
+
+function BasicRnnCell.Call(inputs: TFTensors; state: TFTensor; is_training: boolean): TFTensors;
+begin
+    // Most basic RNN: output = new_state = act(W * input + U * state + B).
+    var tInput : TArray<TFTensor> := [ inputs.First, state ];
+    var concat := array_ops.concat(tInput, 1);
+
+    var gate_inputs := math_ops.matmul(concat, _kernel.AsTensor);
+    gate_inputs     := nn_ops.bias_add(gate_inputs, _bias);
+    var output      := Factivation(gate_inputs, '');
+
+    Result := TFTensors.Create([output, output]);
+end;
+
+function BasicRnnCell.GetOutputSize: Integer;
+begin
+   Result := Fnum_units;
+end;
+
+function BasicRnnCell.GetState_size: TValue;
+begin
+   Result := Fnum_units;
+end;
+
+{ rnn_cell_impl }
+
+function rnn_cell_impl.BasicRNNCell(num_units: Integer): BasicRnnCell;
+begin
+   Result := TensorFlow.NnOps.BasicRnnCell.Create(num_units);
+end;
+
+class function rnn_cell_impl._concat(prefix: TFTensor; suffix: Integer; static: Boolean): TFTensor;
+begin
+    var p := prefix;
+    var p_static := TUtils.constant_value(prefix);
+
+    if      p.ndim = 0  then  p := array_ops.expand_dims(p, 0)
+    else if p.ndim <> 1 then  raise Exception.Create('prefix tensor must be either a scalar or vector, but saw tensor: '+ p.ToString);
+
+    var s_tensor_shape := TFShape.Create([suffix]);
+
+    var s_static : TArray<Int64> := [];
+    if s_tensor_shape.ndim > -1  then s_static := s_tensor_shape.dims ;
+
+    var s : TFTensor := nil;
+    if s_tensor_shape.IsFullyDefined  then s := constant_op.constant(s_tensor_shape.dims, Tdtypes.cint32, 'Const') ;
+
+    if &static then
+    begin
+        if p_static = nil then Exit(nil);
+        var nd : NDArray := p_static;
+        var iDim : Int64 := nd;
+
+        var shape := TFShape.Create([iDim]).concatenate(s_static);
+        raise Exception.Create('Not Implemented RNNCell _concat');
+    end else
+    begin
+        if (p = nil) or (s = nil) then
+          raise Exception.Create('Provided a prefix or suffix of None: '+ prefix.ToString + ' and '+ suffix.ToString);
+        Result := array_ops.concat([ p, s ], 0);
+    end;
+end;
+
+class function rnn_cell_impl._concat(prefix: TArray<Integer>; suffix: Integer; static: Boolean): TFShape;
+begin
+    var p := TFShape.Create(prefix);
+    var p_static := prefix;
+
+    var p_tensor : TFTensor := nil;
+    if p.IsFullyDefined  then p_tensor := constant_op.constant(p.dims, Tdtypes.cint32, 'Const') ;
+
+    var s_tensor_shape := TFShape.Create([suffix]);
+
+    var s_static : TArray<Int64> := [];
+    if s_tensor_shape.ndim > -1  then s_static := s_tensor_shape.dims ;
+
+    var s_tensor : TFTensor := nil;
+    if s_tensor_shape.IsFullyDefined  then s_tensor := constant_op.constant(s_tensor_shape.dims, Tdtypes.cint32, 'Const') ;
+
+    if &static then
+    begin
+        if p_static = nil then Exit(nil);
+        var shape := TFShape.Create(p_static).concatenate(s_static);
+        Exit(shape);
+    end else
+    begin
+        if (p = nil) or (s_tensor = nil) then
+          raise Exception.Create('Provided a prefix or suffix of None: {prefix} and {suffix}');
+        // return array_ops.concat(new[] { p_tensor, s_tensor }, 0);
+        raise Exception.Create('Not Implemented');
+    end
 end;
 
 end.

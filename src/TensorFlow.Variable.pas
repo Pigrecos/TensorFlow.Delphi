@@ -229,7 +229,8 @@ type
         class function  get_variable_scope_store : _VariableScopeStore;
         class function  _get_trainable_value(synchronization: TVariableSynchronization; trainable: Boolean = true): Boolean;
 
-        property UseResource : Boolean read Fuse_resource;
+        property UseResource : Boolean       read Fuse_resource;
+        property scope       : VariableScope read  Fscope;
    end;
 
   /// <summary>

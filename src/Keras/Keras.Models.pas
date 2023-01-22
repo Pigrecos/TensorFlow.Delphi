@@ -797,8 +797,14 @@ procedure Model.Build(input_shape: TFShape);
 var
   graph : TFGraph;
 begin
+    if (self is Functional) or (self is Sequential)  then
+    begin
+        inherited build(input_shape);
+        Exit;
+    end;
+
     if tf.executing_eagerly then graph := TFuncGraph.Create('build_graph')
-    else                      graph := tf.keras.backend.get_graph;
+    else                         graph := tf.keras.backend.get_graph;
 
     graph.as_default;
     var x := tf.placeholder(DType, input_shape);
@@ -1294,7 +1300,11 @@ begin
     mapT := MapGraphNetwork(inputs, outputs);
     NetworkNodes             := mapT.Value1;
     NodesByDepth             := mapT.Value2;
-    Fself_tracked_trackables := mapT.Value3;
+
+    if Fself_tracked_trackables.Count = 0 then
+    begin
+        Fself_tracked_trackables := mapT.Value3;
+    end;
 
     _set_output_names;
     ComputeTensorUsageCount;
@@ -1545,7 +1555,13 @@ begin
     if Finferred_input_shape = input_shape then
        Exit;
     TOps.init_scope;
-    var inputs := tf.keras.Input(default(TFShape), input_shape, -1, input_dtype, Fself_tracked_trackables[0].Name+'_input');
+
+    var sName : string;
+    if Fself_tracked_trackables[0].Name.EndsWith('_input') then sName :=  Fself_tracked_trackables[0].Name
+    else                                                        sName :=  Fself_tracked_trackables[0].Name+'_input';
+
+    var inputs := tf.keras.Input(default(TFShape), input_shape, -1, input_dtype, sName);
+
     layer_input  := TFTensors.Create(inputs);
     outputs      := nil;
     created_nodes:= TList<INode>.Create;

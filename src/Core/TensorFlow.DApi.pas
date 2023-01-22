@@ -772,6 +772,10 @@ TFTensor = class(ITensorOrOperation)
    function consumers: TArray<TFOperation>;
    function _shape_tuple: TArray<Integer>;
    /// <summary>
+   ///     Updates the shape of this tensor.
+   /// </summary>
+   procedure set_shape(shape: TFTensor);
+   /// <summary>
    ///
    /// </summary>
    /// <typeparam name="T"></typeparam>
@@ -3129,6 +3133,13 @@ begin
     tf.Status.RaiseEx;
 end;
 
+procedure TFTensor.set_shape(shape: TFTensor);
+begin
+    // ReSharper disable once MergeConditionalExpression
+    if shape = nil then Fshape := System.Default(TFShape)
+    else                Fshape := shape.shape;
+end;
+
 function TFTensor._shape_tuple: TArray<Integer>;
 begin
     if rank < 0 then  Result := []
@@ -4477,14 +4488,14 @@ begin
     input_is_sequence := nest.is_sequence(elems);
     input_flatten := function (x: TValue): TArray<TFTensor>
                            begin
-                               var x_a : TArray<TFTensor> := x.AsType<TArray<TFTensor>> ;
+                               var x_a : TFTensor := x ;
                                if input_is_sequence then Result := nest.flatten<TFTensor>(x_a).ToArray
                                else                      Result := [ x ];
                            end;
     input_pack := function (x: TArray<TFTensor>): TFTensor
                            begin
                                var lst := TList<TFTensor>.Create(x);
-                               if input_is_sequence then Result := nest.pack_sequence_as(elems, lst) as TFTensor
+                               if input_is_sequence then Result := nest.pack_sequence_as(elems, TList<TObject>(lst)) as TFTensor
                                else                      Result := x[0] ;
                            end;
 
@@ -4499,14 +4510,14 @@ begin
 
         output_flatten := function (x: TValue): TArray<TFTensor>
                            begin
-                               var x_a : TArray<TFTensor> := x.AsType<TArray<TFTensor>> ;
+                               var x_a : TFTensor := x ;
                                if output_is_sequence then Result := nest.flatten<TFTensor>(x_a).ToArray
                                else                       Result := [ x ];
                            end;
         output_pack := function (x: TArray<TFTensor>): TFTensor
                            begin
                                var lst := TList<TFTensor>.Create(x);
-                               if output_is_sequence then Result := nest.pack_sequence_as(elems, lst) as TFTensor
+                               if output_is_sequence then Result := nest.pack_sequence_as(elems, TList<TObject>(lst)) as TFTensor
                                else                       Result := x[0] ;
                            end;
     end;

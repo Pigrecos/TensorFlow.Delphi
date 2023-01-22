@@ -184,10 +184,12 @@ type
       function Rescaling(scale: Single; offset : Single= 0; input_shape : PTFShape= nil): ILayer;
 
       function SimpleRNN( units                : Integer;
-                          activation           : string= 'tanh';
-                          kernel_initializer   : string= 'glorot_uniform';
-                          recurrent_initializer: string= 'orthogonal';
-                          bias_initializer     : string= 'zeros'): ILayer;
+                          activation           : string  = 'tanh';
+                          kernel_initializer   : string  = 'glorot_uniform';
+                          recurrent_initializer: string  = 'orthogonal';
+                          bias_initializer     : string  = 'zeros';
+                          return_sequences     : Boolean = False;
+                          return_state         : Boolean = False ): ILayer;
 
       function Subtract: ILayer;
 

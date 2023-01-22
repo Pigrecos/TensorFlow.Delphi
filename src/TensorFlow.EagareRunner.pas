@@ -532,7 +532,6 @@ begin
         pOutputs := @outputs[0];
     if status.ok then
     begin
-    //procedure TFE_Execute(op: PTFE_Op; retvals: PTFE_TensorHandle; var num_retvals: Integer; status: PTF_Status);cdecl;
         TensorFlow.DApiEager.TFE_Execute(op, pOutputs, num_outputs, status.Handle);
         status.RaiseEx;
     end;

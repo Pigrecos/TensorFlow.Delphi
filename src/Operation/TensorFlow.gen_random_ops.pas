@@ -83,6 +83,8 @@ type
       /// <returns></returns>
       Class function truncated_normal(shape: TFTensor; dtype: TF_DataType; seed: Integer = 0; seed2: Integer = 0; name: string = '') : TFTensor; static;
       Class function multinomial(logits: TFTensor; num_samples: Integer; seed: Integer = 0; seed2: Integer = 0; output_dtype: TF_DataType = TF_INT64; name: string = '') : TFTensor; static;
+      Class function stateless_random_normal_v2(shape: TFTensor; key: TFTensor; counter: TFTensor; alg: Integer; dtype: TF_DataType; name: string = '') : TFTensor; static;
+      Class function stateless_random_get_key_counter(seed: TArray<Integer>; name: string = '') : TFTensors; static;
   end;
 
 implementation
@@ -102,6 +104,17 @@ class function gen_random_ops.random_uniform_int(shape, minval, maxval: TFTensor
 begin
     Result := tf.Context.ExecuteOp('RandomUniformInt', name, ExecuteOpArgs.Create([ shape, minval, maxval ])
                                                  .SetAttributes(['seed', seed, 'seed2',seed2 ]) ).First;
+end;
+
+class function gen_random_ops.stateless_random_get_key_counter(seed: TArray<Integer>; name: string): TFTensors;
+begin
+     Result := tf.Context.ExecuteOp('StatelessRandomGetKeyCounter', name, ExecuteOpArgs.Create([ seed ]))
+end;
+
+class function gen_random_ops.stateless_random_normal_v2(shape, key, counter: TFTensor; alg: Integer; dtype: TF_DataType; name: string): TFTensor;
+begin
+     Result := tf.Context.ExecuteOp('StatelessRandomNormalV2', name, ExecuteOpArgs.Create([ shape, key, counter, alg ])
+                                                              .SetAttributes(['dtype', TValue.From<Integer>(Ord(dtype)) ]) ).First;
 end;
 
 class function gen_random_ops.random_uniform(shape: TFTensor; dtype: TF_DataType; seed, seed2: Integer; name: string): TFTensor;

@@ -220,7 +220,7 @@ begin
     var tipoName : string := string.LowerCase(tipo.Name);
     // convert data type
     if (dtype <> TF_DataType.DtInvalid) and
-       (tipoName <> 'tndarray') and
+       (tipoName <> 'tndarray') and (tipoName <> 'teagertensor') and
        (value.IsArray = False) and
        (dtype <> TUtils.GetDataType(value))  then
     begin
@@ -233,12 +233,21 @@ begin
     end
     else if (dtype <> TF_DataType.DtInvalid) and (value.TypeInfo = TypeInfo(TNDArray)) then
     begin
-       if value.AsType<TNDArray>.Dtype = dtype then
+       if value.AsType<TNDArray>.Dtype <> dtype then
        begin
            var nd := value.AsType<TNDArray>;
            value := math_ops.cast(nd, dtype);
        end;
+    end
+    else if (dtype <> TF_DataType.DtInvalid) and  (value.TypeInfo = TypeInfo(TEagerTensor)) then
+    begin
+       if value.AsType<TEagerTensor>.Dtype <> dtype then
+       begin
+           var nd := value.AsType<TEagerTensor>;
+           value := math_ops.cast(nd, dtype);
+       end;
     end;
+
     // non ascii char
     if (dtype = TF_DataType.TF_STRING) and (value.IsArray) and (tipoName.Contains('byte') ) then
     begin

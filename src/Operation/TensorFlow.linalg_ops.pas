@@ -49,6 +49,7 @@ type
       function cholesky(input: TFTensor; name: string = '') : TFTensor;
       function cholesky_solve(chol: TFTensor; rhs: TFTensor; name: string = '') : TFTensor;
       function matrix_triangular_solve(matrix: TFTensor; rhs: TFTensor; lower: Boolean = true; adjoint: Boolean = false; name: string = ''): TFTensor;
+      function qr(input: TFTensor; full_matrices: Boolean = false; name: string = ''): TFTensors;
   end;
 
 
@@ -142,6 +143,12 @@ begin
                             res := array_ops.squeeze(res, axis^.axis);
                         Result := res;
                     end );
+end;
+
+function linalg_ops.qr(input: TFTensor; full_matrices: Boolean; name: string): TFTensors;
+begin
+    Result := tf.Context.ExecuteOp('Qr', name, ExecuteOpArgs.Create([ input ])
+                                                 .SetAttributes(['full_matrices',full_matrices ]) );
 end;
 
 function linalg_ops._composite_impl(matrix, rhs, l2_regularizer: TFTensor): TFTensor;

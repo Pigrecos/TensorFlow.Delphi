@@ -123,13 +123,24 @@ type
  end;
 
  nest = class
-   public
-      class function flatten<T>(obj : TArray<T>                        ): TList<T> ;  overload;
-      class function flatten<T>(obj : TArray<TArray<T>>                ): TList<T> ;  overload;
-      class function flatten<T>(obj : TArray<TArray<TArray<T>>>        ): TList<T> ;  overload;
-      class function flatten<T>(obj : TArray<TArray<TArray<TArray<T>>>>): TList<T> ;  overload;
+  private
+    class function is_Mapping<T>(arg: T): Boolean; static;
+    class function SequenceLike<T>    (instance: T; args: TArray<TObject>): TObject;   overload;
+    class function SequenceLike<Tk,Tv>(instance: TDictionary<Tk,Tv>; args: TArray<Tk>): TObject;  overload;
+    class function _packed_nest_with_indices<T>(structure : T; flat: TList<TObject>; index: Integer): Tuple<Integer, TList<TObject>> ;
+    class function _yield_value<T>(Iter: T): TArray<T>; static;
 
-      class function is_Sequence(arg: TValue): Boolean;
+   public
+      class function Flatten<T>(structure: TValue):  TList<T>; overload;
+      class procedure _flatten_recursive<T>(obj: TValue; list: TList<T>); static;
+
+      class function map_structure<T>(func: TFunc<T, TFTensor>; structure: TValue) : TFTensor;
+      /// <summary>
+      /// Returns a sorted list of the dict keys, with error if keys not sortable.
+      /// </summary>
+      class function _sorted<Tk,Tv>(dict_:TDictionary<Tk, Tv>): TArray<Tk>;
+
+      class function is_Sequence<T>(arg: T): Boolean; static;
       /// <summary>
       /// Returns a given flattened sequence packed into a given structure.
       /// If `structure` is a scalar, `flat_sequence` must be a single-element list;
@@ -153,7 +164,7 @@ type
       /// <returns> `flat_sequence` converted to have the same recursive structure as
       /// `structure`.
       /// </returns>
-      class function pack_sequence_as(structure: TObject; flat_sequence: TEnumerable<TFTensor>; expand_composites: Boolean = false): TObject;
+      class function pack_sequence_as<T>(structure: T; flat_sequence: TEnumerable<TObject>; expand_composites: Boolean = false): TObject;
  end;
 
  TUtils = class
@@ -1697,71 +1708,196 @@ end;
 
 { nest }
 
-class function nest.flatten<T>(obj :TArray<T>): TList<T> ;
-var
-  list : TList<T>;
+class function nest.is_Sequence<T>(arg: T): Boolean;
 begin
-    list:= TList<T>.create;
+    var v := TValue.From<T>(arg);
+    Result := v.IsArray;
+    if (not Result) and (v.IsType<TFTensors>) then Result := True;
 
-    for var i := 0 to Length(obj) -1  do
-       list.Add(obj[i]);
+    if (not Result) and (v.IsType<TList<T>>) then Result := True;
+end;
 
+class function nest.map_structure<T>(func: TFunc<T, TFTensor>; structure: TValue): TFTensor;
+ var
+  _flat_structure : TList<T> ;
+  flat_structure  : Enumerable<T>;
+begin
+    _flat_structure := flatten<T>(structure);
+    flat_structure  := Enumerable<T>.Create(_flat_structure.ToArray);
+
+    var flat_structure_t := TList<TFTensor>.Create( flat_structure.Select<TFTensor>(func).ToArray );
+
+    Result := pack_sequence_as(structure.AsType<T>, TList<TObject>(flat_structure_t)) as TFTensor;
+end;
+
+class function nest._sorted<Tk,Tv>(dict_:TDictionary<Tk, Tv>): TArray<Tk>;
+begin
+    var list : TList<Tk> := TList<Tk>.Create(dict_.Keys);
+    try
+      list.Sort;
+      Result := list.ToArray;
+    finally
+      list.Free;
+    end;
+end;
+
+class function nest.Flatten<T>(structure: TValue):  TList<T>;
+var
+  list: TList<T>;
+begin
+    list := TList<T>.Create;
+    _flatten_recursive<T>(structure, list);
     Result := list;
 end;
 
-class function nest.flatten<T>(obj: TArray<TArray<T>>): TList<T> ;
+class procedure nest._flatten_recursive<T>(obj: TValue; list: TList<T>);
 var
-  list : TList<T>;
+  i: Integer;
 begin
-    list:= TList<T>.create;
 
-    for var i := 0 to Length(obj) -1  do
-      for var j := 0 to Length(obj[i]) -1  do
-       list.Add(obj[i][j]);
-
-    Result := list;
+    if Obj.isArray then
+    begin
+        for i := 0 to Obj.GetArrayLength - 1 do
+          _flatten_recursive<T>(Obj.GetArrayElement(i), list);
+    end
+    else if Obj.IsType<string> then
+    begin
+       list.Add(Obj.AsType<T>);
+    end
+    else if Obj.IsType<TList<T>> then
+    begin
+        list.AddRange(Obj.AsType<TList<T>>);
+    end
+    else if Obj.IsType<TNDArray> then
+    begin
+        list.Add(Obj.AsType<T>);
+    end
+    else if Obj.TypeInfo = TypeInfo(TValue)  then
+    begin
+        var v := Obj.AsType<TValue>;
+        _flatten_recursive(v, list);
+    end else
+    begin
+        list.Add(Obj.AsType<T>);
+    end;
 end;
 
-class function nest.flatten<T>(obj: TArray<TArray<TArray<T>>>): TList<T> ;
+class function nest.is_Mapping<T>(arg: T): Boolean;
+begin
+    Result := false;
+    var v := TValue.From<T>(arg) ;
+
+    if string(v.TypeInfo.Name).ToLower.Contains('TDictionary') then Result := True;
+end;
+
+class function nest.SequenceLike<Tk,Tv>(instance: TDictionary<Tk,Tv>; args: TArray<Tk>): TObject;
 var
-  list : TList<T>;
+  keyList: TList<Tk>;
+  keyArray: TArray<Tk>;
+  i: Integer;
 begin
-    list:= TList<T>.create;
+    keyList := TList<Tk>.Create;
+    for var key in instance.Keys do
+      keyList.Add(key);
+    keyList.Sort;
 
-    for var i := 0 to Length(obj) -1  do
-      for var j := 0 to Length(obj[i]) -1  do
-        for var y := 0 to Length(obj[i][j]) -1  do
-          list.Add(obj[i][j][y]);
-
-    Result := list;
+    keyArray := keyList.ToArray;
+    result := TDictionary<Tk, Tv>.Create;
+    for i := 0 to High(keyArray) do
+      TDictionary<Tk, Tv>(result).Add( keyArray[i], instance[ keyArray[i] ]);
+    Result := result;
 end;
 
-class function nest.flatten<T>(obj: TArray<TArray<TArray<TArray<T>>>>): TList<T> ;
+class function nest.SequenceLike<T>(instance: T; args: TArray<TObject>): TObject;
+begin
+    var v := TValue.From<T>(instance) ;
+    if TypeInfo(T) = TypeInfo(TList<T>) then
+    begin
+      result := TList<TObject>.Create;
+      TList<TObject>(result).AddRange(args);
+    end
+    else if v.IsArray then
+    begin
+      var res := TArray<TObject>.Create();
+      TArray.Copy<TObject>(args, res, Length(args));
+      Result := TObject(res);
+    end
+    else
+    begin
+      raise Exception.Create('Type of sequence not supported (yet)');
+    end;
+end;
+
+class function nest._yield_value<T>(Iter : T ): TArray<T>;
+begin
+    var v := TValue.From<T>(Iter) ;
+    if TypeInfo(T) = TypeInfo(TList<T>) then
+    begin
+      var res := TList<T>.Create;
+      res.AddRange( v.AsType<TList<T> > );
+    end
+    else if v.IsArray then
+    begin
+      var res := TArray<T>.Create();
+      TArray.Copy<T>( v.AsType<TArray<T> >, res, v.GetArrayLength);
+      Result := res;
+    end
+    else
+    begin
+      raise Exception.Create('Type of sequence not supported (yet)');
+    end;
+end;
+
+class function nest._packed_nest_with_indices<T>(structure : T; flat: TList<TObject>; index: Integer): Tuple<Integer, TList<TObject>> ;
+begin
+    var pPacked := TList<TObject>.Create;
+    for var s in _yield_value(structure) do
+    begin
+        if is_sequence(s) then
+        begin
+            var tPack := _packed_nest_with_indices(s, flat, index);
+            var new_index := tPack.Value1;
+            var child     := tPack.Value2;
+
+            pPacked.Add( SequenceLike(s, child.ToArray) );
+            index := new_index;
+        end else
+        begin
+            pPacked.Add(flat[index]);
+            index := index + 1;
+        end;
+    end;
+    Result := Tuple.Create(index, pPacked);
+end;
+
+class function nest.pack_sequence_as<T>(structure: T; flat_sequence: TEnumerable<TObject>; expand_composites: Boolean): TObject;
 var
-  list : TList<T>;
-begin
-    list:= TList<T>.create;
-
-    for var i := 0 to Length(obj) -1  do
-      for var j := 0 to Length(obj[i]) -1  do
-        for var y := 0 to Length(obj[i][j]) -1  do
-          for var z := 0 to Length(obj[i][j][y]) -1  do
-             list.Add(obj[i][j][y][z]);
-
-    Result := list;
-end;
-
-class function nest.is_Sequence(arg: TValue): Boolean;
-begin
-    Result := False;
-
-    var info := arg.TypeInfo;
-    var data := arg.TypeData;
-end;
-
-class function nest.pack_sequence_as(structure: TObject; flat_sequence: TEnumerable<TFTensor>; expand_composites: Boolean): TObject;
+  flat     : TList<TObject>;
+  pPacked: TList<TObject>;
 begin
 
+    if flat_sequence is TList<TObject> then  flat := flat_sequence as TList<TObject>
+    else                                     flat := TList<TObject>.Create;
+
+    if not is_Sequence<T>(structure) then
+    begin
+       if flat.Count > 1 then
+         raise Exception.Create('Structure is a scalar but len(flat_sequence) = '+ flat.Count.ToString + ' > 1');
+
+       Exit(flat.First)
+    end;
+
+    pPacked := nil;
+    try
+      var tPack := _packed_nest_with_indices(structure, flat, 0);
+      var final_index := tPack.Value1;
+      pPacked     := tPack.Value2;
+      if final_index < flat.Count then
+         raise Exception.Create('Final index: '+ final_index.ToString +' was smaller than  len(flat_sequence): '+flat.Count.ToString);
+      Result := SequenceLike(structure, pPacked.ToArray);
+    Except
+      Result := SequenceLike(structure, pPacked.toArray);
+    end;
 end;
 
 end.

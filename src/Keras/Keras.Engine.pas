@@ -211,6 +211,7 @@ type
     function Apply(inputs: TFTensors; state: TFTensor = nil; training: Boolean = false): TFTensors;
     function count_params: Integer;
     function get_config: LayerArgs;
+    procedure build(input_shape: TFShape);
 
     property Name                    : string              read GetName;
     property Trainable               : Boolean             read GetTrainable;

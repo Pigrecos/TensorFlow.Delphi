@@ -82,7 +82,16 @@ begin
 end;
 
 function TPreprocessing.Resizing(height, width: Integer; interpolation: string): ILayer;
+var
+  args: ResizingArgs;
 begin
+    args := ResizingArgs.Create;
+
+    args.Height          := height;
+    args.Width           := width;
+    args.Interpolation   := interpolation;
+
+    Result := Keras.Layer.Resizing.create(args)
 
 end;
 

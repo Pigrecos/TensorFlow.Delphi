@@ -276,6 +276,7 @@ type
     private
 
     public
+      function stateless_normal(shape: TFShape; mean : Single= 0.0; stddev : Single= 1.0; dtype : TF_DataType = TF_FLOAT; name: string = ''): TFTensor;
       /// <summary>
       /// Outputs random values from a normal distribution.
       /// </summary>
@@ -432,6 +433,8 @@ end;
        function lstsq(matrix: TFTensor; rhs: TFTensor; l2_regularizer : TNDArray= nil; fast: Boolean = true; name: string = '') : TFTensor;
        function tensordot(x: TFTensor; y: TFTensor; axes: TNDArray; name : string= '') : TFTensor;
        function matmul(a: TFTensor; b: TFTensor) : TFTensor;overload;
+       function qr(input: TFTensor; full_matrices: Boolean = true; name: string = ''): TFTensors;
+       function tensor_diag_part(input: TFTensor; name: string = ''): TFTensor;
 
   end;
 {$ENDREGION}
@@ -514,6 +517,8 @@ end;
 
       procedure LogMsg(Msg: string);
       function  constant_initializer<T>(value: T; dtype: TF_DataType = TF_FLOAT; verify_shape : Boolean= false): IInitializer;
+      function  variable_scope(name: string;         default_name : string = ''; values: TArray<TFTensor> = []; reuse: PBoolean = nil; auxiliary_name_scope : Boolean= true): variable_scope; overload;
+      function  variable_scope(scope: VariableScope; default_name : string = ''; values: TArray<TFTensor> = []; reuse: PBoolean = nil; auxiliary_name_scope : Boolean= true): variable_scope; overload;
 
       constructor Create;
       destructor  Destroy ; override;
@@ -1219,6 +1224,7 @@ implementation
         TensorFlow.nn_ops,
         TensorFlow.nn_impl,
         TensorFlow.image_ops_impl,
+        tensorflow.stateless_random_ops,
         TensorFlow.Tensor;
 
 {$REGION 'TTensorflow'}
@@ -2073,6 +2079,16 @@ begin
     Result := variables.variables_initializer(var_list, name)
 end;
 
+function TTensorflow.variable_scope(scope: VariableScope; default_name: string; values: TArray<TFTensor>; reuse: PBoolean; auxiliary_name_scope: Boolean): variable_scope;
+begin
+    Result := Tensorflow.Variable.variable_scope.Create(scope, default_name, values, reuse, auxiliary_name_scope)
+end;
+
+function TTensorflow.variable_scope(name, default_name: string; values: TArray<TFTensor>; reuse: PBoolean; auxiliary_name_scope: Boolean): variable_scope;
+begin
+    Result := Tensorflow.Variable.variable_scope.Create(name, default_name, values, reuse, auxiliary_name_scope)
+end;
+
 function TTensorflow.zeros(shape: TFShape; dtype: TF_DataType; name: string): TFTensor;
 begin
     Result := array_ops.zeros(shape, dtype, name);
@@ -2306,6 +2322,11 @@ begin
     else                         Tops.get_default_graph.seed := seed;
 end;
 
+function TRandom.stateless_normal(shape: TFShape; mean, stddev: Single; dtype: TF_DataType; name: string): TFTensor;
+begin
+   Result :=  stateless_random_ops.stateless_random_normal(shape, mean, stddev, dtype, [], name);
+end;
+
 function TRandom.multinomial(logits: TFTensor; num_samples: Integer; seed: pInteger; name: string; output_dtype: TF_DataType): TFTensor;
 begin
    Result := random_ops.multinomial(logits, num_samples, seed, name, output_dtype);
@@ -2502,9 +2523,19 @@ begin
     Result := ops.norm(tensor, _ord, axis, name);
 end;
 
+function LinalgApi.qr(input: TFTensor; full_matrices: Boolean; name: string): TFTensors;
+begin
+    Result := ops.qr(input, full_matrices, name);
+end;
+
 function LinalgApi.tensordot(x, y: TFTensor; axes: TNDArray; name: string): TFTensor;
 begin
     Result := math_ops.tensordot(x, y, axes, name);
+end;
+
+function LinalgApi.tensor_diag_part(input: TFTensor; name: string): TFTensor;
+begin
+   Result := gen_array_ops.diag_part(input, name);
 end;
 
 {$ENDREGION}
@@ -2543,5 +2574,4 @@ begin
 end;
 
 end.
-
 

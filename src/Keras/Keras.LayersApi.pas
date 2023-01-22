@@ -452,7 +452,9 @@ type
                             activation           : string= 'tanh';
                             kernel_initializer   : string= 'glorot_uniform';
                             recurrent_initializer: string= 'orthogonal';
-                            bias_initializer     : string= 'zeros'): ILayer;
+                            bias_initializer     : string= 'zeros';
+                            return_sequences     : Boolean= False;
+                            return_state         : Boolean = false): ILayer;
         /// <summary>
         /// Max pooling operation for 1D temporal data.
         /// </summary>
@@ -1193,7 +1195,7 @@ begin
    Result := Keras.Layer.LeakyReLu.Create(args);
 end;
 
-function LayersApi.SimpleRNN(units: Integer; activation, kernel_initializer, recurrent_initializer, bias_initializer: string): ILayer;
+function LayersApi.SimpleRNN(units: Integer; activation, kernel_initializer, recurrent_initializer, bias_initializer: string;return_sequences : Boolean; return_state : Boolean): ILayer;
 var
   args : SimpleRNNArgs;
 begin
@@ -1204,6 +1206,8 @@ begin
    args.KernelInitializer   := GetInitializerByName(kernel_initializer);
    args.RecurrentInitializer:= GetInitializerByName(recurrent_initializer);
    args.BiasInitializer     := GetInitializerByName(bias_initializer);
+   args.ReturnSequences     := return_sequences;
+   args.ReturnState         := return_state;
 
    Result := Keras.Layer.SimpleRNN.Create(args);
 end;
