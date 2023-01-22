@@ -120,10 +120,11 @@ end;
 
 #### Compiling:
 
+Compatible with all delphi versions that support inline variable(10.3 and higher).
+
 To compile you need some external libraries:
 
 -  [Spring4d](https://bitbucket.org/sglienke/spring4d/src/master/) 
--  [LoggerPro](https://github.com/danieleteti/loggerpro) 
 -  [Neon](https://github.com/paolo-rossi/delphi-neon) 
 -  [IPWorks Zip](https://www.nsoftware.com/ipworks/zip/download.aspx) 
 
