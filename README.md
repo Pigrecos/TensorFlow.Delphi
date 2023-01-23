@@ -24,7 +24,7 @@ As a reference code I used
 
 [TensorFlow Python](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/python)
 
-
+[Download libTensorflow](https://www.tensorflow.org/install/lang_c?hl=en)
 
 #### Sample code
 
