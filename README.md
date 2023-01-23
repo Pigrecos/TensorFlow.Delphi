@@ -24,8 +24,6 @@ As a reference code I used
 
 [TensorFlow Python](https://github.com/tensorflow/tensorflow/tree/master/tensorflow/python)
 
-[Download libTensorflow](https://www.tensorflow.org/install/lang_c?hl=en)
-
 #### Sample code
 
 
@@ -127,6 +125,7 @@ To compile you need some external libraries:
 -  [Spring4d](https://bitbucket.org/sglienke/spring4d/src/master/) 
 -  [Neon](https://github.com/paolo-rossi/delphi-neon) 
 -  [IPWorks Zip](https://www.nsoftware.com/ipworks/zip/download.aspx) 
+-  [Download libTensorflow](https://www.tensorflow.org/install/lang_c?hl=en) and rename to 'tensorflow-cpu-win64-2.11.0.dll'
 
 ### Contribute:
 
