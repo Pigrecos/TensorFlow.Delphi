@@ -261,27 +261,6 @@ implementation
 
              ProtoGen.variable;
 
-procedure AlignTextOnMemo(Memo: TMemo; Column: Integer);
-var
-  i: Integer;
-  TextWidth: Integer;
-  X: Integer;
-  ControlCanvas: TControlCanvas;
-begin
-    X := Column;
-    ControlCanvas := TControlCanvas.Create;
-    try
-      ControlCanvas.Control := Memo;
-      for i := 0 to Memo.Lines.Count - 1 do
-      begin
-        TextWidth := ControlCanvas.TextWidth(Memo.Lines[i]);
-        ControlCanvas.TextOut(X - TextWidth, i * 20, Memo.Lines[i]);
-      end;
-    finally
-      ControlCanvas.Free;
-    end;
-end;
-
 procedure On_Epoch_Begin(msg: string; CurrEpoch: integer; TotEpochs: Integer);
 begin
     frmMain.mmo1.Lines.Add(msg)
