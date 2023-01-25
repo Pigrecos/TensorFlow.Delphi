@@ -58,4 +58,13 @@ object frmMain: TfrmMain
     TabOrder = 4
     OnClick = btnKerasLayersClick
   end
+  object btnModels: TBitBtn
+    Left = 734
+    Top = 363
+    Width = 75
+    Height = 25
+    Caption = 'Test Models'
+    TabOrder = 5
+    OnClick = btnModelsClick
+  end
 end

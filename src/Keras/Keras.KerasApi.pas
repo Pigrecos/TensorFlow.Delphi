@@ -82,6 +82,7 @@ type
       //public ModelsApi models { get; } = new ModelsApi();
       utils        : KerasUtils;
       constructor Create;
+      destructor Destroy; override;
       /// <summary>
       /// Instantiate a Keras tensor.
       /// </summary>
@@ -109,6 +110,7 @@ type
                       ragged            : Boolean = false;
                       tensor            : TFTensor = nil): TFTensor; overload;
       function  Input(shape             : TFShape): TFTensor; overload;
+      function  Input(shape: TFShape; name : string): TFTensor; overload;
       function  Sequential(layers: TList<ILayer> = nil; name : string= ''): Sequential;
       /// <summary>
       /// `Model` groups layers into an object with training and inference features.
@@ -121,6 +123,20 @@ type
 
 implementation
        uses Keras.ArgsDefinition;
+
+{ Initializers }
+
+function TInitializers.he_normal(seed: PInteger): IInitializer;
+begin
+   Result := VarianceScaling.Create(2.0, 'fan_in', false, seed);
+end;
+
+{ Regularizers }
+
+function TRegularizers.l2(_l2: Single): IRegularizer;
+begin
+   Result :=  TL2.Create(_l2);
+end;
 
 { KerasInterface }
 
@@ -137,21 +153,23 @@ begin
     preprocessing:= TPreprocessing.Create;
 
     backend      := BackendImpl.Create;
-    optimizers   := OptimizerApi.Create;
 end;
 
-{ Initializers }
-
-function TInitializers.he_normal(seed: PInteger): IInitializer;
+destructor KerasInterface.Destroy;
 begin
-   Result := VarianceScaling.Create(2.0, 'fan_in', false, seed);
-end;
+    Inizializers.Free;
+    Regularizers.Free;
+    optimizers.Free;
+    metrics.Free;
+    utils.Free;
 
-{ Regularizers }
+    losses.Free;
+    activations.Free;
+    preprocessing.Free;
 
-function TRegularizers.l2(_l2: Single): IRegularizer;
-begin
-   Result :=  TL2.Create(_l2);
+    backend.Free;
+
+    inherited Destroy;
 end;
 
 function KerasInterface.GetLayers: ILayersApi;
@@ -162,6 +180,11 @@ end;
 function KerasInterface.Input(shape: TFShape): TFTensor;
 begin
     Result := Input(shape, default(TFShape), -1, DtInvalid, '', false, false, nil);
+end;
+
+function KerasInterface.Input(shape: TFShape; name : string): TFTensor;
+begin
+    Result := Input(shape, default(TFShape), -1, DtInvalid, name, false, false, nil);
 end;
 
 function KerasInterface.Input(shape, batch_input_shape: TFShape; batch_size: Integer; dtype: TF_DataType; name: string; sparse, ragged: Boolean; tensor: TFTensor): TFTensor;
@@ -186,8 +209,8 @@ begin
    args.InputTensor     := tensor;
 
    var input_layer := Keras.Layer.InputLayer.Create(args);
-
    Result := input_layer.InboundNodes[0].Outputs.first;
+   
 end;
 
 function KerasInterface.Model(inputs, outputs: TFTensors; name: string): Functional;

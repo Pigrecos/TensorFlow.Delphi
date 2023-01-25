@@ -66,6 +66,7 @@ type
         function TextVectorization(standardize: TFunc<TFTensor, TFTensor> = nil; split : string= 'whitespace'; max_tokens: Integer = -1; output_mode: string = 'int'; output_sequence_length: Integer = -1): ILayer;
 
         constructor Create;
+        destructor  Destroy; override;
 
         property text : TextApi read Ftext;
   end;
@@ -79,6 +80,14 @@ begin
    sequence      := TSequence.Create;
    dataset_utils := DatasetUtils.Create;
    Ftext         := TextApi.Create;
+end;
+
+destructor TPreprocessing.Destroy;
+begin
+  sequence.Free;
+  dataset_utils.Free;
+  Ftext.Free;
+  inherited;
 end;
 
 function TPreprocessing.Resizing(height, width: Integer; interpolation: string): ILayer;

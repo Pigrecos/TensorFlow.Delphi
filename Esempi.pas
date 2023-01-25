@@ -53,6 +53,7 @@ type
        train_X, train_Y: NDArray;
 
        constructor Create;
+       destructor Destroy; override;
        procedure PrepareData;
        function  Run(mmo1: TMemo): Boolean;
   end;
@@ -70,6 +71,7 @@ type
        train_X, train_Y: TNDArray;
 
        constructor Create;
+       destructor Destroy; override;
        procedure PrepareData;
        function  Run(mmo1: TMemo): Boolean;
   end;
@@ -240,18 +242,60 @@ type
         procedure MeanAbsoluteError_None;
   end;
 
+   procedure On_Epoch_Begin(msg: string; CurrEpoch: integer; TotEpochs: Integer);
+   procedure On_Train_Batch_Begin(msg: string);
+   procedure On_End_Summary(msg: string);
+
 implementation
         uses untMain,
 
              DUnitX.TestFramework,
 
              Keras.ArgsDefinition,
+             keras.Models,
+             Keras.Layer,
              Keras.LossFunc,
              Keras.Engine,
-             Keras.Layer,
+             Keras.LayersApi,
              Keras.Utils,
 
              ProtoGen.variable;
+
+procedure AlignTextOnMemo(Memo: TMemo; Column: Integer);
+var
+  i: Integer;
+  TextWidth: Integer;
+  X: Integer;
+  ControlCanvas: TControlCanvas;
+begin
+    X := Column;
+    ControlCanvas := TControlCanvas.Create;
+    try
+      ControlCanvas.Control := Memo;
+      for i := 0 to Memo.Lines.Count - 1 do
+      begin
+        TextWidth := ControlCanvas.TextWidth(Memo.Lines[i]);
+        ControlCanvas.TextOut(X - TextWidth, i * 20, Memo.Lines[i]);
+      end;
+    finally
+      ControlCanvas.Free;
+    end;
+end;
+
+procedure On_Epoch_Begin(msg: string; CurrEpoch: integer; TotEpochs: Integer);
+begin
+    frmMain.mmo1.Lines.Add(msg)
+end;
+
+procedure On_Train_Batch_Begin(msg: string);
+begin
+    frmMain.mmo1.Lines.Add(msg)
+end;
+
+procedure On_End_Summary(msg: string);
+begin
+    frmMain.mmo1.Lines.Add(msg)
+end;
 
 { LinearRegression }
 
@@ -262,6 +306,12 @@ begin
     // Parameters
     learning_rate := 0.01;
     display_step  := 50;
+end;
+
+destructor LinearRegression.Destroy;
+begin
+
+  inherited;
 end;
 
 procedure LinearRegression.PrepareData;
@@ -619,6 +669,12 @@ begin
     // Parameters
     learning_rate := 0.01;
     display_step  := 50;
+end;
+
+destructor LinearRegressionEager.Destroy;
+begin
+   train_X.Free;
+   train_Y.Free;
 end;
 
 procedure LinearRegressionEager.PrepareData;
@@ -1595,6 +1651,8 @@ begin
     lLayers.Add( tf.keras.layers.Dense(8) );
 
     var model := tf.keras.Sequential(lLayers );
+    model.OnEpochBegin      :=  On_Epoch_Begin;
+    model.OnTrainBatchBegin :=  On_Train_Batch_Begin;
 
     model.compile(tf.keras.optimizers.RMSprop(Single(0.001)), tf.keras.losses.MeanSquaredError, ['accuracy']);
     model.fit(np.zeros(TFShape.Create([10, 4]), tf.float32_t), np.ones(TFShape.Create([10, 8]), tf.float32_t));
@@ -1619,6 +1677,9 @@ begin
     var outputs := layers.Dense(10).Apply(x);
 
     var model := tf.keras.Model( TFTensors.Create(inputs), outputs, 'mnist_model');
+    model.OnEpochBegin      :=  On_Epoch_Begin;
+    model.OnTrainBatchBegin :=  On_Train_Batch_Begin;
+    model.OnEndSummary      :=  On_End_Summary;
     model.summary;
 end;
 
@@ -1643,13 +1704,14 @@ begin
     var outputs  := l_layers.Add.Apply(TFTensors.Create([value, adv]));
     var model    := tf.keras.Model(inputs, outputs);
 
+    model.OnEpochBegin      :=  On_Epoch_Begin;
+    model.OnTrainBatchBegin :=  On_Train_Batch_Begin;
+    model.OnEndSummary      :=  On_End_Summary;
+
     model.compile(tf.keras.optimizers.RMSprop(Single(0.001)), tf.keras.losses.MeanSquaredError, [ 'acc' ]);
     model.summary;
 
     Assert.AreEqual(model.Layers.Count, 8);
-
-    for var i := 0 to tf.MemoLog.Count-1 do
-      frmMain.mmo1.Lines.add( tf.MemoLog[i]);
 
     var res := model.predict(tf.constant(np.arange(24).astype(np.np_float32)[ [np.newaxis, Slice.All] ]));
 
@@ -1700,7 +1762,17 @@ end;
 
 procedure LayersTest.SimpleRNN;
 begin
+(*
 
+
+            tf.UseKeras<KerasInterface>();
+            var inputs = np.arange(6 * 10 * 8).reshape((6, 10, 8)).astype(np.float32);
+            /*var simple_rnn = keras.layers.SimpleRNN(4);
+            var output = simple_rnn.Apply(inputs);
+            Assert.AreEqual((32, 4), output.shape);*/
+            var simple_rnn = tf.keras.layers.SimpleRNN(4, return_sequences: true, return_state: true);
+            var (whole_sequence_output, final_state) = simple_rnn.Apply(inputs);
+*)
 end;
 
 procedure LayersTest.Resizing;

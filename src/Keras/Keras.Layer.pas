@@ -152,7 +152,7 @@ type
        procedure _init_set_name(_name: string; zero_based: Boolean = true); virtual;
     public
         constructor Create(_args: LayerArgs);
-
+        destructor Destroy; override;
         /// <summary>
         /// Loads all layer weights, either from a TensorFlow or an HDF5 weight file.
         /// </summary>
@@ -1485,6 +1485,34 @@ begin
     end;
 end;
 
+destructor Layer.Destroy;
+begin
+    Fargs.Free;
+
+    if Assigned(FNodesByDepth) then
+      FNodesByDepth.Free;
+    //if Assigned(Ftrainable_state) then
+    //  Ftrainable_state.Free;
+    //if Assigned(Fcompiled_trainable_state) then
+    //  Fcompiled_trainable_state.Free;
+    if Assigned(FinputSpec) then
+      FinputSpec.Free;
+    if Assigned(FTrainableWeights) then
+      FTrainableWeights.Free;
+    if Assigned(FNonTrainableWeights) then
+      FNonTrainableWeights.Free;
+    if Assigned(Fupdates) then
+      Fupdates.Free;
+    if Assigned(FInboundNodes) then
+      FInboundNodes.Free;
+    if Assigned(FOutboundNodes) then
+      FOutboundNodes.Free;
+    if Assigned(Fself_tracked_trackables) then
+      Fself_tracked_trackables.Free;
+
+    inherited Destroy;
+end;
+
 procedure Layer.add_loss(losses: TFunc<TFTensor>);
 begin
 
@@ -1845,8 +1873,11 @@ end;
 function Layer._get_trainable_state: TDictionary<ILayer, boolean>;
 begin
     Ftrainable_state := TDictionary<ILayer, Boolean>.Create;
-    for var llayer in _flatten_layers do
-        Ftrainable_state.AddOrSetValue(llayer, llayer.Trainable);
+    var flatLayer := _flatten_layers;
+
+    for var i := 0 to Length(flatLayer) - 1 do
+        Ftrainable_state.AddOrSetValue(flatLayer[i], flatLayer[i].Trainable);
+
     Result := Ftrainable_state;
 end;
 
@@ -1918,8 +1949,8 @@ end;
 
 procedure Layer.BeforeDestruction;
 begin
-  if RefCount <> 0 then
-    Error(reInvalidPtr);
+  //if RefCount <> 0 then
+  //  Error(reInvalidPtr);
 end;
 
 // Set an implicit refcount so that refcounting during construction won't destroy the object.
@@ -5453,4 +5484,5 @@ end;
 
 {$ENDREGION}
 end.
+
 

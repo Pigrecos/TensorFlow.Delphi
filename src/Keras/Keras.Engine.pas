@@ -257,6 +257,7 @@ type
         Fshape     : TFShape;
      public
         constructor Create(dtype: TF_DataType = DtInvalid; _ndim : Integer= null; _min_ndim: Integer = null; _axes: TDictionary<Integer,Integer> = nil; shape : PTFShape= nil);
+        destructor Destroy; override;
 
         property nDim       : Nullable<Integer> read FnDim;
         property min_ndim   : Nullable<Integer> read Fmin_ndim;
@@ -307,6 +308,12 @@ begin
   FAllAxisDim := [];
   if Faxes <> nil then
     FAllAxisDim := Faxes.Values.ToArray;
+end;
+
+destructor TInputSpec.Destroy;
+begin
+  Faxes.Free;
+  inherited;
 end;
 
 { CallContextManager }

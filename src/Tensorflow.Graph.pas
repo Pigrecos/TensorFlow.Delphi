@@ -48,6 +48,7 @@ type
       F_global_default_graph : TFGraph;
      public
       constructor Create;
+      destructor Destroy; override;
       function  get_default: TFGraph;
       function  get_controller(g: TFGraph): TFGraph;
       function  peak_controller: TFGraph;
@@ -168,6 +169,13 @@ constructor DefaultGraphStack.Create;
 begin
     inherited Create;
     F_stack := TStack<TFGraph>.Create;
+end;
+
+destructor DefaultGraphStack.Destroy;
+begin
+  F_stack.Clear;
+  F_stack.Free;
+  inherited Destroy;
 end;
 
 function DefaultGraphStack.get_controller(g: TFGraph): TFGraph;
@@ -671,5 +679,7 @@ begin
 end;
 
 end.
+
+
 
 

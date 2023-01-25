@@ -138,11 +138,13 @@ type
     btnLinReg: TBitBtn;
     btnLinReg1: TBitBtn;
     btnKerasLayers: TBitBtn;
+    btnModels: TBitBtn;
     procedure btnTestClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure btnLinRegClick(Sender: TObject);
     procedure btnLinReg1Click(Sender: TObject);
     procedure btnKerasLayersClick(Sender: TObject);
+    procedure btnModelsClick(Sender: TObject);
   private
     procedure EnableEager;
 
@@ -167,8 +169,72 @@ implementation
               System.Generics.Collections,
               Spring.Collections.Stacks,
 
-              DUnitX.TestFramework;
+              DUnitX.TestFramework,
+
+              Keras.Models;
 {$R *.dfm}
+
+procedure SampleBuildModel;
+begin
+    //UseFunctionalAPI to create Model
+    var inputs  := tf.keras.Input(TFShape.Create([784]), 'I0');
+    var outputs := tf.keras.layers.Dense(64, tf.keras.activations.Relu).Apply(TFTensors.create(inputs));
+    outputs     := tf.keras.layers.Dense(10, tf.keras.activations.Relu).Apply(outputs);
+    var m : Model := tf.keras.Model(TFTensors.create(inputs), outputs, 'MyNN');
+    try
+      m.OnEpochBegin      :=  On_Epoch_Begin;
+      m.OnTrainBatchBegin :=  On_Train_Batch_Begin;
+      m.OnEndSummary      :=  On_End_Summary;
+
+      frmMain.mmo1.Lines.add('===== Build Model via Functional API =====');
+      m.summary;
+    finally
+      m.free;
+    end;
+
+    //UseSequentialAPI to create Model
+    var sModel := tf.keras.Sequential;
+    try
+      sModel.OnEpochBegin      :=  On_Epoch_Begin;
+      sModel.OnTrainBatchBegin :=  On_Train_Batch_Begin;
+      sModel.OnEndSummary      :=  On_End_Summary;
+
+      sModel.add(tf.keras.Input(TFShape.Create([784]), 'I0'));
+      sModel.add(tf.keras.layers.Dense(64, tf.keras.activations.Relu));
+      sModel.add(tf.keras.layers.Dense(10, tf.keras.activations.Relu));
+
+      frmMain.mmo1.Lines.add('===== Build Model via Sequential API =====');
+      sModel.summary;
+    finally
+      sModel.free;
+    end;
+end;
+
+procedure TestXor;
+var
+  mModel : Sequential;
+begin
+    var x := np.np_array<Single>([ [ 0, 0 ], [ 0, 1 ], [ 1, 0 ], [ 1, 1 ] ],np.np_float32);
+    var y := np.np_array<Single>([ [ 0 ],    [ 1 ],    [ 1 ],    [ 0 ] ],np.np_float32);
+
+    mModel := tf.keras.Sequential;
+    try
+      mModel.OnEpochBegin      :=  On_Epoch_Begin;
+      mModel.OnTrainBatchBegin :=  On_Train_Batch_Begin;
+      mModel.OnEndSummary      :=  On_End_Summary;
+
+      mModel.add(tf.keras.Input(2));
+      mModel.add(tf.keras.layers.Dense(32, tf.keras.activations.Relu));
+      mModel.add(tf.keras.layers.Dense(64, tf.keras.activations.Relu));
+      mModel.add(tf.keras.layers.Dense(1, tf.keras.activations.Sigmoid));
+      mModel.compile(tf.keras.optimizers.Adam, tf.keras.losses.MeanSquaredError, ['accuracy']);
+      mModel.fit(x, y, {batch_size}-1, {epochs}50, {verbose}1);
+      var s := mModel.predict(x, 4).tostring;
+      frmMain.mmo1.Lines.Add(s);
+    finally
+     mModel.free;
+    end;
+end;
 
 { GraphModeTestBase }
 
@@ -258,7 +324,7 @@ begin
     var r := ret.ToArray<Single>;
 
     var t    := ret.ToString;
-    Assert.AreEqual('tf.Tensor "<unnamed>:0" shape=2,3 dtype=float32',t);
+    Assert.AreEqual('tf.Tensor "<unnamed>:0" shape=(2,3) dtype=float32',t);
 end;
 
 procedure TUnitTest_Basic.Session_EvalTensor;
@@ -933,11 +999,14 @@ begin
     mmo1.Lines.Add('========================================');
 
     lr_Eager := LinearRegressionEager.Create;
-    lr_Eager.Run(mmo1);
+    try
+      lr_Eager.Run(mmo1);
 
-    lr_Eager.Free;
-    mmo1.Lines.Add('Linear Regression in Eager Mode End');
-    mmo1.Lines.Add('===================================');
+      mmo1.Lines.Add('Linear Regression in Eager Mode End');
+      mmo1.Lines.Add('===================================');
+    finally
+      lr_Eager.Free;
+    end;
 end;
 
 procedure TfrmMain.btnLinRegClick(Sender: TObject);
@@ -950,11 +1019,21 @@ begin
     mmo1.Lines.Add('========================================');
 
     lr := LinearRegression.Create;
-    var lOk := lr.Run(mmo1);
-    Assert.IsTrue(lOk,'Linear Regression in Graph Mode') ;
-    lr.Free;
-    mmo1.Lines.Add('Linear Regression in Graph Mode End');
-    mmo1.Lines.Add('===================================');
+    try
+      var lOk := lr.Run(mmo1);
+      Assert.IsTrue(lOk,'Linear Regression in Graph Mode') ;
+
+      mmo1.Lines.Add('Linear Regression in Graph Mode End');
+      mmo1.Lines.Add('===================================');
+    finally
+      lr.Free;
+    end;
+end;
+
+procedure TfrmMain.btnModelsClick(Sender: TObject);
+begin
+    SampleBuildModel;
+    TestXor;
 end;
 
 procedure TfrmMain.btnTestClick(Sender: TObject);

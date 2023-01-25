@@ -870,6 +870,7 @@ TNDArray = class(TFTensor, IEnumerable )
         function GetCurrent: TNDArray; override;
       public
         constructor Create(source : TNDArray);
+        destructor Destroy; override;
         function MoveNext: Boolean; override;
       end;
 
@@ -1475,34 +1476,37 @@ begin
     else begin
         // align slices
         newSlices := TList<Slice>.Create();
-        sliceIndex := 0;
-        i := 0;
-        while i < ndim  do
-        begin
-            if (sliceIndex > Length(slices) - 1) then
-            begin
-                newSlices.Add(Slice.All);
-                Continue;
-            end;
-
-            if (slices[sliceIndex] = Slice.All) then
-            begin
-                newSlices.Add(Slice.All);
-                for j := 0 to ndim - Length(slices) - 1 do
-                begin
+        try
+          sliceIndex := 0;
+          i := 0;
+          while i < ndim  do
+          begin
+              if (sliceIndex > Length(slices) - 1) then
+              begin
                   newSlices.Add(Slice.All);
-                  Inc(i);
-                end;
-            end
-            else
-            begin
-                newSlices.Add(slices[sliceIndex]);
-            end;
-            Inc(sliceIndex);
-            Inc(i);
-        end;
+                  Continue;
+              end;
 
-        Result := newSlices.ToArray();
+              if (slices[sliceIndex] = Slice.All) then
+              begin
+                  newSlices.Add(Slice.All);
+                  for j := 0 to ndim - Length(slices) - 1 do
+                  begin
+                    newSlices.Add(Slice.All);
+                    Inc(i);
+                  end;
+              end
+              else
+              begin
+                  newSlices.Add(slices[sliceIndex]);
+              end;
+              Inc(sliceIndex);
+              Inc(i);
+          end;
+          Result := newSlices.ToArray();
+        finally
+          newSlices.Free;
+        end;
     end;
 end;
 
@@ -1610,38 +1614,46 @@ begin
     var unique_fetches := TList<ITensorOrOperation>.Create;
     var value_indices  := TList< TArray<Integer> >.Create;
     var seen_fetches   := TDictionary<ITensorOrOperation, Integer>.Create;
-    for var m in fetch_mappers do
-    begin
-        var m_value_indices := TList<Integer>.Create;
-        for var uf in m.unique_fetches do
-        begin
-            if uf is TFTensor then
+    try
+      for var m in fetch_mappers do
+      begin
+          var m_value_indices := TList<Integer>.Create;
+          try
+            for var uf in m.unique_fetches do
             begin
-                var f := uf as TFTensor;
-                if not seen_fetches.ContainsKey(f) then
+                if uf is TFTensor then
                 begin
-                     seen_fetches.AddOrSetValue(f, seen_fetches.Count);
-                     unique_fetches.Add(f);
-                end;
-                m_value_indices.Add(seen_fetches.Count - 1);
-            end
-            else if uf is TFOperation then
-            begin
-                var f := uf as TFOperation;
-                if not seen_fetches.ContainsKey(f) then
+                    var f := uf as TFTensor;
+                    if not seen_fetches.ContainsKey(f) then
+                    begin
+                         seen_fetches.AddOrSetValue(f, seen_fetches.Count);
+                         unique_fetches.Add(f);
+                    end;
+                    m_value_indices.Add(seen_fetches.Count - 1);
+                end
+                else if uf is TFOperation then
                 begin
-                     seen_fetches.AddOrSetValue(f, seen_fetches.Count);
-                     unique_fetches.Add(f);
+                    var f := uf as TFOperation;
+                    if not seen_fetches.ContainsKey(f) then
+                    begin
+                         seen_fetches.AddOrSetValue(f, seen_fetches.Count);
+                         unique_fetches.Add(f);
+                    end;
+                    m_value_indices.Add(seen_fetches.Count - 1);
+                end else
+                begin
+                    raise TFException.Create('Not ImplementedException "_uniquify_fetches"');
                 end;
-                m_value_indices.Add(seen_fetches.Count - 1);
-            end else
-            begin
-                raise TFException.Create('Not ImplementedException "_uniquify_fetches"');
             end;
-        end;
-        value_indices.Add(m_value_indices.ToArray());
+            value_indices.Add(m_value_indices.ToArray());
+          finally
+            m_value_indices.Free;
+          end;
+      end;
+      Result := Tuple<TList<ITensorOrOperation>, TList<TArray<Integer>>>.Create(unique_fetches, value_indices);
+    finally
+      seen_fetches.Free;
     end;
-    Result := Tuple<TList<ITensorOrOperation>, TList<TArray<Integer>>>.Create(unique_fetches, value_indices);
 end;
 {$ENDREGION}
 
@@ -1884,14 +1896,18 @@ begin
    end;
 
    var opts := TFSessionOptions.Create(target, config);
-   var sStatus : TFStatus;
-   if Assigned(status) then sStatus := status
-   else                     sStatus := tf.status;
+   try
+     var sStatus : TFStatus;
+     if Assigned(status) then sStatus := status
+     else                     sStatus := tf.status;
 
-   var l_pSession:= TF_NewSession(graph.handle, opts.Handle, sStatus.Handle);
-   sStatus.CheckMaybeRaise(status,False);
+     var l_pSession:= TF_NewSession(graph.handle, opts.Handle, sStatus.Handle);
+     sStatus.CheckMaybeRaise(status,False);
 
-   inherited Create(l_pSession);
+     inherited Create(l_pSession);
+   finally
+     opts.Free;
+   end;
 
 end;
 
@@ -1961,7 +1977,11 @@ end;
 function TFSession.fetchValue(output: Pointer): TNDArray;
 begin
     var tensor := TFTensor.Create(output);
-    Result     := tensor.numpy;
+    try
+      Result     := tensor.numpy;
+    finally
+      tensor.Free;
+    end;
 end;
 
 procedure TFSession.NativeDispose(hnd: Pointer);
@@ -4360,51 +4380,55 @@ begin
    Fgraph := g;
    // Build the list of control inputs.
    var control_input_ops := TList<TFOperation>.Create;
-   if control_inputs <>  nil then
-   begin
-       for var c in control_inputs do
-       begin
-            if c is TFOperation then
-               control_input_ops.Add(TFOperation(c))
-            else if c is TFTensor then
-               control_input_ops.Add(TFTensor(c).op)
-       end;
+   try
+     if control_inputs <>  nil then
+     begin
+         for var c in control_inputs do
+         begin
+              if c is TFOperation then
+                 control_input_ops.Add(TFOperation(c))
+              else if c is TFTensor then
+                 control_input_ops.Add(TFTensor(c).op)
+         end;
+     end;
+     Fid_value := FGraph.NextId;
+
+     // This will be set by self.inputs.
+     if op_def = nil then
+     begin
+       var op := g.GetOpDef(node_def.Op);
+       op_def := op;
+     end;
+
+     var t := TOps._create_c_op(g, node_def, inputs, control_input_ops.ToArray, op_def);
+     var _handle := t.Value1;
+     //var pDesc   := t.Value2;
+     Fis_stateful := op_def.IsStateful;
+
+     Handle := _handle;
+
+     // Initialize self._outputs.
+     SetLength(output_types,NumOutputs) ;
+     for var i := 0 to NumOutputs - 1 do
+        output_types[i] := OutputType(i);
+
+     SetLength(FOutputs,NumOutputs);
+     for var i := 0 to NumOutputs - 1 do
+        FOutputs[i] := TFTensor.Create(self, i, output_types[i]);
+
+     FGraph.Add_op(Self);
+
+     FOp := self;
+     GetName;
+     GetType;
+     GetipoOp;
+
+     if Handle <> nil then
+         _control_flow_post_processing;
+
+   finally
+     control_input_ops.free;
    end;
-   Fid_value := FGraph.NextId;
-
-   // This will be set by self.inputs.
-   if op_def = nil then
-   begin
-     var op := g.GetOpDef(node_def.Op);
-     op_def := op;
-   end;
-
-   var t := TOps._create_c_op(g, node_def, inputs, control_input_ops.ToArray, op_def);
-   var _handle := t.Value1;
-   //var pDesc   := t.Value2;
-   Fis_stateful := op_def.IsStateful;
-
-   Handle := _handle;
-
-   // Initialize self._outputs.
-   SetLength(output_types,NumOutputs) ;
-   for var i := 0 to NumOutputs - 1 do
-      output_types[i] := OutputType(i);
-
-   SetLength(FOutputs,NumOutputs);
-   for var i := 0 to NumOutputs - 1 do
-      FOutputs[i] := TFTensor.Create(self, i, output_types[i]);
-
-   FGraph.Add_op(Self);
-
-   FOp := self;
-   GetName;
-   GetType;
-   GetipoOp;
-
-   if Handle <> nil then
-       _control_flow_post_processing;
-
 end;
 
 constructor TFOperation.Create(hnd: Pointer; graph: TFGraph);
@@ -4557,10 +4581,14 @@ begin
 
               // Unpack elements
               var elems_ta_1 := TList<TTensorArray>.Create;
-              for var elem_ta_elem in TUtils.zip<TTensorArray,TFTensor>(elems_ta, elems_flat) do
-                  elems_ta_1.Add (elem_ta_elem.Value1.unstack(elem_ta_elem.Value2) );
+              try
+                for var elem_ta_elem in TUtils.zip<TTensorArray,TFTensor>(elems_ta, elems_flat) do
+                    elems_ta_1.Add (elem_ta_elem.Value1.unstack(elem_ta_elem.Value2) );
 
-              elems_ta := elems_ta_1.ToArray;
+                elems_ta := elems_ta_1.ToArray;
+              finally
+                elems_ta_1.Free;
+              end;
 
               var i := constant_op.constant(Integer(0));
 
@@ -5304,7 +5332,7 @@ begin
       var sStrings : TArray<String>;
       for var i := 0 to Length(FaDims) - 1 do
            sStrings := sStrings + [ IntToStr(FaDims[i]).Replace('-1','None') ];
-      Result := Result.Join(',', sStrings);
+      Result := '(' + Result.Join(',', sStrings) + ')';
     end;
 end;
 
@@ -6225,6 +6253,12 @@ constructor TNDArray.TEnumerator_NDArray.Create(source : TNDArray);
 begin
    fSource := source;
    fIndex := 0;
+end;
+
+destructor TNDArray.TEnumerator_NDArray.Destroy;
+begin
+
+  inherited Destroy;
 end;
 
 function TNDArray.TEnumerator_NDArray.GetCurrent: TNDArray;

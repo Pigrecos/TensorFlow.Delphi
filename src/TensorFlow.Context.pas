@@ -73,6 +73,7 @@ type
     public
        constructor Create; overload;
        constructor Create(isEager, isFunc: Boolean); overload;
+       destructor Destroy;override;
        function ToString: string;override;
 
        property EagerMode          : Boolean read FEagerMode;
@@ -109,6 +110,7 @@ type
       Config : TConfigProto;
       function config_proto_serialized : string;
       constructor Create;
+      destructor Destroy; override;
   end;
 
   /// <summary>
@@ -227,6 +229,12 @@ begin
     FIsBuildingFunction := isFunc;
 end;
 
+destructor ContextSwitch.Destroy;
+begin
+
+  inherited Destroy;
+end;
+
 function ContextSwitch.ToString: string;
 begin
     Result := Format('EagerMode: %s, IsBuildingFunction: %s',[BoolToStr(FEagerMode,True),BoolToStr(FIsBuildingFunction,True)]);
@@ -242,6 +250,7 @@ end;
 
 destructor ContextSwitchStack.Destroy;
 begin
+     FStack.Clear;
      FStack.Free;
      inherited Destroy;
 end;
@@ -624,7 +633,12 @@ end;
 
 constructor TFunctionCallOptions.Create;
 begin
-    Config := TConfigProto.Create;
+   // Config := TConfigProto.Create;
+end;
+
+destructor TFunctionCallOptions.Destroy;
+begin
+   inherited Destroy;
 end;
 
 function TFunctionCallOptions.config_proto_serialized: string;

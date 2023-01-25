@@ -34,6 +34,7 @@ type
      Tanh   : TActivation;
 
      constructor Create;
+     destructor  Destroy; override;
    end;
 
 implementation
@@ -67,6 +68,15 @@ begin
                 begin
                   Result := tf.Context.ExecuteOp('Tanh', name, ExecuteOpArgs.Create([features])).First;
                 end;
+end;
+
+destructor TActivations.Destroy;
+begin
+     Linear  := nil;
+     Relu    := nil;
+     Sigmoid := nil;
+     Softmax := nil;
+     Tanh    := nil;
 end;
 
 end.

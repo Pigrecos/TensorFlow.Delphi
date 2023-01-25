@@ -167,6 +167,7 @@ type
       function Get_initial_epoch: Integer;
     public
       constructor Create(_args : DataHandlerArgs) ;
+      destructor  Destroy; override;
       function    _infer_steps(steps_per_epoch: Integer; dataset: IDatasetV2): Int64;
       function    enumerate_epochs:  TEnumerable< Tuple<Integer, OwnedIterator> >;
       function    steps: TEnumerable<Int64>;
@@ -1722,6 +1723,13 @@ begin
     Fcurrent_step   := 0;
     Fstep_increment := Fsteps_per_execution_value - 1;
     Finsufficient_data := false;
+end;
+
+destructor DataHandler.Destroy;
+begin
+  Fargs.Free;
+
+  inherited Destroy;
 end;
 
 function DataHandler.Get_epochs: Integer;

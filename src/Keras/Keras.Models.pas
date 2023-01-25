@@ -35,6 +35,10 @@ interface
           Keras.Data;
 
 type
+    TCB_On_Epoch_Begin       = reference to procedure(msg: string; CurrEpoch: integer; TotEpochs: Integer);
+    TCB_On_Train_Batch_Begin = reference to procedure(msg: string);
+    TCB_On_End_Summary       = reference to procedure(msg: string);
+
      ModelConfig = class
       public
         Name        : string;
@@ -49,6 +53,11 @@ type
     /// `Model` groups layers into an object with training and inference features.
     /// </summary>
     Model = class(Layer, IModel)
+      strict private
+        FOnEpochBegin      : TCB_On_Epoch_Begin;
+        FOnTrainBatchBegin : TCB_On_Train_Batch_Begin ;
+        FOnEndSummary      : TCB_On_End_Summary ;
+
       private
         Fis_compiled             : Boolean;
         Fsteps_per_execution     : IVariableV1;
@@ -76,6 +85,7 @@ type
         data_handler : DataHandler;
 
         constructor Create(_args: ModelArgs);
+        destructor  Destroy; override;
         procedure Build(input_shape: TFShape); override;
         procedure _configure_steps_per_execution(steps_per_execution: Integer);
         procedure _reset_compile_cache;
@@ -182,9 +192,13 @@ type
         /// </summary>
         procedure summary(line_length: Integer = -1; positions: TArray<Single> = []);
 
-        property Layers              : TList<ILayer> read GetLayers ;
+        property Layers              : TList<ILayer>      read GetLayers ;
         property TrainableVariables  : TList<IVariableV1> read Gettrainable_variables ;
-        property Metrics             : TList<Metric> read GetMetrics ;
+        property Metrics             : TList<Metric>      read GetMetrics ;
+        // callbacks
+        property OnEpochBegin      : TCB_On_Epoch_Begin       read FOnEpochBegin      write FOnEpochBegin;
+        property OnTrainBatchBegin : TCB_On_Train_Batch_Begin read FOnTrainBatchBegin write FOnTrainBatchBegin;
+        property OnEndSummary      : TCB_On_End_Summary       read FOnEndSummary      write FOnEndSummary;
     end;
 
     /// <summary>
@@ -261,6 +275,7 @@ type
         args : SequentialArgs;
 
         constructor Create(_args : SequentialArgs);
+        destructor  Destroy; override;
         procedure add(tensor: TFTensor); overload;
         /// <summary>
         /// Adds a layer instance on top of the layer stack.
@@ -296,7 +311,24 @@ constructor Model.Create(_args: ModelArgs);
 begin
     inherited Create(_args);
 
+    FOnEpochBegin      := nil ;
+    FOnTrainBatchBegin := nil ;
     _init_batch_counters;
+end;
+
+destructor Model.Destroy;
+begin
+  optimizer.Free;
+  data_handler.Free;
+
+  FOnEpochBegin := nil;
+  FOnTrainBatchBegin := nil;
+  FOnEndSummary      := nil;
+
+  compiled_loss.Free;
+  compiled_metrics.Free;
+
+  inherited Destroy;
 end;
 
 procedure Model.evaluate(x, y: TNDArray; batch_size, verbose, steps, max_queue_size, workers: Integer; use_multiprocessing, return_dict: Boolean);
@@ -483,7 +515,6 @@ begin
             end;
             sw.Reset;
         end;
-        tf.LogMsg('');
 
         // GC.Collect;
         // GC.WaitForPendingFinalizers;
@@ -492,15 +523,21 @@ begin
 end;
 
 procedure Model.on_epoch_begin(epoch, epochs: Integer);
+var
+  sMsg: string;
 begin
-    tf.LogMsg(Format('Epoch: %.3d/%.3d',[epoch+1, epochs]));
+    sMsg := Format('Epoch: %.3d/%.3d',[epoch+1, epochs]);
+
+    if Assigned(FOnEpochBegin) then
+       FOnEpochBegin(sMsg,epoch+1, epochs)
 end;
 
 procedure Model.on_train_batch_begin(verbose: Integer; step, elapse: Int64; results: TList<Tuple<string, TFTensor>>);
 var
-  resultPairs: string;
+  resultPairs        : string;
   progress, remaining: string;
-  i, j: Integer;
+  i, j               : Integer;
+  sMsg               : string;
 begin
     if verbose = 1 then
     begin
@@ -523,7 +560,9 @@ begin
         for i := 1 to 30 - Length(progress) - 1 do
           remaining := remaining + '.';
 
-        tf.LogMsg(Format('%.4d/%.4d [%s%s] - %dms/step %s', [step + 1, data_handler.Inferredsteps, progress, remaining, elapse, resultPairs]));
+        sMsg := Format('%.4d/%.4d [%s%s] - %dms/step %s', [step + 1, data_handler.Inferredsteps, progress, remaining, elapse, resultPairs]);
+        if Assigned(FOnTrainBatchBegin) then
+            FOnTrainBatchBegin(sMsg) ;
     end;
 end;
 
@@ -676,14 +715,7 @@ begin
         if trackable_obj.Trainable then
             variables.AddRange(trackable_obj.TrainableVariables);
     end;
-
-    for var layer in Fself_tracked_trackables do
-    begin
-        if layer.Trainable then
-            variables.AddRange(layer.TrainableVariables);
-    end;
-
-    // variables.AddRange(_trainable_weights);
+    variables.AddRange( FTrainableWeights );
 
     Result := variables;
 end;
@@ -747,7 +779,10 @@ end;
 
 procedure Model.summary(line_length: Integer; positions: TArray<Single>);
 begin
-   layer_utils.print_summary(self, line_length, positions);
+   var strSummary := layer_utils.print_summary(self, line_length, positions);
+
+   if Assigned(FOnEndSummary) then
+     FOnEndSummary(strSummary)
 end;
 
 function Model.predict_step(data: TFTensor): TFTensors;
@@ -862,7 +897,7 @@ begin
     Foutput_coordinates.Free;
     Ftensor_usage_count.Free;
 
-    inherited;
+    inherited Destroy;
 end;
 
 class function Functional.from_config(config: ModelConfig): Functional;
@@ -1301,10 +1336,10 @@ begin
     NetworkNodes             := mapT.Value1;
     NodesByDepth             := mapT.Value2;
 
-    if Fself_tracked_trackables.Count = 0 then
-    begin
+   // if Fself_tracked_trackables.Count = 0 then
+   // begin
         Fself_tracked_trackables := mapT.Value3;
-    end;
+   // end;
 
     _set_output_names;
     ComputeTensorUsageCount;
@@ -1353,7 +1388,7 @@ begin
 
             var layer_inputs := nNode.MapArguments(tensor_dict);
 
-            tf.LogMsg(Format('Depth %s:  %s:  %s',[depth.toString,(nNode.Layer as TObject).ClassName,nNode.Layer.Name]));
+            tf.LogMsg(Format('[Debug] - Depth %s:  %s:  %s',[depth.toString,(nNode.Layer as TObject).ClassName,nNode.Layer.Name]));
 
             var isTarainig : Boolean := False;
             if assigned(training) then isTarainig := training^;
@@ -1362,7 +1397,7 @@ begin
             for var output in outputs do
             begin
                 if output <> nil  then
-                   tf.LogMsg( Format('Depth %s: %s: %s %s',[depth.toString,(nNode.Layer as TObject).ClassName,nNode.Layer.Name, output.shape.ToString]));
+                   tf.LogMsg( Format('[Information] - Depth %s: %s: %s %s',[depth.toString,(nNode.Layer as TObject).ClassName,nNode.Layer.Name, output.shape.ToString]));
             end;
             // Update tensor_dict for next or later input
             for var z := 0 to nNode.Outputs.Count - 1 do
@@ -1412,6 +1447,14 @@ begin
         for var layer in args.Layers do
             add(layer);
     end;
+end;
+
+destructor Sequential.Destroy;
+begin
+  args.Free;
+  Fcreated_nodes.Free;
+
+  inherited Destroy;
 end;
 
 procedure Sequential.add(tensor: TFTensor);
@@ -1474,7 +1517,7 @@ function Sequential.GetLayers: TList<ILayer>;
 var
    _layers : TList<ILayer>;
 begin
-    _layers := inherited Layers;
+    _layers := inherited GetLayers;
 
     Result := TList<ILayer>.Create;
 

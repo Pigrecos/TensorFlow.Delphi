@@ -3,6 +3,19 @@ program TensorFlowDelphi;
 {$WARN DUPLICATE_CTOR_DTOR OFF}
 
 uses
+  {$IFDEF EurekaLog}
+  EMemLeaks,
+  EResLeaks,
+  EDebugExports,
+  EDebugJCL,
+  EFixSafeCallException,
+  EMapWin32,
+  EAppVCL,
+  EDialogWinAPIMSClassic,
+  EDialogWinAPIEurekaLogDetailed,
+  EDialogWinAPIStepsToReproduce,
+  ExceptionLog7,
+  {$ENDIF EurekaLog}
   Vcl.Forms,
   untMain in 'untMain.pas' {frmMain},
   Tensorflow in 'src\Tensorflow.pas',
@@ -100,6 +113,7 @@ begin
   Application.CreateForm(TfrmMain, frmMain);
   Application.Run;
 end.
+
 
 
 

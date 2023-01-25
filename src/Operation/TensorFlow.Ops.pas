@@ -889,14 +889,6 @@ begin
        bytes:= s.Pb.GetBytes;
        var Len : NativeInt := Length(bytes);
 
-       (*  // Solo per test
-       var Loader : TpbLoader ; Loader.Init;
-       Loader.Pb.Init(@bytes[0],Length(bytes),false);
-
-       var AttrValue : TAttrValue ;
-       loader.LoadAttrValue(AttrValue);
-       *)
-
        TF_SetAttrValueProto(op_desc.Handle, PTFChar( TF_TString(attr.Key)), @bytes[0], Len, status.Handle);
        status.CheckMaybeRaise(status,True);
    end;
@@ -905,7 +897,6 @@ begin
    if c_op = nil then
    begin
       MessageBoxA(0,PAnsiChar(AnsiString(status.ToString)),'Status Message',MB_OK);
-      tf.LogMsg(status.ToString);
    end;
 
    status.CheckMaybeRaise(status,True);

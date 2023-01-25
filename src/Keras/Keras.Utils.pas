@@ -18,7 +18,7 @@ unit Keras.Utils;
 {$WARN IMPLICIT_STRING_CAST_LOSS OFF}
 
 interface
-       uses System.SysUtils,
+       uses System.SysUtils, Vcl.Controls, Vcl.StdCtrls,
             Winapi.Windows,
             System.Math,
             System.Character,
@@ -72,14 +72,14 @@ type
       class function get_source_inputs(tensor: TFTensor; layer : ILayer = nil ;  node_index : Integer= -1): TFTensors; static;
       // for model.summary
       //
-      class procedure print_summary(mModel: Model; line_length: Integer = -1; positions:TArray<Single>= []); static;
-      class procedure print_row(fields: TArray<string>; positions: TArray<Integer>); static;
+      class function print_summary(mModel: Model; line_length: Integer = -1; positions:TArray<Single>= []): string; static;
+      class function print_row(fields: TArray<String>; positions: TArray<Integer>; nested_level: Integer = 0): string; static;
       /// <summary>
       /// Prints a summary for a single layer.
       /// </summary>
       /// <param name="layer"></param>
-      class procedure print_layer_summary(lLayer: ILayer; positions: TArray<Integer>); static;
-      class procedure print_layer_summary_with_connections(lLayer: ILayer; positions: TArray<Integer>; relevant_nodes: TList<INode>); static;
+      class function print_layer_summary(lLayer: ILayer; positions: TArray<Integer>): string; static;
+      class function print_layer_summary_with_connections(lLayer: ILayer; positions: TArray<Integer>; relevant_nodes: TList<INode>): string; static;
   end;
 
   generic_utils = record
@@ -336,7 +336,21 @@ begin
     end;
 end;
 
-class procedure layer_utils.print_summary(mModel: Model; line_length: Integer; positions: TArray<Single>);
+function GetTextWidth(Text: string): Integer;
+var
+  DC  : HDC;
+  Size: TSize;
+begin
+  DC := CreateCompatibleDC(0);
+  try
+    GetTextExtentPoint32(DC, PChar(Text), Length(Text), Size);
+    Result := Size.cx;
+  finally
+    ReleaseDC(0, DC);
+  end;
+end;
+
+class function layer_utils.print_summary(mModel: Model; line_length: Integer; positions: TArray<Single>): string;
 var
   sequential_like: Boolean;
   nodes          : TList<INode>;
@@ -349,6 +363,8 @@ var
   i              : Integer;
 
 begin
+    Result := '';
+
     sequential_like := mModel is Sequential;
     if not sequential_like then
     begin
@@ -418,48 +434,61 @@ begin
     end;
     for var j := 0 to Length(positions) -1 do
        positions_int := positions_int + [ Trunc(positions[j]) ] ;
-   
 
-    tf.LogMsg(Format('Model: %s', [mModel.Name]));
+    // Model Name
+    //
+    Result := Format('Model: %s', [mModel.Name]) + sLineBreak;
 
-    var sLinea := '';
-    for i := 0 to line_length -1 do sLinea := sLinea + '_';
-    tf.LogMsg(sLinea);
+    // Start Intestaz.
+    //
+    var sLinea := StringOfChar('_', line_length) ;
+    Result := Result + sLinea + sLineBreak;
 
-    print_row(to_display, positions_int);
+    // Print Intestaz.
+    //
+    Result := Result + print_row(to_display, positions_int, 0) + sLineBreak;
 
-    var sLinea1 := '';
-    for i := 0 to line_length -17 do sLinea1 := sLinea1 + '=';
-    tf.LogMsg(sLinea1);
+    // End Intestaz.
+    //
+    var sLinea1 :=  StringOfChar('=', line_length-16);
+    if  line_length = 98 then sLinea1 :=  StringOfChar('=', line_length-24);
+    Result := Result + sLinea1 + sLineBreak;
 
     for i := 0 to mModel.Layers.Count- 1 do
     begin
         layer := mModel.Layers[i]  ;
-        if sequential_like then  print_layer_summary(layer, positions_int)
-        else                     print_layer_summary_with_connections(layer, positions_int, relevant_nodes);
+        if sequential_like then
+             Result := Result + print_layer_summary(layer, positions_int)+ sLineBreak
+        else
+             Result := Result + print_layer_summary_with_connections(layer, positions_int, relevant_nodes)+ sLineBreak;
 
-        if i = mModel.Layers.Count - 1 then  tf.LogMsg(sLinea1)
-        else                                 tf.LogMsg(sLinea);
+        if i = mModel.Layers.Count - 1 then
+        begin
+             Result := Result + sLinea1 + sLineBreak;
+        end else
+        begin
+             Result := Result + sLinea  + sLineBreak;
+        end;
     end;
 
     var trainable_count     := count_params(mModel, mModel.TrainableVariables);
     var non_trainable_count := count_params(mModel, mModel.NonTrainableVariables);
-    tf.LogMsg(Format('Total params: %d', [trainable_count + non_trainable_count]));
-    tf.LogMsg(Format('Trainable params: %d', [trainable_count]));
-    tf.LogMsg(Format('Non-trainable params: %d', [non_trainable_count]));
 
+    Result := Result + Format('Total params: %d',         [trainable_count + non_trainable_count]) +sLineBreak;
+    Result := Result + Format('Trainable params: %d',     [trainable_count])                       +sLineBreak;
+    Result := Result + Format('Non-trainable params: %d', [non_trainable_count])                   +sLineBreak;
 end;
 
-procedure PrintRow1(fields: TArray<String>; positions: TArray<Integer>; nested_level: Integer = 0);
+class function layer_utils.print_row(fields: TArray<String>; positions: TArray<Integer>; nested_level: Integer): string;
 var
-  left_to_print         : TArray<String>;
+  left_to_print   : TArray<String>;
   line: String;
   col: Integer;
   start_pos,
   end_pos,
-  cutoff                : Integer;
-  space                 : Integer;
-  fit_into_line         : String;
+  cutoff          : Integer;
+  space           : Integer;
+  fit_into_line   : String;
 begin
     SetLength(left_to_print, Length(fields));
     for var i := 0 to Length(fields) - 1 do
@@ -484,10 +513,23 @@ begin
           if Length(fit_into_line) > end_pos then
              line := Copy(line,1, positions[col]);
 
+          var TextWidth := GetTextWidth( StringOfChar('X', cutoff-1) );
+          if TextWidth < GetTextWidth(fit_into_line) then
+          begin
+              while TextWidth < GetTextWidth(fit_into_line) do
+                fit_into_line := Copy(fit_into_line,1, Length(fit_into_line)- 1);
+          end;
+          if TextWidth > GetTextWidth(fit_into_line) then
+          begin
+              while TextWidth > GetTextWidth(fit_into_line) do
+                 fit_into_line := fit_into_line.PadRight(Length(fit_into_line)+1);
+          end;
+
           if col = 0 then  line := StringOfChar('|', nested_level) + ' ';
 
           line := line + fit_into_line;
           line := line + StringOfChar(' ', space);
+
 
           left_to_print[col] := Copy(left_to_print[col], cutoff+1, Length(left_to_print[col]));
 
@@ -496,44 +538,10 @@ begin
           else                       line := line + StringOfChar(' ', positions[col] - Length(line));
     end;
     line := line + StringOfChar('|', nested_level);
-    tf.LogMsg(line);
+    Result := line;
 end;
 
-
-class procedure layer_utils.print_row(fields: TArray<string>; positions: TArray<Integer>);
-var
-  line: string;
-  i: Integer;
-  spaces : TArray<String>;
-begin
-    PrintRow1(fields, positions);
-    Exit;
-    line := '';
-    for i := 0 to Length(fields) - 1 do
-    begin
-        if i > 0 then
-          line := line + ' ';
-
-        line := line + fields[i];
-        if Length(line) > positions[i]-5 then
-          line := Copy(line,1, positions[i]-5);
-
-        line := Format('%-*s', [positions[i], line]);
-        spaces := spaces + [line] ;
-        line := '';
-
-       // line := Copy(line, 1, positions[i]);
-
-        //SetLength(spaces, positions[i] - Length(line));
-        //for var j:= 0 to Length(spaces)-1 do  spaces[j] := ' ';
-        //line := line + string.Join('', spaces);
-        //line := Format('%-*s', [positions[i], line]);
-    end;
-    line := string.Join('', spaces);
-    tf.LogMsg(line);
-end;
-
-class procedure layer_utils.print_layer_summary(lLayer: ILayer; positions: TArray<Integer>);
+class function layer_utils.print_layer_summary(lLayer: ILayer; positions: TArray<Integer>): string;
 var
   sName: string;
   fields: TArray<string>;
@@ -545,10 +553,10 @@ begin
 
   fields := [sName + ' (' + nTipoL + ')',  lLayer.OutputShape.ToString ,  lLayer.count_params.ToString ] ;
 
-  print_row(fields, positions);
+  Result := print_row(fields, positions,0);
 end;
 
-class procedure layer_utils.print_layer_summary_with_connections(lLayer: ILayer; positions: TArray<Integer>; relevant_nodes: TList<INode>);
+class function layer_utils.print_layer_summary_with_connections(lLayer: ILayer; positions: TArray<Integer>; relevant_nodes: TList<INode>): string;
 var
   connections: TList<string>;
   node: INode;
@@ -579,14 +587,14 @@ begin
     var nTipoL :=  ClassLayer.ClassName;
 
     fields := [ name + '(' +nTipoL+ ')', lLayer.OutputShape.ToString, lLayer.count_params.ToString, first_connection];
-    print_row(fields, positions);
+    Result := print_row(fields, positions, 0);
 
     if connections.Count > 1 then
     begin
         for i := 1 to connections.Count - 1 do
         begin
             fields := ['', '', '', connections[i] ];
-            print_row(fields, positions);
+            Result := Result + sLineBreak + print_row(fields, positions);
         end;
     end;
 end;

@@ -158,6 +158,7 @@ type
       private
 
       public
+        destructor Destroy ; override;
         /// <summary>
         /// Adam optimization is a stochastic gradient descent method that is based on
         /// adaptive estimation of first-order and second-order moments.
@@ -234,11 +235,16 @@ end;
 destructor OptimizerV2.Destroy;
 begin
      Fargs.Free;
-     Fweights.Free;
-     Fhyper.Free;
-     Fhyper_variables.Free;
-     Fslots.Free;
-     Fslot_names.Free;
+     if Assigned(Fweights) then
+       Fweights.Free;
+     if Assigned(Fhyper) then
+       Fhyper.Free;
+     if Assigned(Fhyper_variables) then
+       Fhyper_variables.Free;
+     if Assigned(Fslots) then
+       Fslots.Free;
+     if Assigned(Fslot_names) then
+       Fslot_names.Free;
 end;
 
 function OptimizerV2.apply_gradients(grads_and_vars: Tuple<TFTensor, ResourceVariable>; name: string; experimental_aggregate_gradients: Boolean): TFOperation;
@@ -520,6 +526,11 @@ end;
 function OptimizerApi.Adam(learning_rate, beta_1, beta_2, epsilon: Single; amsgrad: Boolean; name: string): OptimizerV2;
 begin
     Result := TAdam.Create(learning_rate, beta_1, beta_2, epsilon, amsgrad, name)
+end;
+
+destructor OptimizerApi.Destroy;
+begin
+  inherited Destroy;
 end;
 
 function OptimizerApi.RMSprop(learning_rate, rho, momentum, epsilon: Single; centered: Boolean; name: string): OptimizerV2;

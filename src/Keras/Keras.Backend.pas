@@ -92,6 +92,7 @@ type
       _DUMMY_EAGER_GRAPH        : _DummyEagerGraph;
 
       constructor Create;
+      destructor Destroy; override;
       procedure track_variable(v: IVariableV1);
       function  placeholder(shape : PTFShape= nil; ndim : Integer = -1; dtype : TF_DataType = DtInvalid; sparse: Boolean = false; name: string = ''; ragged : Boolean= false): TFTensor;
       function  get_graph: TFGraph;
@@ -261,6 +262,27 @@ begin
     _GRAPH_TF_OPTIMIZERS      := TDictionary<string, Optimizer>.Create;
 
     _DUMMY_EAGER_GRAPH := _DummyEagerGraph.Create;
+end;
+
+destructor BackendImpl.Destroy;
+begin
+  _SESSION.Free;
+
+  PER_GRAPH_LAYER_NAME_UIDS.Clear;
+  PER_GRAPH_LAYER_NAME_UIDS.Free;
+
+  _GRAPH_VARIABLES.Clear;
+  _GRAPH_VARIABLES.Free;
+
+  _GRAPH_TF_OPTIMIZERS.Clear;
+  _GRAPH_TF_OPTIMIZERS.Free;
+
+  _DUMMY_EAGER_GRAPH.Free;
+
+  if Assigned(_GRAPH) then
+    _GRAPH.Free;
+
+  inherited Destroy;
 end;
 
 procedure BackendImpl.track_variable(v: IVariableV1);

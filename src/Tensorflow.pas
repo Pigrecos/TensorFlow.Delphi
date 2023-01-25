@@ -457,6 +457,7 @@ end;
        const UNKNOWN_CARDINALITY  : Integer = -2;
 
        constructor Create;
+       destructor Destroy; override;
 
        property Dataset : DatasetManager read FDataset;
   end;
@@ -1265,8 +1266,6 @@ end;
 
 destructor TTensorflow.Destroy;
 begin
-  inherited;
-
   Context.Free;
   Status.Free;
   OpDefLib.Free;
@@ -1274,6 +1273,8 @@ begin
   FtapeSet.Free;
   compat.Free;
   strings.Free;
+  GraphKeys := System.Default(TGraphKeys);
+  data.Free;
   //
   random.Free;
   numpy.Free;
@@ -1283,9 +1284,19 @@ begin
   train.Free;
   linalg.Free;
   image.Free;
+  //
+  glorot_uniform_initializer.Free;
+  zeros_initializer.Free;
+  ones_initializer.Free;
+  random_uniform_initializer.Free;
+  orthogonal_initializer.Free;
+  //
   FMemoLog.Free;
   //
   if Assigned(gradientFunctions) then  gradientFunctions.Free;
+
+  inherited Destroy;
+
 end;
 
 procedure TTensorflow.LogMsg(Msg: string);
@@ -2280,6 +2291,7 @@ begin
     COND_CONTEXT                 := COND_CONTEXT_;
     WHILE_CONTEXT                := WHILE_CONTEXT_;
 end;
+
 {$ENDREGION}
 
 {$REGION 'TRandom'}
@@ -2548,6 +2560,12 @@ begin
     FDataset := DatasetManager.Create;
 end;
 {$ENDREGION}
+
+destructor DataOps.Destroy;
+begin
+  FDataset.Free;
+  inherited;
+end;
 
 { image_internal }
 
