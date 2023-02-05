@@ -675,7 +675,7 @@ begin
                        pParam.vValue:= op.get_attr('shrink_axis_mask');
                        Result := Result + [ pParam ] ;
                    end;
-
+    Args.SetAttributes(['begin_mask',begin_mask,'end_mask',end_mask,'ellipsis_mask',ellipsis_mask,'new_axis_mask',new_axis_mask,'shrink_axis_mask',shrink_axis_mask]) ;
     Result := tf.Context.ExecuteOp('StridedSliceGrad', name, Args).First;
 end;
 

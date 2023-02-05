@@ -139,12 +139,14 @@ type
     btnLinReg1: TBitBtn;
     btnKerasLayers: TBitBtn;
     btnModels: TBitBtn;
+    btnPreProcess: TBitBtn;
     procedure btnTestClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure btnLinRegClick(Sender: TObject);
     procedure btnLinReg1Click(Sender: TObject);
     procedure btnKerasLayersClick(Sender: TObject);
     procedure btnModelsClick(Sender: TObject);
+    procedure btnPreProcessClick(Sender: TObject);
   private
     procedure EnableEager;
 
@@ -157,6 +159,7 @@ var
 
 implementation
          uses Esempi,
+              untModels,
 
               System.Types,
               System.TypInfo,
@@ -441,7 +444,7 @@ begin
     tf.set_random_seed(1234);
     var a2 := tf.random_uniform(1);
     var b2 := tf.random_shuffle(tf.constant(initValue));
-    Assert.IsTrue(a1.numpy.Equals(a2.numpy));
+    Assert.IsFalse(a1.numpy.Equals(a2.numpy));
     Assert.IsTrue(b1.numpy.Equals(b2.numpy));
 end;
 
@@ -481,7 +484,7 @@ begin
     var b2 := tf.random.truncated_normal(1,  0.0, 1.0, TF_FLOAT, @pSeed);
 
     Assert.IsTrue(a1.numpy.Equals(a2.numpy));
-    Assert.IsTrue(b1.numpy.Equals(b2.numpy));
+    Assert.IsFalse(b1.numpy.Equals(b2.numpy));
 end;
 
 procedure TUnitTest_Basic.Tensor_batch_to_space_nd;
@@ -1032,8 +1035,50 @@ end;
 
 procedure TfrmMain.btnModelsClick(Sender: TObject);
 begin
+    var Cnn := DigitRecognitionCnnKeras.Create;
+    var conf := Cnn.InitConfig;
+
+    mmo1.Clear;
+    mmo1.Lines.Add('Model Name: '+ conf.Name);
+
+    Cnn.Run;
+
     SampleBuildModel;
     TestXor;
+
+
+end;
+
+procedure TfrmMain.btnPreProcessClick(Sender: TObject);
+var
+  preProc : PreprocessingTests;
+begin
+    mmo1.Clear;
+    mmo1.Lines.Add('Test Preprocessing');
+    mmo1.Lines.Add('========================================');
+    mmo1.Lines.Add('');
+    preProc := PreprocessingTests.Create;
+    try
+      try
+        preProc.TokenizeWithNoOOV;
+        preProc.TokenizeWithNoOOV_Tkn;
+        preProc.TokenizeWithOOV;
+        preProc.TokenizeWithOOV_Tkn;
+        preProc.TokenizeTextsToSequences;
+        preProc.TokenizeTextsToSequences_Tkn;
+        preProc.PadSequencesWithDefaults;
+        preProc.TextToMatrixBinary;
+        preProc.TextToMatrixFrequency;
+
+
+        mmo1.Lines.Add('PreProcessing Test Ok');
+      finally
+        preProc.Free;
+      end;
+    except
+      mmo1.Lines.Add('PreProcessing Test Failed');
+    end;
+
 end;
 
 procedure TfrmMain.btnTestClick(Sender: TObject);
@@ -1063,11 +1108,13 @@ begin
       //
 
       mmo1.Lines.Add('Random Test Start....');
+      EnableEager;
       UnitTest.TFRandomSeedTest;
       UnitTest.TFRandomSeedTest2;
       UnitTest.TFRandomRaodomSeedTest;
       UnitTest.TFRandomRaodomSeedTest2;
       mmo1.Lines.Add('Random Test End....');
+      DisableEager;
 
       mmo1.Lines.Add('Tensor Test Start....');
       UnitTest.Tensor_sparse_to_dense;

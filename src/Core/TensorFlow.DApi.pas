@@ -4776,7 +4776,7 @@ begin
     begin
         var v := get_attr(name);
 
-        Result := [ v.AsType<T> ];
+        Result := v.AsType<TArray<T>>;
         Exit;
     end;
 

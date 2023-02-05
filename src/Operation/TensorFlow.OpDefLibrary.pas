@@ -169,7 +169,8 @@ var
   inputs      : TList<TFTensor>;
   input_types : TList<TF_DataType>;
   values      : TValue;
-
+  attr_def    : TAttrDef;
+  key         : string;
   op_def      : TOpDef;
 begin
     if keywords = nil then  aObj := []
@@ -188,10 +189,10 @@ begin
     }*)
 
     var default_type_attr_map := TDictionary<string, TValue>.Create;
-    for var attr_def in op_def.Attrs do
+    for attr_def in op_def.Attrs do
     begin
         if attr_def.&Type <> 'type' then continue;
-        var key := attr_def.Name;
+        key := attr_def.Name;
         if Assigned(attr_def.DefaultValue) and (attr_def.DefaultValue.Value.tag =  attr_def.DefaultValue.ftType) then
         begin
             default_type_attr_map.AddOrSetValue(key, attr_def.DefaultValue.Value.value);
@@ -343,15 +344,15 @@ begin
     end;
     // Convert attr values to AttrValue protos.
     attr_protos := TDictionary<string, TAttrValue>.Create;
-    for var  attr_def in op_def.Attrs do
+    for attr_def in op_def.Attrs do
     begin
-        var key := attr_def.Name;
+        key := attr_def.Name;
         if attrs.ContainsKey(key) then
         begin
             attr_protos.AddOrSetValue(key, SetAttrValue(op_def, attr_def, attrs[key] ) );
         end else
         begin
-            if not attr_def.DefaultValue.Value.value.IsOrdinal  then
+            if attr_def.DefaultValue  = nil then
             begin
                 raise Exception.Create('Missing required positional argument ' + key);
             end;
@@ -432,14 +433,14 @@ begin
 
     if attr_def.&Type.StartsWith('list(') then
     begin
-        if attr_def.HasMinimum then
-        begin
+        //if attr_def.HasMinimum then
+        //begin
             v.tag := TAttrValue.ftList;
             var v1 : TListValue := TListValue.Create;
             v.value := TValue.From<TListValue>(v1);
 
             attr_value.Value := v;
-        end;
+        //end;
     end;
 
     if attr_def.&Type = 'string' then

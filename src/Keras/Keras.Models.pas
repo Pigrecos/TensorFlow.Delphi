@@ -191,6 +191,8 @@ type
         /// Prints a string summary of the network.
         /// </summary>
         procedure summary(line_length: Integer = -1; positions: TArray<Single> = []);
+        procedure load_weights(filepath: string; by_name: Boolean = false; skip_mismatch : Boolean= false; options: TObject = nil);
+        procedure save_weights(filepath: string; overwrite : Boolean= true; save_format: string = ''; options: TObject = nil);
 
         property Layers              : TList<ILayer>      read GetLayers ;
         property TrainableVariables  : TList<IVariableV1> read Gettrainable_variables ;
@@ -302,8 +304,12 @@ implementation
               NumPy.NDArray,
 
               Keras.Utils,
+              Keras.Saving,
 
-              ProtoGen.variable;
+              ProtoGen.variable,
+
+              hdf5dll,
+              hdf5;
 
 { Model }
 
@@ -775,6 +781,42 @@ begin
             else raise Exception.Create('Model.run_predict_step Error!');
         end);
     Result := outputs;
+end;
+
+procedure Model.load_weights(filepath: string; by_name, skip_mismatch: Boolean; options: TObject);
+var
+  fileId   : Int64;
+  msuccess : Boolean;
+  lsuccess : Boolean;
+begin
+    fileId := THdf5.OpenFile(filepath, true);
+    if fileId < 0 then
+    begin
+        tf.LogMsg('Can''t find weights file :'+ filepath);
+        Exit;
+    end;
+    msuccess := THdf5.GroupExists(fileId, 'model_weights');
+    lsuccess := THdf5.GroupExists(fileId, 'layer_names');
+
+    if (not lsuccess) and (msuccess) then
+        fileId := THdf5.FH5.H5Gopen2(fileId, 'model_weights', H5P_DEFAULT);
+
+    if by_name then
+        //fdf5_format.load_weights_from_hdf5_group_by_name();
+        raise Exception.Create('Not ImplementedException')
+    else begin
+        hdf5_format.load_weights_from_hdf5_group(fileId, Layers);
+        THdf5.CloseFile(fileId);
+    end;
+end;
+
+procedure Model.save_weights(filepath: string; overwrite: Boolean; save_format: string; options: TObject);
+var
+  fileId   : Int64;
+begin
+    fileId := THdf5.CreateFile(filepath);
+    hdf5_format.save_weights_to_hdf5_group(fileId, Layers);
+    THdf5.CloseFile(fileId);
 end;
 
 procedure Model.summary(line_length: Integer; positions: TArray<Single>);
@@ -1335,11 +1377,8 @@ begin
     mapT := MapGraphNetwork(inputs, outputs);
     NetworkNodes             := mapT.Value1;
     NodesByDepth             := mapT.Value2;
+    Fself_tracked_trackables := mapT.Value3;
 
-   // if Fself_tracked_trackables.Count = 0 then
-   // begin
-        Fself_tracked_trackables := mapT.Value3;
-   // end;
 
     _set_output_names;
     ComputeTensorUsageCount;
@@ -1608,7 +1647,7 @@ begin
     layer_input  := TFTensors.Create(inputs);
     outputs      := nil;
     created_nodes:= TList<INode>.Create;
-    for var layer in Fself_tracked_trackables do
+    for var layer in args.Layers do
     begin
       clear_previously_created_nodes(layer, Fcreated_nodes);
       layer_output := layer.Apply(layer_input);
@@ -1637,3 +1676,5 @@ begin
 end;
 
 end.
+
+

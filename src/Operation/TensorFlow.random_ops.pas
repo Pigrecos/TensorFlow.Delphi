@@ -110,6 +110,7 @@ begin
                           function(v1: TNameScope): TFTensor
                           var
                             tSeed : Tuple<TNullableInteger, TNullableInteger>;
+                            rnd   : TFTensor;
                             begin
                                 name := string(v1.ToString);
                                 var shape_tensor  := _ShapeTensor(shape);
@@ -119,10 +120,10 @@ begin
                                 var nSeed : Nullable<Integer> := System.Default(Nullable<Integer>);
                                 if Assigned(seed) then nSeed := seed^;
 
-                                tSeed             := random_seed.get_seed(nSeed);
-                                var seed1         := tSeed.Value1;
-                                var seed2         := tSeed.Value1;
-                                var rnd           := gen_random_ops.random_standard_normal(shape_tensor, dtype, seed1, seed2);
+                                tSeed := random_seed.get_seed(nSeed);
+                                if tSeed.Value1.HasValue then rnd := gen_random_ops.random_standard_normal(shape_tensor, dtype, tSeed.Value1, tSeed.Value2)
+                                else                          rnd := gen_random_ops.random_standard_normal(shape_tensor, dtype);
+
                                 var mul           := TTensor(rnd) * TTensor(stddev_tensor);
                                 var value         := math_ops.add(mul, mean_tensor, name);
                                 // tensor_util.maybe_set_static_shape(value, shape)
@@ -138,20 +139,21 @@ begin
                           function(v1: TNameScope): TFTensor
                           var
                             tSeed : Tuple<TNullableInteger, TNullableInteger>;
+                            rnd   : TTensor;
                             begin
                                 var name := string(v1.ToString);
 
                                 var nSeed : Nullable<Integer> := System.Default(Nullable<Integer>);
                                 if Assigned(seed) then nSeed := seed^;
 
-                                tSeed             := random_seed.get_seed(nSeed);
+                                tSeed:= random_seed.get_seed(nSeed);
 
-                                var seed1         := tSeed.Value1;
-                                var seed2         := tSeed.Value1;
                                 var tensorShape   := TUtils.shape_tensor(shape);
                                 var minTensor : TTensor := Tops.convert_to_tensor(minval, dtype, 'min');
                                 var maxTensor : TTensor := Tops.convert_to_tensor(maxval, dtype, 'max');
-                                var rnd       :TTensor  := gen_random_ops.random_uniform(tensorShape, dtype, seed1, seed2);
+                                if tSeed.Value1.HasValue then rnd := gen_random_ops.random_uniform(tensorShape, dtype, tSeed.Value1, tSeed.Value2)
+                                else                          rnd := gen_random_ops.random_uniform(tensorShape, dtype);
+
                                 Result := math_ops.add(rnd * (maxTensor - minTensor), minTensor, name);
                             end );
 end;
@@ -170,14 +172,13 @@ begin
                                 var nSeed : Nullable<Integer> := System.Default(Nullable<Integer>);
                                 if Assigned(seed) then nSeed := seed^;
 
-                                tSeed             := random_seed.get_seed(nSeed);
+                                tSeed := random_seed.get_seed(nSeed);
 
-                                var seed1         := tSeed.Value1;
-                                var seed2         := tSeed.Value1;
                                 var tensorShape   := TUtils.shape_tensor(shape);
                                 var minTensor := Tops.convert_to_tensor(minval, DtInvalid, 'min');
                                 var maxTensor := Tops.convert_to_tensor(maxval, DtInvalid, 'max');
-                                Result        := gen_random_ops.random_uniform_int(tensorShape, minTensor, maxTensor, seed1, seed2);
+                                if tSeed.Value1.HasValue then Result := gen_random_ops.random_uniform_int(tensorShape, minTensor, maxTensor, tSeed.Value1, tSeed.Value2)
+                                else                          Result := gen_random_ops.random_uniform_int(tensorShape, minTensor, maxTensor);
                             end );
 end;
 
@@ -199,13 +200,12 @@ begin
                                 var nSeed : Nullable<Integer> := System.Default(Nullable<Integer>);
                                 if Assigned(seed) then nSeed := seed^;
 
-                                tSeed             := random_seed.get_seed(nSeed);
+                                tSeed := random_seed.get_seed(nSeed);
 
-                                var seed1         := tSeed.Value1;
-                                var seed2         := tSeed.Value1;
                                 if Tdtypes.is_integer(dType) then
                                 begin
-                                    Result := gen_random_ops.random_uniform_int(shape, minTensor, maxTensor, seed1, seed2, name);
+                                    if tSeed.Value1.HasValue then Result := gen_random_ops.random_uniform_int(shape, minTensor, maxTensor, tSeed.Value1, tSeed.Value2, name)
+                                    else                          Result := gen_random_ops.random_uniform_int(shape, minTensor, maxTensor, 0, 0, name)
                                 end else
                                 begin
                                     var rnd := gen_random_ops.random_uniform(shape, dtype);
@@ -217,10 +217,12 @@ end;
 class function random_ops.random_shuffle(value: TFTensor; seed: Integer; name: string): TFTEnsor;
 var
   tSeed : Tuple<TNullableInteger, TNullableInteger>;
+  seed1,
+  seed2 : Integer ;
 begin
     tSeed      := random_seed.get_seed(seed);
-    var seed1  := tSeed.Value1;
-    var seed2  := tSeed.Value1;
+    seed1  := tSeed.Value1;
+    seed2  := tSeed.Value1;
 
     Result := gen_random_ops.random_shuffle(value, seed1, seed2, name);
 end;
@@ -233,6 +235,7 @@ begin
                           function(v1: TNameScope): TFTensor
                           var
                             tSeed : Tuple<TNullableInteger, TNullableInteger>;
+                            rnd   : TFTensor;
                             begin
                                 name              := string(v1.ToString);
                                 var shape_tensor  := _ShapeTensor(shape);
@@ -243,9 +246,9 @@ begin
                                 if Assigned(seed) then nSeed := seed^;
 
                                 tSeed             := random_seed.get_seed(nSeed);
-                                var seed1         := tSeed.Value1;
-                                var seed2         := tSeed.Value1;
-                                var rnd           := gen_random_ops.truncated_normal(shape_tensor, dtype, seed1, seed2);
+                                if tSeed.Value1.HasValue then rnd := gen_random_ops.truncated_normal(shape_tensor, dtype, tSeed.Value1, tSeed.Value2)
+                                else                          rnd := gen_random_ops.truncated_normal(shape_tensor, dtype);
+
                                 var mul           := TTensor(rnd) * TTensor(stddev_tensor);
                                 var value         := math_ops.add(mul, mean_tensor, name);
                                 // tensor_util.maybe_set_static_shape(value, shape)
@@ -271,6 +274,8 @@ end;
 class function random_ops.multinomial_categorical_impl(logits: TFTensor; num_samples: Integer; dtype: TF_DataType; seed: pInteger): TFTEnsor;
 var
   tSeed : Tuple<TNullableInteger, TNullableInteger>;
+  seed1,
+  seed2 : Integer ;
 begin
     logits := Tops.convert_to_tensor(logits, DtInvalid, 'logits');
 
@@ -278,15 +283,10 @@ begin
     if Assigned(seed) then nSeed := seed^;
 
     tSeed             := random_seed.get_seed(nSeed);
-    var seed1         := tSeed.Value1;
-    var seed2         := tSeed.Value1;
+    seed1             := tSeed.Value1;
+    seed2             := tSeed.Value1;
     Result :=  gen_random_ops.multinomial(logits, num_samples, seed1, seed2, dtype);
 end;
 
 end.
-
-
-
-
-
 

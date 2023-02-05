@@ -15,8 +15,11 @@ unit Keras.Data;
 {$ENDREGION}
 
 interface
-     uses System.SysUtils,
+     uses System.SysUtils, Winapi.Windows,
           System.Generics.Collections,
+          system.ZLib,
+
+          IdHTTP, IdSSLOpenSSL,
 
           Spring,
           Spring.Container.Common,
@@ -34,6 +37,45 @@ interface
 type
   IDatasetV2    = class;
   OwnedIterator = class;
+
+  DatasetPass = class
+    private
+      function getX_Test:  TNDArray;
+      function getX_Train: TNDArray;
+      function getY_Test:  TNDArray;
+      function getY_Train: TNDArray;
+    public
+      Train  : Tuple<TNDArray,TNDArray>;
+      Test   : Tuple<TNDArray,TNDArray>;
+
+      property x_Train : TNDArray read getX_Train;
+      property y_Train : TNDArray read getY_Train;
+      property x_Test  : TNDArray read getX_Test;
+      property y_Test  : TNDArray read getY_Test;
+  end;
+
+  TMnist = class
+    const
+      nomifiles : array[0..3] of string = ('train-images-idx3-ubyte.gz',  // train_images
+                                           'train-labels-idx1-ubyte.gz',  // train_labels
+                                           't10k-images-idx3-ubyte.gz',   // test_images
+                                           't10k-labels-idx1-ubyte.gz');  // test_labels
+    private
+      Forigin_folder : string;
+
+      function LoadDataFromFile(fFileName: string; startPosition: UInt64= 0): TNDArray;
+    public
+      function Download(file_name: string): string;
+      function load_data: DatasetPass;
+      constructor Create;
+  end;
+
+  KerasDataset = class
+    public
+      Mnist : TMnist;
+
+      constructor Create;
+  end;
 
   DataHandlerArgs = class
     public
@@ -603,8 +645,9 @@ type
   end;
 
 implementation
-          uses  Winapi.Windows,
-                System.Math,
+          uses  System.Math,
+                System.IOUtils,
+                System.Classes,
 
                 Tensorflow,
                 TensorFlow.Context,
@@ -617,6 +660,7 @@ implementation
                 Tensorflow.array_ops,
                 TensorFlow.random_ops,
 
+                Numpy,
                 NumPy.NDArray;
 
 { ConcreteFunction_helper }
@@ -661,8 +705,9 @@ end;
 
 function OwnedIterator.next: TArray<TFTensor>;
 begin
+
+    var res := ops.iterator_get_next(_iterator_resource, _dataset.output_types, _dataset.output_shapes);
     try
-      var res := ops.iterator_get_next(_iterator_resource, _dataset.output_types, _dataset.output_shapes);
       for var i := 0 to Length(res) - 1 do
       begin
           res[i].shape := _element_spec[i].shape;
@@ -879,7 +924,7 @@ begin
      var aSize  : TArray<Integer> := [num_in_full_batch];
      var first_k_indices          := array_ops.slice(indices, abegin, aSize);
 
-     first_k_indices  := array_ops.reshape(first_k_indices, [ Fnum_full_batches, Fbatch_size ]);
+     first_k_indices  := array_ops.reshape(first_k_indices, TFShape.Create([ Fnum_full_batches, Fbatch_size ]));
      var flat_dataset := tf.data.Dataset.from_tensor_slices(first_k_indices);
 
      if Fpartial_batch_size > 0 then
@@ -1199,6 +1244,8 @@ begin
     Result := False;
     try
       res := FownedIterator.next;
+      if res = nil then Exit;
+
       if Length(res) = 1 then FCurrent := Tuple<TFTensor, TFTensor>.Create(res[0], nil)
       else                    FCurrent := Tuple<TFTensor, TFTensor>.Create(res[0], res[1]) ;
 
@@ -1810,6 +1857,110 @@ begin
             else    raise Exception.Create(' DataHandler.steps Error!');
         end;
     end;
+end;
+
+{ DatasetPass }
+
+function DatasetPass.getX_Test: TNDArray;
+begin
+    Result := Test.Value1;
+end;
+
+function DatasetPass.getX_Train: TNDArray;
+begin
+   Result := Train.Value1
+end;
+
+function DatasetPass.getY_Test: TNDArray;
+begin
+    Result := Test.Value2;
+end;
+
+function DatasetPass.getY_Train: TNDArray;
+begin
+    Result := Train.Value2;
+end;
+
+{ Mnist }
+
+constructor TMnist.Create;
+begin
+   Forigin_folder := 'https://ossci-datasets.s3.amazonaws.com/mnist/';
+end;
+
+function TMnist.Download(file_name: string): string;
+var
+  IdHTTP1 : TIdHTTP;
+  IdSSL   : TIdSSLIOHandlerSocketOpenSSL;
+  Stream: TMemoryStream;
+begin
+    var fileSaveTo := TPath.Combine(TPath.GetTempPath, file_name);
+
+    if FileExists(fileSaveTo) then
+        Exit(fileSaveTo);
+
+   IdHTTP1 := TIdHTTP.Create(nil);
+   IdSSL := TIdSSLIOHandlerSocketOpenSSL.Create(IdHTTP1);
+   IdSSL.SSLOptions.SSLVersions := [sslvTLSv1, sslvTLSv1_1, sslvTLSv1_2];
+   IdHTTP1.IOHandler := IdSSL;
+   Stream := TMemoryStream.Create;
+   try
+     IdHTTP1.Get(Forigin_folder+file_name, Stream);
+     Stream.SaveToFile(fileSaveTo);
+   finally
+     Stream.Free;
+     IdHTTP1.Free;
+   end;
+   Result := fileSaveTo;
+end;
+
+function TMnist.LoadDataFromFile(fFileName : string; startPosition : UInt64): TNDArray;
+var
+  DecompressionStream: TDecompressionStream;
+  FileStream         : TFileStream;
+  fName_gz           : string;
+  buffer             : TBytes;
+begin
+
+    fName_gz   := Download(fFileName);
+    FileStream := TFileStream.Create(fName_gz, fmOpenRead);
+    try
+       DecompressionStream := TDecompressionStream.Create(FileStream, 15 + 16);
+       try
+         DecompressionStream.Position := startPosition;
+         SetLength(buffer, DecompressionStream.Size-Int64(startPosition));
+         DecompressionStream.Read(buffer,DecompressionStream.Size-Int64(startPosition));
+         Result := np.frombuffer(buffer, TFShape.Create([DecompressionStream.Size-Int64(startPosition)]) ,np.np_uint8);
+       finally
+         DecompressionStream.Free;
+       end;
+    finally
+      FileStream.Free;
+    end;
+end;
+
+function TMnist.load_data: DatasetPass;
+var
+  trainX,trainY : TNDArray;
+  testX,testY : TNDArray;
+begin
+    Result := DatasetPass.Create;
+
+    trainX := LoadDataFromFile(nomifiles[0],16).Reshape(TFShape.create([60000,28,28]));
+    trainY := LoadDataFromFile(nomifiles[1],8).Reshape(TFShape.create([60000]));
+
+    testX := LoadDataFromFile(nomifiles[2],16).Reshape(TFShape.create([10000,28,28]));
+    testY := LoadDataFromFile(nomifiles[3],8).Reshape(TFShape.create([10000]));
+
+    Result.Train := tuple.Create(trainX,trainY);
+    Result.Test := tuple.Create(testX,testY);
+end;
+
+{ KerasDataset }
+
+constructor KerasDataset.Create;
+begin
+   Mnist := TMnist.Create;
 end;
 
 end.

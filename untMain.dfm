@@ -67,4 +67,13 @@ object frmMain: TfrmMain
     TabOrder = 5
     OnClick = btnModelsClick
   end
+  object btnPreProcess: TBitBtn
+    Left = 551
+    Top = 363
+    Width = 113
+    Height = 25
+    Caption = 'PreProcessing'
+    TabOrder = 6
+    OnClick = btnPreProcessClick
+  end
 end

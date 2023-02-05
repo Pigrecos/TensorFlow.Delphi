@@ -22,6 +22,7 @@ interface
           TensorFlow.DApi,
           TensorFlow.Initializer,
 
+          Keras.Data,
           Keras.ILayersApi,
           Keras.Layer,
           Keras.Activations,
@@ -69,7 +70,7 @@ type
 
       function GetLayers: ILayersApi;
     public
-      //public KerasDataset datasets { get; } = new KerasDataset();
+      datasets     : KerasDataset;
       Inizializers : TInitializers;
       Regularizers : TRegularizers;
       layers       : ILayersApi;
@@ -152,6 +153,8 @@ begin
     activations  := TActivations.Create;
     preprocessing:= TPreprocessing.Create;
 
+    datasets     := KerasDataset.Create;
+
     backend      := BackendImpl.Create;
 end;
 
@@ -168,6 +171,7 @@ begin
     preprocessing.Free;
 
     backend.Free;
+    datasets.free;
 
     inherited Destroy;
 end;

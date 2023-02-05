@@ -33,7 +33,11 @@ interface
           TensorFlow.EagerTensor,
           TensorFlow.Slice,
 
+          Keras.Engine,
           Keras.KerasApi,
+          Keras.ArgsDefinition,
+          keras.Models,
+          Keras.Layer,
 
           TensorFlow.Variable,
           TensorFlow.Tensor,
@@ -85,6 +89,31 @@ type
 
       procedure clip_by_global_norm;
       procedure NeuralNetworkTest_l2_loss;
+  end;
+
+  PreprocessingTests = class(EagerModeTestBase)
+    private
+      texts           : TArray<string>;
+      tokenized_texts : TArray<TArray<string>>;
+      processed_texts : TArray<string>;
+      OOV             : string;
+
+    public
+
+      constructor Create;
+      destructor Destroy; override;
+
+      procedure TokenizeWithNoOOV;
+      procedure TokenizeWithNoOOV_Tkn;
+      procedure TokenizeWithOOV;
+      procedure TokenizeWithOOV_Tkn;
+      procedure TokenizeTextsToSequences;
+      procedure TokenizeTextsToSequences_Tkn;
+      procedure PadSequencesWithDefaults;
+      procedure TextToMatrixBinary;
+      procedure TextToMatrixFrequency;
+
+
   end;
 
   /// <summary>
@@ -251,13 +280,10 @@ implementation
 
              DUnitX.TestFramework,
 
-             Keras.ArgsDefinition,
-             keras.Models,
-             Keras.Layer,
              Keras.LossFunc,
-             Keras.Engine,
              Keras.LayersApi,
              Keras.Utils,
+             keras.Preprocessing,
 
              ProtoGen.variable;
 
@@ -1773,5 +1799,207 @@ begin
 
     Assert.IsTrue(Equal( expected, output[0].ToArray<Single>),'Assert - LayerNormalization');
 end;
+
+{ PreprocessingTests }
+
+constructor PreprocessingTests.Create;
+begin
+    inherited Create;
+
+    texts := ['It was the best of times, it was the worst of times.',
+              'Mr and Mrs Dursley of number four, Privet Drive, were proud to say that they were perfectly normal, thank you very much.',
+              'It was the best of times, it was the worst of times.',
+              'Mr and Mrs Dursley of number four, Privet Drive.'];
+
+    tokenized_texts := [['It','was','the','best','of','times','it','was','the','worst','of','times'],
+                        ['mr','and','mrs','dursley','of','number','four','privet','drive','were','proud','to','say','that','they','were','perfectly','normal','thank','you','very','much'],
+                        ['It','was','the','best','of','times','it','was','the','worst','of','times'],
+                        ['mr','and','mrs','dursley','of','number','four','privet','drive']];
+
+    processed_texts := ['it was the best of times it was the worst of times',
+                        'mr and mrs dursley of number four privet drive were proud to say that they were perfectly normal thank you very much',
+                        'it was the best of times it was the worst of times',
+                        'mr and mrs dursley of number four privet drive'];
+
+    OOV := '<OOV>';
+end;
+
+destructor PreprocessingTests.Destroy;
+begin
+  texts := [];
+  tokenized_texts := [];
+  processed_texts := [];
+  OOV := '';
+
+  inherited Destroy;
+end;
+
+procedure PreprocessingTests.TokenizeWithNoOOV;
+var
+ tTokenizer : Tokenizer;
+begin
+    tTokenizer := tf.keras.preprocessing.text.Tokenizer.Create;
+    tTokenizer.fit_on_texts(texts);
+
+    Assert.AreEqual(27, tTokenizer.word_index.Count);
+
+    Assert.AreEqual(7, tTokenizer.word_index['worst']);
+    Assert.AreEqual(13, tTokenizer.word_index['number']);
+    Assert.AreEqual(9, tTokenizer.word_index['were']);
+end;
+
+procedure PreprocessingTests.TokenizeWithNoOOV_Tkn;
+var
+ tTokenizer : Tokenizer;
+begin
+    tTokenizer := tf.keras.preprocessing.text.Tokenizer.Create;
+    tTokenizer.fit_on_texts(tokenized_texts);
+
+    Assert.AreEqual(27, tTokenizer.word_index.Count);
+
+    Assert.AreEqual(7, tTokenizer.word_index['worst']);
+    Assert.AreEqual(13, tTokenizer.word_index['number']);
+    Assert.AreEqual(9, tTokenizer.word_index['were']);
+end;
+
+procedure PreprocessingTests.TokenizeWithOOV;
+var
+ tTokenizer : Tokenizer;
+begin
+    tTokenizer := tf.keras.preprocessing.text.Tokenizer.Create(OOV);
+    tTokenizer.fit_on_texts(texts);
+
+    Assert.AreEqual(28, tTokenizer.word_index.Count);
+
+    Assert.AreEqual(1,  tTokenizer.word_index[OOV]);
+    Assert.AreEqual(8,  tTokenizer.word_index['worst']);
+    Assert.AreEqual(14, tTokenizer.word_index['number']);
+    Assert.AreEqual(10, tTokenizer.word_index['were']);
+end;
+
+procedure PreprocessingTests.TokenizeWithOOV_Tkn;
+var
+ tTokenizer : Tokenizer;
+begin
+    tTokenizer := tf.keras.preprocessing.text.Tokenizer.Create(OOV);
+    tTokenizer.fit_on_texts(tokenized_texts);
+
+    Assert.AreEqual(28, tTokenizer.word_index.Count);
+
+    Assert.AreEqual(1,  tTokenizer.word_index[OOV]);
+    Assert.AreEqual(8,  tTokenizer.word_index['worst']);
+    Assert.AreEqual(14, tTokenizer.word_index['number']);
+    Assert.AreEqual(10, tTokenizer.word_index['were']);
+end;
+
+procedure PreprocessingTests.TokenizeTextsToSequences;
+var
+ tTokenizer : Tokenizer;
+ sequences  : TList<TArray<Integer>>;
+begin
+    tTokenizer := tf.keras.preprocessing.text.Tokenizer;
+    tTokenizer.fit_on_texts(texts);
+
+    sequences := tTokenizer.texts_to_sequences( texts );
+    Assert.AreEqual(4, sequences.Count);
+
+    Assert.AreEqual(tTokenizer.word_index['worst'], sequences[0][9]);
+    Assert.AreEqual(tTokenizer.word_index['proud'], sequences[1][10]);
+end;
+
+procedure PreprocessingTests.TokenizeTextsToSequences_Tkn;
+var
+ tTokenizer : Tokenizer;
+ sequences  : TList<TArray<Integer>>;
+begin
+    tTokenizer := tf.keras.preprocessing.text.Tokenizer;
+    tTokenizer.fit_on_texts(tokenized_texts);
+
+    sequences := tTokenizer.texts_to_sequences( tokenized_texts );
+    Assert.AreEqual(4, sequences.Count);
+
+    Assert.AreEqual(tTokenizer.word_index['worst'], sequences[0][9]);
+    Assert.AreEqual(tTokenizer.word_index['proud'], sequences[1][10]);
+end;
+
+procedure PreprocessingTests.PadSequencesWithDefaults;
+var
+ tTokenizer : Tokenizer;
+ sequences  : TList<TArray<Integer>>;
+ padded     : TNDArray;
+begin
+    tTokenizer := tf.keras.preprocessing.text.Tokenizer.Create(OOV);
+    tTokenizer.fit_on_texts(texts);
+
+    sequences := tTokenizer.texts_to_sequences(texts);
+    padded    := tf.keras.preprocessing.sequence.pad_sequences(sequences);
+
+    Assert.AreEqual<Int64>(4, padded.dims[0]);
+    Assert.AreEqual<Int64>(22, padded.dims[1]);
+
+    var ndPadded : NDArray := padded;
+
+    var iPad: Integer := ndPadded[[0, 19]];
+    Assert.AreEqual(iPad, tTokenizer.word_index['worst']);
+
+    for var i := 0 to 8 - 1 do
+    begin
+        iPad := ndPadded[[0, i]];
+        Assert.AreEqual(iPad, 0);
+    end;
+
+    iPad := ndPadded[[1, 10]];
+    Assert.AreEqual(iPad, tTokenizer.word_index['proud']);
+
+    for var i := 0 to 20 -1 do
+    begin
+        iPad := ndPadded[[1, i]];
+        Assert.AreNotEqual(iPad, 0);
+    end;
+end;
+
+procedure PreprocessingTests.TextToMatrixBinary;
+var
+ tTokenizer : Tokenizer;
+begin
+    tTokenizer := tf.keras.preprocessing.text.Tokenizer.Create;
+    tTokenizer.fit_on_texts(texts);
+
+    Assert.AreEqual(27, tTokenizer.word_index.Count);
+
+    var matrix := tTokenizer.texts_to_matrix(texts);
+
+    Assert.AreEqual<int64>(Length(texts), matrix.dims[0]);
+
+    Assert.IsTrue(TUtils.SequenceEqual<double>([ 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ], matrix[0].ToArray<double> ));
+    Assert.IsTrue(TUtils.SequenceEqual<double>([ 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 ], matrix[1].ToArray<double> ));
+end;
+
+procedure PreprocessingTests.TextToMatrixFrequency;
+var
+ tTokenizer : Tokenizer;
+begin
+    tTokenizer := tf.keras.preprocessing.text.Tokenizer.Create;
+    tTokenizer.fit_on_texts(texts);
+
+    Assert.AreEqual(27, tTokenizer.word_index.Count);
+
+    var matrix := tTokenizer.texts_to_matrix(texts, 'freq');
+
+    Assert.AreEqual<Int64>(Length(texts), matrix.dims[0]);
+
+    var t12 : double := 2.0 / 12.0;
+    var o12 : double := 1.0 / 12.0;
+    var t22 : double := 2.0 / 22.0;
+    var o22 : double := 1.0 / 22.0;
+
+    var r1 := matrix[0].ToArray<double>;
+    var r2 := matrix[1].ToArray<double>;
+
+    Assert.IsTrue(TUtils.SequenceEqual<double>([ 0, t12, t12, t12, t12, t12, 0, o12, 0, 0, 0, 0, o12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ], matrix[0].ToArray<double> ));
+    Assert.IsTrue(TUtils.SequenceEqual<double>([ 0, o22, 0, 0, 0, 0, o22, 0, o22, t22, o22, o22, 0, o22, o22, o22, o22, o22, o22, o22, o22, o22, o22, o22, o22, o22, o22, o22 ], matrix[1].ToArray<double> ));
+end;
+
+
 
 end.

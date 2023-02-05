@@ -803,10 +803,6 @@ var
   Size: Integer;
   Last: PByte;
 begin
-  var position := FCurrent - FBuf ;
-  if position >= $8c69 then
-       position := position;
-
   FStack[FRecursionDepth] := FLast;
   Inc(FRecursionDepth);
   Size := readInt32;
@@ -816,9 +812,6 @@ begin
 end;
 procedure TpbInput.Pop;
 begin
-   if FCurrent <> FLast then
-       var position := FCurrent - FBuf ;
-
   Assert(FCurrent = FLast, 'Stream.Position ='+FPosition.ToString);
   dec(FRecursionDepth);
   FLast := FStack[FRecursionDepth];

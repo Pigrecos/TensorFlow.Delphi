@@ -1303,7 +1303,7 @@ begin
    args.Padding   := padding;
    args.DataFormat:= data_format;
 
-   Result := Keras.Layer.MaxPooling2D(args);
+   Result := Keras.Layer.MaxPooling2D.Create(args);
 end;
 
 function LayersApi.max_pooling2d(inputs: TFTensor; pool_size, strides: TArray<Integer>; padding, data_format, name: string): TFTensor;

@@ -400,7 +400,9 @@ var
   dType : TF_DataType;
 begin
      if      string.LowerCase(value).Contains('integer')   then dType := TF_DataType.TF_INT32
+     else if string.LowerCase(value).Contains('int32')     then dType := TF_DataType.TF_INT32
      else if string.LowerCase(value).Contains('cardinal')  then dType := TF_DataType.TF_UINT32
+     else if string.LowerCase(value).Contains('uint32')    then dType := TF_DataType.TF_UINT32
      else if string.LowerCase(value).Contains('int64')     then dType := TF_DataType.TF_INT64
      else if string.LowerCase(value).Contains('uint64')    then dType := TF_DataType.TF_UINT64
      else if string.LowerCase(value).Contains('word')      then dType := TF_DataType.TF_UINT16

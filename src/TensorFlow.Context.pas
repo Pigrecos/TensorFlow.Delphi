@@ -419,7 +419,7 @@ begin
     if seed.HasValue then
     begin
          RandSeed := seed;
-         Randomize;
+         //Randomize;
         _rng := Random(Integer.MaxValue);
     end else
     begin

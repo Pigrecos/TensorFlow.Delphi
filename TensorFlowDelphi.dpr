@@ -1,9 +1,7 @@
 program TensorFlowDelphi;
 
-{$WARN DUPLICATE_CTOR_DTOR OFF}
-
+{$IFDEF EurekaLog}
 uses
-  {$IFDEF EurekaLog}
   EMemLeaks,
   EResLeaks,
   EDebugExports,
@@ -14,7 +12,14 @@ uses
   EDialogWinAPIMSClassic,
   EDialogWinAPIEurekaLogDetailed,
   EDialogWinAPIStepsToReproduce,
-  ExceptionLog7,
+  ExceptionLog7;
+{$ENDIF EurekaLog}
+
+{$WARN DUPLICATE_CTOR_DTOR OFF}
+
+uses
+  {$IFDEF EurekaLog}
+  EMemLeaks,
   {$ENDIF EurekaLog}
   Vcl.Forms,
   untMain in 'untMain.pas' {frmMain},
@@ -103,7 +108,11 @@ uses
   TensorFlow.Functions in 'src\TensorFlow.Functions.pas',
   TensorFlow.nn_grad in 'src\Gradient\TensorFlow.nn_grad.pas',
   ProtoGen.Main in 'src\Proto\ProtoGen.Main.pas',
-  TensorFlow.stateless_random_ops in 'src\Operation\TensorFlow.stateless_random_ops.pas';
+  TensorFlow.stateless_random_ops in 'src\Operation\TensorFlow.stateless_random_ops.pas',
+  untModels in 'untModels.pas',
+  hdf5dll in 'src\lib\hdf5dll.pas',
+  Hdf5 in 'src\lib\Hdf5.pas',
+  Keras.Saving in 'src\Keras\Keras.Saving.pas';
 
 {$R *.res}
 
@@ -113,6 +122,8 @@ begin
   Application.CreateForm(TfrmMain, frmMain);
   Application.Run;
 end.
+
+
 
 
 

@@ -888,6 +888,7 @@ type
       bias   : IVariableV1;
       cell   : ILayer;
 
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
       function  get_initial_state(inputs: TFTEnsor): TFTensor;
     public
 
@@ -921,6 +922,7 @@ type
   SimpleRNNCell = class(Layer)
     protected
       procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
     public
      args               : SimpleRNNArgs;
      kernel             : IVariableV1;
@@ -3953,6 +3955,11 @@ end;
 
 { RNN }
 
+function RNN.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+  Result :=  inherited Call(inputs, state, training);
+end;
+
 constructor RNN.Create(_args: RNNArgs);
 begin
     inherited Create(PreConstruct(_args)) ;
@@ -4066,9 +4073,14 @@ begin
   kernel := add_weight('kernel',           TFShape.Create([input_shape[-1], args.Units]), TF_FLOAT, args.KernelInitializer);
   kernel := add_weight('recurrent_kernel', TFShape.Create([args.Units, args.Units]),      TF_FLOAT, args.RecurrentInitializer);
   if args.UseBias then
-    bias := add_weight('bias', TFShape.Create([args.Units]), TF_FLOAT, args.RecurrentInitializer );
+    bias := add_weight('bias', TFShape.Create([args.Units]), TF_FLOAT, args.BiasInitializer );
 
   Fbuilt := true;
+end;
+
+function SimpleRNNCell.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    Result := inherited Call(inputs, state, training);
 end;
 
 { SimpleRNN }
@@ -5156,7 +5168,7 @@ begin
 
     if tf.executing_eagerly then
     begin
-        var Res := array_ops.reshape(inputs.First, [ inputs.shape[0], -1 ]);
+        var Res := array_ops.reshape(inputs.First, TFShape.Create([ inputs.shape[0], -1 ]));
         Result := TFTensors.Create(Res);
         Exit;
     end else
@@ -5169,10 +5181,10 @@ begin
             Result := TFTensors.Create(Res);
             Exit;
         end;
-        var batch_dim := tensor_shape.dimension_value(input_shape[0]);
+        var batch_dim : Integer := tensor_shape.dimension_value(input_shape[0]);
         if batch_dim <> -1 then
         begin
-            var Res := array_ops.reshape(inputs.First, [batch_dim, -1 ]);
+            var Res := array_ops.reshape(inputs.First,TFshape.Create([batch_dim, -1 ]));
             Result := TFTensors.Create(Res);
             Exit;
         end;

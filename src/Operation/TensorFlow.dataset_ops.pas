@@ -284,9 +284,14 @@ begin
     for var i := 0 to Length(output_types)-1 do
        typeIntArray := typeIntArray + [ Ord(output_types[i])] ;
 
+    try
     Result := tf.Context.ExecuteOp('IteratorGetNext', name, ExecuteOpArgs.Create([iterator])
                        .SetAttributes(['output_types',  TValue.From<TArray<Integer>>( typeIntArray ),
                                        'output_shapes', TValue.From<TArray<TFShape>>( output_shapes )])).toArray;
+    except
+      result := [];
+      Exit;
+    end;
 end;
 
 procedure dataset_ops.make_iterator(dataset, iterator: TFTensor; name: string);

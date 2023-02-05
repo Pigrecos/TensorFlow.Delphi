@@ -20,7 +20,8 @@ unit TensorFlow.NnOps;
 interface
     uses System.SysUtils,
          System.Generics.Collections,
-         system.TypInfo,
+         System.TypInfo,
+         System.Rtti,
 
          Spring,
          Spring.Collections,
@@ -171,7 +172,6 @@ type
         function GetOutputSize: Integer;  virtual;
         {$ENDREGION}
      public
-
 
         constructor Create(trainable: Boolean = true; name: string = ''; dtype: TF_DataType = DtInvalid; _reuse: pBoolean = nil);
         function get_initial_state(inputs: TFTensor = nil; batch_size : TFTensor= nil; dtype: TF_DataType = DtInvalid): TValue;

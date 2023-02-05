@@ -65,17 +65,13 @@ begin
     var grad            := grads[0];
     var input_value     := op.inputs[0];
     var broadcast_shape := op.inputs[1];
-
     var input_value_shape := array_ops.shape(input_value);
     var _reduction_axes   := gen_array_ops.broadcast_gradient_args(broadcast_shape, input_value_shape);
     var reduction_axes    := _reduction_axes.Value2;
-
     var updates_grad_reshaped := math_ops.reduce_sum(grad, reduction_axes, true);
     var updates_grad          := array_ops.reshape(updates_grad_reshaped, input_value_shape);
-
     Result := [updates_grad, nil];
 end;
-
 /// <summary>
 /// Extract the shapes of a set of input tensors.
 /// </summary>
@@ -88,21 +84,17 @@ begin
     for var i := 0 to Length(inputs)-1 do
     begin
         var x := inputs[i];
-
         var input_shape := array_ops.shape(x);
         if (not (input_shape is TFTensor)) or (input_shape.op.tipo <> 'Const') then
         begin
             fully_known := false;
             break;
         end;
-
         sizes[i] := input_shape;
     end;
-
     if fully_known then Result := sizes
     else                Result := gen_array_ops.shape_n(inputs);
 end;
-
 /// <summary>
 /// Gradient for concat op.
 /// </summary>
@@ -127,16 +119,13 @@ begin
         else                                 Result :=  [ nil, grad ];
         Exit;
     end;
-
     var concat_dim   := op.inputs[dim_index];
     var takeCount : Integer;
     if end_value_index = -1 then  takeCount := op.inputs.Count - 1
     else                          takeCount := end_value_index - start_value_index;
-
     var input_values := Enumerable<TFTensor>.Create(op.inputs.inputs).Skip(start_value_index)
         .Take(takeCount)
         .ToArray;
-
     var out_grads := TList<TFTensor>.Create;
     if concat_dim is TEagerTensor then
     begin
@@ -144,11 +133,9 @@ begin
         var non_neg_concat_dim : Integer;
         if dim_int < 0 then non_neg_concat_dim :=  input_values[0].rank + dim_int
         else                non_neg_concat_dim :=  dim_int mod input_values[0].rank;
-
         var sizes : TArray<Int64> := [];
         for var i := 0 to Length(input_values) -1 do
            sizes := sizes + [ input_values[i].shape[non_neg_concat_dim] ] ;
-
         var sizes_tensor := constant_op.constant( TValue.From< TArray<Int64> >(sizes));
         out_grads.AddRange( array_ops.split(grad, sizes_tensor, non_neg_concat_dim) );
     end
@@ -167,14 +154,11 @@ begin
             var value  := TUtils.constant_value(concat_dim);
             concat_dim := constant_op.constant(value, concat_dim.dtype,'Const');
         end;
-
         // Using mod here for convenience since concat_dim is already verified
         // in concat implementation to be within the allowed [-rank, rank) range.
         var non_neg_concat_dim := TTensor(concat_dim) mod array_ops.rank(input_values[0]);
-
         // Get the inputs' tensor shapes
         var sizes := _ExtractInputShapes(input_values);
-
         (* The magic number of 16 was found through benchmarking a range of sizes
          on CPUs and a Maxwell TitanX.  A speedup was seen in a large majority of
          cases when switching implementations at N=16, but it is possible that
@@ -196,25 +180,21 @@ begin
     if end_value_index <= dim_index then  Result := out_grads.ToArray + [nil]
     else                                  Result :=  [nil] + out_grads.ToArray ;
 end;
-
 // [RegisterGradient("ConcatV2")]
 function _ConcatV2Grad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
 begin
     var grad := grads[0];
     Result := _ConcatGradHelper(op, grad, 0, -1, -1);
 end;
-
 function _ReshapeToInput(op: TFOperation; grad: TFTensor): TFTensor;
 begin
     Result := array_ops.reshape(grad, array_ops.shape(op.inputs[0]) );
 end;
-
 // [RegisterGradient("ExpandDims")]
 function _ExpandDimsGrad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
 begin
     Result := [ _ReshapeToInput(op, grads[0]), nil ];
 end;
-
 /// <summary>
 /// Gradient for GatherV2 op.
 /// </summary>
@@ -227,15 +207,12 @@ begin
     var grad    := grads[0];
     var params  := op.inputs[0];
     Tops.colocate_with(params);
-
     var params_shape := array_ops.shape(params, '', tf.int64_t);
     params_shape     := math_ops.cast(params_shape, tf.int32_t);
-
     var indices      := op.inputs[1];
     var indices_size := array_ops.expand_dims(array_ops.size(indices), 0);
     var axis         := op.inputs[2];
     var axis_static  := TUtils.constant_value(axis);
-
     // For axis 0 gathers, build an appropriately shaped IndexedSlices.
     if Integer(NDarray(axis_static)) = 0 then
     begin
@@ -246,16 +223,13 @@ begin
         Result := [ IndexedSlices.create(values, indices, params_shape), nil, nil ];
         Exit;
     end;
-
     Result := [ nil, nil ];
 end;
-
 // [RegisterGradient("Reshape")]
 function _ReshapeGrad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
 begin
     Result := [ array_ops.reshape(grads[0], array_ops.shape(op.inputs[0])), nil ];
 end;
-
 // [RegisterGradient("Pack")]
 function _PackGrad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
 begin
@@ -264,14 +238,12 @@ begin
     var axis := op.get_attr<integer>('axis');
     Result := array_ops.unstack(grad, @num, axis);
 end;
-
 // [RegisterGradient("Unpack")]
 function _UnpackGrad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
 begin
     var axis := op.get_attr<Integer>('axis');
     Result :=[ array_ops.stack(grads, axis) ];
 end;
-
 // [RegisterGradient("Pad")]
 function _PadGrad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
 begin
@@ -283,24 +255,20 @@ begin
     var aB : TArray<Integer> := [0, 0];
     var _begin := constant_op.constant( aB );
     var pad_before := array_ops.slice(a, _begin, size);
-
     // Make it a 1-D tensor.
     _begin     := array_ops.reshape(pad_before, [ -1 ]);
     size       := array_ops.shape(x);
     var x_grad := array_ops.slice(grad, _begin, size);
-
     if op.inputs.Count = 3 then
        Result := [ x_grad, nil, nil ]
     else
        Result := [ x_grad, nil ];
 end;
-
 // [RegisterGradient("Split")]
 function _SplitGrad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
 begin
     Result := [ nil, array_ops.concat(grads, op.inputs[0]) ];
 end;
-
 // [RegisterGradient("Slice")]
 function _SliceGrad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
 begin
@@ -309,7 +277,6 @@ begin
     var begin_vec := op.inputs[1];
     var input_rank:= array_ops.rank(input_vec);
     var slice_size:= array_ops.shape(op.outputs[0]);
-
     var aValue : TArray<TFTensor> := [ input_rank, Tops.convert_to_tensor(1) ];
     var shape      := array_ops.stack( aValue );
     var before_pad := array_ops.reshape(begin_vec, shape);
@@ -317,19 +284,16 @@ begin
     var paddings   := array_ops.concat([ before_pad, after_pad ], 1);
     Result := [ array_ops.pad(grad, paddings), nil, nil ];
 end;
-
 // [RegisterGradient("Squeeze")]
 function _SqueezeGrad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
 begin
     Result := [ _ReshapeToInput(op, grads[0]) ];
 end;
-
 // [RegisterGradient("StopGradient")]
 function _NoGradient(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
 begin
     Result := [ nil ];
 end;
-
 /// <summary>
 /// Gradient for StridedSlice op.
 /// </summary>
@@ -343,13 +307,11 @@ begin
     var _begin  := op.inputs[1];
     var _end    := op.inputs[2];
     var strides := op.inputs[3];
-
     var x             := array_ops.shape(op.inputs[0], '', _begin.dtype);
     var x_static      := TUtils.constant_value(x);
     var begin_static  := TUtils.constant_value(_begin);
     var end_static    := TUtils.constant_value(_end);
     var strides_static:= TUtils.constant_value(strides);
-
     Result :=
     [
         array_ops.strided_slice_grad(x_static,
@@ -367,7 +329,6 @@ begin
         nil
     ];
 end;
-
 // [RegisterGradient("StridedSliceGrad")]
 function _StridedSliceGradGrad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
 begin
@@ -375,7 +336,6 @@ begin
     var _begin  := op.inputs[1];
     var _end    := op.inputs[2];
     var strides := op.inputs[3];
-
     Result :=
     [
         nil,
@@ -392,7 +352,6 @@ begin
                                      op.get_attr<Int64>('new_axis_mask'),
                                      op.get_attr<Int64>('shrink_axis_mask'))];
 end;
-
 // [RegisterGradient("Transpose")]
 function _TransposeGrad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
 begin

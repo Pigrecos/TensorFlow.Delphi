@@ -295,23 +295,28 @@ constructor TFStatus.Create;
 begin
  inherited Create(TF_NewStatus());
 end;
+
 destructor  TFStatus.Destroy;
 begin
  inherited Destroy;
 end;
+
 procedure TFStatus.NativeDispose(hnd: Pointer);
 begin
  if Assigned(hnd) then
    TF_DeleteStatus(hnd);
 end;
+
 function TFStatus.GetOk(): Boolean;
 begin
  Result := StatusCode = TF_Code.TF_OK;
 end;
+
 function TFStatus.GetError(): Boolean;
 begin
  Result := StatusCode <> TF_Code.TF_OK;
 end;
+
 function TFStatus.CheckMaybeRaise(incoming: TFStatus; last: Boolean = True): Boolean;
 var
  l_oEx: TFException;
@@ -333,6 +338,7 @@ begin
  else
    Result := StatusCode = TF_Code.TF_OK;
 end;
+
 class function TFStatus.Setup(incoming: TFStatus): TFStatus;
 begin
  if Assigned(incoming) then
@@ -340,14 +346,17 @@ begin
  else
    Result := TFStatus.Create;
 end;
+
 function  TFStatus.GetStatusCode(): TF_Code;
 begin
  Result := TF_GetCode(Handle);
 end;
+
 function  TFStatus.GetStatusMessage(): TF_TString;
 begin
  Result := TF_TString(TF_Message(Handle));
 end;
+
 procedure TFStatus.SetStatusCode(code: TF_Code; msg: TF_TString);
 var
  l_sTFStr: TF_TString;
@@ -355,13 +364,16 @@ begin
  l_sTFStr := TF_TString(msg);
  TF_SetStatus (Handle, code, PAnsiChar(l_sTFStr));
 end;
+
 function  TFStatus.ToString(): String;
 begin
  Result := Format('[TFStatus: StatusCode=%d, StatusMessage=%s]', [Integer(StatusCode), StatusMessage]);
 end;
+
 procedure TFStatus.RaiseEx();
 begin
  if TF_GetCode(Handle) <> TF_Code.TF_OK then
    raise TFException.Create(StatusMessage);
 end;
+
 end.

@@ -258,7 +258,7 @@ begin
         Exit;
     end;
     if op_seed <> nil then  Result :=  Tuple<TNullableInteger, TNullableInteger>.Create(DEFAULT_GRAPH_SEED, op_seed)
-    else                    Result :=  Tuple<TNullableInteger, TNullableInteger>.Create(0, 0)
+    else                    Result :=  Tuple<TNullableInteger, TNullableInteger>.Create(nil, nil)
 end;
 
 class function random_seed.get_seed_tensor(op_seed: TNullableInteger): Tuple<TFTensor, TFTensor>;
