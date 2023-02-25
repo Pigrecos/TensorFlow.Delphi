@@ -905,7 +905,7 @@ type
   /// for details about the usage of RNN API.
   /// </summary>
   LSTM = class(RNN)
-  private
+    private
       function getUnits: Integer;
     protected
       function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
@@ -1607,6 +1607,9 @@ end;
 
 function Layer.GetoutShape: TFShape;
 begin
+    Result := Default(TFShape) ;
+    if FInboundNodes.Count < 1 then Exit;
+
     Result := FInboundNodes[0].Outputs.shape;
 end;
 
@@ -4561,9 +4564,22 @@ begin
 end;
 
 function BatchNormalization.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+var
+  outputs,
+  training_tensor : TFTensor ;
+  input_shape     : TFShape;
+  ndims           : Integer;
+  training_value  : Nullable<Boolean>;
+  keep_dims       : Boolean;
+  reduction_axes  : TArray<Integer>;
+  broadcast_shape : TArray<Integer>;
+  scale,offset    : IVariableV1;
+  mean            : TFTensor;
+  variance        : TFTensor;
+  offset_tensor   : TFTensor;
+  scale_tensor    : TFTensor;
+  mean_variance   : Tuple<TFTensor, TFTensor>;
 begin
-    var outputs : TFTensor ;
-    var training_tensor : TFTensor;
     if training = nil then training_tensor := tf.placeholder(tf.bool_t, TFShape.Scalar)
     else                   training_tensor := tf.logical_and(training^, Trainable);
     if fused then
@@ -4575,10 +4591,9 @@ begin
     end;
 
     //var inputs_dtype := Tdtypes.as_base_dtype(inputs.dtype);
-    var input_shape  := inputs.shape;
-    var ndims        := input_shape.ndim;
+    input_shape  := inputs.shape;
+    ndims        := input_shape.ndim;
 
-    var reduction_axes : TArray<Integer>;
     for var i := 0 to  ndims - 1 do
     begin
         if not TArray.Contains<Integer>(axis, i) then
@@ -4587,45 +4602,53 @@ begin
 
     // Broadcasting only necessary for single-axis batch norm where the axis is
     // not the last dimension
-    var broadcast_shape : TArray<Integer>;
     for var i := 0 to  ndims - 1 do
         broadcast_shape := broadcast_shape + [ 1 ];
 
     broadcast_shape[ axis[0] ] := input_shape.dims[ axis[0] ];
 
-    var scale  := gamma;
-    var offset := beta;
-    var training_value := smart_module.smart_constant_value(training_tensor);
+    scale  := gamma;
+    offset := beta;
+    offset_tensor := math_ops.cast(offset, inputs.dtype);
+    scale_tensor  := math_ops.cast(scale, inputs.dtype);
 
-    var mean     : TFTensor;
-    var variance : TFTensor;
+    training_value := smart_module.smart_constant_value(training_tensor);
+
     if (training_value.HasValue) and (training_value.Value = false) then
     begin
         mean     := moving_mean.AsTensor;
         variance := moving_variance.AsTensor;
     end else
     begin
-        var keep_dims := Length(axis) > 1;
-        var mean_variance := _moments(inputs, reduction_axes, keep_dims);
+        keep_dims := Length(axis) > 1;
+        mean_variance := _moments(inputs, reduction_axes, keep_dims);
         mean     := mean_variance.Value1;
         variance := mean_variance.Value2;
+
         mean := smart_module.smart_cond(training_tensor,
-             function : TArray<TFTensor> begin Result := [mean] end,
-             function : TArray<TFTensor> begin Result := [ Tops.convert_to_tensor(TValue.From<IVariableV1>(moving_mean)) ] end)[0] ;
+                                               function : TArray<TFTensor>
+                                                begin
+                                                    Result := [mean]
+                                                end,
+                                               function : TArray<TFTensor>
+                                                begin
+                                                    Result := [ Tops.convert_to_tensor(TValue.From<IVariableV1>(moving_mean)) ]
+                                                end)[0] ;
 
         variance := smart_module.smart_cond(training_tensor,
-             function : TArray<TFTensor> begin Result := [variance] end,
-             function : TArray<TFTensor> begin Result := [ Tops.convert_to_tensor(TValue.From<IVariableV1>(moving_variance)) ] end)[0] ;
-
-        //var new_mean     := mean;
-        //var new_variance := variance;
+                                                       function : TArray<TFTensor>
+                                                         begin
+                                                             Result := [variance]
+                                                         end,
+                                                       function : TArray<TFTensor>
+                                                         begin
+                                                             Result := [ Tops.convert_to_tensor(TValue.From<IVariableV1>(moving_variance)) ]
+                                                         end)[0] ;
     end;
 
-    mean              := math_ops.cast(mean, inputs.dtype);
-    variance          := math_ops.cast(variance, inputs.dtype);
-    var offset_tensor := math_ops.cast(offset, inputs.dtype);
-    var scale_tensor  := math_ops.cast(scale, inputs.dtype);
-    outputs           := nn_impl.batch_normalization(inputs.First, mean, variance, offset_tensor, scale_tensor, epsilon);
+    mean          := math_ops.cast(mean, inputs.dtype);
+    variance      := math_ops.cast(variance, inputs.dtype);
+    outputs       := nn_impl.batch_normalization(inputs.First, mean, variance, offset_tensor, scale_tensor, epsilon);
     // If some components of the shape got lost due to adjustments, fix that.
     outputs.shape     := input_shape;
     Result := TFTensors.Create( outputs );
@@ -4699,22 +4722,33 @@ begin
 end;
 
 function Pooling1D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+var
+  pad_axis,ndim : Integer;
+  pool_shape    : TArray<Integer>;
+  strides       : TArray<Integer>;
 begin
-    var pool_shape : TArray<Integer>;
-    var strides : TArray<Integer>;
+
+    if args.DataFormat = 'channels_first' then pad_axis:= 2
+    else                                       pad_axis:= 3;
+
+    inputs := TFTensors.Create( tf.expand_dims(inputs.first, pad_axis) );
+    pool_shape := [ args.PoolSize, 1 ];
+    strides    := [ args.Strides, 1 ];
+    ndim       := inputs[0].ndim;
+
     if args.DataFormat = 'channels_last' then
     begin
-        pool_shape := [ 1, args.PoolSize, 1 ];
-        strides    := [ 1, args.Strides,  1 ];
+        pool_shape := [ 1 ] + pool_shape + [ 1 ];
+        strides    := [ 1 ] + strides    + [ 1 ];
     end else
     begin
-        pool_shape := [ 1, 1, args.PoolSize ];
-        strides    := [ 1, 1, args.Strides  ];
+        pool_shape := [ 1, 1 ] + pool_shape;
+        strides    := [ 1, 1 ] + strides;
     end;
 
-    var outputs := args.PoolFunction.Apply( inputs.First, pool_shape, strides, args.Padding.ToUpper, conv_utils.convert_data_format(args.DataFormat, 3));
+    var outputs := args.PoolFunction.Apply( inputs.First, pool_shape, strides, args.Padding.ToUpper, conv_utils.convert_data_format(args.DataFormat, ndim));
 
-    Result := TFTensors.Create( outputs );
+    Result := TFTensors.Create( tf.squeeze(outputs, pad_axis) );
 end;
 
 { Pooling2D }
@@ -5496,5 +5530,6 @@ end;
 
 {$ENDREGION}
 end.
+
 
 

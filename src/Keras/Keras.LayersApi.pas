@@ -193,24 +193,36 @@ type
                       kernel_initializer: string = 'glorot_uniform';
                       bias_initializer  : string = 'zeros'): ILayer; overload;
 
+       function Conv2D(filters          : Integer;
+                      kernel_size       : TFShape;
+                      strides           : TFShape;
+                      padding           : string = 'valid';
+                      data_format       : string= '';
+                      dilation_rate     : PTFShape = nil;
+                      groups            : Integer = 1;
+                      activation        : string = '';
+                      use_bias          : Boolean= true;
+                      kernel_initializer: string = 'glorot_uniform';
+                      bias_initializer  : string = 'zeros'): ILayer; overload;
+
        /// <summary>
-        /// Transposed convolution layer (sometimes called Deconvolution).
-        /// </summary>
-        /// <param name="filters">Integer, the dimensionality of the output space (i.e. the number of output filters in the convolution)</param>
-        /// <param name="kernel_size">An integer or tuple/list of 2 integers, specifying the height and width of the 2D convolution window. Can be a single integer to specify the same value for all spatial dimensions.</param>
-        /// <param name="strides">An integer or tuple/list of 2 integers, specifying the strides of the convolution along the height and width. Can be a single integer to specify the same value for all spatial dimensions. Specifying any stride value != 1 is incompatible with specifying any dilation_rate value != 1.</param>
-        /// <param name="output_padding">one of "valid" or "same" (case-insensitive). "valid" means no padding. "same" results in padding evenly to the left/right or up/down of the input such that output has the same height/width dimension as the input.</param>
-        /// <param name="data_format">A string, one of channels_last (default) or channels_first. The ordering of the dimensions in the inputs. channels_last corresponds to inputs with shape (batch_size, height, width, channels) while channels_first corresponds to inputs with shape (batch_size, channels, height, width). It defaults to the image_data_format value found in your Keras config file at ~/.keras/keras.json. If you never set it, then it will be channels_last.</param>
-        /// <param name="dilation_rate">an integer or tuple/list of 2 integers, specifying the dilation rate to use for dilated convolution. Can be a single integer to specify the same value for all spatial dimensions. Currently, specifying any dilation_rate value != 1 is incompatible with specifying any stride value != 1.</param>
-        /// <param name="activation">Activation function to use. If you don't specify anything, no activation is applied (see keras.activations).</param>
-        /// <param name="use_bias">Boolean, whether the layer uses a bias vector.</param>
-        /// <param name="kernel_initializer">The name of the initializer for the kernel weights matrix (see keras.initializers).</param>
-        /// <param name="bias_initializer">The name of the initializer for the bias vector (see keras.initializers).</param>
-        /// <param name="kernel_regularizer">The name of the regularizer function applied to the kernel weights matrix (see keras.regularizers).</param>
-        /// <param name="bias_regularizer">The name of the regularizer function applied to the bias vector (see keras.regularizers).</param>
-        /// <param name="activity_regularizer">The name of the regularizer function applied to the output of the layer (its "activation") (see keras.regularizers).</param>
-        /// <returns>A tensor of rank 4+ representing activation(conv2d(inputs, kernel) + bias).</returns>
-        function Conv2DTranspose(filters             : Integer;
+       /// Transposed convolution layer (sometimes called Deconvolution).
+       /// </summary>
+       /// <param name="filters">Integer, the dimensionality of the output space (i.e. the number of output filters in the convolution)</param>
+       /// <param name="kernel_size">An integer or tuple/list of 2 integers, specifying the height and width of the 2D convolution window. Can be a single integer to specify the same value for all spatial dimensions.</param>
+       /// <param name="strides">An integer or tuple/list of 2 integers, specifying the strides of the convolution along the height and width. Can be a single integer to specify the same value for all spatial dimensions. Specifying any stride value != 1 is incompatible with specifying any dilation_rate value != 1.</param>
+       /// <param name="output_padding">one of "valid" or "same" (case-insensitive). "valid" means no padding. "same" results in padding evenly to the left/right or up/down of the input such that output has the same height/width dimension as the input.</param>
+       /// <param name="data_format">A string, one of channels_last (default) or channels_first. The ordering of the dimensions in the inputs. channels_last corresponds to inputs with shape (batch_size, height, width, channels) while channels_first corresponds to inputs with shape (batch_size, channels, height, width). It defaults to the image_data_format value found in your Keras config file at ~/.keras/keras.json. If you never set it, then it will be channels_last.</param>
+       /// <param name="dilation_rate">an integer or tuple/list of 2 integers, specifying the dilation rate to use for dilated convolution. Can be a single integer to specify the same value for all spatial dimensions. Currently, specifying any dilation_rate value != 1 is incompatible with specifying any stride value != 1.</param>
+       /// <param name="activation">Activation function to use. If you don't specify anything, no activation is applied (see keras.activations).</param>
+       /// <param name="use_bias">Boolean, whether the layer uses a bias vector.</param>
+       /// <param name="kernel_initializer">The name of the initializer for the kernel weights matrix (see keras.initializers).</param>
+       /// <param name="bias_initializer">The name of the initializer for the bias vector (see keras.initializers).</param>
+       /// <param name="kernel_regularizer">The name of the regularizer function applied to the kernel weights matrix (see keras.regularizers).</param>
+       /// <param name="bias_regularizer">The name of the regularizer function applied to the bias vector (see keras.regularizers).</param>
+       /// <param name="activity_regularizer">The name of the regularizer function applied to the output of the layer (its "activation") (see keras.regularizers).</param>
+       /// <returns>A tensor of rank 4+ representing activation(conv2d(inputs, kernel) + bias).</returns>
+       function Conv2DTranspose(filters              : Integer;
                                 kernel_size          : PTFShape= nil;
                                 strides              : PTFShape= nil;
                                 output_padding       : string = 'valid';
@@ -222,7 +234,21 @@ type
                                 bias_initializer     : string = '';
                                 kernel_regularizer   : string = '';
                                 bias_regularizer     : string = '';
-                                activity_regularizer : string = ''): ILayer;
+                                activity_regularizer : string = ''): ILayer; overload;
+
+       function Conv2DTranspose(filters              : Integer;
+                                kernel_size          : TFShape;
+                                strides              : TFShape;
+                                output_padding       : string = 'valid';
+                                data_format          : string = '';
+                                dilation_rate        : PTFShape = nil;
+                                activation           : string = '';
+                                use_bias             : Boolean= true;
+                                kernel_initializer   : string = '';
+                                bias_initializer     : string = '';
+                                kernel_regularizer   : string = '';
+                                bias_regularizer     : string = '';
+                                activity_regularizer : string = ''): ILayer; overload;
 
        /// <summary>
        /// Just your regular densely-connected NN layer.
@@ -246,7 +272,7 @@ type
        /// <param name="activation">Activation function to use. If you don't specify anything, no activation is applied (ie. "linear" activation: a(x) = x).</param>
        /// <param name="input_shape">N-D tensor with shape: (batch_size, ..., input_dim). The most common situation would be a 2D input with shape (batch_size, input_dim).</param>
        /// <returns>N-D tensor with shape: (batch_size, ..., units). For instance, for a 2D input with shape (batch_size, input_dim), the output would have shape (batch_size, units).</returns>
-       function Dense(units: Integer; activation: string = ''; input_shape: PTFShape = nil): ILayer; overload;
+       function Dense(units: Integer; activation: string; input_shape: PTFShape = nil): ILayer; overload;
 
        /// <summary>
        /// Just your regular densely-connected NN layer.
@@ -263,7 +289,7 @@ type
        /// <param name="input_shape">N-D tensor with shape: (batch_size, ..., input_dim). The most common situation would be a 2D input with shape (batch_size, input_dim).</param>
        /// <returns>N-D tensor with shape: (batch_size, ..., units). For instance, for a 2D input with shape (batch_size, input_dim), the output would have shape (batch_size, units).</returns>
        function Dense(units             : Integer;
-                      activation        : TActivation= nil;
+                      activation        : TActivation;
                       kernel_initializer: IInitializer = nil;
                       use_bias          : Boolean= true;
                       bias_initializer  : IInitializer = nil;
@@ -770,6 +796,17 @@ begin
     Result := Conv1D(filters, kernel_size, 1, 'valid', 'channels_last', 1, 1, activation, true, 'glorot_uniform', 'zeros')
 end;
 
+function LayersApi.Conv2D(filters: Integer; kernel_size, strides: TFShape; padding, data_format: string; dilation_rate: PTFShape; groups: Integer; activation: string;
+  use_bias: Boolean; kernel_initializer, bias_initializer: string): ILayer;
+begin
+    var pkSize   : PTFShape := nil;
+    var pStrides : PTFShape := nil;
+    if not kernel_size.IsNil then pkSize   := @kernel_size;
+    if not strides.IsNil then     pStrides := @strides;
+
+    Result := Conv2D(filters, pkSize, pStrides, padding, data_format, dilation_rate, groups, activation, use_bias, kernel_initializer, bias_initializer);
+end;
+
 function LayersApi.Conv2D(filters: Integer; kernel_size, strides: PTFShape; padding, data_format: string; dilation_rate: PTFShape; groups: Integer; activation: TActivation;
   use_bias: Boolean; kernel_initializer, bias_initializer: IInitializer; kernel_regularizer, bias_regularizer, activity_regularizer: IRegularizer): ILayer;
  var
@@ -854,6 +891,18 @@ begin
     args.Activation          := GetActivationByName(activation);
 
     Result := Keras.Layer.Conv2D.Create( args );
+end;
+
+function LayersApi.Conv2DTranspose(filters: Integer; kernel_size, strides: TFShape; output_padding, data_format: string; dilation_rate: PTFShape; activation: string;
+  use_bias: Boolean; kernel_initializer, bias_initializer, kernel_regularizer, bias_regularizer, activity_regularizer: string): ILayer;
+begin
+    var pkSize   : PTFShape := nil;
+    var pStrides : PTFShape := nil;
+    if not kernel_size.IsNil then pkSize   := @kernel_size;
+    if not strides.IsNil then     pStrides := @strides;
+
+    Result := Conv2DTranspose(filters, pkSize, pStrides, output_padding, data_format, dilation_rate, activation, use_bias, kernel_initializer, bias_initializer, kernel_regularizer,
+                               bias_regularizer, activity_regularizer);
 end;
 
 function LayersApi.Conv2DTranspose(filters: Integer; kernel_size, strides: PTFShape; output_padding, data_format: string; dilation_rate: PTFShape; activation: string;
@@ -1508,7 +1557,8 @@ end;
 
 function LayersApi.GetActivationByName(name: string): TActivation;
 begin
-    if      name = 'linear'  then Result := tf.keras.activations.Linear
+    if      name = ''        then Result := tf.keras.activations.Linear
+    else if name = 'linear'  then Result := tf.keras.activations.Linear
     else if name = 'relu'    then Result := tf.keras.activations.Relu
     else if name = 'sigmoid' then Result := tf.keras.activations.Sigmoid
     else if name = 'tanh'    then Result := tf.keras.activations.Tanh

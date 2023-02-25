@@ -1206,8 +1206,11 @@ begin
     nodes_in_progress.Add(node);
     if  not node.is_input then
     begin
-        for var k_tensor in node.KerasInputs do
+        for var i := 0 to node.KerasInputs.Count - 1 do
+        begin
+           var k_tensor := node.KerasInputs[i];
            BuildMapHelper(k_tensor, finished_nodes, nodes_in_progress, nodes_in_decreasing_depth, layer_indices);
+        end;
     end;
 
     finished_nodes.Add(node);
@@ -1377,8 +1380,9 @@ begin
     mapT := MapGraphNetwork(inputs, outputs);
     NetworkNodes             := mapT.Value1;
     NodesByDepth             := mapT.Value2;
-    Fself_tracked_trackables := mapT.Value3;
 
+    //if Fself_tracked_trackables.Count = 0 then
+      Fself_tracked_trackables := mapT.Value3;
 
     _set_output_names;
     ComputeTensorUsageCount;

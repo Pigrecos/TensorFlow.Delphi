@@ -38,7 +38,7 @@ uses
   TensorFlow.Variable,
   TensorFlow.Tensor,
   NumPy.NDArray,
-  Numpy.Axis;
+  Numpy.Axis, Vcl.ExtCtrls;
 
 type
   GraphModeTestBase = class
@@ -133,13 +133,15 @@ type
   end;
 
   TfrmMain = class(TForm)
-    btnTest: TBitBtn;
-    mmo1: TMemo;
-    btnLinReg: TBitBtn;
-    btnLinReg1: TBitBtn;
-    btnKerasLayers: TBitBtn;
+    pnl1: TPanel;
     btnModels: TBitBtn;
     btnPreProcess: TBitBtn;
+    btnKerasLayers: TBitBtn;
+    btnLinReg1: TBitBtn;
+    btnLinReg: TBitBtn;
+    btnTest: TBitBtn;
+    pnl2: TPanel;
+    mmo1: TMemo;
     procedure btnTestClick(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure btnLinRegClick(Sender: TObject);
@@ -1035,18 +1037,24 @@ end;
 
 procedure TfrmMain.btnModelsClick(Sender: TObject);
 begin
-    var Cnn := DigitRecognitionCnnKeras.Create;
-    var conf := Cnn.InitConfig;
-
+  //
+    var mnistGAN := TMnistGAN.Create;
     mmo1.Clear;
-    mmo1.Lines.Add('Model Name: '+ conf.Name);
-
+    mmo1.Lines.Add('Model Name: '+ mnistGAN.Config.Name);
+    mnistGAN.Run;
+  //
+    var Cnn := DigitRecognitionCnnKeras.Create;
+    mmo1.Clear;
+    mmo1.Lines.Add('Model Name: '+ Cnn.Config.Name);
     Cnn.Run;
-
+  //
+    var Fnn := MnistFnnKerasFunctional.Create;
+    mmo1.Clear;
+    mmo1.Lines.Add('Model Name: '+ Fnn.Config.Name);
+    Fnn.Run;
+  //
     SampleBuildModel;
     TestXor;
-
-
 end;
 
 procedure TfrmMain.btnPreProcessClick(Sender: TObject);

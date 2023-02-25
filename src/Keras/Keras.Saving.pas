@@ -300,6 +300,8 @@ begin
       for var layer in layers do
          layerName.Add(layer.Name);
 
+      if layerName.Count < 1  then  layerName.Add(' ');
+
       save_attributes_to_hdf5_group<string>(f, 'layer_names', layerName.ToArray);
       THdf5.WriteAttribute(f, 'backend', 'tensorflow');
       THdf5.WriteAttribute(f, 'keras_version', '"2.5.0');

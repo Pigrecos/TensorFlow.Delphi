@@ -865,22 +865,17 @@ begin
           groupId := datasetId;
     end else
     begin
-
     end;
-
     // create UTF-8 encoded attributes
     datatype := FH5.H5Tcreate(H5T_class_t.H5T_STRING, H5T_VARIABLE);
     FH5.H5Tset_cset(datatype, THdf5Utils.GetCharacterSet(FSetting.CharacterSetType));
     FH5.H5Tset_strpad(datatype, THdf5Utils.GetCharacterPadding(FSetting.CharacterPaddingType));
-
     strSz   := Length(values);
     var aDims : TArray<uint64>:= [strSz];
     spaceId := FH5.H5Screate_simple(1, @aDims[0], nil);
     normalizedName := THdf5Utils.NormalizedName(name);
-
     attributeId := THdf5Utils.GetAttributeId(groupId, normalizedName, datatype, spaceId);
     SetLength(wdata,strSz) ;
-
     cntr := 0;
     for var str in values do
     begin
@@ -888,15 +883,12 @@ begin
         wdata[cntr] := @buff[0];
         Inc(cntr);
     end;
-
     res := FH5.H5Awrite(attributeId, datatype, @wdata[0]);
-
     FH5.H5Aclose(attributeId);
     FH5.H5Sclose(spaceId);
     FH5.H5Tclose(datatype);
     if tmpId <> groupId then
        FH5.H5Dclose(groupId);
-
     Result := Tuple.Create(res, attributeId);
 
 end;

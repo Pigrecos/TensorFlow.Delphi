@@ -140,21 +140,22 @@ begin
                           var
                             tSeed : Tuple<TNullableInteger, TNullableInteger>;
                             rnd   : TTensor;
+                            minTensor, maxTensor: TFTensor;
                             begin
                                 var name := string(v1.ToString);
 
-                                var nSeed : Nullable<Integer> := System.Default(Nullable<Integer>);
+                                var nSeed : Nullable<Integer> := nil;
                                 if Assigned(seed) then nSeed := seed^;
 
                                 tSeed:= random_seed.get_seed(nSeed);
 
                                 var tensorShape   := TUtils.shape_tensor(shape);
-                                var minTensor : TTensor := Tops.convert_to_tensor(minval, dtype, 'min');
-                                var maxTensor : TTensor := Tops.convert_to_tensor(maxval, dtype, 'max');
+                                minTensor := Tops.convert_to_tensor(minval, dtype, 'min');
+                                maxTensor := Tops.convert_to_tensor(maxval, dtype, 'max');
                                 if tSeed.Value1.HasValue then rnd := gen_random_ops.random_uniform(tensorShape, dtype, tSeed.Value1, tSeed.Value2)
                                 else                          rnd := gen_random_ops.random_uniform(tensorShape, dtype);
 
-                                Result := math_ops.add(rnd * (maxTensor - minTensor), minTensor, name);
+                                Result := math_ops.add(rnd * (TTensor(maxTensor) - minTensor), minTensor, name);
                             end );
 end;
 
@@ -289,4 +290,5 @@ begin
 end;
 
 end.
+
 

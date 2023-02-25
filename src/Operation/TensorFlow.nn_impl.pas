@@ -68,7 +68,7 @@ type
       /// <returns> Two `Tensor` objects: `mean` and `variance`.</returns>
       class function moments(x: TFTensor; axes: TAxis; name: string = ''; keep_dims: Boolean = false) : Tuple<TFTensor, TFTensor>;static;
       class function normalize(tensor: TFTensor; _ord : string = 'euclidean'; axis: PAxis = nil; name: string = ''): TFTensor; static;
-      class function batch_normalization(x, mean, variance, offset, scale: TFTensor; variance_epsilon: Single = 0.001; name: string = ''): TFTensor; static;
+      class function batch_normalization(const x: TFTensor; const mean: TFTensor; const variance: TFTensor; const offset: TFTensor; const scale: TFTensor; variance_epsilon: Single = 0.001; name: string = ''): TFTensor; static;
       /// <summary>
       /// Batch normalization.
       /// </summary>
@@ -196,7 +196,7 @@ begin
                 end);
 end;
 
-class function nn_impl.batch_normalization(x, mean, variance, offset, scale: TFTensor; variance_epsilon: Single; name: string): TFTensor;
+class function nn_impl.batch_normalization(const x, mean, variance, offset, scale: TFTensor; variance_epsilon: Single; name: string): TFTensor;
 begin
     var vValues : TArray<TValue> := [x, mean, variance, scale, offset];
     Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'batchnorm', @vValues),

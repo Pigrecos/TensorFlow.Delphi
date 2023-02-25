@@ -258,10 +258,13 @@ end;
 function TEagerRunner.GetGradientFunction(op_name: string; op_inputs: TArray<TFTensor>; attrs: TArray<TValue>; op_outputs: TArray<TFTensor>): BackwardFunction;
 begin
     Result := function(out_grads : TArray<TFTensor>; unneeded_gradients: TArray<Int64>): TArray<TFTensor>
+                const
+                 nonRegGradFuncs : Array[0..2] of string = ('GreaterEqual','OnesLike','ZerosLike');
                begin
-                   if not gradientFunctions.ContainsKey(op_name) then
+                   if (not gradientFunctions.ContainsKey(op_name)) or (TArray.Contains<string>(nonRegGradFuncs, op_name)) then
                    begin
                        SetLength( Result,Length(op_inputs) );
+                       Exit;
                    end;
                    var oper := EagerOperation.Create;
                    oper.Name            := op_name;

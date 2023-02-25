@@ -16,10 +16,13 @@ unit TensorFlow.ControlFlowState;
 
 interface
     uses System.Generics.Collections,
+         System.Rtti,
 
          TF4D.Core.CApi,
          TensorFlow.DApi,
-         TensorFlow.DApiBase;
+         TensorFlow.DApiBase,
+
+         Tensorflow.Interfaces;
 type
 
     /// <summary>
@@ -136,7 +139,6 @@ type
          function GetGradState(op: TFOperation; before: Boolean): GradLoopState;
 
     end;
-
 
 implementation
        uses Tensorflow.Utils,

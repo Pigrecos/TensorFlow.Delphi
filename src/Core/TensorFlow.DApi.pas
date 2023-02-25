@@ -38,12 +38,14 @@ uses
   TensorFlow.DApiEager,
   TensorFlow.DApiBase,
   TensorFlow.Slice,
+  Tensorflow.Interfaces,
 
   ProtoGen.tensorShape,
   ProtoGen.attrValue,
   ProtoGen.opDef,
   ProtoGen.nodeDef,
-  ProtoGen.config;
+  ProtoGen.config,
+  ProtoGen.ControlFlow;
 
 type
 TFGraph         = class;
@@ -247,6 +249,8 @@ TControlFlowContext = class(TInterfacedObject,ITensorFlowObject)
    private
 
    protected
+     Fvalues : TLIst<string>;
+
      Fname : string;
      /// <summary>
      /// The predicate tensor in this branch
@@ -268,11 +272,22 @@ TControlFlowContext = class(TInterfacedObject,ITensorFlowObject)
      /// access the key value (e.g. a switch output guarding a cond input value).
      /// </summary>
      Fexternal_values: TDictionary<string, ITensorOrOperation>;
-
      /// <summary>
      /// Add `op` to the current context.
      /// </summary>
      procedure _AddOpInternal(op: TFOperation); virtual;
+     /// <summary>
+     /// Remove any external control dependency on this op.
+     /// </summary>
+     /// <param name="op"></param>
+     function _RemoveExternalControlEdges(op: TFOperation): Tuple<TArray<TFOperation>, TArray<TFOperation>> ; Virtual;
+     /// <summary>
+     /// Initializes values and external_values from `ValuesDef` protocol buffer.
+     /// </summary>
+     /// <param name="values_def"></param>
+     /// <param name="import_scope"></param>
+     procedure _init_values_from_proto(values_def: TValuesDef; import_scope: string = '');
+     function OpInContext(op: TFOperation): Boolean;
    public
      constructor Create;
      procedure _Enter_;
@@ -292,6 +307,11 @@ TControlFlowContext = class(TInterfacedObject,ITensorFlowObject)
      /// </summary>
      function GetWhileContext : WhileContext ;virtual;
      /// <summary>
+     /// Notifies a scope about an operator added to an inner scope.
+     /// </summary>
+     /// <param name="op"></param>
+     procedure AddInnerOp(op: TFOperation); virtual;
+     /// <summary>
      /// Add `op` to the current context.
      /// </summary>
      procedure AddOp(op: TFOperation) ;virtual;
@@ -301,7 +321,15 @@ TControlFlowContext = class(TInterfacedObject,ITensorFlowObject)
      /// <param name="val"></param>
      /// <returns></returns>
      function AddValue(val: TFTensor): TFTensor; virtual;
+     procedure __init__(values_def: TValuesDef; import_scope: string = '') ; overload;
+     procedure __init__ ;  overload;
+     procedure ExitResult(res: TArray<TFTensor>);
+     /// <summary>
+     /// Returns true if `maybe_containing_ctxt` is or contains `ctxt`.
+     /// </summary>
+     function IsContainingContext(ctxt: TControlFlowContext; maybe_containing_ctxt: TControlFlowContext): Boolean;
 
+     property values : TLIst<string> read  Fvalues write Fvalues;
      property pivot  : TFTensor read Fpivot;
      property pred   : TFTensor read Fpred;
      property branch : Integer  read Fbranch;
@@ -363,6 +391,18 @@ GradLoopState  = class
 end;
 {$ENDREGION}
 
+{$REGION 'LoopVar'}
+LoopVar<TItem> = class(TInterfacedObject, ICanBeFlattened, IPackable<LoopVar<TItem>>)
+   public
+     Counter : TFTensor;
+     Item    : TItem;
+     Function Flatten: TArray<TValue>;
+     function Pack(sequences: TArray<TValue>): LoopVar<TItem> ;
+
+     constructor Create(_counter: TFTensor; _item: TItem);
+end;
+{$ENDREGION}
+
 {$REGION 'WhileContext'}
 /// <summary>
 /// Creates a `WhileContext`.
@@ -374,21 +414,49 @@ WhileContext = class(TControlFlowContext)
       Fmaximum_iterations : TFTensor;
       Fparallel_iterations: Integer;
       Fswap_memory        : Boolean;
-     // Fpivot_for_pred     : TFTensor;
-     // Fpivot_for_body     : TFTensor;
+      Fpivot_for_pred     : TFTensor;
+      Fpivot_for_body     : TFTensor;
       Floop_exits         : TList<TFTensor>;
       Floop_enters        : TList<TFTensor>;
-//      Fgraph              : TFGraph;
+      Fgraph              : TFGraph;
+      procedure _init_from_args(maximum_iterations: TFTensor; parallel_iterations: Integer; back_prop: Boolean; swap_memory: Boolean; name: string);
+      procedure _init_from_proto(context_def: TWhileContextDef; import_scope: string = '');
+      function _convert_tensorarray_to_flow(tensor_or_tensor_array: TValue): TFTensor;
+      function _get_shape_invariant(_var: TFTensor; shape: TArray<Integer>= []): TFShape;
+      /// <summary>
+      /// Add the loop termination condition and body to the graph.
+      /// </summary>
+      /// <typeparam name="TItem"></typeparam>
+      /// <param name="pred"></param>
+      /// <param name="body"></param>
+      /// <param name="original_loop_vars"></param>
+      /// <param name="loop_vars"></param>
+      /// <param name="shape_invariants"></param>
+      /// <returns></returns>
+      function _BuildLoop<TItem>(pred : TFunc<LoopVar<TItem>, TFTensor>; body: TFunc<LoopVar<TItem>, LoopVar<TItem>>; original_loop_vars: LoopVar<TItem>; loop_vars: TArray<TFTensor>; shape_invariants: TArray<TFShape>): Tuple<LoopVar<TItem>, TArray<TFTensor>>;
 
    public
+      /// <summary>
+      /// Add the loop termination condition and body to the graph.
+      /// </summary>
+      function BuildLoop<TItem>(pred: TFunc<LoopVar<TItem>, TFTensor>; body: TFunc<LoopVar<TItem>, LoopVar<TItem>>; loop_vars: LoopVar<TItem>; shape_invariants: TArray<TFShape>; return_same_structure: Boolean): LoopVar<TItem>;
 
-     property   maximum_iterations : TFTensor        read Fmaximum_iterations;
-     property   parallel_iterations: Integer         read Fparallel_iterations;
-     property   swap_memory        : Boolean         read Fswap_memory;
-     property   loop_exits         : TList<TFTensor> read Floop_exits;
-     property   loop_enters        : TList<TFTensor> read Floop_enters;
-     property   grad_state         : GradLoopState   read Fgrad_state;
-     property   back_prop          : Boolean         read Fback_prop;
+      constructor Create(maximum_iterations : TFTensor= nil;
+                         parallel_iterations: Integer = 10;
+                         back_prop          : Boolean = true;
+                         swap_memory        : Boolean = false;
+                         name               : string = 'while_context';
+                         grad_state         : GradLoopState= nil;
+                         context_def        : TWhileContextDef= nil;
+                         import_scope       : string= '');
+
+      property   maximum_iterations : TFTensor        read Fmaximum_iterations;
+      property   parallel_iterations: Integer         read Fparallel_iterations;
+      property   swap_memory        : Boolean         read Fswap_memory;
+      property   loop_exits         : TList<TFTensor> read Floop_exits;
+      property   loop_enters        : TList<TFTensor> read Floop_enters;
+      property   grad_state         : GradLoopState   read Fgrad_state;
+      property   back_prop          : Boolean         read Fback_prop;
 end;
 {$ENDREGION}
 
@@ -647,7 +715,7 @@ end;
 /// method that takes a byte array buffer as input.
 /// </para>
 /// </remarks>
-TFTensor = class(ITensorOrOperation)
+TFTensor = class(ITensorOrOperation,ITensorOrTensorArray)
  private
    FEagerTensorHandle    : PTFE_TensorHandle;
    FlDeallocator_called  : Boolean;
@@ -852,9 +920,15 @@ TNDArray = class(TFTensor, IEnumerable )
      function  GetItem(indices: TArray<Slice>): TNDArray; overload;
      function  GetItem(indice: Integer): TNDArray; overload;
      procedure SetItem(indices: TArray<Integer>; const Value: TNDArray); overload;
+     function  GetItem(mask: TNDArray): TNDArray; overload;
+     procedure SetItem(mask: TNDArray; const Value: TNDArray); overload;
      procedure SetItem(indices: TArray<Slice>; const Value: TNDArray); overload;
      procedure SetItem(indice: Integer; const Value: TNDArray); overload;
-     function  GetData(slices: TArray<Slice>): TNDArray;
+     function  GetData(slices: TArray<Slice>): TNDArray; overload;
+     function  GetData(indices: TArray<Integer>; axis: Integer = 0): TNDArray; overload;
+     function  GetData(Mask : TNDArray): TNDArray; overload;
+     procedure SetData(Mask : TNDArray; value: TNDArray); overload;
+     procedure MaskData(Mask : TNDArray; value: TNDArray);
      procedure SetData(slices: TArray<Slice>; aArray: TNDArray); overload;
      procedure SetData(src: TNDArray; slices: TArray<Slice>; indices: TArray<Integer>; currentNDim: integer);overload;
      function  GetScalar(offset : UInt64 = 0): TNDArray;
@@ -961,6 +1035,7 @@ TNDArray = class(TFTensor, IEnumerable )
 
      class function Scalar<T>(value: T):TNDArray;
 
+     function To_Array: TArray<TNDArray>;
      function reshape(newshape: TFShape): TNDArray;
      function astype(dtype: TF_DataType): TNDArray;
      function ToByteArray: TArray<Byte>;
@@ -969,6 +1044,7 @@ TNDArray = class(TFTensor, IEnumerable )
      property Item[indices: Integer ]         : TNDArray read GetItem write SetItem; default;
      property Item[indices: TArray<Integer> ] : TNDArray read GetItem write SetItem; default;
      property Item[slices: TArray<Slice> ]    : TNDArray read GetItem write SetItem; default;
+     property Item[mask: TNDArray ]           : TNDArray read GetItem write SetItem; default;
      property data : Pointer read GetDataPointer;
 
 
@@ -1111,6 +1187,7 @@ TFOperation = class(ITensorOrOperation)
     Fcontrol_flow_context : TControlFlowContext;
     Fid_value             : Integer;
     Fis_stateful          : Boolean;
+    Fcontrol_inputs       : TArray<TFOperation>;
 
     function OutputType(index: Integer): TF_DataType;
     function GeNumOutputs: Integer;
@@ -1124,7 +1201,9 @@ TFOperation = class(ITensorOrOperation)
     function GetNodeDef: TNodeDef;
     function GetipoOp: string;
     procedure _assert_same_graph(tensor: TFTensor);
-   
+    function GetCtrlInputs: TArray<TFOperation>;
+    function GetControlInputs: TArray<TFOperation>;
+    function GetNumCtrlInputs: Integer;
  protected
    procedure NativeDispose(hnd: Pointer); override;
  public
@@ -1212,6 +1291,8 @@ TFOperation = class(ITensorOrOperation)
    property inputs    : TInputList read GetInputList;
    property NodeDef   : TNodeDef   read GetNodeDef;
    property Tipo      : string     read GetipoOp;
+   property NumControlInputs : Integer           read GetNumCtrlInputs;
+   property control_inputs : TArray<TFOperation> read GetCtrlInputs;
 
 end;
 {$ENDREGION}
@@ -1462,6 +1543,8 @@ implementation
         TensorFlow.control_flow_util,
         TensorFlow.Tensors.Ragged,
         TensorFlow.Tensor,
+
+        Numpy,
 
         ProtoGen.Main;
 
@@ -3801,6 +3884,12 @@ begin
     Result := GetData(indices)
 end;
 
+procedure TNDArray.SetItem(indice: Integer; const Value: TNDArray);
+begin
+    SetItem([indice],Value)
+end;
+
+
 procedure TNDArray.SetItem(indices: TArray<Slice>; const Value: TNDArray);
 begin
     SetData(indices,Value);
@@ -3808,12 +3897,7 @@ end;
 
 function TNDArray.GetItem(indice: Integer): TNDArray;
 begin
-    Result := GetData([indice])
-end;
-
-procedure TNDArray.SetItem(indice: Integer; const Value: TNDArray);
-begin
-    SetItem([indice],Value)
+    Result := GetData([Slice(indice)])
 end;
 
 function TNDArray.GetData(slices: TArray<Slice>): TNDArray;
@@ -3864,6 +3948,104 @@ begin
     end;
     Result := TNDArray.Create(tensor, tf.executing_eagerly);
 
+end;
+
+function TNDArray.GetData(indices: TArray<Integer>; axis: Integer): TNDArray;
+begin
+    if shape.IsScalar then
+        exit( GetScalar );
+
+    if axis = 0 then
+    begin
+        var dims := shape.as_int_list;
+        dims[0] := Length(indices);
+
+        var nd := np.np_ndarray(dims, dtype);
+
+        dims[0] := 1;
+        var len := TFShape.Create(dims).size * TDTypes.get_datatype_size(dtype);
+
+        var dst_index : Integer := 0;
+        for var _pos in indices do
+        begin
+            var src_offset : UInt64 := TFShape.GetOffset(shape, [_pos]);
+            var dst_offset : UInt64 := TFShape.GetOffset(nd.shape, [dst_index]);
+            Inc(dst_index);
+            var src := PByte(data) + src_offset * dtypesize;
+            var dst := PByte(nd.data) + dst_offset * dtypesize;
+            CopyMemory(dst,src,len);
+        end;
+
+        Result := nd;
+    end else
+       raise Exception.Create('Not Implemented ');
+end;
+
+function TNDArray.GetData(Mask: TNDArray): TNDArray;
+begin
+    if mask.dtype = TF_DataType.TF_BOOL then
+    begin
+        var bArray   := Mask.ToArray<Boolean>;
+        var intArray : TArray<Integer> := [];
+        for var i := 0 to Length(bArray) -1  do
+          if bArray[i] then
+             intArray := intArray + [ i ];
+
+        Result := GetData(intArray);
+    end
+    else if mask.dtype = TF_DataType.TF_INT32 then
+    begin
+        Result := GetData(mask.ToArray<Integer>)
+    end
+    else if mask.dtype = TF_DataType.TF_INT64 then
+    begin
+        var i64Array   := Mask.ToArray<Int64>;
+        var intArray : TArray<Integer> := [];
+        for var i := 0 to Length(i64Array) -1  do
+           intArray := intArray + [ i64Array[i] ];
+
+        Result := GetData(intArray);
+    end
+    else if mask.dtype = TF_DataType.TF_FLOAT then
+    begin
+        var sArray   := Mask.ToArray<Single>;
+        var intArray : TArray<Integer> := [];
+        for var i := 0 to Length(sArray) -1  do
+           intArray := intArray + [ Trunc(sArray[i]) ];
+
+        Result := GetData(intArray);
+    end else
+      raise Exception.Create('Not Implemented ');
+end;
+
+procedure TNDArray.SetData(Mask: TNDArray; value: TNDArray);
+begin
+    if mask.dtype = TF_DataType.TF_BOOL then
+        MaskData(mask, value)
+    else
+        raise Exception.Create('Not Implemented ');
+end;
+
+procedure TNDArray.MaskData(Mask, value: TNDArray);
+begin
+    var masks := mask.ToArray<Boolean>;
+    (*var s1 = new Shape(dims.Skip(mask.rank).ToArray());
+    var val = tf.fill(s1, value).numpy();
+    for (int i = 0; i < masks.Length; i++)
+    {
+        if (masks[i])
+            this[i] = val;
+    } *)
+end;
+
+function TNDArray.GetItem(mask: TNDArray): TNDArray;
+begin
+    Result := GetData(mask)
+end;
+
+procedure TNDArray.SetItem(mask: TNDArray; const Value: TNDArray);
+begin
+    SetData(mask, Value);
 end;
 
 function TNDArray.GetDataPointer: Pointer;
@@ -4277,6 +4459,15 @@ begin
      raise TFException.Create('NotImplementedException');
 end;
 
+function TNDArray.To_Array: TArray<TNDArray>;
+var
+  Value: TNDArray;
+begin
+  Result := nil;
+  for Value in Self do
+   Result := Result + [ Value ];
+end;
+
 function TNDArray.ToByteArray: TArray<Byte>;
 begin
     Result :=  BufferToArray;
@@ -4393,6 +4584,10 @@ begin
      end;
      Fid_value := FGraph.NextId;
 
+     // Dict mapping op name to file and line information for op colocation
+     // context managers.
+     Fcontrol_flow_context := graph._get_control_flow_context;
+
      // This will be set by self.inputs.
      if op_def = nil then
      begin
@@ -4470,6 +4665,39 @@ begin
 
     if Assigned(Handle) then
       Result := TF_OperationNumOutputs(Handle)
+end;
+
+function TFOperation.GetNumCtrlInputs: Integer;
+begin
+    Result := 0;
+    if Assigned(Handle) then
+      Result := TF_OperationNumControlInputs(Handle);
+end;
+
+function TFOperation.GetControlInputs: TArray<TFOperation>;
+begin
+    var ctrl_inputs : TArray<TFOperation>; SetLength(ctrl_inputs, NumControlInputs);
+
+    if NumControlInputs > 0 then
+    begin
+        var control_input_handle : TArray<Pointer> ; SetLength(control_input_handle, NumControlInputs);
+        TF_OperationGetControlInputs(Handle, @control_input_handle[0], NumControlInputs);
+        for var i := 0 to NumControlInputs - 1 do
+        begin
+            var hHandle := control_input_handle[i];
+            ctrl_inputs[i] := TFOperation.Create(hHandle);
+        end;
+
+    end;
+
+    Result := ctrl_inputs;
+end;
+
+function TFOperation.GetCtrlInputs: TArray<TFOperation>;
+begin
+    if (Fcontrol_inputs = nil) or (Length(Fcontrol_inputs) = 0) then
+        Fcontrol_inputs := GetControlInputs;
+    Result := Fcontrol_inputs;
 end;
 
 function TFOperation.GetDevice: string;
@@ -4927,7 +5155,6 @@ end;
 {$ENDREGION}
 
 {$REGION 'TFShape'}
-
 { TFShape }
 
 function TFShape.GetIsFullDef: Boolean;
@@ -5938,9 +6165,11 @@ begin
 
    FItems.AddRange(tensors);
 
-   var fFirst := FItems.First;
+   var fFirst : TFTensor := nil;
+   if FItems.Count > 0 then
+    fFirst := FItems.First;
 
-   if (fFirst.Handle <> nil) or (fFirst.FOp <> nil)  then
+   if (fFirst <> nil ) and ((fFirst.Handle <> nil) or (fFirst.FOp <> nil))  then
    begin
      FiLength := FItems.Count;
      Fdtype := fFirst.Dtype;
@@ -6082,12 +6311,19 @@ constructor TControlFlowContext.Create;
 begin
     Fcontext_stack   := TStack<TControlFlowContext>.Create;
     Fexternal_values := TDictionary<string, ITensorOrOperation>.Create;
+    Fvalues          := TLIst<string>.Create;
 end;
 
 function TControlFlowContext.AddValue(val: TFTensor): TFTensor;
 begin
     // to be overridden
     Result := nil;
+end;
+
+procedure TControlFlowContext.AddInnerOp(op: TFOperation);
+begin
+    if Fouter_context <> nil then
+       Fouter_context.AddInnerOp(op);
 end;
 
 procedure TControlFlowContext.AddOp(op: TFOperation);
@@ -6122,11 +6358,86 @@ begin
 
 end;
 
+procedure TControlFlowContext._init_values_from_proto(values_def: TValuesDef; import_scope: string);
+begin
+    Fouter_context := Tops.get_default_graph._get_control_flow_context;
+    if values_def <> nil then
+        _init_values_from_proto(values_def, import_scope)
+    else begin
+        Fvalues := TLIst<string>.Create;
+        Fexternal_values := TDictionary<string, ITensorOrOperation>.Create;
+    end;
+end;
+
+function TControlFlowContext._RemoveExternalControlEdges(op: TFOperation): Tuple<TArray<TFOperation>, TArray<TFOperation>>;
+begin
+    var while_ctxt := GetWhileContext;
+
+    var internal_control_inputs := TList<TFOperation>.Create;
+    // A control input of `op` is internal if it is in the same while
+    // loop context as the enclosing while loop context of self.
+    if while_ctxt = nil then
+    begin
+        internal_control_inputs.AddRange(op.control_inputs);
+    end else
+    begin
+        for var x: TFOperation in op.control_inputs do
+        begin
+            var ctxt := control_flow_util.GetOutputContext(x);
+            if (ctxt <> nil) and (ctxt.GetWhileContext = while_ctxt) then
+                internal_control_inputs.Add(x);
+        end
+    end;
+
+    var external_control_inputs := TList<TFOperation>.Create;
+    if internal_control_inputs.Count <> Length(op.control_inputs) then
+       raise Exception.Create('Not Implemented');
+
+    Result := Tuple.Create(internal_control_inputs.ToArray, external_control_inputs.ToArray);
+end;
+
+procedure TControlFlowContext.__init__;
+begin
+
+end;
+
+procedure TControlFlowContext.__init__(values_def: TValuesDef; import_scope: string);
+begin
+    Fexternal_values := TDictionary<string, ITensorOrOperation>.Create;
+    for  var value in values_def.Valuess do
+        Fvalues.Add(value);
+    var g := Tops.get_default_graph;
+    for var value in values_def.ExternalValues do
+    begin
+        var k := Tops.prepend_name_scope(value.Key, import_scope);
+        var v := value.Value;
+        Fexternal_values[k] := g.as_graph_element(Tops.prepend_name_scope(v, import_scope));
+    end;
+
+    var op_names : TArray<String>;
+    for var value in Fvalues do
+    begin
+        if not Fexternal_values.ContainsKey(value) then
+        begin
+            var s : TArray<String>:= value.split([':']);
+            op_names := op_names + [ s[0] ];
+        end;
+    end;
+    for var op in op_names do
+       (g.as_graph_element(op) as TFOperation)._set_control_flow_context(self);
+end;
+
 procedure TControlFlowContext.Enter_;
 begin
     var graph :=Tops.get_default_graph;
     Fcontext_stack.Push(graph._get_control_flow_context);
     graph._set_control_flow_context(Self);
+end;
+
+procedure TControlFlowContext.ExitResult(res: TArray<TFTensor>);
+begin
+    if Fouter_context <> nil then
+       raise Exception.Create('Not Implemented "ExitResult"');
 end;
 
 procedure TControlFlowContext.Exit_ ;
@@ -6146,6 +6457,22 @@ end;
 function TControlFlowContext.IsCondContext: Boolean;
 begin
    Result := False;
+end;
+
+function TControlFlowContext.OpInContext(op: TFOperation): Boolean;
+begin
+    Result := IsContainingContext(op._get_control_flow_context, self);
+end;
+
+function TControlFlowContext.IsContainingContext(ctxt, maybe_containing_ctxt: TControlFlowContext): Boolean;
+begin
+    while ctxt <> maybe_containing_ctxt do
+    begin
+        if ctxt = nil then
+            Exit(false);
+        ctxt := ctxt.outer_context;
+    end;
+    Result := true;
 end;
 
 function TControlFlowContext.IsWhileContext: Boolean;
@@ -6342,6 +6669,249 @@ begin
        Inc(i,2);
     end;
     Result := nil;
+end;
+{$ENDREGION}
+
+{$REGION 'LoopVar'}
+{ LoopVar<TItem> }
+
+constructor LoopVar<TItem>.Create(_counter: TFTensor; _item: TItem);
+begin
+     Counter := _counter;
+     Item    := _item;
+end;
+
+function LoopVar<TItem>.Flatten: TArray<TValue>;
+begin
+
+end;
+
+function LoopVar<TItem>.Pack(sequences: TArray<TValue>): LoopVar<TItem>;
+begin
+
+end;
+{$ENDREGION}
+
+{$REGION 'WhileContext'}
+{ WhileContext }
+
+function WhileContext._get_shape_invariant(_var: TFTensor; shape: TArray<Integer>): TFShape;
+begin
+    Result := _var.shape;
+end;
+
+function WhileContext._convert_tensorarray_to_flow(tensor_or_tensor_array: TValue): TFTensor;
+begin
+    if tensor_or_tensor_array.IsType<TTensorArray> then
+    begin
+        Result := tensor_or_tensor_array.AsType<TTensorArray>.flow;
+        Exit;
+    end
+    else if tensor_or_tensor_array.IsType<TFTensor> then
+    begin
+        Result := tensor_or_tensor_array.AsType<TFTensor>;
+        Exit;
+    end;
+
+    raise Exception.Create('_convert_tensorarray_to_flow');
+end;
+
+function WhileContext._BuildLoop<TItem>(pred: TFunc<LoopVar<TItem>, TFTensor>; body: TFunc<LoopVar<TItem>, LoopVar<TItem>>; original_loop_vars: LoopVar<TItem>;
+  loop_vars: TArray<TFTensor>; shape_invariants: TArray<TFShape>): Tuple<LoopVar<TItem>, TArray<TFTensor>>;
+begin
+  raise Exception.Create('not Implemented . "_BuildLoop"');
+  (*  var flat_loop_vars = nest.flatten2(original_loop_vars)
+        .Select(x => (ITensorOrTensorArray)x)
+        .ToArray();
+
+    // Let the context know the loop variables so the loop variables
+    // would be added in the outer contexts properly.
+    _InitializeValues(loop_vars);
+    var real_vars = loop_vars;
+    Tensor[] enter_vars = null;
+    tf_with(ops.control_dependencies(null), delegate
+    {
+        enter_vars = real_vars.Select(x => control_flow_ops._Enter(x,
+            _name,
+            is_constant: false,
+            parallel_iterations: _parallel_iterations,
+            use_input_shape: shape_invariants == null))
+        .ToArray();
+
+        foreach (var x in enter_vars)
+        {
+            x.graph.prevent_feeding(x);
+            if (_outer_context != null)
+                _outer_context.AddInnerOp(x.op);
+        }
+    });
+
+    // Finds the closest enclosing non-None control pivot.
+    var outer_context = _outer_context;
+    object control_pivot = null;
+    while (outer_context != null && control_pivot == null)
+    {
+
+    }
+
+    if (control_pivot != null)
+    {
+
+    }
+
+    _SetShapeInvariants(real_vars, enter_vars, shape_invariants);
+
+    // Fix the control inputs and control flow context of these enter ops.
+    _FixControlInputsAndContext(enter_vars);
+    _InitializeValues(enter_vars);
+    _loop_enters = enter_vars.ToList();
+
+    var merge_vars = enter_vars
+        .Select(x => merge(new[] { x, x }))
+        .Select(m => (Tensor)m)
+        .ToArray();
+
+    _pivot_for_pred = merge_vars[0];
+
+    // Build the graph for pred.
+    var merge_vars_with_tensor_arrays = _convert_flows_to_tensorarrays(flat_loop_vars, merge_vars);
+    var packed_vars = new LoopVar<TItem>(
+        (Tensor)merge_vars_with_tensor_arrays[0],
+        new TItem().FromMergeVars(merge_vars_with_tensor_arrays));
+    var pp = pred(packed_vars);
+    var c = ops.convert_to_tensor(pp);
+    _pivot = gen_control_flow_ops.loop_cond(c, name: "LoopCond");
+    var switch_vars = merge_vars.Select(x => _SwitchRefOrTensor(x, _pivot))
+        .ToArray();
+
+    // Build the graph for body.
+    var vars_for_body = switch_vars.Select(x => _Identity(x[1])).ToArray();
+    _pivot_for_body = vars_for_body[0];
+    // Convert TensorArray flow variables inside the context back into
+    // their associated TensorArrays for calling the body.
+    var vars_for_body_with_tensor_arrays = _convert_flows_to_tensorarrays(flat_loop_vars, vars_for_body);
+    var packed_vars_for_body = nest.pack_sequence_as2(original_loop_vars, vars_for_body_with_tensor_arrays);
+    var pre_summaries = ops.get_collection(tf.GraphKeys._SUMMARY_COLLECTION);
+    var body_result = body(packed_vars_for_body);
+    var post_summaries = ops.get_collection(tf.GraphKeys._SUMMARY_COLLECTION);
+
+    // Store body_result to keep track of TensorArrays returned by body
+    var original_body_result = body_result;
+    // Convert TensorArrays returned by body into their flow variables
+    var result = nest.flatten2(body_result)
+        .Select(x => _convert_tensorarray_to_flow(x))
+        .ToArray();
+    // result = ops.convert_n_to_tensor_or_composite(result);
+    var next_vars = new List<Tensor>();
+    foreach (var (m, v) in zip(merge_vars, result))
+        next_vars.Add(_AddNextAndBackEdge(m, v));
+
+    // Add the exit ops.
+    var exit_vars = switch_vars.Select(x => exit(x[0])).ToList();
+    _loop_exits = exit_vars;
+
+    // Exit the loop.
+    // ExitResult(exit_vars);
+    return (original_body_result, exit_vars.ToArray());
+ *)
+end;
+
+function WhileContext.BuildLoop<TItem>(pred: TFunc<LoopVar<TItem>, TFTensor>; body: TFunc<LoopVar<TItem>, LoopVar<TItem>>; loop_vars: LoopVar<TItem>;
+  shape_invariants: TArray<TFShape>; return_same_structure: Boolean): LoopVar<TItem>;
+begin
+    // Keep original_loop_vars to identify which are TensorArrays
+    var original_loop_vars := loop_vars;
+
+    // Convert TensorArrays to their flow variables
+    var loopFlat := loop_vars.Flatten;
+    var loop_vars_tensors : TArray<TFTensor> := [];
+    for var i := 0 to Length(loopFlat) -1  do
+        loop_vars_tensors := loop_vars_tensors + [ _convert_tensorarray_to_flow(loopFlat[i]) ];
+
+    if Length(shape_invariants) < 1 then
+    begin
+        for var i := 0 to Length(loop_vars_tensors) -1  do
+        shape_invariants := shape_invariants + [ _get_shape_invariant(loop_vars_tensors[i]) ];
+    end;
+
+    Enter_;
+    var tLoop := _BuildLoop<TItem>(pred, body, original_loop_vars, loop_vars_tensors, shape_invariants);
+    var original_body_result := tLoop.Value1;
+    var exit_vars            := tLoop.Value2;
+    Exit_;
+
+    var resultFlat := original_body_result.Flatten;
+    var flat_result : TArray<ITensorOrTensorArray> := [];
+    for var i := 0 to Length(resultFlat) -1  do
+        flat_result := flat_result + [ resultFlat[i].AsType<TFTensor> ];
+
+    var exit_vars_with_tensor_arrays := control_flow_ops._convert_flows_to_tensorarrays(flat_result, exit_vars);
+
+    var a : TArray<TValue>;
+    for var i := 0 to Length(exit_vars_with_tensor_arrays) -1  do
+        a := a + [ TVAlue.From<ITensorOrTensorArray>(exit_vars_with_tensor_arrays[i]) ];
+    var packed_exit_vars := original_body_result.Pack(a);
+
+   Result := packed_exit_vars;
+end;
+
+constructor WhileContext.Create(maximum_iterations: TFTensor; parallel_iterations: Integer; back_prop, swap_memory: Boolean; name: string; grad_state: GradLoopState;
+  context_def: TWhileContextDef; import_scope: string);
+begin
+    if context_def <> nil then
+    begin
+        _init_from_proto(context_def, import_scope);
+    end else
+    begin
+        _init_from_args(maximum_iterations, parallel_iterations, back_prop, swap_memory, name);
+    end;
+
+    Fgrad_state := grad_state;
+end;
+
+procedure WhileContext._init_from_args(maximum_iterations: TFTensor; parallel_iterations: Integer; back_prop, swap_memory: Boolean; name: string);
+begin
+    Fname                := Tops.get_default_graph.unique_name(name);
+    Fmaximum_iterations  := maximum_iterations;
+    Fparallel_iterations := parallel_iterations;
+    Fback_prop           := back_prop;
+    Fswap_memory         := swap_memory;
+    Floop_exits          := TList<TFTensor>.Create;
+    Floop_enters         := TList<TFTensor>.Create;
+    Fgraph               := Tops.get_default_graph();
+end;
+
+procedure WhileContext._init_from_proto(context_def: TWhileContextDef; import_scope: string);
+begin
+    var g := Tops.get_default_graph;
+    Fname := Tops.prepend_name_scope(context_def.ContextName, import_scope);
+    if not string.IsNullOrEmpty(context_def.MaximumIterationsName) then
+        Fmaximum_iterations := g.as_graph_element(Tops.prepend_name_scope(context_def.MaximumIterationsName, import_scope)) as TFTensor;
+    Fparallel_iterations := context_def.ParallelIterations;
+    Fback_prop := context_def.BackProp;
+    Fswap_memory := context_def.SwapMemory;
+    Fpivot_for_pred := g.as_graph_element(Tops.prepend_name_scope(context_def.PivotForPredName, import_scope)) as TFTensor;
+    // We use this node to control constants created by the body lambda.
+    Fpivot_for_body := g.as_graph_element(Tops.prepend_name_scope(context_def.PivotForBodyName, import_scope)) as TFTensor;
+    // The boolean tensor for loop termination condition.
+    Fpivot := g.as_graph_element(Tops.prepend_name_scope(context_def.PivotName, import_scope)) as TFTensor;
+    // The list of exit tensors for loop variables.
+    Floop_exits := TList<TFTensor>.Create;
+    for var i := 0 to context_def.LoopExitNamess.Count- 1 do
+    begin
+        var exit_name := context_def.LoopExitNamess[i];
+        Floop_exits.Add(g.as_graph_element(Tops.prepend_name_scope(exit_name, import_scope)) as TFTensor);
+    end;
+    // The list of enter tensors for loop variables.
+    Floop_enters := TList<TFTensor>.Create;
+    for var i := 0 to context_def.LoopEnterNamess.Count-1 do
+    begin
+        var enter_name := context_def.LoopEnterNamess[i];
+        Floop_enters.Add(g.as_graph_element(Tops.prepend_name_scope(enter_name, import_scope)) as TFTensor);
+
+    end;
+
+    __init__(context_def.ValuesDef, import_scope);
 end;
 {$ENDREGION}
 

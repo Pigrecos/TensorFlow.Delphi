@@ -369,12 +369,13 @@ begin
 
         var evaluated := TF_TryEvaluateConstant(_pred.graph.handle, _pred._as_tf_output, @res[0], tf.Status.Handle);
         if (evaluated= 0) or (TF_GetCode(tf.Status.Handle) <> TF_Code.TF_OK)  then
-            Result := nil
+            Exit(nil)
         else
             raise TFException.Create('Not Implemented');
     end;
-
-    Result := Boolean(NDArray(pred_value));
+    var res : NDArray := pred_value;
+    var b   : Boolean := res;
+    Result := b;
 end;
 
 { DenseSpec }

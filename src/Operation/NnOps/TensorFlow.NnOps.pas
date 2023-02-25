@@ -34,6 +34,7 @@ interface
          TensorFlow.Variable,
          TensorFlow.Interfaces,
          TensorFlow.Initializer,
+         TensorFlow.Activation,
 
          Keras.Engine,
          Keras.ArgsDefinition,
@@ -174,7 +175,7 @@ type
      public
 
         constructor Create(trainable: Boolean = true; name: string = ''; dtype: TF_DataType = DtInvalid; _reuse: pBoolean = nil);
-        function get_initial_state(inputs: TFTensor = nil; batch_size : TFTensor= nil; dtype: TF_DataType = DtInvalid): TValue;
+        function get_initial_state(inputs: TFTensor = nil; batch_size : TFTensor= nil; dtype: TF_DataType = DtInvalid): TValue; virtual;
         {$REGION 'Func/Proc Accessors'}
         function GetName      :string;
         function GetTrainable : Boolean;
@@ -242,6 +243,58 @@ type
         function  __call__(inputs: TFTensors; state : TFTensor = nil; training : TFTensor= nil;  scope : VariableScope= nil): TFTensors;
   end;
 
+  /// <summary>
+  /// Basic LSTM recurrent network cell.
+  /// The implementation is based on: http://arxiv.org/abs/1409.2329.
+  /// </summary>
+  BasicLstmCell = class(LayerRnnCell)
+    private
+        Fnum_units      : Integer;
+        Fforget_bias    : Single;
+        Fstate_is_tuple : Boolean;
+        Factivation     : IActivation;
+        Fstate          : LSTMStateTuple ;
+        Fkernel         : IVariableV1;
+        Fbias           : IVariableV1;
+        FWEIGHTS_VARIABLE_NAME : string;
+        FBIAS_VARIABLE_NAME    : String;
+
+        function GetState_size : TValue;  override;
+        /// <summary>
+        /// Return zero-filled state tensor(s).
+        /// </summary>
+        /// <param name="batch_size"></param>
+        /// <param name="dtype"></param>
+        /// <returns></returns>
+        function  zero_state(batch_size: TFTensor; dtype: TF_DataType): LSTMStateTuple;
+        function _zero_state_tensors(state_size: TValue; batch_size: TFTensor; dtype: TF_DataType): LSTMStateTuple;
+    protected
+        procedure build(inputs_shape: TFShape) ; override;
+        /// <summary>
+        /// Long short-term memory cell (LSTM).
+        /// </summary>
+        /// <param name="inputs"></param>
+        /// <param name="training"></param>
+        /// <param name="state"></param>
+        /// <returns></returns>
+        function Call(inputs: TFTensors; state: TFTensor = nil; is_training : boolean= false): TFTensors;
+    public
+        function get_initial_state(inputs: TFTensor = nil; batch_size : TFTensor= nil; dtype: TF_DataType = DtInvalid): TValue; override;
+        function __call__(inputs: TFTensor; state: LSTMStateTuple): TFTensor;
+        /// <summary>
+        /// Initialize the basic LSTM cell.
+        /// </summary>
+        /// <param name="num_units">The number of units in the LSTM cell.</param>
+        /// <param name="forget_bias"></param>
+        /// <param name="state_is_tuple"></param>
+        /// <param name="activation"></param>
+        /// <param name="reuse"></param>
+        /// <param name="name"></param>
+        /// <param name="dtype"></param>
+        constructor Create(num_units: Integer; forget_bias: Single = 1.0; state_is_tuple: Boolean = true; activation : IActivation = nil; reuse: PBoolean= nil; name: string = ''; dtype : TF_DataType= DtInvalid);
+        destructor Destroy; override;
+  end;
+
   BasicRnnCell = class(LayerRnnCell)
     private
         Fnum_units             : Integer;
@@ -300,7 +353,7 @@ type
   /// </summary>
   MaxPoolFunction = class(TInterfacedObject, IPoolFunction)
 
-    function Apply(value: TFTensor; ksize: TArray<Integer>; strides: TArray<Integer>; padding: string; data_format: string = 'NHWC'; name: string = ''): TFTensor;
+    function Apply(value: TFTensor; pool_size: TArray<Integer>; strides: TArray<Integer>; padding: string; data_format: string = 'NHWC'; name: string = ''): TFTensor;
   end;
 
   /// <summary>
@@ -316,6 +369,7 @@ implementation
            TensorFlow.Ops,
            TensorFlow.gen_nn_ops,
            Tensorflow.array_ops,
+           Tensorflow.gen_math_ops,
            Tensorflow.math_ops,
            Tensorflow.nn_ops,
            TensorFlow.Constant_op,
@@ -609,15 +663,14 @@ end;
 
 { MaxPoolFunction }
 
-function MaxPoolFunction.Apply(value: TFTensor; ksize, strides: TArray<Integer>; padding, data_format, name: string): TFTensor;
+function MaxPoolFunction.Apply(value: TFTensor; pool_size, strides: TArray<Integer>; padding, data_format, name: string): TFTensor;
 begin
     var vValues : TValue := value;
     Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'MaxPool', @vValues),
                   function(v1: TNameScope): TFTensor
                     begin
                         name :=  v1.ToString;
-                        value := Tops.convert_to_tensor(value, DtInvalid, 'input');
-                        Result := gen_nn_ops.max_pool(value, ksize, strides, padding, data_format, name)
+                        Result := gen_nn_ops.max_pool(value, pool_size, strides, padding, data_format, name)
                     end );
 end;
 
@@ -659,15 +712,15 @@ begin
     Fkeras_style := false;
 end;
 
-procedure LayerRnnCell.build(inputs_shape: TFShape);
-begin
-
-end;
-
 function LayerRnnCell.apply(inputs, training: TFTensor): Tuple<TFTensor, TFTensor>;
 begin
     var results := __call__(TFTensors.Create(inputs), training);
     Result := Tuple.Create(results[0], results[1]);
+end;
+
+procedure LayerRnnCell.build(inputs_shape: TFShape);
+begin
+
 end;
 
 function LayerRnnCell.__call__(inputs: TFTensors; state, training: TFTensor; scope: VariableScope): TFTensors;
@@ -874,6 +927,139 @@ begin
         // return array_ops.concat(new[] { p_tensor, s_tensor }, 0);
         raise Exception.Create('Not Implemented');
     end
+end;
+
+{ BasicLstmCell }
+
+constructor BasicLstmCell.Create(num_units: Integer; forget_bias: Single; state_is_tuple: Boolean; activation : IActivation; reuse: PBoolean; name: string; dtype : TF_DataType);
+begin
+   inherited Create(true, name, dtype, reuse);
+
+   FWEIGHTS_VARIABLE_NAME := 'kernel';
+   FBIAS_VARIABLE_NAME    := 'bias';
+
+   FinputSpec      := TInputSpec.Create(DtInvalid, 2);
+   Fnum_units      := num_units;
+   Fforget_bias    := forget_bias;
+   Fstate_is_tuple := state_is_tuple;
+   Factivation     := activation;
+   if Factivation = nil then
+      Factivation := tf.nn.tanh;
+end;
+
+destructor BasicLstmCell.Destroy;
+begin
+  inherited Destroy;
+end;
+
+procedure BasicLstmCell.build(inputs_shape: TFShape);
+begin
+    var input_depth := inputs_shape.dims[ high(inputs_shape.dims) ];
+    var h_depth     := Fnum_units;
+    Fkernel         := add_weight(FWEIGHTS_VARIABLE_NAME, [input_depth + h_depth, 4 * Fnum_units ]);
+    Fbias           := add_weight(FBIAS_VARIABLE_NAME,    [ 4 * Fnum_units ], DtInvalid,  tf.zeros_initializer);
+    Fbuilt          := true;
+end;
+
+function BasicLstmCell.__call__(inputs: TFTensor; state: LSTMStateTuple): TFTensor;
+begin
+   Fstate := state;
+   Result := inherited __call__(TFTensors.Create(inputs)).First;
+end;
+
+function BasicLstmCell.Call(inputs: TFTensors; state: TFTensor; is_training: boolean): TFTensors;
+var
+  one, c, h : TFTensor;
+  i, j, f, o: TFTensor;
+begin
+    one := constant_op.constant(1, Tdtypes.cint32,'Const');
+    // Parameters of gates are concatenated into one multiply for efficiency.
+    if Fstate_is_tuple then
+    begin
+        c := Fstate.c ;
+        h := Fstate.h ;
+    end else
+    begin
+        // array_ops.split(value: state, num_or_size_splits: 2, axis: one);
+        raise Exception.Create('Not Implemented "BasicLstmCell call"');
+    end;
+
+    var gate_inputs := math_ops.matmul(array_ops.concat([inputs.First, h ], 1), Fkernel.AsTensor);
+    gate_inputs     := nn_ops.bias_add(gate_inputs, Fbias);
+
+    // i = input_gate, j = new_input, f = forget_gate, o = output_gate
+    var tensors := array_ops.split(gate_inputs, 4, one);
+    i := tensors[0];
+    j := tensors[1];
+    f := tensors[2];
+    o := tensors[3];
+
+    var forget_bias_tensor := constant_op.constant(Fforget_bias, f.dtype,'Const');
+    // Note that using `add` and `multiply` instead of `+` and `*` gives a
+    // performance improvement. So using those at the cost of readability.
+    var new_c := gen_math_ops.add(
+        math_ops.multiply(c, math_ops.sigmoid(gen_math_ops.add(f, forget_bias_tensor))),
+        math_ops.multiply(math_ops.sigmoid(i), Factivation.Activate(j)));
+
+    var new_h := math_ops.multiply(Factivation.Activate(new_c), math_ops.sigmoid(o));
+
+
+    if Fstate_is_tuple then
+        Result := TFTensors.Create(new_c)
+    else
+        Result := TFTensors.Create( array_ops.concat( [ new_c, new_h ], 1) );
+end;
+
+function BasicLstmCell.GetState_size: TValue;
+begin
+    if Fstate_is_tuple then
+        Result := LSTMStateTuple.Create(Fnum_units, Fnum_units)
+    else
+        Result := 2 * Fnum_units;
+end;
+
+function BasicLstmCell.get_initial_state(inputs, batch_size: TFTensor; dtype: TF_DataType): TValue;
+begin
+    if inputs <> nil then
+       raise Exception.Create('Not Implemented "get_initial_state input is not null"');
+
+    Result := zero_state(batch_size, dtype);
+end;
+
+function BasicLstmCell.zero_state(batch_size: TFTensor; dtype: TF_DataType): LSTMStateTuple;
+begin
+    var output : LSTMStateTuple  := nil;
+    TUtils.tf_with<TNameScope>(Tops.name_scope(Self.GetName+'ZeroState', '', @batch_size ), procedure(n: TNameScope)
+              begin
+                  output := _zero_state_tensors(state_size, batch_size, dtype);
+              end);
+
+    Result := output;
+end;
+
+function BasicLstmCell._zero_state_tensors(state_size: TValue; batch_size: TFTensor; dtype: TF_DataType): LSTMStateTuple;
+begin
+    if state_size.IsType<LSTMStateTuple> then
+    begin
+        var state_size_tuple := state_size.AsType<LSTMStateTuple>;
+        var vOutputs := state_size_tuple.Flatten;
+        var Outputs : TArray<TFTensor>;
+        for var i := 0 to Length(vOutputs) - 1 do
+        begin
+            var s    := vOutputs[i].AsInteger;
+            var c    := rnn_cell_impl._concat(batch_size, s);
+            var size := array_ops.zeros(c, dtype);
+
+            var c_static := rnn_cell_impl._concat(batch_size, s, true);
+            size.set_shape(c_static);
+
+            Outputs := Outputs + [ size ];
+        end;
+        Result := LSTMStateTuple.Create(outputs[0], outputs[1]);
+        Exit;
+    end ;
+
+   raise Exception.Create('Not Implemented "_zero_state_tensors"');
 end;
 
 end.

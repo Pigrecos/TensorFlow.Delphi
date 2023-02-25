@@ -1,26 +1,9 @@
 program TensorFlowDelphi;
 
-{$IFDEF EurekaLog}
-uses
-  EMemLeaks,
-  EResLeaks,
-  EDebugExports,
-  EDebugJCL,
-  EFixSafeCallException,
-  EMapWin32,
-  EAppVCL,
-  EDialogWinAPIMSClassic,
-  EDialogWinAPIEurekaLogDetailed,
-  EDialogWinAPIStepsToReproduce,
-  ExceptionLog7;
-{$ENDIF EurekaLog}
-
 {$WARN DUPLICATE_CTOR_DTOR OFF}
 
 uses
-  {$IFDEF EurekaLog}
-  EMemLeaks,
-  {$ENDIF EurekaLog}
+  FastMM5,
   Vcl.Forms,
   untMain in 'untMain.pas' {frmMain},
   Tensorflow in 'src\Tensorflow.pas',
@@ -112,7 +95,9 @@ uses
   untModels in 'untModels.pas',
   hdf5dll in 'src\lib\hdf5dll.pas',
   Hdf5 in 'src\lib\Hdf5.pas',
-  Keras.Saving in 'src\Keras\Keras.Saving.pas';
+  Keras.Saving in 'src\Keras\Keras.Saving.pas',
+  ProtoGen.controlFlow in 'src\Proto\ProtoGen.controlFlow.pas',
+  TensorFlow.CondContext in 'src\Operation\TensorFlow.CondContext.pas';
 
 {$R *.res}
 

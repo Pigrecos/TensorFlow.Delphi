@@ -20,12 +20,14 @@ interface
               TensorFlow.Slice,
 
               Keras.Engine,
+              keras.LayersApi,
               keras.Data,
               Keras.KerasApi,
               Keras.ArgsDefinition,
               keras.Models,
               Keras.Layer,
               keras.Optimizer,
+              Keras.Activations,
 
               TensorFlow.Variable,
               TensorFlow.Tensor,
@@ -109,6 +111,11 @@ type
         constructor Create(args: ConvNetArgs );
   end;
 
+  /// <summary>
+  /// Build a convolutional neural network with TensorFlow v2.
+  /// This example is using a low-level approach to better understand all mechanics behind building convolutional neural networks and the training process.
+  /// https://github.com/aymericdamien/TensorFlow-Examples/blob/master/tensorflow_v2/notebooks/3_NeuralNetworks/convolutional_network.ipynb
+  /// </summary>
   DigitRecognitionCnnKeras  = class(TInterfacedObject, IExample)
     private
       FConfig : ExampleConfig;
@@ -152,11 +159,105 @@ type
       function    accuracy(y_pred: TFTensor; y_true: TFTensor): TFTensor;
 
       property Log : TStringList read logMsg;
+      property Config : ExampleConfig  read FConfig;
+  end;
+
+  MnistFnnKerasFunctional  = class(TInterfacedObject, IExample)
+    private
+      FConfig : ExampleConfig;
+      // MNIST dataset parameters.
+      mModel : Model;
+      layers : LayersApi;
+
+      x_test, y_test,
+      x_train, y_train: TNDArray;
+      logMsg          : TStringList;
+
+      function  GetConf: ExampleConfig;
+      procedure SetConf(const value: ExampleConfig);
+    protected
+      procedure BuildModel;
+      procedure Train;
+      function  FreezeModel : string;
+      procedure Test;
+      procedure Predict;
+      function  ImportGraph: TFGraph;
+      function  BuildGraph: TFGraph;
+      procedure PrepareData;
+    public
+
+      constructor Create;
+      function    InitConfig: ExampleConfig;
+      function    Run: Boolean;
+      destructor  Destroy; override;
+
+      property Log : TStringList read logMsg;
+      property Config : ExampleConfig  read FConfig;
+  end;
+
+  /// <summary>
+  /// https://www.tensorflow.org/tutorials/generative/dcgan
+  /// AtCode:JG5FLDRWHY9FEZ9S V559.83530 Provided by big crabs
+  /// </summary>
+  TMnistGAN = class(TInterfacedObject, IExample)
+    private
+      FConfig : ExampleConfig;
+      // MNIST dataset parameters.
+      LeakyReLU_alpha : Single;
+      imgpath    : string;
+      modelpath  : string;
+      img_shape  : TFShape;
+      latent_dim : Integer;
+      img_rows   : Integer;
+      img_cols   : Integer;
+      channels   : Integer;
+      epochs     : Integer;
+      BATCH_SIZE : Integer;
+      BUFFER_SIZE: Integer;
+
+      data     : DatasetPass;
+      layers   : LayersApi;
+
+      discriminator : Model;
+      generator     : Model;
+
+      discriminator_optimizer : OptimizerV2;
+      generator_optimizer     : OptimizerV2;
+
+      logMsg   : TStringList;
+
+      function  Make_Generator_model: Model;
+      function  Make_Discriminator_model: Model;
+      function  GetConf: ExampleConfig;
+      procedure SetConf(const value: ExampleConfig);
+      procedure PredictImage(g: Model; step: Integer);
+      function  BinaryCrossentropy(x, y: TTensor): TFTensor;
+      procedure SaveImage(gen_imgs: TNDArray; step: Integer);
+      procedure Train_step(images: TFTensor);
+    protected
+      procedure BuildModel;
+      procedure Train;
+      function  FreezeModel : string;
+      procedure Test;
+      procedure Predict;
+      function  ImportGraph: TFGraph;
+      function  BuildGraph: TFGraph;
+      procedure PrepareData;
+    public
+
+      constructor Create;
+      function    InitConfig: ExampleConfig;
+      function    Run: Boolean;
+      destructor  Destroy; override;
+
+      property Log : TStringList read logMsg;
+      property Config : ExampleConfig  read FConfig;
   end;
 
 
 implementation
-            uses untMain;
+            uses System.IOUtils,
+                 untMain,Esempi;
 { ConvNetArgs }
 
 constructor ConvNetArgs.Create;
@@ -238,11 +339,13 @@ begin
     accuracy_test := 0.0;
 
     logMsg  := TStringList.Create;
+    InitConfig;
 end;
 
 destructor DigitRecognitionCnnKeras.Destroy;
 begin
     logMsg.Free;
+    FConfig.Free;
 end;
 
 function DigitRecognitionCnnKeras.InitConfig: ExampleConfig;
@@ -254,7 +357,8 @@ begin
     config.Enabled := true;
     config.IsImportingGraph := false;
 
-    Result := config;
+    Result  := config;
+    FConfig := Result;
 end;
 
 function DigitRecognitionCnnKeras.Run: Boolean;
@@ -424,6 +528,447 @@ end;
 function DigitRecognitionCnnKeras.ImportGraph: TFGraph;
 begin
      Result := nil;
+end;
+
+{ MnistFnnKerasFunctional }
+
+constructor MnistFnnKerasFunctional.Create;
+begin
+    layers  := LayersApi.Create;
+    logMsg  := TStringList.Create;
+
+    InitConfig;
+end;
+
+destructor MnistFnnKerasFunctional.Destroy;
+begin
+  layers.Free;
+  Log.Free;
+  FConfig.Free;
+  inherited;
+end;
+
+function MnistFnnKerasFunctional.InitConfig: ExampleConfig;
+var
+  config : ExampleConfig;
+begin
+    config := ExampleConfig.Create;
+    config.Name := 'MNIST FNN (Keras Functional)';
+    config.Enabled := true;
+    config.IsImportingGraph := false;
+
+    Result  := config;
+    FConfig := Result;
+end;
+
+function MnistFnnKerasFunctional.Run: Boolean;
+begin
+    tf.enable_eager_execution();
+
+    PrepareData;
+    BuildModel;
+    Train;
+    Result := true;
+end;
+
+procedure MnistFnnKerasFunctional.PrepareData;
+begin
+    var dp : DatasetPass := tf.keras.datasets.mnist.load_data;
+    x_train := dp.Train.Value1;
+    y_train := dp.Train.Value2;
+
+    x_test  := dp.Test.Value1;
+    y_test  := dp.Test.Value2;
+
+    // Normalize images value from [0, 255] to [0, 1].
+    x_train := NDArray(x_train.reshape(TFShape.Create([60000, 784]))) / Single(255.0);
+    x_test  := NDArray(x_test.reshape(TFShape.Create([10000, 784])))  / Single(255.0);
+end;
+
+procedure MnistFnnKerasFunctional.BuildModel;
+begin
+    // input layer
+    var inputs := tf.keras.Input(TFShape.Create([784]));
+    // 1st dense layer
+    var outputs := layers.Dense(64, tf.keras.activations.Relu).Apply(TFTensors.Create(inputs));
+    // 2nd dense layer
+    outputs := layers.Dense(64, tf.keras.activations.Relu).Apply(TFTensors.Create(outputs));
+    // output layer
+    outputs := layers.Dense(10).Apply(TFTensors.Create(outputs));
+    // build keras model
+    mModel := tf.keras.Model(TFTensors.Create(inputs), outputs, 'mnist_model');
+
+    mModel.OnEpochBegin      := On_Epoch_Begin;
+    mModel.OnTrainBatchBegin := On_Train_Batch_Begin;
+    mModel.OnEndSummary      := On_End_Summary;
+
+    // show model summary
+    mModel.summary;
+    // compile keras model into tensorflow's static graph
+    mModel.compile(tf.keras.optimizers.RMSprop, tf.keras.losses.SparseCategoricalCrossentropy('','', true),['accuracy']);
+end;
+
+procedure MnistFnnKerasFunctional.Train;
+begin
+    // train model by feeding data and labels.
+    mModel.fit(x_train, y_train, {batch_size:} 64, {epochs:} 2, {verbose:}1, {validation_split:} 0.2);
+    // evluate the model
+    mModel.evaluate(x_test, y_test, {batch_size:}-1, {verbose:} 2);
+    // save and serialize model
+    // mModel.save('mnist_model');
+    // recreate the exact same model purely from the file:
+    // model = keras.models.load_model("path_to_my_model");
+end;
+
+procedure MnistFnnKerasFunctional.SetConf(const value: ExampleConfig);
+begin
+     FConfig := value;
+end;
+
+function MnistFnnKerasFunctional.GetConf: ExampleConfig;
+begin
+   Result := FConfig;
+end;
+
+function MnistFnnKerasFunctional.BuildGraph: TFGraph;
+begin
+   result := nil;
+end;
+
+function MnistFnnKerasFunctional.FreezeModel: string;
+begin
+
+end;
+
+function MnistFnnKerasFunctional.ImportGraph: TFGraph;
+begin
+   result := nil
+end;
+
+procedure MnistFnnKerasFunctional.Predict;
+begin
+
+end;
+
+procedure MnistFnnKerasFunctional.Test;
+begin
+
+end;
+
+{ TMnistGAN }
+
+constructor TMnistGAN.Create;
+begin
+    LeakyReLU_alpha := 0.2;
+    imgpath    := 'dcgan\imgs';
+    modelpath  := 'dcgan\\models';
+    latent_dim := 100;
+    img_rows   := 28;
+    img_cols   := 28;
+    channels   := 1;
+    epochs     := 1000; //20;
+    BATCH_SIZE := 256;
+    BUFFER_SIZE:= 60000;
+    layers  := LayersApi.Create;
+    logMsg  := TStringList.Create;
+
+    InitConfig;
+end;
+
+destructor TMnistGAN.Destroy;
+begin
+  layers.Free;
+  logMsg.Free;
+  inherited;
+end;
+
+function TMnistGAN.InitConfig: ExampleConfig;
+var
+  config : ExampleConfig;
+begin
+    config := ExampleConfig.Create;
+    config.Name := 'GAN MNIST';
+    config.Enabled := true;
+    config.IsImportingGraph := false;
+
+    Result  := config;
+    FConfig := Result;
+end;
+
+function TMnistGAN.GetConf: ExampleConfig;
+begin
+    Result := FConfig;
+end;
+
+procedure TMnistGAN.SetConf(const value: ExampleConfig);
+begin
+    FConfig := value;
+end;
+
+function TMnistGAN.Run: Boolean;
+begin
+    tf.enable_eager_execution;
+
+    PrepareData;
+    Train;
+    
+    Result := true;
+end;
+
+procedure TMnistGAN.PrepareData;
+begin
+    data  := tf.keras.datasets.mnist.load_data;
+
+    img_shape := [img_rows, img_cols, channels];
+
+    if (img_cols mod 4 <> 0) or (img_rows mod 4 <> 0) then
+        raise Exception.Create('The width and height of the image must be a multiple of 4');
+
+    TDirectory.CreateDirectory(imgpath);
+    TDirectory.CreateDirectory(modelpath);
+end;
+
+function TMnistGAN.Make_Generator_model: Model;
+begin
+    var mModel := tf.keras.Sequential(nil,'GENERATOR');
+
+    mModel.OnEpochBegin      := On_Epoch_Begin;
+    mModel.OnTrainBatchBegin := On_Train_Batch_Begin;
+    mModel.OnEndSummary      := On_End_Summary;
+
+    mModel.Add( layers.Input(TFShape.Create([latent_dim])).first );
+    mModel.Add( layers.Dense(7*7*256) );
+    mModel.Add( layers.BatchNormalization);
+    mModel.Add( layers.LeakyReLU);
+
+    mModel.Add( layers.Reshape(TFShape.Create([7, 7, 256]))) ;
+    Assert(mModel.OutputShape = TFShape.Create([-1, 7, 7, 256]));
+
+    mModel.Add( layers.Conv2DTranspose(128, TFShape.Create([5, 5]), TFShape.Create([1, 1]), 'same', {data_format}'', {dilation_rate}nil, {activation}'relu', False));
+    Assert(mModel.OutputShape = TFShape.Create([-1, 7, 7, 128]));
+    mModel.Add( layers.BatchNormalization);
+    mModel.Add( layers.LeakyReLU);
+
+    mModel.Add( layers.Conv2DTranspose(64, TFShape.Create([5, 5]), TFShape.Create([2, 2]), 'same', {data_format}'', {dilation_rate}nil, {activation}'relu', False));
+    Assert(mModel.OutputShape = TFShape.Create([-1, 14, 14, 64]));
+    mModel.Add( layers.BatchNormalization);
+    mModel.Add( layers.LeakyReLU);
+
+    mModel.Add( layers.Conv2DTranspose(1, TFShape.Create([5, 5]), TFShape.Create([2, 2]), 'same', {data_format}'', {dilation_rate}nil, {activation}'tanh', False));
+    Assert(mModel.OutputShape = TFShape.Create([-1, 28, 28, 1]));
+
+    mModel.summary;
+    Result := mModel;
+end;
+
+function TMnistGAN.Make_Discriminator_model: Model;
+begin
+    var model := tf.keras.Sequential(nil,'DISCRIMINATOR');
+
+    model.OnEpochBegin      := On_Epoch_Begin;
+    model.OnTrainBatchBegin := On_Train_Batch_Begin;
+    model.OnEndSummary      := On_End_Summary;
+
+    model.Add( layers.Input(img_shape).first );
+    model.add(layers.Conv2D(64, TFShape.Create([5, 5]), TFShape.Create([2, 2]), 'same'));
+    model.add(layers.LeakyReLU);
+    model.add(layers.Dropout(0.3));
+
+    model.add(layers.Conv2D(128, TFShape.Create([5, 5]), TFShape.Create([2, 2]), 'same'));
+    model.add(layers.LeakyReLU);
+    model.add(layers.Dropout(0.3)) ;
+
+    model.add(layers.Flatten) ;
+    model.add(layers.Dense(1));
+
+    model.summary;
+    Result := model;
+end;
+
+procedure TMnistGAN.Train_step(images: TFTensor);
+begin
+     var sSize : TFShape := [ batch_size, 100 ];
+     var noise    := np.random.normal(0, 1, @sSize);
+     noise        := noise.astype(np.np_float32);
+
+     var gen_tape  := tf.GradientTape(true);
+     var disc_tape := tf.GradientTape(true);
+
+     var generated_images  := generator.Apply(TFTensors.Create(noise));
+
+     var real_output := discriminator.Apply(TFTensors.Create(images));
+     var fake_output := discriminator.Apply(TFTensors.Create(generated_images));
+
+     var gen_loss := BinaryCrossentropy(fake_output.First, tf.ones_like(fake_output.First));
+
+     var real_loss := BinaryCrossentropy(real_output.First, tf.ones_like(real_output.First));
+     var fake_loss := BinaryCrossentropy(fake_output.First,  tf.zeros_like(fake_output.First));
+     var disc_loss := TTensor(real_loss) + fake_loss;
+
+     var gradients_of_generator     := gen_tape.gradient(gen_loss, generator.TrainableVariables.ToArray);
+     var gradients_of_discriminator := disc_tape.gradient(disc_loss, discriminator.TrainableVariables.ToArray);
+
+     var resVars : TArray<Tuple<TFTensor, ResourceVariable>> ;
+     for var j := 0 to generator.TrainableVariables.Count - 1 do
+         resVars := resVars + [ tuple.Create(gradients_of_generator[j], generator.TrainableVariables[j] as ResourceVariable) ];
+     generator_optimizer.apply_gradients(resVars);
+
+     resVars := [];
+     for var j := 0 to discriminator.TrainableVariables.Count - 1 do
+         resVars := resVars + [ tuple.Create(gradients_of_discriminator[j], generator.TrainableVariables[j] as ResourceVariable) ];
+     discriminator_optimizer.apply_gradients(resVars);
+end;
+
+procedure TMnistGAN.Train;
+begin
+    var train_images : TNDArray := data.Train.Value1; // [60000,28,28]
+    
+    train_images := NDArray(train_images) / 127.5 - 1;
+    train_images := np.expand_dims(train_images,3);
+    train_images := train_images.astype(np.np_float32);
+
+    var train_dataset := tf.Data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE);
+
+    discriminator := Make_Discriminator_model;
+    generator     := Make_Generator_model;
+
+    var d_lr : single := 2e-4;
+    var g_lr : Single := 2e-4;
+    discriminator_optimizer := tf.keras.optimizers.Adam(d_lr, 0.5);
+    generator_optimizer     := tf.keras.optimizers.Adam(g_lr, 0.5);
+    var showstep : Integer := 10;
+
+    var i : Integer := 0;
+    while i < epochs do
+    begin
+        while (FileExists('dcgan\models\Model_' + IntToStr(i + 100) + '_g.weights')) and (FileExists('dcgan\models\Model_' + IntToStr(i + 100) + '_d.weights')) do
+            i := i + 100;
+
+        if (FileExists('dcgan\models\Model_' + i.ToString + '_g.weights')) and (FileExists('dcgan\models\Model_' + i.ToString + '_d.weights')) then
+        begin
+            logMsg.Add('Loading weights for epoch ' + i.ToString);
+            generator.load_weights('dcgan\models\Model_' + i.ToString + '_g.weights');
+            discriminator.save_weights('dcgan\models\Model_' + i.ToString + '_d.weights');
+            PredictImage(generator, i);
+        end else
+        begin
+            for var image_batch in train_dataset do
+                 train_step(image_batch.Value1) ;
+
+            (*if (i mod 5 = 0) and (i <> 0) then
+            begin
+                var s_d_loss_real : Single := NDArray(tf.reduce_mean(d_loss_real)).numpy ;
+                var s_d_loss_fake : Single := NDArray(tf.reduce_mean(d_loss_fake)).numpy;
+                var s_d_loss      : Single := NDArray(tf.reduce_mean(d_loss)).numpy;
+                var s_g_loss      : Single := NDArray(tf.reduce_mean(g_loss)).numpy;
+                logMsg.Add(Format('step %d d_loss:%f(Real: %f + Fake: %f) g_loss:%f',[i,s_d_loss,s_d_loss_real,s_d_loss_fake,s_g_loss]));
+                if i mod showstep = 0 then
+                    PredictImage(G, i);
+            end;*)
+            if i mod 100 = 0 then
+            begin
+                generator.save_weights('dcgan\models\Model_' + i.ToString + '_g.weights');
+                discriminator.save_weights('dcgan\models\Model_' + i.ToString + '_d.weights');
+            end;
+        end;
+        inc(i);
+    end;
+end;
+
+procedure TMnistGAN.PredictImage(g: Model; step: Integer);
+begin
+    var r := 5;
+    var c := 5;
+    var sSize : TFShape := [ r * c, 100 ];
+    var noise := np.random.normal(0, 1, @sSize);
+    noise := noise.astype(np.np_float32);
+
+    var tensor_result : TFTensor := g.predict(noise).first;
+    var gen_imgs := tensor_result.numpy;
+    SaveImage(gen_imgs, step);
+end;
+
+function TMnistGAN.BinaryCrossentropy(x: TTensor; y: TTensor) : TFTensor;
+begin
+    var shape := tf.reduce_prod(tf.shape(x));
+    var count : TTensor := tf.cast(shape, TF_DataType.TF_FLOAT);
+    x := tf.clip_by_value<Single, Single>(x, 1e-6, 1.0 - 1e-6);
+    var z : TTensor := y * tf.log(x) + (1 - y) * tf.log(1 - x);
+    var res := Single(-1.0) / count * tf.reduce_sum(z);
+    Result := res;
+end;
+
+procedure TMnistGAN.Test;
+begin
+    var G := Make_Generator_model();
+    G.load_weights(modelpath + '\Model_100_g.weights');
+    PredictImage(G, 1);
+end;
+
+function FromArgb(alpha: Integer; red: Integer; green: Integer; blue: Integer): TColor;
+begin
+    Result := (byte(alpha) shl  24) or
+              (byte(red)   shl  16) or
+              (byte(green) shl  8 ) or
+              (byte(blue)  shl  0 );
+end;
+
+procedure TMnistGAN.SaveImage(gen_imgs: TNDArray; step: Integer);
+var
+  image : TBitmap;
+begin
+    var  size : Integer := 4;
+    gen_imgs := NDArray(gen_imgs) * 0.5 + 0.5; // 25x28x28x1 [0.0-1.0]
+    var generatedImages := gen_imgs.To_Array; // Tensor.Numpy[25]...
+    image := TBitmap.Create(28 * 5 * size, 28 * 5 * size);
+    for var i : Integer := 0 to Length(generatedImages) -1 do
+    begin
+        var values := generatedImages[i].reshape(TFShape.Create([784])).ToArray<Single>;
+        var min : Single := MinValue(values);
+        var max : Single := MaxValue(values);
+        var slope : Single := 0.0;
+        if max > min then slope := 255.0 / (max - min);
+        var canv := TCanvas.Create;
+        canv.Brush.Bitmap := image;
+        for var y := 0 to 28 - 1 do
+        begin
+            for var x : Integer := 0 to 28-1 do
+            begin
+                var value : Integer := Trunc(((values[y * 28 + x] - min) * slope));
+                canv.Brush.Style := bsSolid;
+                canv.Brush.Color := FromArgb(255, value, value, value);
+                var origin := TPoint.Create(x * size + ((i mod 5) * 28 * size), y * size + ((i div 5) * 28 * size));
+                canv.FillRect( TRect.Create(origin, size, size));
+            end;
+
+        end;
+    end;
+    image.SaveToFile(imgpath + '/image' + (step / 10).ToString() + '.jpg');
+end;
+
+function TMnistGAN.BuildGraph: TFGraph;
+begin
+     Result := nil;
+end;
+
+procedure TMnistGAN.BuildModel;
+begin
+
+end;
+
+function TMnistGAN.FreezeModel: string;
+begin
+
+end;
+
+function TMnistGAN.ImportGraph: TFGraph;
+begin
+    Result := nil;
+end;
+
+procedure TMnistGAN.Predict;
+begin
+
 end;
 
 end.

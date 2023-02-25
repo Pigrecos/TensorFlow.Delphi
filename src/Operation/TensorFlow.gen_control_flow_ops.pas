@@ -21,13 +21,15 @@ interface
          TensorFlow.DApi,
          Numpy.Axis,
 
-         TensorFlow.Context ;
+         TensorFlow.Context,
+         Tensorflow.control_flow_ops ;
 
 type
   gen_control_flow_ops = record
     private
 
     public
+       class function merge(inputs: TArray<TFTensor>; name: string = ''): MergeOutput; static;
        class function control_trigger(name: string = ''): TFOperation;static;
        class function no_op(name: string = ''): TFOperation; static;
        /// <summary>
@@ -119,6 +121,12 @@ class function gen_control_flow_ops.loop_cond(input: TFTensor; name: string): TF
 begin
     var _op := tf.OpDefLib._apply_op_helper('NoOp', name, [GetArg('input',input)]);
     Result := _op.output;
+end;
+
+class function gen_control_flow_ops.merge(inputs: TArray<TFTensor>; name: string): MergeOutput;
+begin
+    var _op := tf.OpDefLib._apply_op_helper('Merge', name, [GetArg('inputs',inputs)]);
+    Result := MergeOutput.Create(_op.outputs);
 end;
 
 class function gen_control_flow_ops.next_iteration(data: TFTensor; name: string): TFTensor;

@@ -36,6 +36,7 @@ interface
        TensorFlow.Variable,
        TensorFlow.Tensors.Ragged,
        TensorFlow.Initializer,
+       TensorFlow.Activation,
        Keras.KerasApi,
        TensorFlow.Training,
        TensorFlow.bitwise_ops,
@@ -354,8 +355,12 @@ nn_internal = class
   private
 
   public
-    function tanh(x:TFTensor; name: string = '') : TFTensor ;
-    function relu(features:TFTensor; name: string = '') : TFTensor ;
+    function relu: IActivation;overload;
+    function swish: IActivation;
+    function tanh: IActivation; overload;
+    function softmax: IActivation; overload;
+    function tanh(x:TFTensor; name: string = '') : TFTensor ;  overload;
+    function relu(features:TFTensor; name: string = '') : TFTensor ; overload;
     /// <summary>
     /// Computes sigmoid of `x` element-wise.
     /// Specifically, `y = 1 / (1 + exp(-x))`.
@@ -365,7 +370,7 @@ nn_internal = class
     /// <param name="name">A name for the operation (optional).</param>
     /// <returns>A Tensor with the same type as `x`.</returns>
     function sigmoid<T>(x: T; name: string = ''): TFTensor ;
-    function softmax(logits: TFTensor; axis: Integer = -1; name: string = ''): TFTensor ;
+    function softmax(logits: TFTensor; axis: Integer = -1; name: string = ''): TFTensor ; overload;
     /// <summary>
     /// Computes dropout.
     /// </summary>
@@ -815,6 +820,8 @@ end;
       function shape(input: TFTensor; name: string = ''; out_type: TF_DataType = TF_INT32): TFTensor;
       function TensorArray(dtype: TF_DataType; size : Integer= 0; dynamic_size: Boolean = false; clear_after_read : Boolean= true; element_shape: PTFShape = nil; colocate_with_first_write_call: Boolean = true; infer_shape: Boolean = true): TTensorArray ; overload;
       function TensorArray(dtype: TF_DataType; size : TFTensor; dynamic_size: Boolean = false; clear_after_read : Boolean= true; element_shape: PTFShape = nil; colocate_with_first_write_call: Boolean = true; infer_shape: Boolean = true): TTensorArray ; overload;
+      function squeeze(input: TFTensor; axis: Integer;              name: string= ''; squeeze_dims: Integer = -1): TFTensor;overload;
+      function squeeze(input: TFTensor; axis: TArray<Integer> = []; name: string= ''; squeeze_dims: Integer = -1): TFTensor;overload;
       {$ENDREGION}
 
       {$REGION 'tf.sparse'}
@@ -2027,6 +2034,16 @@ begin
     Result := gen_math_ops.squared_difference(x, y, name);
 end;
 
+function TTensorflow.squeeze(input: TFTensor; axis: Integer; name: string; squeeze_dims: Integer): TFTensor;
+begin
+    Result := array_ops.squeeze(input, [ axis ], name);
+end;
+
+function TTensorflow.squeeze(input: TFTensor; axis: TArray<Integer>; name: string; squeeze_dims: Integer): TFTensor;
+begin
+    Result := array_ops.squeeze(input, axis, name);
+end;
+
 function TTensorflow.sub<Tx, Ty>(a: Tx; b: Ty; name: string): TFTensor;
 begin
    Result := gen_math_ops.sub(a, b, name);
@@ -2384,6 +2401,26 @@ end;
 function nn_internal.leaky_relu(features: TFTensor; alpha: Single; name: string): TFTensor;
 begin
    Result := nn_ops.leaky_relu(features, alpha, name);
+end;
+
+function nn_internal.relu: IActivation;
+begin
+    Result :=  TensorFlow.Activation.relu.Create;
+end;
+
+function nn_internal.swish: IActivation;
+begin
+    Result :=  TensorFlow.Activation.swish.Create;
+end;
+
+function nn_internal.tanh: IActivation;
+begin
+    Result :=  TensorFlow.Activation.tanh.Create;
+end;
+
+function nn_internal.softmax: IActivation;
+begin
+    Result :=  TensorFlow.Activation.softmax.Create;
 end;
 
 function nn_internal.relu(features: TFTensor; name: string): TFTensor;

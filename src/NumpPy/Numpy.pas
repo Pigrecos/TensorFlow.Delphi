@@ -76,7 +76,6 @@ np = record
         np_complex_   : TF_DataType = TF_DataType.TF_COMPLEX;
         np_complex64  : TF_DataType = TF_DataType.TF_COMPLEX64;
         np_complex128 : TF_DataType = TF_DataType.TF_COMPLEX128;
-
     public
         class var random : RandomizedImpl;
 
@@ -86,6 +85,7 @@ np = record
         /// <remarks>https://docs.scipy.org/doc/numpy-1.17.0/reference/arrays.indexing.html<br></br><br></br>https://stackoverflow.com/questions/42190783/what-does-three-dots-in-python-mean-when-indexing-what-looks-like-a-number</remarks>
         class function newaxis: Slice; static;
         // numPy.creation
+        class function np_ndarray(shape: TFShape; dtype: TF_DataType): TNDArray;static;
         class function np_array<T>(data: T): TNDArray;overload ;static;
         class function np_array<T>(data: TArray<T>): TNDArray;overload ;static;
         class function np_array<T>(data: TArray<T>; dtype: TF_DataType): TNDArray;overload ;static;
@@ -113,6 +113,8 @@ np = record
         class function floor(x: TNDArray): TNDArray;static;
         class function exp(x: TNDArray) : TNDArray;static;
         class function cos(x: TNDArray): TNDArray;static;
+        // numPy.Manipulation
+        class function expand_dims(a: TNDArray; axis: TAxis): TNDArray;static;
 end;
 
 NumPyImpl = class
@@ -124,6 +126,7 @@ implementation
         uses Winapi.Windows,
              Tensorflow,
              Tensorflow.math_ops,
+             Tensorflow.array_ops,
              TensorFlow.random_ops;
 
 { np }
@@ -141,6 +144,11 @@ begin
         Result := TNDarray.create(aValue) ;
         var s2 :=  Result.shape;
     end;
+end;
+
+class function np.np_ndarray(shape: TFShape; dtype: TF_DataType): TNDArray;
+begin
+    Result := TNDArray.Create (  tf.zeros( shape, dtype) );
 end;
 
 class function np.add(x, y: TNDArray): TNDArray;
@@ -182,6 +190,11 @@ end;
 class function np.exp(x: TNDArray): TNDArray;
 begin
    Result := TNDArray.Create( tf.exp(x) );
+end;
+
+class function np.expand_dims(a: TNDArray; axis: TAxis): TNDArray;
+begin
+    Result := TNDArray.Create(array_ops.expand_dims(a, axis));
 end;
 
 class function np.floor(x: TNDArray): TNDArray;

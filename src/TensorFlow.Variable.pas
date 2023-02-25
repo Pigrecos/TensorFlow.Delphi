@@ -847,7 +847,9 @@ begin
 
     if collections = nil then
         collections := TList<string>.Create( tf.GraphKeys.GLOBAL_VARIABLES );
+
     Ftrainable := _trainable;
+
     if (_trainable) and ( not collections.Contains(tf.GraphKeys.TRAINABLE_VARIABLES) ) then
         collections.Add(tf.GraphKeys.TRAINABLE_VARIABLES);
 
@@ -872,14 +874,6 @@ begin
                           unique_id   := handle_name+'_'+IntTostr(Tops.uid);
                           shared_name := tf.Context.shared_name;
                       end;
-                      var attr : TAttrValue := TAttrValue.Create;
-                      var lst : TListValue := TListValue.Create;
-                      var b := TEncoding.UTF8.GetBytes('loc:@'+handle_name);
-                      lst.Ss.Add(b);
-                      var v : TpbOneof;
-                      v.tag := TAttrValue.ftList;
-                      v.value := TValue.From<TListValue>(lst);
-                      attr.Value := v;
 
                       TUtils.tf_with<TNameScope>( TOps.name_scope('Initializer'),
                         procedure(v1: TNameScope)
@@ -892,8 +886,9 @@ begin
                                   var value : TValue;
                                   if init_from_fn then
                                   begin
-                                       var func :=  initial_value.AsType<TFunc<TFTensor>>;
-                                       value := func();
+                                       var ffunc :=  initial_value.AsType<TFunc<TFTensor>>;
+                                       var t : TFTEnsor := ffunc();
+                                       value := t;
                                   end else
                                   begin
                                       value := initial_value;

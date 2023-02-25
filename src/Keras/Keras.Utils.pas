@@ -150,17 +150,29 @@ implementation
 { base_layer_utils }
 
 class function base_layer_utils.make_variable(args: VariableArgs): IVariableV1;
+var
+  init_val       : TFunc<TFTensor>;
+  variable_dtype : TF_DataType;
+  sShape         : TFShape;
+  PtrShape       : PTFShape;
 begin
-    var init_val : TFunc<TFTensor> := function: TFTensor
-                                        begin
-                                            Result := args.Initializer.Apply(InitializerArgs.Create(args.Shape, args.DType));
-                                        end;
-    var variable_dtype := Tdtypes.as_base_dtype(args.DType);
-    var s := args.Shape;
-    var Ps : PTFShape := nil;
-    if not s.IsNil then
-       Ps := @s;
-    Result := tf.Variable<TFunc<TFTensor>>(init_val, args.Trainable, args.ValidateShape, args.UseResource, args.Name, variable_dtype, TVariableAggregation.VARIABLE_AGGREGATION_NONE,Ps ) ;
+    init_val := function: TFTensor
+                  begin
+                      Result := args.Initializer.Apply(InitializerArgs.Create(args.Shape, args.DType));
+                  end;
+
+    variable_dtype := Tdtypes.as_base_dtype(args.DType);
+
+    sShape   := args.Shape;
+    PtrShape := nil;
+    if not sShape.IsNil then PtrShape := @sShape;
+
+    Result := tf.Variable<TFunc<TFTensor>>(init_val, args.Trainable,
+                                                     args.ValidateShape,
+                                                     args.UseResource,
+                                                     args.Name,
+                                                     variable_dtype,
+                                                     TVariableAggregation.VARIABLE_AGGREGATION_NONE,PtrShape ) ;
 end;
 
 class function base_layer_utils.needs_keras_history(inputs: TFTensors): Boolean;

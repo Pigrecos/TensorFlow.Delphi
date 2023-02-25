@@ -37,6 +37,7 @@ type
       class operator Implicit(const aValue: TAxis): TFTensor;
       class operator Implicit(const aValue: TAxis): TArray<Integer>;
       class operator Implicit(const aValue: TAxis): PAxis;
+      class operator Implicit(const aValue: TAxis): Integer;
 
       property size                    : Integer read GetSize;
       property Item[indices: Integer ] : Integer read GetItem; default;
@@ -90,6 +91,11 @@ class operator TAxis.Implicit(const value: Integer): TAxis;
 begin
     Result.axis     := [value];
     Result.isScalar := true;
+end;
+
+class operator TAxis.Implicit(const aValue: TAxis): Integer;
+begin
+   Result := aValue.axis.Value[0];
 end;
 
 end.

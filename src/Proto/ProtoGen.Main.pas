@@ -26,14 +26,15 @@ interface
 
           ProtoGen.Variable,
           ProtoGen.CppShapeInference,
-          ProtoGen.config;
+          ProtoGen.Config,
+          ProtoGen.ControlFlow;
 
 type
   TLoadHelper = record helper for TpbLoader
       type
         TLoad<T: constructor> = procedure(var Value: T) of object;
         TLoadPair<Key, Value> = procedure(var Pair: TPair<Key, Value>) of object;
-      private
+      protected
         procedure LoadObj<T: constructor>(var obj: T; Load: TLoad<T>);
         procedure LoadList<T: constructor>(const List: TList<T>; Load: TLoad<T>);
         procedure LoadMap<Key, Value>(var map: TDictionary<Key, Value>; Load: TLoadPair<Key, Value>; Tag: Integer);
@@ -134,13 +135,18 @@ type
         procedure LoadNodeExecStats(var Value: TNodeExecStats);
         procedure LoadDeviceStepStats(var Value: TDeviceStepStats);
         procedure LoadStepStats(var Value: TStepStats);
+        // ProtoGen.ControlFlow
+        procedure LoadValuesDef(var Value: TValuesDef);
+        procedure LoadControlFlowContextDef(var Value: TControlFlowContextDef);
+        procedure LoadCondContextDef(var Value: TCondContextDef);
+        procedure LoadWhileContextDef(var Value: TWhileContextDef);
   end;  
 
   TSaveHelper = record helper for TpbSaver
       type
         TSave<T>              = procedure(const S: TpbSaver; const Value: T);
         TSavePair<Key, Value> = procedure(const S: TpbSaver; const Pair: TPair<Key, Value>);
-      private
+      protected
         procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
         procedure SaveList<T>(const List: TList<T>; Save: TSave<T>; Tag: Integer);
         procedure SaveMap<Key, Value>(const Map: TDictionary<Key, Value>; Save: TSavePair<Key, Value>; Tag: Integer);
@@ -247,6 +253,11 @@ type
         class procedure SaveNodeExecStats(const S: TpbSaver; const Value: TNodeExecStats); static;
         class procedure SaveDeviceStepStats(const S: TpbSaver; const Value: TDeviceStepStats); static;
         class procedure SaveStepStats(const S: TpbSaver; const Value: TStepStats); static;
+        // ProtoGen.ControlFlow
+        class procedure SaveValuesDef(const S: TpbSaver; const Value: TValuesDef); static;
+        class procedure SaveControlFlowContextDef(const S: TpbSaver; const Value: TControlFlowContextDef); static;
+        class procedure SaveCondContextDef(const S: TpbSaver; const Value: TCondContextDef); static;
+        class procedure SaveWhileContextDef(const S: TpbSaver; const Value: TWhileContextDef); static;
   end;
 
 implementation
@@ -6682,6 +6693,393 @@ begin
   if Value.DevStatss.Count > 0 then
     S.SaveList<TDeviceStepStats>(Value.DevStatss, SaveDeviceStepStats, TStepStats.ftDevStatss);
 end;
+{$EndRegion}
+
+{$Region 'ProtoGen.ControlFlow'}
+procedure TLoadHelper.LoadValuesDef(var Value: TValuesDef);
+var
+  fieldNumber: integer;
+  tag: TpbTag;
+begin
+  Value := TValuesDef.Create;
+  tag := Pb.readTag;
+  while tag.v <> 0 do
+  begin
+    fieldNumber := tag.FieldNumber;
+    case fieldNumber of
+      TValuesDef.ftValuess:
+        begin
+            var vTipo : string;
+            if IsPackedRepeatedField(tag, vTipo) then
+            begin
+              Pb.Push;
+              try
+                while not Pb.Eof do
+                begin
+                  var v : string := Pb.readString;
+                  Value.Valuess.Add(v);
+                end
+              finally
+                Pb.Pop;
+              end;
+            end
+            else begin
+              repeat
+                var v : string := Pb.readString;
+                Value.Valuess.Add(v);
+              until not Pb.ConsumeTag(tag.v);
+            end;
+        end;
+      TValuesDef.ftExternalValues:
+        begin
+          Value.ExternalValues.AddOrSetValue(Pb.readString, Pb.readString);
+        end;
+      else
+        Pb.skipField(tag);
+    end;
+    tag := Pb.readTag;
+  end;
+end;
+
+procedure TLoadHelper.LoadControlFlowContextDef(var Value: TControlFlowContextDef);
+var
+  fieldNumber, wireType: integer;
+  tag: TpbTag;
+begin
+  Value := TControlFlowContextDef.Create;
+  tag := Pb.readTag;
+  while tag.v <> 0 do
+  begin
+    wireType := tag.WireType;
+    fieldNumber := tag.FieldNumber;
+    case fieldNumber of
+      TControlFlowContextDef.ftCondCtxt:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          var v : TpbOneof;
+          v.tag := TControlFlowContextDef.ftCondCtxt;
+          Pb.Push;
+          try
+              var v1 : TCondContextDef;
+              LoadCondContextDef(v1);
+              v.value := TValue.From<TCondContextDef>(v1);
+              Value.ctxt := v;
+          finally
+           Pb.Pop
+          end;
+        end;
+      TControlFlowContextDef.ftWhileCtxt:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          var v : TpbOneof;
+          v.tag := TControlFlowContextDef.ftWhileCtxt;
+          Pb.Push;
+          try
+
+              var v1 : TWhileContextDef;
+              LoadWhileContextDef(v1);
+              v.value := TValue.From<TWhileContextDef>(v1);
+              Value.ctxt := v;
+          finally
+           Pb.Pop
+          end;
+        end;
+      else
+        Pb.skipField(tag);
+    end;
+    tag := Pb.readTag;
+  end;
+end;
+
+procedure TLoadHelper.LoadCondContextDef(var Value: TCondContextDef);
+var
+  fieldNumber, wireType: integer;
+  tag: TpbTag;
+begin
+  Value := TCondContextDef.Create;
+  tag := Pb.readTag;
+  while tag.v <> 0 do
+  begin
+    wireType := tag.WireType;
+    fieldNumber := tag.FieldNumber;
+    case fieldNumber of
+      TCondContextDef.ftContextName:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          Value.ContextName := Pb.readString;
+        end;
+      TCondContextDef.ftPredName:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          Value.PredName := Pb.readString;
+        end;
+      TCondContextDef.ftPivotName:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          Value.PivotName := Pb.readString;
+        end;
+      TCondContextDef.ftBranch:
+        begin
+          Assert(wireType = TWire.VARINT);
+          Value.Branch := Pb.readInt32;
+        end;
+      TCondContextDef.ftValuesDef:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          Pb.Push;
+          try
+            var v : TValuesDef := Value.ValuesDef;
+            LoadValuesDef(v);
+            Value.ValuesDef := v;
+          finally
+            Pb.Pop;
+          end;
+        end;
+      TCondContextDef.ftNestedContextss:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          Pb.Push;
+          try
+            var v : TControlFlowContextDef;
+            LoadControlFlowContextDef(v);
+            Value.NestedContextss.Add(v);
+          finally
+            Pb.Pop;
+          end;
+        end;
+      else
+        Pb.skipField(tag);
+    end;
+    tag := Pb.readTag;
+  end;
+end;
+
+procedure TLoadHelper.LoadWhileContextDef(var Value: TWhileContextDef);
+var
+  fieldNumber, wireType: integer;
+  tag: TpbTag;
+begin
+  Value := TWhileContextDef.Create;
+  tag := Pb.readTag;
+  while tag.v <> 0 do
+  begin
+    wireType := tag.WireType;
+    fieldNumber := tag.FieldNumber;
+    case fieldNumber of
+      TWhileContextDef.ftContextName:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          Value.ContextName := Pb.readString;
+        end;
+      TWhileContextDef.ftParallelIterations:
+        begin
+          Assert(wireType = TWire.VARINT);
+          Value.ParallelIterations := Pb.readInt32;
+        end;
+      TWhileContextDef.ftBackProp:
+        begin
+          Assert(wireType = TWire.VARINT);
+          Value.BackProp := Pb.readBoolean;
+        end;
+      TWhileContextDef.ftSwapMemory:
+        begin
+          Assert(wireType = TWire.VARINT);
+          Value.SwapMemory := Pb.readBoolean;
+        end;
+      TWhileContextDef.ftPivotName:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          Value.PivotName := Pb.readString;
+        end;
+      TWhileContextDef.ftPivotForPredName:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          Value.PivotForPredName := Pb.readString;
+        end;
+      TWhileContextDef.ftPivotForBodyName:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          Value.PivotForBodyName := Pb.readString;
+        end;
+      TWhileContextDef.ftLoopExitNamess:
+        begin
+            var vTipo : string;
+            if IsPackedRepeatedField(tag, vTipo) then
+            begin
+              Pb.Push;
+              try
+                while not Pb.Eof do
+                begin
+                  var v : string := Pb.readString;
+                  Value.LoopExitNamess.Add(v);
+                end
+              finally
+                Pb.Pop;
+              end;
+            end
+            else begin
+              repeat
+                var v : string := Pb.readString;
+                Value.LoopExitNamess.Add(v);
+              until not Pb.ConsumeTag(tag.v);
+            end;
+        end;
+      TWhileContextDef.ftLoopEnterNamess:
+        begin
+            var vTipo : string;
+            if IsPackedRepeatedField(tag, vTipo) then
+            begin
+              Pb.Push;
+              try
+                while not Pb.Eof do
+                begin
+                  var v : string := Pb.readString;
+                  Value.LoopEnterNamess.Add(v);
+                end
+              finally
+                Pb.Pop;
+              end;
+            end
+            else begin
+              repeat
+                var v : string := Pb.readString;
+                Value.LoopEnterNamess.Add(v);
+              until not Pb.ConsumeTag(tag.v);
+            end;
+        end;
+      TWhileContextDef.ftValuesDef:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          Pb.Push;
+          try
+            var v : TValuesDef := Value.ValuesDef;
+            LoadValuesDef(v);
+            Value.ValuesDef := v;
+          finally
+            Pb.Pop;
+          end;
+        end;
+      TWhileContextDef.ftMaximumIterationsName:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          Value.MaximumIterationsName := Pb.readString;
+        end;
+      TWhileContextDef.ftNestedContextss:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          Pb.Push;
+          try
+            var v : TControlFlowContextDef;
+            LoadControlFlowContextDef(v);
+            Value.NestedContextss.Add(v);
+          finally
+            Pb.Pop;
+          end;
+        end;
+      else
+        Pb.skipField(tag);
+    end;
+    tag := Pb.readTag;
+  end;
+end;
+
+class procedure TSaveHelper.SaveValuesDef(const S: TpbSaver; const Value: TValuesDef);
+var
+  i : Integer;
+  h : TpbSaver;
+
+begin
+  h.Init;
+  try
+    for i := 0 to Value.Valuess.Count - 1 do
+      h.Pb.writeRawString(Value.Valuess[i]);
+    if Value.Valuess.Count > 0 then
+      S.Pb.writeMessage(TValuesDef.ftValuess, h.Pb^);
+  finally
+    h.Free;
+  end;
+  if Value.ExternalValues <> nil then
+  begin
+    h.Init;
+    try
+      for var it in Value.ExternalValues do
+      begin
+          h.clear;
+          h.SaveStringString(it);
+          S.Pb.writeMessage(TValuesDef.ftExternalValues, h.Pb^);
+      end;
+    finally
+      h.Free;
+    end;
+  end;
+end;
+
+class procedure TSaveHelper.SaveControlFlowContextDef(const S: TpbSaver; const Value: TControlFlowContextDef);
+begin
+  case Value.ctxt.tag of
+    TControlFlowContextDef.ftCondCtxt:
+      begin
+        if Value.Ctxt.value.AsType<TCondContextDef> <> nil then
+          S.SaveObj<TCondContextDef>(Value.Ctxt.value.AsType<TCondContextDef>, SaveCondContextDef, TControlFlowContextDef.ftCondCtxt);
+      end;
+    TControlFlowContextDef.ftWhileCtxt:
+      begin
+        if Value.Ctxt.value.AsType<TWhileContextDef> <> nil then
+          S.SaveObj<TWhileContextDef>(Value.Ctxt.value.AsType<TWhileContextDef>, SaveWhileContextDef, TControlFlowContextDef.ftWhileCtxt);
+      end;
+  end;
+end;
+
+class procedure TSaveHelper.SaveCondContextDef(const S: TpbSaver; const Value: TCondContextDef);
+begin
+  S.Pb.writeString(TCondContextDef.ftContextName, Value.ContextName);
+  S.Pb.writeString(TCondContextDef.ftPredName, Value.PredName);
+  S.Pb.writeString(TCondContextDef.ftPivotName, Value.PivotName);
+  S.Pb.writeInt32(TCondContextDef.ftBranch, Value.Branch);
+  if Value.ValuesDef <> nil then
+    S.SaveObj<TValuesDef>(Value.ValuesDef, SaveValuesDef, TCondContextDef.ftValuesDef);
+  if Value.NestedContextss.Count > 0 then
+    S.SaveList<TControlFlowContextDef>(Value.NestedContextss, SaveControlFlowContextDef, TCondContextDef.ftNestedContextss);
+end;
+
+class procedure TSaveHelper.SaveWhileContextDef(const S: TpbSaver; const Value: TWhileContextDef);
+var
+  i : Integer;
+  h : TpbSaver;
+
+begin
+  S.Pb.writeString(TWhileContextDef.ftContextName, Value.ContextName);
+  S.Pb.writeInt32(TWhileContextDef.ftParallelIterations, Value.ParallelIterations);
+  S.Pb.writeBoolean(TWhileContextDef.ftBackProp, Value.BackProp);
+  S.Pb.writeBoolean(TWhileContextDef.ftSwapMemory, Value.SwapMemory);
+  S.Pb.writeString(TWhileContextDef.ftPivotName, Value.PivotName);
+  S.Pb.writeString(TWhileContextDef.ftPivotForPredName, Value.PivotForPredName);
+  S.Pb.writeString(TWhileContextDef.ftPivotForBodyName, Value.PivotForBodyName);
+  h.Init;
+  try
+    for i := 0 to Value.LoopExitNamess.Count - 1 do
+      h.Pb.writeRawString(Value.LoopExitNamess[i]);
+    if Value.LoopExitNamess.Count > 0 then
+      S.Pb.writeMessage(TWhileContextDef.ftLoopExitNamess, h.Pb^);
+  finally
+    h.Free;
+  end;
+  h.Init;
+  try
+    for i := 0 to Value.LoopEnterNamess.Count - 1 do
+      h.Pb.writeRawString(Value.LoopEnterNamess[i]);
+    if Value.LoopEnterNamess.Count > 0 then
+      S.Pb.writeMessage(TWhileContextDef.ftLoopEnterNamess, h.Pb^);
+  finally
+    h.Free;
+  end;
+  if Value.ValuesDef <> nil then
+    S.SaveObj<TValuesDef>(Value.ValuesDef, SaveValuesDef, TWhileContextDef.ftValuesDef);
+  S.Pb.writeString(TWhileContextDef.ftMaximumIterationsName, Value.MaximumIterationsName);
+  if Value.NestedContextss.Count > 0 then
+    S.SaveList<TControlFlowContextDef>(Value.NestedContextss, SaveControlFlowContextDef, TWhileContextDef.ftNestedContextss);
+end;
+
 {$EndRegion}
 
 end.
