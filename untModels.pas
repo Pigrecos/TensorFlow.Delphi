@@ -207,16 +207,18 @@ type
       imgpath    : string;
       modelpath  : string;
       img_shape  : TFShape;
-      latent_dim : Integer;
+      noise_dim  : Integer;
       img_rows   : Integer;
       img_cols   : Integer;
       channels   : Integer;
-      epochs     : Integer;
+      EPOCHS     : Integer;
       BATCH_SIZE : Integer;
       BUFFER_SIZE: Integer;
 
-      data     : DatasetPass;
-      layers   : LayersApi;
+      data         : DatasetPass;
+      train_images : TNDArray;
+      layers       : LayersApi;
+      train_dataset: IDatasetV2;
 
       discriminator : Model;
       generator     : Model;
@@ -231,9 +233,11 @@ type
       function  GetConf: ExampleConfig;
       procedure SetConf(const value: ExampleConfig);
       procedure PredictImage(g: Model; step: Integer);
-      function  BinaryCrossentropy(x, y: TTensor): TFTensor;
+      function  cross_entropy(x, y: TTensor): TFTensor;
       procedure SaveImage(gen_imgs: TNDArray; step: Integer);
       procedure Train_step(images: TFTensor);
+      function  discriminator_loss(real_output, fake_output: TFTensor): TFTensor;
+      function  generator_loss(fake_output: TFTensor): TFTensor;
     protected
       procedure BuildModel;
       procedure Train;
@@ -662,13 +666,15 @@ begin
     LeakyReLU_alpha := 0.2;
     imgpath    := 'dcgan\imgs';
     modelpath  := 'dcgan\\models';
-    latent_dim := 100;
+    noise_dim  := 100;
     img_rows   := 28;
     img_cols   := 28;
     channels   := 1;
-    epochs     := 1000; //20;
+
+    EPOCHS      := 50; //20;
     BATCH_SIZE := 256;
     BUFFER_SIZE:= 60000;
+
     layers  := LayersApi.Create;
     logMsg  := TStringList.Create;
 
@@ -719,6 +725,12 @@ procedure TMnistGAN.PrepareData;
 begin
     data  := tf.keras.datasets.mnist.load_data;
 
+    train_images := data.Train.Value1.reshape(TFshape.Create([data.Train.Value1.Shape[0],28,28,1])).astype(np.np_float32);
+    train_images := (NDArray(train_images) - 127.5) / 127.5 ;
+
+    // # Batch and shuffle the data
+    train_dataset := tf.Data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE);
+
     img_shape := [img_rows, img_cols, channels];
 
     if (img_cols mod 4 <> 0) or (img_rows mod 4 <> 0) then
@@ -736,8 +748,8 @@ begin
     mModel.OnTrainBatchBegin := On_Train_Batch_Begin;
     mModel.OnEndSummary      := On_End_Summary;
 
-    mModel.Add( layers.Input(TFShape.Create([latent_dim])).first );
-    mModel.Add( layers.Dense(7*7*256) );
+    mModel.Add( layers.Input(TFShape.Create([noise_dim])).first );
+    mModel.Add( layers.Dense(7*7*256, {activation}nil ,{kernel_initializer}nil, {use_bias}False) );
     mModel.Add( layers.BatchNormalization);
     mModel.Add( layers.LeakyReLU);
 
@@ -787,8 +799,8 @@ end;
 
 procedure TMnistGAN.Train_step(images: TFTensor);
 begin
-     var sSize : TFShape := [ batch_size, 100 ];
-     var noise    := np.random.normal(0, 1, @sSize);
+     var sSize : TFShape := [ BATCH_SIZE, noise_dim  ];
+     var noise    := np.random.normal(@sSize);
      noise        := noise.astype(np.np_float32);
 
      var gen_tape  := tf.GradientTape(true);
@@ -799,11 +811,8 @@ begin
      var real_output := discriminator.Apply(TFTensors.Create(images));
      var fake_output := discriminator.Apply(TFTensors.Create(generated_images));
 
-     var gen_loss := BinaryCrossentropy(fake_output.First, tf.ones_like(fake_output.First));
-
-     var real_loss := BinaryCrossentropy(real_output.First, tf.ones_like(real_output.First));
-     var fake_loss := BinaryCrossentropy(fake_output.First,  tf.zeros_like(fake_output.First));
-     var disc_loss := TTensor(real_loss) + fake_loss;
+     var gen_loss  := generator_loss(fake_output.First);
+     var disc_loss := discriminator_loss(real_output.First, fake_output.First);
 
      var gradients_of_generator     := gen_tape.gradient(gen_loss, generator.TrainableVariables.ToArray);
      var gradients_of_discriminator := disc_tape.gradient(disc_loss, discriminator.TrainableVariables.ToArray);
@@ -815,20 +824,12 @@ begin
 
      resVars := [];
      for var j := 0 to discriminator.TrainableVariables.Count - 1 do
-         resVars := resVars + [ tuple.Create(gradients_of_discriminator[j], generator.TrainableVariables[j] as ResourceVariable) ];
+         resVars := resVars + [ tuple.Create(gradients_of_discriminator[j], discriminator.TrainableVariables[j] as ResourceVariable) ];
      discriminator_optimizer.apply_gradients(resVars);
 end;
 
 procedure TMnistGAN.Train;
 begin
-    var train_images : TNDArray := data.Train.Value1; // [60000,28,28]
-    
-    train_images := NDArray(train_images) / 127.5 - 1;
-    train_images := np.expand_dims(train_images,3);
-    train_images := train_images.astype(np.np_float32);
-
-    var train_dataset := tf.Data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE);
-
     discriminator := Make_Discriminator_model;
     generator     := Make_Generator_model;
 
@@ -839,7 +840,7 @@ begin
     var showstep : Integer := 10;
 
     var i : Integer := 0;
-    while i < epochs do
+    while i < EPOCHS do
     begin
         while (FileExists('dcgan\models\Model_' + IntToStr(i + 100) + '_g.weights')) and (FileExists('dcgan\models\Model_' + IntToStr(i + 100) + '_d.weights')) do
             i := i + 100;
@@ -855,16 +856,6 @@ begin
             for var image_batch in train_dataset do
                  train_step(image_batch.Value1) ;
 
-            (*if (i mod 5 = 0) and (i <> 0) then
-            begin
-                var s_d_loss_real : Single := NDArray(tf.reduce_mean(d_loss_real)).numpy ;
-                var s_d_loss_fake : Single := NDArray(tf.reduce_mean(d_loss_fake)).numpy;
-                var s_d_loss      : Single := NDArray(tf.reduce_mean(d_loss)).numpy;
-                var s_g_loss      : Single := NDArray(tf.reduce_mean(g_loss)).numpy;
-                logMsg.Add(Format('step %d d_loss:%f(Real: %f + Fake: %f) g_loss:%f',[i,s_d_loss,s_d_loss_real,s_d_loss_fake,s_g_loss]));
-                if i mod showstep = 0 then
-                    PredictImage(G, i);
-            end;*)
             if i mod 100 = 0 then
             begin
                 generator.save_weights('dcgan\models\Model_' + i.ToString + '_g.weights');
@@ -880,7 +871,7 @@ begin
     var r := 5;
     var c := 5;
     var sSize : TFShape := [ r * c, 100 ];
-    var noise := np.random.normal(0, 1, @sSize);
+    var noise := np.random.normal(@sSize);
     noise := noise.astype(np.np_float32);
 
     var tensor_result : TFTensor := g.predict(noise).first;
@@ -888,15 +879,25 @@ begin
     SaveImage(gen_imgs, step);
 end;
 
-function TMnistGAN.BinaryCrossentropy(x: TTensor; y: TTensor) : TFTensor;
+function TMnistGAN.cross_entropy(x: TTensor; y: TTensor) : TFTensor;
 begin
-    var shape := tf.reduce_prod(tf.shape(x));
-    var count : TTensor := tf.cast(shape, TF_DataType.TF_FLOAT);
-    x := tf.clip_by_value<Single, Single>(x, 1e-6, 1.0 - 1e-6);
-    var z : TTensor := y * tf.log(x) + (1 - y) * tf.log(1 - x);
-    var res := Single(-1.0) / count * tf.reduce_sum(z);
-    Result := res;
+   var bce := tf.keras.losses.BinaryCrossentropy(true);
+   Result := bce.Call(x, y);
 end;
+
+function TMnistGAN.discriminator_loss(real_output: TFTensor; fake_output: TFTensor): TFTensor;
+begin
+    var real_loss := cross_entropy(tf.ones_like(real_output), real_output);
+    var fake_loss := cross_entropy(tf.zeros_like(fake_output), fake_output);
+    var total_loss := TTensor(real_loss) + fake_loss;
+    Result := total_loss;
+end;
+
+function TMnistGAN.generator_loss(fake_output: TFTensor): TFTensor;
+begin
+    Result := cross_entropy(tf.ones_like(fake_output), fake_output);
+end;
+
 
 procedure TMnistGAN.Test;
 begin

@@ -63,6 +63,14 @@ type
                                 renorm                      : Boolean= false;
                                 renorm_momentum             : Single= 0.99): ILayer;
 
+     /// <summary>
+     /// A preprocessing layer which encodes integer features.
+     /// </summary>
+     /// <param name="num_tokens">The total number of tokens the layer should support.</param>
+     /// <param name="output_mode">Specification for the output of the layer.</param>
+     /// <returns></returns>
+     function CategoryEncoding(num_tokens: Integer; output_mode : string= 'one_hot'; sparse: Boolean = false; count_weights : TNDArray= nil): ILayer;
+
      function Conv1D(filters           : Integer;
                     kernel_size        : TFShape;
                     strides            : Integer= 1;
@@ -105,6 +113,34 @@ type
                     use_bias          : Boolean= true;
                     kernel_initializer: string = 'glorot_uniform';
                     bias_initializer  : string = 'zeros'): ILayer; overload;
+
+     function Conv2DTranspose(filters                : Integer;
+                                kernel_size          : PTFShape= nil;
+                                strides              : PTFShape= nil;
+                                output_padding       : string = 'valid';
+                                data_format          : string = '';
+                                dilation_rate        : PTFShape = nil;
+                                activation           : string = '';
+                                use_bias             : Boolean= true;
+                                kernel_initializer   : string = '';
+                                bias_initializer     : string = '';
+                                kernel_regularizer   : string = '';
+                                bias_regularizer     : string = '';
+                                activity_regularizer : string = ''): ILayer; overload;
+
+     function Conv2DTranspose(filters                : Integer;
+                                kernel_size          : TFShape;
+                                strides              : TFShape;
+                                output_padding       : string = 'valid';
+                                data_format          : string = '';
+                                dilation_rate        : PTFShape = nil;
+                                activation           : string = '';
+                                use_bias             : Boolean= true;
+                                kernel_initializer   : string = '';
+                                bias_initializer     : string = '';
+                                kernel_regularizer   : string = '';
+                                bias_regularizer     : string = '';
+                                activity_regularizer : string = ''): ILayer; overload;
 
      function Dense(units: Integer): ILayer; overload;
 

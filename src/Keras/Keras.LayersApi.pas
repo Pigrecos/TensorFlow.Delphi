@@ -95,6 +95,8 @@ type
                                   renorm                      : Boolean= false;
                                   renorm_momentum             : Single= 0.99): ILayer;
 
+       function CategoryEncoding(num_tokens: Integer; output_mode : string= 'one_hot'; sparse: Boolean = false; count_weights : TNDArray= nil): ILayer;
+
        /// <summary>
        /// 1D convolution layer (e.g. temporal convolution).
        /// This layer creates a convolution kernel that is convolved with the layer input over a single spatial(or temporal) dimension to produce a tensor of outputs.If use_bias is True, a bias vector is created and added to the outputs.Finally, if activation is not None, it is applied to the outputs as well.
@@ -762,6 +764,19 @@ begin
     args.Axis  := axis;
 
     Result := Keras.Layer.Concatenate.Create( args );
+end;
+
+function LayersApi.CategoryEncoding(num_tokens: Integer; output_mode: string; sparse: Boolean; count_weights: TNDArray): ILayer;
+var
+  args : CategoryEncodingArgs;
+begin
+    args := CategoryEncodingArgs.Create;
+    args.NumTokens    := num_tokens;
+    args.OutputMode   := output_mode;
+    args.Sparse       := sparse;
+    args.CountWeights := count_weights;
+
+    Result := Keras.Layer.CategoryEncoding.Create(args);
 end;
 
 function LayersApi.Conv1D(filters: Integer; kernel_size: TFShape; strides: Integer; padding, data_format: string; dilation_rate, groups: Integer; activation: string;

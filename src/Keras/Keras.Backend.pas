@@ -128,6 +128,7 @@ type
       /// <param name="axis"></param>
       /// <returns></returns>
       function categorical_crossentropy(target: TFTensor; output: TFTensor; from_logits: Boolean = false; axis: Integer = -1) : TFTensor;
+      function binary_crossentropy(target: TFTensor; output: TFTensor; from_logits: Boolean = false): TFTensor;
       /// <summary>
       /// Resizes the images contained in a 4D tensor.
       /// </summary>
@@ -250,6 +251,8 @@ end;
 
 constructor BackendImpl.Create;
 begin
+    inherited Create;
+
     py_sum := sum;
     py_all := all;
 
@@ -471,6 +474,22 @@ begin
     Tensorflow.tf.Context.restore_mode;
     // return outputs.eval();
     raise Exception.Create('Not ImplementedException');
+end;
+
+function BackendImpl.binary_crossentropy(target, output: TFTensor; from_logits: Boolean): TFTensor;
+begin
+    if from_logits then
+    begin
+        Result := Tensorflow.tf.nn.sigmoid_cross_entropy_with_logits(target, output);
+        Exit;
+    end;
+
+    var epsilon_ := constant_op.constant(epsilon(), TDTypes.as_base_dtype(output.dtype),'Const');
+    output       := Tensorflow.tf.clip_by_value(output, epsilon_, Single(1.0) - TTensor(epsilon_));
+    // Compute cross entropy from probabilities.
+    var bce : TTensor := TTensor(target) * Tensorflow.tf.math.log(TTensor(output) + epsilon);
+    bce := bce + (1 - TTensor(target)) * Tensorflow.tf.math.log(1 - TTensor(output) + epsilon());
+    Result := -bce;
 end;
 
 function BackendImpl.categorical_crossentropy(target, output: TFTensor; from_logits: Boolean; axis: Integer): TFTensor;

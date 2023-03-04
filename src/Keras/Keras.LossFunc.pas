@@ -79,6 +79,34 @@ type
        constructor Create(_reduction : string = 'auto'; _name : string = ''; _from_logits : boolean= false) ;
    end;
 
+   TBinaryCrossentropy = class(Loss, ILossFunc)
+     private
+       {$IFNDEF AUTOREFCOUNT}
+         private const
+           objDestroyingFlag = Integer($80000000);
+           function GetRefCount: Integer; inline;
+       {$ENDIF}
+     protected
+       {$IFNDEF AUTOREFCOUNT}
+         [Volatile] FRefCount: Integer;
+         class procedure __MarkDestroying(const Obj); static; inline;
+       {$ENDIF}
+       function QueryInterface(const IID: TGUID; out Obj): HResult; stdcall;
+       function _AddRef: Integer; stdcall;
+       function _Release: Integer; stdcall;
+     public
+       label_smoothing : Single;
+
+       constructor Create(_from_logits : Boolean= false; _label_smoothing : Single= 0; _reduction : string = ''; _name: string = '');
+       function    Apply(y_true: TFTensor; y_pred: TFTensor; from_logits: boolean = false; axis: Integer = -1): TFTensor; override;
+       {$IFNDEF AUTOREFCOUNT}
+          procedure AfterConstruction; override;
+          procedure BeforeDestruction; override;
+          class function NewInstance: TObject; override;
+          property RefCount: Integer read GetRefCount;
+        {$ENDIF}
+   end;
+
    TCategoricalCrossentropy = class(Loss, ILossFunc)
      private
        {$IFNDEF AUTOREFCOUNT}
@@ -325,10 +353,24 @@ type
         {$ENDIF}
    end;
 
-   LossesApi = class
+   ILossesApi = interface
+       function  BinaryCrossentropy(from_logits : Boolean= false; label_smoothing: Single = 0; axis: Integer = -1; reduction : string= 'auto'; name: string = 'binary_crossentropy'): ILossFunc;
+       function  SparseCategoricalCrossentropy(reduction : string= ''; name : string= '';from_logits: Boolean = false) : ILossFunc;
+       function  CategoricalCrossentropy(reduction : string= ''; name : string= ''; from_logits: Boolean = false): ILossFunc;
+       function  MeanSquaredError(reduction : string= ''; name : string= '') : ILossFunc;
+       function  MeanSquaredLogarithmicError(reduction : string= ''; name : string= '') : ILossFunc;
+       function  MeanAbsolutePercentageError(reduction : string= ''; name : string= '') : ILossFunc;
+       function  MeanAbsoluteError(reduction : string= ''; name : string= '') : ILossFunc;
+       function  CosineSimilarity(reduction : string= ''; name : string= '';axis: Integer=-1): ILossFunc;
+       function  Huber(reduction : string= ''; name : string= ''; delta: TFTensor=nil): ILossFunc;
+       function  LogCosh(reduction : string= ''; name : string= ''): ILossFunc;
+   end;
+
+   LossesApi = class(TInterfacedObject, ILossesApi)
      public
        constructor Create;
 
+       function  BinaryCrossentropy(from_logits : Boolean= false; label_smoothing: Single = 0; axis: Integer = -1; reduction : string= 'auto'; name: string = 'binary_crossentropy'): ILossFunc;
        function  SparseCategoricalCrossentropy(reduction : string= ''; name : string= '';from_logits: Boolean = false) : ILossFunc;
        function  CategoricalCrossentropy(reduction : string= ''; name : string= ''; from_logits: Boolean = false): ILossFunc;
        function  MeanSquaredError(reduction : string= ''; name : string= '') : ILossFunc;
@@ -372,7 +414,11 @@ end;
 function Loss.Call(y_true, y_pred, sample_weight: TFTensor): TFTensor;
 begin
    var losses := Apply(y_true, y_pred, Ffrom_logits);
-   Result := losses_utils.compute_weighted_loss(losses, sample_weight, Freduction);
+
+   var red : string := Freduction;
+   if Freduction = ReductionV2.AUTO then red := ReductionV2.SUM_OVER_BATCH_SIZE;
+
+   Result := losses_utils.compute_weighted_loss(losses, sample_weight, red);
 end;
 
 { LossFunctionWrapper }
@@ -1143,6 +1189,13 @@ function TSparseCategoricalCrossentropy.Apply(y_true, y_pred: TFTensor; from_log
 begin
     y_true := tf.cast(y_true, TF_DataType.TF_INT64);
 
+    if not from_logits then
+    begin
+        var epsilon := tf.constant(tf.Keras.backend.epsilon, y_pred.dtype);
+        y_pred      := tf.clip_by_value(y_pred, epsilon, 1 - TTEnsor(epsilon));
+        y_pred      := tf.log(y_pred);
+    end;
+
     // Try to adjust the shape so that rank of labels = rank of logits - 1.
     var output_shape := array_ops.shape_v2(y_pred);
     var output_rank  := y_pred.shape.ndim;
@@ -1228,12 +1281,106 @@ begin
 end;
 {$ENDREGION}
 
+{ TBinaryCrossentropy }
+
+constructor TBinaryCrossentropy.Create(_from_logits: Boolean; _label_smoothing: Single; _reduction, _name: string);
+var
+  sName : string;
+begin
+    if _name = '' then sName := 'binary_crossentropy'
+    else               sName := _name;
+
+    inherited Create(_reduction, sName, _from_logits);
+
+    label_smoothing := _label_smoothing;
+end;
+
+function TBinaryCrossentropy.Apply(y_true, y_pred: TFTensor; from_logits: boolean; axis: Integer): TFTensor;
+begin
+    var sum := tf.keras.backend.binary_crossentropy(y_true, y_pred, from_logits);
+    Result  := tf.keras.backend.mean(sum, axis);
+end;
+
+{$IFNDEF AUTOREFCOUNT}
+function TBinaryCrossentropy.GetRefCount: Integer;
+begin
+  Result := FRefCount and not objDestroyingFlag;
+end;
+
+class procedure TBinaryCrossentropy.__MarkDestroying(const Obj);
+var
+  LRef: Integer;
+begin
+  repeat
+    LRef := TBinaryCrossentropy(Obj).FRefCount;
+  until AtomicCmpExchange(TBinaryCrossentropy(Obj).FRefCount, LRef or objDestroyingFlag, LRef) = LRef;
+end;
+
+procedure TBinaryCrossentropy.AfterConstruction;
+begin
+// Release the constructor's implicit refcount
+  AtomicDecrement(FRefCount);
+end;
+
+procedure TBinaryCrossentropy.BeforeDestruction;
+begin
+  if RefCount <> 0 then
+    Error(reInvalidPtr);
+end;
+
+// Set an implicit refcount so that refcounting during construction won't destroy the object.
+class function TBinaryCrossentropy.NewInstance: TObject;
+begin
+  Result := inherited NewInstance;
+  TBinaryCrossentropy(Result).FRefCount := 1;
+end;
+
+{$ENDIF AUTOREFCOUNT}
+
+function TBinaryCrossentropy.QueryInterface(const IID: TGUID; out Obj): HResult;
+begin
+  if GetInterface(IID, Obj) then
+    Result := 0
+  else
+    Result := E_NOINTERFACE;
+end;
+
+function TBinaryCrossentropy._AddRef: Integer;
+begin
+{$IFNDEF AUTOREFCOUNT}
+  Result := AtomicIncrement(FRefCount);
+{$ELSE}
+  Result := __ObjAddRef;
+{$ENDIF}
+end;
+
+function TBinaryCrossentropy._Release: Integer;
+begin
+{$IFNDEF AUTOREFCOUNT}
+  Result := AtomicDecrement(FRefCount);
+  if Result = 0 then
+  begin
+    // Mark the refcount field so that any refcounting during destruction doesn't infinitely recurse.
+    __MarkDestroying(Self);
+    Destroy;
+  end;
+{$ELSE}
+  Result := __ObjRelease;
+{$ENDIF}
+end;
+{$ENDREGION}
+
 { LossesApi }
 
 constructor LossesApi.Create;
 begin
   inherited;
 
+end;
+
+function LossesApi.BinaryCrossentropy(from_logits: Boolean; label_smoothing: Single; axis: Integer; reduction, name: string): ILossFunc;
+begin
+    Result := TBinaryCrossentropy.Create(from_logits, label_smoothing, reduction, name)
 end;
 
 function LossesApi.CategoricalCrossentropy(reduction, name: string; from_logits: Boolean): ILossFunc;

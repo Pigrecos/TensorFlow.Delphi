@@ -29,10 +29,7 @@ type
 
   gen_math_ops = record
     private
-     /// <summary>
-     /// Subroutine for Min or Max functions. See _min and _max
-     /// </summary>
-     class function MinOrMax<Tx, Ty>(input: Tx; axis:Ty; methodName: string; keep_dims: Boolean = false; name : string = ''): TFTensor; static;
+     
     public
      class function _all(input: TFTensor; axis: TFTensor; keep_dims: Boolean= false; name: string = ''): TFTensor; static;
      /// <summary>
@@ -726,7 +723,7 @@ begin
     Result := _op.outputs[0];
 end;
 
-class function gen_math_ops.MinOrMax<Tx, Ty>(input: Tx; axis:Ty; methodName: string; keep_dims: Boolean; name : string): TFTensor;
+class function gen_math_ops._max<Tx, Ty>(input: Tx; axis: Ty; keep_dims: Boolean; name : string) : TFTensor;
 begin
     var Args := ExecuteOpArgs.Create([ TValue.From<Tx>(input), TValue.From<Ty>(axis) ]) ;
 
@@ -738,27 +735,42 @@ begin
                                    pParam.vValue:= op.get_attr('T');
                                    Result := Result + [ pParam ] ;
 
-                                   pParam.sNome := 'align_corners' ;
-                                   pParam.vValue:= op.get_attr('align_corners');
+                                   pParam.sNome := 'Tidx' ;
+                                   pParam.vValue:= op.get_attr('Tidx');
                                    Result := Result + [ pParam ] ;
 
-                                   pParam.sNome := 'half_pixel_centers' ;
-                                   pParam.vValue:= op.get_attr('half_pixel_centers');
+                                   pParam.sNome := 'keep_dims' ;
+                                   pParam.vValue:= op.get_attr('keep_dims');
                                    Result := Result + [ pParam ] ;
                                end;
 
-    Result := tf.Context.ExecuteOp(methodName, name, Args
+    Result := tf.Context.ExecuteOp('Max', name, Args
         .SetAttributes(['keep_dims', keep_dims, 'reduction_indices',  TValue.From<Ty>(axis) ])).First;
-end;
-
-class function gen_math_ops._max<Tx, Ty>(input: Tx; axis: Ty; keep_dims: Boolean; name : string) : TFTensor;
-begin
-    Result := MinOrMax(input, axis, 'Max', keep_dims, name);
 end;
 
 class function gen_math_ops._min<Tx, Ty>(input: Tx; axis: Ty; keep_dims: Boolean; name : string) : TFTensor;
 begin
-    Result := MinOrMax(input, axis, 'Min', keep_dims, name);
+    var Args := ExecuteOpArgs.Create([ TValue.From<Tx>(input), TValue.From<Ty>(axis) ]) ;
+
+    Args.GetGradientAttrs :=  function(op: TFOperation): TArray<TParameter>
+                               begin
+                                   Result := [];
+                                   var pParam : TParameter;
+                                   pParam.sNome := 'T' ;
+                                   pParam.vValue:= op.get_attr('T');
+                                   Result := Result + [ pParam ] ;
+
+                                   pParam.sNome := 'Tidx' ;
+                                   pParam.vValue:= op.get_attr('Tidx');
+                                   Result := Result + [ pParam ] ;
+
+                                   pParam.sNome := 'keep_dims' ;
+                                   pParam.vValue:= op.get_attr('keep_dims');
+                                   Result := Result + [ pParam ] ;
+                               end;
+
+    Result := tf.Context.ExecuteOp('Min', name, Args
+        .SetAttributes(['keep_dims', keep_dims, 'reduction_indices',  TValue.From<Ty>(axis) ])).First;
 end;
 
 class function gen_math_ops.pow<Tx, Ty>(x: Tx; y: Ty; name : string): TFTensor;

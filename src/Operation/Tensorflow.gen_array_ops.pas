@@ -462,7 +462,7 @@ end;
 class function gen_array_ops.unpack(value: TFTensor; num, axis: Integer; name: string): TArray<TFTensor>;
 begin
     Result := tf.Context.ExecuteOp('Unpack', name, ExecuteOpArgs.Create([value, num])
-                    .SetAttributes(['axis', axis ])).ToArray
+                    .SetAttributes(['axis', axis, num, 'num'])).ToArray
 end;
 
 class function gen_array_ops.where(condition: TFTensor; name: string): TFTensor;

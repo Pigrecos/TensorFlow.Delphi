@@ -1091,16 +1091,36 @@ begin
                   function(v1: TNameScope): TFTensor
                     begin
                         name := v1.ToString;
-                        var array_is_nonempty := TTEnsor( math_ops.reduce_prod(array_ops.shape(arr)) ) > int32(0);
-                        var output_size := math_ops.cast(array_is_nonempty, Tdtypes.cint32) * (TTensor(math_ops.reduce_max(arr)) + 1);
-                        if minlength <> nil then
-                            output_size := math_ops.maximum(minlength, output_size);
-                        if maxlength <> nil then
-                            output_size := math_ops.minimum(maxlength, output_size);
-                        var i := TArray<Int64>.Create();
-                        var weights := constant_op.constant( TValue.From< TArray<Int64> >(i), dtype, 'Const' );
+                        if ( not binary_output) and (axis = nil) then
+                        begin
+                            var array_is_nonempty := TTEnsor( math_ops.reduce_prod(array_ops.shape(arr)) ) > int32(0);
+                            var output_size := math_ops.cast(array_is_nonempty, Tdtypes.cint32) * (TTensor(math_ops.reduce_max(arr)) + 1);
+                            if minlength <> nil then
+                                output_size := math_ops.maximum(minlength, output_size);
+                            if maxlength <> nil then
+                                output_size := math_ops.minimum(maxlength, output_size);
+                            var i := TArray<Int64>.Create();
+                            var w := weights;
+                            if w = nil then
+                               w := constant_op.constant( TValue.From< TArray<Int64> >(i), dtype, 'Const' );
 
-                        Result := tf.Context.ExecuteOp('Bincount', name, ExecuteOpArgs.Create([arr, output_size, weights])).First;
+                            Result := tf.Context.ExecuteOp('Bincount', name, ExecuteOpArgs.Create([arr, output_size, w])).First;
+                        end else
+                        begin
+                            var array_is_nonempty := TTEnsor( math_ops.reduce_prod(array_ops.shape(arr)) ) > int32(0);
+                            var output_size := math_ops.cast(array_is_nonempty, Tdtypes.cint32) * (TTensor(math_ops.reduce_max(arr)) + 1);
+                            if minlength <> nil then
+                                output_size := math_ops.maximum(minlength, output_size);
+                            if maxlength <> nil then
+                                output_size := math_ops.minimum(maxlength, output_size);
+                            var i := TArray<Int64>.Create();
+                            var w := weights;
+                            if w = nil then
+                               w := constant_op.constant( TValue.From< TArray<Int64> >(i), dtype, 'Const' );
+
+                            Result := tf.Context.ExecuteOp('DenseBincount', name, ExecuteOpArgs.Create([arr, output_size, w, binary_output])
+                                                   .SetAttributes(['binary_output',binary_output])).First;
+                        end;
 
                     end );
 end;
@@ -1218,6 +1238,7 @@ begin
 end;
 
 end.
+
 
 
 

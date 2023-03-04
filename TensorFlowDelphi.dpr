@@ -97,7 +97,8 @@ uses
   Hdf5 in 'src\lib\Hdf5.pas',
   Keras.Saving in 'src\Keras\Keras.Saving.pas',
   ProtoGen.controlFlow in 'src\Proto\ProtoGen.controlFlow.pas',
-  TensorFlow.CondContext in 'src\Operation\TensorFlow.CondContext.pas';
+  TensorFlow.CondContext in 'src\Operation\TensorFlow.CondContext.pas',
+  Keras.Callbacks in 'src\Keras\Keras.Callbacks.pas';
 
 {$R *.res}
 

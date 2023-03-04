@@ -103,7 +103,6 @@ type
   losses_utils = record
     public
       class function compute_weighted_loss(losses: TFTensor; sample_weight: TFTensor = nil; reduction: string = ''; name: string = ''): TFTensor; static;
-      class function scale_losses_by_sample_weight(losses: TFTensor; sample_weight: TFTensor): TFTensor; static;
       class function squeeze_or_expand_dimensions(y_pred: TFTensor; sample_weight: TFTensor): Tuple<TFTensor,TFTensor>; static;
       class function reduce_weighted_loss(weighted_losses: TFTensor; reduction: string): TFTensor; static;
       class function _safe_mean(losses: TFTensor; num_present: TFTensor): TFTensor; static;
@@ -765,26 +764,21 @@ end;
 
 class function losses_utils.compute_weighted_loss(losses, sample_weight: TFTensor; reduction, name: string): TFTensor;
 begin
-    if sample_weight = nil then
-    begin
-        if losses.dtype = TF_DataType.TF_DOUBLE then sample_weight := tf.constant(Double(1.0))
-        else                                         sample_weight := tf.constant(Single(1.0));
-    end;
-    var weighted_losses := scale_losses_by_sample_weight(losses, sample_weight);
-    // Apply reduction function to the individual weighted losses.
-    var loss := reduce_weighted_loss(weighted_losses, reduction);
-    // Convert the result back to the input type.
-    // loss = math_ops.cast(loss, losses.dtype);
-    Result := loss;
-end;
-
-class function losses_utils.scale_losses_by_sample_weight(losses, sample_weight: TFTensor): TFTensor;
-begin
-    // losses = math_ops.cast(losses, dtypes.float32);
-    // sample_weight = math_ops.cast(sample_weight, dtypes.float32);
-    // Update dimensions of `sample_weight` to match with `losses` if possible.
-    // (losses, sample_weight) = squeeze_or_expand_dimensions(losses, sample_weight);
-    Result := math_ops.multiply(losses, sample_weight);
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope('weighted_loss'),
+          function(v1: TNameScope): TFTensor
+            begin
+                if sample_weight = nil then
+                begin
+                    if losses.dtype = TF_DataType.TF_DOUBLE then sample_weight := tf.constant(Double(1.0))
+                    else                                         sample_weight := tf.constant(Single(1.0));
+                end;
+                var weighted_losses := math_ops.multiply(losses, sample_weight);
+                // Apply reduction function to the individual weighted losses.
+                var loss := reduce_weighted_loss(weighted_losses, reduction);
+                // Convert the result back to the input type.
+                // loss = math_ops.cast(loss, losses.dtype);
+                Result := loss;
+            end);
 end;
 
 class function losses_utils.squeeze_or_expand_dimensions(y_pred, sample_weight: TFTensor): Tuple<TFTensor, TFTensor>;

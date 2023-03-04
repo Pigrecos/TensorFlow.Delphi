@@ -2893,9 +2893,6 @@ begin
                                                   Result := gen_math_ops.floor_mod(x1, y1, newname)
                                                 else
                                                  raise TFException.Create('Not Implemented BinaryOpWrapper'+ name);
-
-                                                 if  result.op <> nil then
-                                                     var tt := result.op.Inputs;
                                             end );
 end;
 
@@ -4934,8 +4931,10 @@ begin
 end;
 
 function TFOperation.GetOperation(h: Pointer): TFOperation;
+var
+  nodes : TDictionary<string, ITensorOrOperation>;
 begin
-    var nodes := tf.get_default_graph.nodes_by_name;
+    nodes := tf.get_default_graph.nodes_by_name;
     for var node in nodes.Values do
     begin
         if node is TFOperation then

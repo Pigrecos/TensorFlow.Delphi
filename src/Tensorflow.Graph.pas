@@ -478,8 +478,6 @@ begin
 
     SetAttrs;
 
-    // c_api.TF_GraphCopyFunction(outer_graph, _func_graph_handle, IntPtr.Zero, status.Handle);
-    // status.Check(true);
     TFE_ContextAddFunction(tf.Context.Handle_, F_func_graph_handle, status.Handle);
     status.RaiseEx;
 

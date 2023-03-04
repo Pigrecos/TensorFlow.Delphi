@@ -209,17 +209,14 @@ begin
     data_format       := op.get_attr<string>('data_format');
 
     params := Conv2dParams.Create;
-    with params do
-    begin
-        Input            := grad;
-        Filter           := op.inputs[1];
-        Strides          := strides;
-        Padding          := padding;
-        DataFormat       := data_format;
-        Dilations        := dilations;
-        ExplicitPaddings := explicit_paddings;
-        UseCudnnOnGpu    := use_cudnn_on_gpu;
-    end;
+    params.Input            := grad;
+    params.Filter           := op.inputs[1];
+    params.Strides          := strides;
+    params.Padding          := padding;
+    params.DataFormat       := data_format;
+    params.Dilations        := dilations;
+    params.ExplicitPaddings := explicit_paddings;
+    params.UseCudnnOnGpu    := use_cudnn_on_gpu;
 
     Result := [gen_nn_ops.conv2d_backprop_filter(grad, array_ops.shape(op.inputs[1]), op.inputs[2], strides, padding, use_cudnn_on_gpu, explicit_paddings, data_format, dilations ) ,
                gen_nn_ops.conv2d(params) ];

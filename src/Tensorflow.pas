@@ -347,6 +347,7 @@ MathApi = class
     /// <param name="binary_output"></param>
     /// <returns></returns>
     function bincount(arr: TFTensor; weights: TFTensor = nil; minlength: TFTensor = nil; maxlength: TFTensor = nil; dtype: TF_DataType = TF_INT32;  name: string = ''; axis: PTFShape = nil; binary_output: Boolean = false): TFTensor;
+    function in_top_k(predictions: TFTensor; targets: TFTensor; k: Integer; name: string = 'InTopK'): TFTensor;
 end;
 {$ENDREGION}
 
@@ -371,6 +372,7 @@ nn_internal = class
     /// <returns>A Tensor with the same type as `x`.</returns>
     function sigmoid<T>(x: T; name: string = ''): TFTensor ;
     function softmax(logits: TFTensor; axis: Integer = -1; name: string = ''): TFTensor ; overload;
+    function sigmoid_cross_entropy_with_logits(labels: TFTensor; logits: TFTensor; name: string = '') : TFTensor;
     /// <summary>
     /// Computes dropout.
     /// </summary>
@@ -2433,6 +2435,11 @@ begin
    Result := math_ops.sigmoid(x, name);
 end;
 
+function nn_internal.sigmoid_cross_entropy_with_logits(labels, logits: TFTensor; name: string): TFTensor;
+begin
+    result := nn_impl.sigmoid_cross_entropy_with_logits(labels, logits, name);
+end;
+
 function nn_internal.softmax(logits: TFTensor; axis: Integer; name: string): TFTensor;
 begin
    Result :=  gen_nn_ops.softmax(logits, name);
@@ -2504,6 +2511,11 @@ end;
 function MathApi.erf(x: TFTensor; name: string): TFTensor;
 begin
     Result := math_ops.erf(x, name);
+end;
+
+function MathApi.in_top_k(predictions, targets: TFTensor; k: Integer; name: string): TFTensor;
+begin
+    Result := nn_ops.in_top_k(predictions, targets, k, name)
 end;
 
 function MathApi.sum(x: TFTensor; axis: TAxis; name: string): TFTensor;

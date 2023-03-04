@@ -277,10 +277,7 @@ end;
 
 class function gen_nn_ops.in_top_kv2(predictions, targets: TFTensor; k: Integer; name: string): TFTensor;
 begin
-    var _op := tf.OpDefLib._apply_op_helper('InTopKV2', name,[ GetArg('predictions',predictions),
-                                                               GetArg('targets',targets),
-                                                               GetArg('k',k) ] );
-    Result := _op.output;
+    Result := tf.Context.ExecuteOp( 'InTopKV2', name, ExecuteOpArgs.Create([predictions, targets, k]) ).First;
 end;
 
 class function gen_nn_ops.leaky_relu(features: TFTensor; alpha: single; name: string): TFTensor;

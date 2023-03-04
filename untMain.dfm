@@ -2,7 +2,7 @@ object frmMain: TfrmMain
   Left = 0
   Top = 0
   Caption = 'TensorFlow for Delphi'
-  ClientHeight = 558
+  ClientHeight = 568
   ClientWidth = 768
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
@@ -14,14 +14,13 @@ object frmMain: TfrmMain
   TextHeight = 13
   object pnl1: TPanel
     Left = 0
-    Top = 517
+    Top = 527
     Width = 768
     Height = 41
     Align = alBottom
     TabOrder = 0
-    ExplicitLeft = 424
-    ExplicitTop = 432
-    ExplicitWidth = 185
+    ExplicitTop = 526
+    ExplicitWidth = 764
     object btnModels: TBitBtn
       Left = 678
       Top = 8
@@ -81,25 +80,23 @@ object frmMain: TfrmMain
     Left = 0
     Top = 0
     Width = 768
-    Height = 517
+    Height = 527
     Align = alClient
     TabOrder = 1
-    ExplicitTop = 8
-    ExplicitHeight = 417
+    ExplicitWidth = 764
+    ExplicitHeight = 526
     object mmo1: TMemo
       Left = 1
       Top = 1
       Width = 766
-      Height = 515
+      Height = 525
       Align = alClient
       Lines.Strings = (
         'mmo1')
       ScrollBars = ssVertical
       TabOrder = 0
-      ExplicitLeft = -88
-      ExplicitTop = 8
-      ExplicitWidth = 801
-      ExplicitHeight = 349
+      ExplicitWidth = 762
+      ExplicitHeight = 524
     end
   end
 end

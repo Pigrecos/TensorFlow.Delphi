@@ -74,12 +74,12 @@ type
       Inizializers : TInitializers;
       Regularizers : TRegularizers;
       layers       : ILayersApi;
-      losses       : LossesApi;
+      losses       : ILossesApi;
       activations  : TActivations;
       preprocessing: TPreprocessing;
       backend      : BackendImpl;
       optimizers   : OptimizerApi;
-      metrics      : MetricsApi;
+      metrics      : IMetricsApi;
       //public ModelsApi models { get; } = new ModelsApi();
       utils        : KerasUtils;
       constructor Create;
@@ -163,10 +163,8 @@ begin
     Inizializers.Free;
     Regularizers.Free;
     optimizers.Free;
-    metrics.Free;
     utils.Free;
 
-    losses.Free;
     activations.Free;
     preprocessing.Free;
 

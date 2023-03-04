@@ -631,7 +631,7 @@ end;
 
 procedure TfrmMain.FormShow(Sender: TObject);
 begin
-    frmMain.Caption := 'TensorFlow lib ver. : ('+tf.Version +') TensoFlow.NET Commit(3fde7558e2c0a457272075219107b0dee3c8e4e5)'
+    frmMain.Caption := 'TensorFlow lib ver. : ('+tf.Version +') TensoFlow.NET Commit(ca9f574fce755dd92f365d732b1ff1a20b568ecf)'
 end;
 
 type
@@ -655,6 +655,9 @@ begin
     mmo1.Lines.Add('');
 
     k_Layers := Keras_Layers_test.Create;
+
+    mmo1.Lines.Add('Keras CategoryEncoding Layers[CategoryEncoding]');
+    k_Layers.CategoryEncoding;
 
     mmo1.Lines.Add('Keras Activation Layers[LeakyReLU]');
     k_Layers.ActivationTest_LeakyReLU;
@@ -831,6 +834,9 @@ begin
     mmo1.Lines.Add('Test Keras CosineSimilarity Losses...');
     mmo1.Lines.Add('========================================');
     mmo1.Lines.Add('');
+
+    mmo1.Lines.Add('Keras BinaryCrossentropy Losses');
+    k_losses.BinaryCrossentropy;
 
     mmo1.Lines.Add('Keras CosineSimilarity Losses[Default]');
     k_losses.CosineSimilarity_Default;
@@ -1200,6 +1206,9 @@ begin
       mmo1.Lines.Add('Neural NetworkTest Test Start....');
       var NeuralNetworkTest := EagerModeTestBase.Create;
       NeuralNetworkTest.NeuralNetworkTest_l2_loss;
+      mmo1.Lines.Add('Metric top_k_categorical_accuracy Test Start....');
+      NeuralNetworkTest.top_k_categorical_accuracy ;
+
       mmo1.Lines.Add('Neural NetworkTest Test End....');
       NeuralNetworkTest.Free;
 

@@ -188,6 +188,8 @@ end;
 class function constant_op.convert_to_eager_tensor(value: TValue; dtype: TF_DataType; shape: PTFShape; name: AnsiString; verify_shape, allow_broadcast: Boolean): TFTensor;
 begin
     var t := convert_to_eager_tensor(value, tf.Context, dtype);
+    if (dtype <> TF_DataType.DtInvalid) and (dtype <> t.dtype) then
+       t := math_ops.cast(t, dtype);
 
     if ( PTFShape(shape) = nil) or (shape.IsNull) then
         Exit(t);

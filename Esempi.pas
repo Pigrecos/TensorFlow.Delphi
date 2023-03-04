@@ -89,6 +89,10 @@ type
 
       procedure clip_by_global_norm;
       procedure NeuralNetworkTest_l2_loss;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/metrics/top_k_categorical_accuracy
+      /// </summary>
+      procedure top_k_categorical_accuracy;
   end;
 
   PreprocessingTests = class(EagerModeTestBase)
@@ -230,6 +234,10 @@ type
         procedure UpSampling2D;
         procedure Reshape;
         procedure Permute;
+        /// <summary>
+        /// https://www.tensorflow.org/api_docs/python/tf/keras/layers/CategoryEncoding
+        /// </summary>
+        procedure CategoryEncoding;
   end;
 
   Keras_Losses_test = class
@@ -249,6 +257,8 @@ type
 
         constructor Create;
 
+        // https://www.tensorflow.org/api_docs/python/tf/keras/losses/BinaryCrossentropy
+        procedure BinaryCrossentropy;
         // https://keras.io/api/losses/regression_losses/
         procedure CosineSimilarity_Default;
         procedure CosineSimilarity_Sample_Weight;
@@ -271,7 +281,7 @@ type
         procedure MeanAbsoluteError_None;
   end;
 
-   procedure On_Epoch_Begin(msg: string; CurrEpoch: integer; TotEpochs: Integer);
+   procedure On_Epoch_Begin(msg: string);
    procedure On_Train_Batch_Begin(msg: string);
    procedure On_End_Summary(msg: string);
 
@@ -287,7 +297,7 @@ implementation
 
              ProtoGen.variable;
 
-procedure On_Epoch_Begin(msg: string; CurrEpoch: integer; TotEpochs: Integer);
+procedure On_Epoch_Begin(msg: string);
 begin
     frmMain.mmo1.Lines.Add(msg)
 end;
@@ -481,6 +491,18 @@ begin
     if not tf.executing_eagerly then
        tf.enable_eager_execution;
     tf.Context.ensure_initialized;
+end;
+
+procedure EagerModeTestBase.top_k_categorical_accuracy;
+begin
+    var y_true := np.np_array< TArray<Integer>>([[ 0, 0, 1 ], [ 0, 1, 0 ]]);
+    var y_pred := np.np_array< TArray<Single>>([[ 0.1, 0.9, 0.8 ], [ 0.05, 0.95, 0 ]]);
+
+    var m := tf.keras.metrics.top_k_categorical_accuracy(y_true, y_pred, 3);
+
+    var expected : TArray<Single> := [ 1, 1 ];
+    var actual := m.numpy.ToArray<Single>;
+    Assert.IsTrue(TUtils.SequenceEqual<Single>(expected, actual));
 end;
 
 { ActivationFunctionTest }
@@ -1327,6 +1349,37 @@ begin
     Assert.IsTrue(TFShape.Create([1, 2, 2, 2, 1]) =  y.shape);
 end;
 
+procedure Keras_Layers_test.CategoryEncoding;
+begin
+    // one-hot
+    var inputs := np.np_array<Integer>([3, 2, 0, 1 ]);
+    var layer  := tf.keras.layers.CategoryEncoding(4);
+    var output : TFTensor := layer.Apply(TFTensors.Create(inputs)).First;
+    Assert.IsTrue(TFShape.Create([4, 4]) = output.shape);
+    Assert.IsTrue(TUtils.SequenceEqual<Single>(output[0].ToArray<Single>,[ 0, 0, 0, 1 ]));
+    Assert.IsTrue(TUtils.SequenceEqual<Single>(output[1].ToArray<Single>,[ 0, 0, 1, 0 ]));
+    Assert.IsTrue(TUtils.SequenceEqual<Single>(output[2].ToArray<Single>,[ 1, 0, 0, 0 ]));
+    Assert.IsTrue(TUtils.SequenceEqual<Single>(output[3].ToArray<Single>,[ 0, 1, 0, 0 ]));
+    // multi-hot
+    inputs := np.np_array<TArray<Integer>>([ [ 0, 1 ], [ 0, 0 ], [ 1, 2 ], [ 3, 1 ] ]);
+    layer  := tf.keras.layers.CategoryEncoding(4, 'multi_hot');
+    output := layer.Apply(TFTensors.Create(inputs)).First;
+    Assert.IsTrue(TUtils.SequenceEqual<Single>(output[0].ToArray<Single>,[ 1, 1, 0, 0 ]));
+    Assert.IsTrue(TUtils.SequenceEqual<Single>(output[1].ToArray<Single>,[ 1, 0, 0, 0 ]));
+    Assert.IsTrue(TUtils.SequenceEqual<Single>(output[2].ToArray<Single>,[ 0, 1, 1, 0 ]));
+    Assert.IsTrue(TUtils.SequenceEqual<Single>(output[3].ToArray<Single>,[ 0, 1, 0, 1 ]));
+
+    // using weighted inputs in "count" mode
+    inputs := np.np_array<TArray<Integer>>([ [ 0, 1 ], [ 0, 0 ], [ 1, 2 ], [ 3, 1 ] ]);
+    var weights := np.np_array<TArray<Single>>([ [  0.1, 0.2 ], [ 0.1, 0.1 ], [ 0.2, 0.3 ], [ 0.4, 0.2 ] ]);
+    layer := tf.keras.layers.CategoryEncoding(4, 'count', False, weights);
+    output := layer.Apply(TFTensors.Create(inputs)).First;
+    Assert.IsTrue(TUtils.SequenceEqual<Single>(output[0].ToArray<Single>,[ 0.1, 0.2, 0, 0 ]));
+    Assert.IsTrue(TUtils.SequenceEqual<Single>(output[1].ToArray<Single>,[ 0.2, 0, 0, 0 ]));
+    Assert.IsTrue(TUtils.SequenceEqual<Single>(output[2].ToArray<Single>,[ 0, 0.2, 0.3, 0 ]));
+    Assert.IsTrue(TUtils.SequenceEqual<Single>(output[3].ToArray<Single>,[ 0, 0.2, 0, 0.4 ]));
+end;
+
 procedure Keras_Layers_test.Concatenate;
 begin
     var x := np.arange(20).reshape( TFShape.Create([2, 2, 5]) );
@@ -1410,6 +1463,45 @@ begin
     var aPred_MAE : TArray< TArray<Single>> := [ [ 1.0, 1.0 ], [ 1.0, 0.0 ] ];
     y_true_float_MAE := TNDArray.Create(aTrue_MAE);
     y_pred_float_MAE := TNDArray.Create(aPred_MAE);
+end;
+
+
+procedure Keras_Losses_test.BinaryCrossentropy;
+begin
+    // Example 1: (batch_size = 1, number of samples = 4)
+    var aYT : TArray< Single> := [ 0, 1, 0, 0 ];
+    var aYP : TArray< Single> := [ -18.6, 0.51, 2.94, -12.8 ];
+    var y_true := tf.constant(aYT);
+    var y_pred := tf.constant(aYP);
+    var bce := tf.keras.losses.BinaryCrossentropy(true);
+    var loss : NDArray := bce.Call(y_true, y_pred).numpy;
+    Assert.AreEqual<Single>(Single(loss), 0.865458);
+
+    // Example 2: (batch_size = 2, number of samples = 4)
+    var aYT1 : TArray< TArray<Single>> := [ [ 0, 1 ], [ 0, 0 ] ];
+    var aYP1 : TArray< TArray<Single>> := [ [ -18.6, 0.51 ], [ 2.94, -12.8 ] ];
+    y_true := tf.constant(aYT1);
+    y_pred := tf.constant(aYP1);
+    bce := tf.keras.losses.BinaryCrossentropy(true);
+    loss := bce.Call(y_true, y_pred).numpy;
+    Assert.AreEqual<Single>(Single(loss), 0.865458);
+
+    // Using 'sample_weight' attribute
+    var sW : TArray< Single> := [0.8, 0.2 ];
+    loss := bce.Call(y_true, y_pred, tf.constant(sW), ).numpy;
+    Assert.AreEqual<Single>(Single(loss), 0.2436386);
+
+    // Using 'sum' reduction` type.
+    bce := tf.keras.losses.BinaryCrossentropy(true, 0, -1, Reduction.SUM);
+    loss := bce.Call(y_true, y_pred).numpy;
+    Assert.AreEqual<Single>(Single(loss), 1.730916);
+
+    // Using 'none' reduction type.
+    bce := tf.keras.losses.BinaryCrossentropy(true, 0, -1, Reduction.NONE);
+    loss := bce.Call(y_true, y_pred).numpy;
+
+    var expected := np.np_array<Single>([ 0.23515666, 1.4957594 ], np.np_float32);
+    Assert.IsTrue(expected.Equals(loss));
 end;
 
 procedure Keras_Losses_test.CosineSimilarity_Default;
@@ -1690,12 +1782,13 @@ end;
 
 procedure LayersTest.TensorFlowOpLayer;
 var
-  mean   : TFTensor;
-  adv    : TFTensor;
+  mean   : TTensor;
+  adv    : TTensor;
   value  : TFTensor;
   inputs : TFTensors;
   x      : TFTensors;
 begin
+
     var l_layers := tf.keras.layers;
     inputs   := l_layers.Input( TFShape.Create([24]) );
     x        := l_layers.Dense(128, 'relu').Apply(inputs);
@@ -1703,8 +1796,7 @@ begin
     adv      := l_layers.Dense(1).Apply(x).First;
 
     var aAxis : TAxis := 1;
-    var ggg := tf.reduce_mean(adv, @aAxis, true);
-    mean         := adv - TTensor( ggg );
+    mean         := adv - tf.reduce_mean(adv, @aAxis, true);;
     adv          := l_layers.Subtract.Apply(TFTensors.Create([adv, mean])).first;
     var outputs  := l_layers.Add.Apply(TFTensors.Create([value, adv]));
     var model    := tf.keras.Model(inputs, outputs);

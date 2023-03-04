@@ -1393,12 +1393,29 @@ type
                           aggregation     : TVariableAggregation    = VARIABLE_AGGREGATION_NONE;
                           trainable       : Boolean= true;
                           getter          : TFunc<VariableArgs, IVariableV1>= nil): IVariableV1; override;
-  public
+    public
       constructor Create(name: string = ''; dtype: TF_DataType = DtInvalid);
       function  update_state(y_true: TFTensor; y_pred: TFTensor; sample_weight: TFTensor = nil): TFTensor; virtual;
       procedure reset_states; virtual;
       function  R_result: TFTensor; virtual;
       function  ToString: string; override;
+  end;
+  {$ENDREGION}
+
+  {$REGION 'CategoryEncoding'}
+  /// <summary>
+  /// This layer provides options for condensing data into a categorical encoding when the total number of tokens are known in advance.
+  /// </summary>
+  CategoryEncoding = class(Layer)
+    protected
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+    public
+      args : CategoryEncodingArgs;
+
+      constructor Create(_args: CategoryEncodingArgs) ;
+      function  encode_categorical_inputs(inputs: TFTensor; output_mode: string; depth: Integer; dtype : TF_DataType = TF_FLOAT; sparse: Boolean = false; count_weights: TFTensor = nil) : TFTensors;
+
   end;
   {$ENDREGION}
 
@@ -5529,7 +5546,56 @@ begin
 end;
 
 {$ENDREGION}
+{ CategoryEncoding }
+
+constructor CategoryEncoding.Create(_args: CategoryEncodingArgs);
+begin
+    inherited Create(_args);
+    args := _args;
+end;
+
+function CategoryEncoding.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    var depth := args.NumTokens;
+    var max_value := tf.reduce_max(inputs.First);
+    var min_value := tf.reduce_min(inputs.First);
+    (*var condition = tf.logical_and(tf.greater(tf.cast(constant_op.constant(depth), max_value.dtype), max_value),
+        tf.greater_equal(min_value, tf.cast(constant_op.constant(0), min_value.dtype)));*)
+    var bincounts := encode_categorical_inputs(inputs.First, args.OutputMode, depth, args.DType, args.Sparse, args.CountWeights);
+    if args.OutputMode <> 'tf_idf' then
+    begin
+        Result := bincounts;
+        Exit;
+    end;
+    Result := inputs;
+end;
+
+function CategoryEncoding.ComputeOutputShape(input_shape: TFShape): TFShape;
+begin
+     Result := input_shape;
+end;
+
+function CategoryEncoding.encode_categorical_inputs(inputs: TFTensor; output_mode: string; depth: Integer; dtype: TF_DataType; sparse: Boolean;
+  count_weights: TFTensor): TFTensors;
+begin
+    var binary_output : Boolean := false;
+    if output_mode = 'one_hot' then
+    begin
+        binary_output := true;
+        if inputs.shape[-1] <> 1 then
+        begin
+            inputs := tf.expand_dims(inputs, -1);
+        end;
+    end
+    else if output_mode = 'multi_hot' then
+    begin
+        binary_output := true;
+    end;
+    var depth_tensor := constant_op.constant(depth);
+    var s : TFShape := -1;
+    var Res := tf.math.bincount(inputs, count_weights, depth_tensor, depth_tensor, dtype, '',  @s, binary_output);
+    Result := TFTensors.Create(Res);
+end;
+
 end.
-
-
 

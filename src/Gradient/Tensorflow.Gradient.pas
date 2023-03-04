@@ -725,7 +725,7 @@ begin
             // foreach (var i in zero_indices)
             //     out_gradients[i] = trace.output_tensor_info[i].ZerosLike();
             in_gradients := trace.backward_function(out_gradients.ToArray, unneeded_gradients.ToArray);
-            if Length(in_gradients) <> Length(trace.input_tensor_id) then
+            if (Length(in_gradients) <> Length(trace.input_tensor_id)) and ((Length(in_gradients) + unneeded_gradients.Count) <> Length(trace.input_tensor_id))then
                 raise TFException.Create( Format('Recorded operation "%s" returned too few gradients. Expected %d but received %d',[trace.op_type, Length(trace.input_tensor_id), Length(in_gradients)]) );
             if not F_persistent then
             begin
@@ -736,9 +736,18 @@ begin
         begin
             SetLength(in_gradients, Length(trace.input_tensor_id));
         end;
+
+        var k : Integer := 0;
+        var skip_unneeded_id : Boolean := Length(trace.input_tensor_id) > Length(in_gradients);
         for var i := 0 to Length(in_gradients) - 1 do
         begin
-            var id := trace.input_tensor_id[i];
+            if k >= Length(trace.input_tensor_id) then Break;
+
+            if (skip_unneeded_id) and (unneeded_gradients.Contains(k)) then Inc(k);
+            var id := trace.input_tensor_id[k];
+
+            Inc(k);
+
             if in_gradients[i] <> nil then
             begin
                 if not gradients.ContainsKey(id) then

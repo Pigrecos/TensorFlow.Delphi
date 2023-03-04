@@ -309,7 +309,9 @@ begin
         FchangedMode := true;
     end;
 
-    if rhs.FHandleNDArray = nil then
+    if lhs.FHandleNDArray = nil then
+      Result := TNDArray.scalar(False)
+    else if rhs.FHandleNDArray = nil then
       Result := TNDArray.scalar(False)
     else
       Result := TNDArray.Create(math_ops.equal(lhs, rhs));
@@ -329,7 +331,10 @@ begin
         FchangedMode := true;
     end;
 
-    Result := TNDArray.Create (math_ops.not_equal(lhs,rhs));
+    if (lhs.FHandleNDArray = nil) or (rhs.FHandleNDArray = nil) then
+      Result := True
+    else
+      Result := TNDArray.Create (math_ops.not_equal(lhs,rhs));
 
     if FChangedMode then
        tf.Context.restore_mode;

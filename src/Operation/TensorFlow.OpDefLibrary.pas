@@ -407,6 +407,9 @@ begin
                               op_def);
 
     scope._exit_;
+    // Force Syncronize Output with corect graph
+    if ret_op.op <> nil then
+       var tt := ret_op.op.Inputs;
 
     g.gExit;
 

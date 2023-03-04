@@ -51,6 +51,16 @@ type
       constructor Create;
  end;
 
+ CategoryEncodingArgs = class(LayerArgs)
+    private
+
+    public
+       NumTokens     : Integer;
+        OutputMode   : string;
+        Sparse       : boolean ;
+        CountWeights : TNDArray;
+ end;
+
  ConvolutionalArgs = class(LayerArgs)
     private
 

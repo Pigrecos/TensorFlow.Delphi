@@ -42,7 +42,7 @@ RandomizedImpl = record
      function  random(size: TFShape): TNDArray;
      function  randint(low: Integer; high : pInteger = nil; size : PTFShape= nil; dtype: TF_DataType = TF_INT32): TNDArray;
      function  randn(shape : TArray<Integer>= [] ): TNDArray;
-     function  normal(loc : Single= 0.0; scale: Single = 1.0; size : PTFShape= nil): TNDArray;
+     function  normal(size : PTFShape= nil; loc : Single= 0.0; scale: Single = 1.0): TNDArray;
      function  uniform(low: Single = 0.0; high: Single = 1.0; size : PTFShape= nil): TNDArray;
 end;
 
@@ -97,6 +97,8 @@ np = record
         class function frombuffer(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType): TNDArray;static;
         class function ones(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_DOUBLE): TNDArray;static;
         class function zeros(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_DOUBLE): TNDArray;static;
+        class function ones_like(a: TNDArray; dtype : TF_DataType= TF_DataType.DtInvalid): TNDArray;static;
+        class function zeros_like(a: TNDArray; dtype : TF_DataType= TF_DataType.DtInvalid): TNDArray;static;
         // numPy.Math
         class function sum(x1: TNDArray; axis: PAxis = nil) : TNDArray;static;
         class function add(x: TNDArray; y: TNDArray): TNDArray;static;
@@ -115,6 +117,7 @@ np = record
         class function cos(x: TNDArray): TNDArray;static;
         // numPy.Manipulation
         class function expand_dims(a: TNDArray; axis: TAxis): TNDArray;static;
+        class function concatenate(tTuple: Tuple<TNDArray,TNDArray>; axis: Integer = 0): TNDArray;static;
 end;
 
 NumPyImpl = class
@@ -197,6 +200,11 @@ begin
     Result := TNDArray.Create(array_ops.expand_dims(a, axis));
 end;
 
+class function np.concatenate(tTuple: Tuple<TNDArray, TNDArray>; axis: Integer): TNDArray;
+begin
+    Result := TNDArray.Create(array_ops.concat([tTuple.Value1, tTuple.Value2], axis));
+end;
+
 class function np.floor(x: TNDArray): TNDArray;
 begin
    Result := TNDArray.Create( math_ops.floor(x) );
@@ -250,6 +258,16 @@ end;
 class function np.ones(shape: TFShape; dtype: TF_DataType): TNDArray;
 begin
    Result := TNDArray.Create(tf.ones(shape, dtype));
+end;
+
+class function np.ones_like(a: TNDArray; dtype: TF_DataType): TNDArray;
+begin
+    Result := TNDArray.Create(tf.ones_like(a, dtype));
+end;
+
+class function np.zeros_like(a: TNDArray; dtype: TF_DataType): TNDArray;
+begin
+   Result := TNDArray.Create(tf.zeros_like(a, dtype));
 end;
 
 class function np.zeros(shape: TFShape; dtype: TF_DataType): TNDArray;
@@ -575,7 +593,7 @@ begin
        tf.Context.restore_mode;
 end;
 
-function RandomizedImpl.normal(loc, scale: Single; size: PTFShape): TNDArray;
+function RandomizedImpl.normal(size : PTFShape= nil; loc : Single= 0.0; scale: Single = 1.0): TNDArray;
 var
   FChangedMode : Boolean;
 begin

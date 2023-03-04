@@ -196,6 +196,22 @@ begin
                     end );
 end;
 
+// [RegisterGradient("Rsqrt")]
+function _RsqrtGrad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
+begin
+    var grad := grads[0];
+    var y    := op.outputs[0];
+    var adeps : TArray<TValue> := [ grad ];
+    Result := TUtils.tf_with<TControlDependenciesController,TArray<TFTensor>>( Tops.control_dependencies(adeps),
+                  function(v1: TControlDependenciesController): TArray<TFTensor>
+                    begin
+                        y := math_ops.conj(y);
+                        var factor := constant_op.constant(Single(-0.5), y.dtype,'Const') ;
+
+                        Result := [ TTensor(grad) * (factor * TTensor(math_ops.square(y)) * y) ];
+                    end );
+end;
+
 // [RegisterNoGradient('GreaterEqual')]
 function _GreaterEqualGrad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
 begin
@@ -934,6 +950,7 @@ begin
                        TGradFunc.Create('Cumsum',      _CumsumGrad),
                        TGradFunc.Create('DivNoNan',    _DivNoNanGrad),
                        TGradFunc.Create('Exp',         _ExpGrad),
+                       TGradFunc.Create('Rsqrt',       _RsqrtGrad),
                        TGradFunc.Create('GreaterEqual',_GreaterEqualGrad ),
                        TGradFunc.Create('OnesLike',    _OnesLike),
                        TGradFunc.Create('ZerosLike',   _ZerosLike),

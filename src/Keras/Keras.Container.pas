@@ -118,6 +118,7 @@ implementation
              Tensorflow.math_ops,
              Tensorflow.array_ops,
 
+             Keras.MetricsApi,
              Keras.Utils;
 
 { Reduce }
@@ -216,22 +217,22 @@ begin
         var is_sparse_categorical : Boolean := ((y_t_rank < y_p_rank) or (y_t_last_dim = 1)) and (y_p_last_dim > 1);
 
         if is_binary then
-            metric_obj := tf.keras.metrics.binary_accuracy
+            metric_obj := MetricsApi(tf.keras.metrics).binary_accuracy
         else if is_sparse_categorical then
-            metric_obj := tf.keras.metrics.sparse_categorical_accuracy
+            metric_obj := MetricsApi(tf.keras.metrics).sparse_categorical_accuracy
         else
-            metric_obj := tf.keras.metrics.categorical_accuracy;
+            metric_obj := MetricsApi(tf.keras.metrics).categorical_accuracy;
 
         metric := 'accuracy';
     end
     else if (metric = 'mean_absolute_error') or (metric = 'mae')  then
     begin
-        metric_obj := tf.keras.metrics.mean_absolute_error;
+        metric_obj := MetricsApi(tf.keras.metrics).mean_absolute_error;
         metric     := 'mean_absolute_error';
     end
     else if (metric = 'mean_absolute_percentage_error') or (metric = 'mape') then
     begin
-        metric_obj := tf.keras.metrics.mean_absolute_percentage_error;
+        metric_obj := MetricsApi(tf.keras.metrics).mean_absolute_percentage_error;
         metric     := 'mean_absolute_percentage_error';
     end
     else
