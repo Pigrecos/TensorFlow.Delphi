@@ -1043,11 +1043,11 @@ end;
 
 procedure TfrmMain.btnModelsClick(Sender: TObject);
 begin
-  //
-    var mnistGAN := TMnistGAN.Create;
+  // ****mnistGAN experimental For testing, under development
+  (*var mnistGAN := TMnistGAN.Create;
     mmo1.Clear;
     mmo1.Lines.Add('Model Name: '+ mnistGAN.Config.Name);
-    mnistGAN.Run;
+    mnistGAN.Run;*)
   //
     var Cnn := DigitRecognitionCnnKeras.Create;
     mmo1.Clear;
