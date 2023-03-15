@@ -412,8 +412,8 @@ begin
        var tt := ret_op.op.Inputs;
 
     g.gExit;
-
     Result := ret_op;
+
 end;
 
 class function OpDefLibrary._MakeShape(shape: TFShape; attr_def:TAttrDef): TTensorShapeProto;
