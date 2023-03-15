@@ -35,7 +35,7 @@ type
     FTypeAttr: string;
     FNumberAttr: string;
     FTypeListAttr: string;
-    FHandleDatas: TList<TResourceHandleProto>;
+    FHandleDatas: TObjectList<TResourceHandleProto>;
     FIsRef: Boolean;
     FExperimentalFullType: TFullTypeDef;
   public
@@ -48,7 +48,7 @@ type
     property TypeAttr: string read FTypeAttr write FTypeAttr;
     property NumberAttr: string read FNumberAttr write FNumberAttr;
     property TypeListAttr: string read FTypeListAttr write FTypeListAttr;
-    property HandleDatas: TList<TResourceHandleProto> read FHandleDatas;
+    property HandleDatas: TObjectList<TResourceHandleProto> read FHandleDatas;
     property IsRef: Boolean read FIsRef write FIsRef;
     property ExperimentalFullType: TFullTypeDef read FExperimentalFullType write FExperimentalFullType;
   end;
@@ -100,10 +100,10 @@ type
     ftIsDistributedCommunication = 21;
   private
     FName: string;
-    FInputArgs: TList<TArgDef>;
-    FOutputArgs: TList<TArgDef>;
+    FInputArgs: TObjectList<TArgDef>;
+    FOutputArgs: TObjectList<TArgDef>;
     FControlOutputs: TList<string>;
-    FAttrs: TList<TAttrDef>;
+    FAttrs: TObjectList<TAttrDef>;
     FDeprecation: TOpDeprecation;
     FSummary: string;
     FDescription: string;
@@ -117,10 +117,10 @@ type
     destructor  Destroy; Override;
     // properties
     property Name: string read FName write FName;
-    property InputArgs: TList<TArgDef> read FInputArgs;
-    property OutputArgs: TList<TArgDef> read FOutputArgs;
+    property InputArgs: TObjectList<TArgDef> read FInputArgs;
+    property OutputArgs: TObjectList<TArgDef> read FOutputArgs;
     property ControlOutputs: TList<string> read FControlOutputs;
-    property Attrs: TList<TAttrDef> read FAttrs;
+    property Attrs: TObjectList<TAttrDef> read FAttrs;
     property Deprecation: TOpDeprecation read FDeprecation write FDeprecation;
     property Summary: string read FSummary write FSummary;
     property Description: string read FDescription write FDescription;
@@ -150,12 +150,12 @@ type
   const
     ftOps = 1;
   private
-    FOps: TList<TOpDef>;
+    FOps: TObjectList<TOpDef>;
   public
     Constructor Create;
     destructor  Destroy; Override;
     // properties
-    property Ops: TList<TOpDef> read FOps;
+    property Ops: TObjectList<TOpDef> read FOps;
   end;
 
 implementation
@@ -166,11 +166,12 @@ Constructor TArgDef.Create;
 begin
   inherited Create;
   
-  FHandleDatas := TList<TResourceHandleProto>.Create;
+  FHandleDatas := TObjectList<TResourceHandleProto>.Create;
 end;
 
 destructor TArgDef.Destroy;
 begin
+  FHandleDatas.Clear;
   FHandleDatas.Free;
   inherited Destroy;
 end;
@@ -193,21 +194,29 @@ Constructor TOpDef.Create;
 begin
   inherited Create;
   
-  FInputArgs := TList<TArgDef>.Create;
+  FInputArgs := TObjectList<TArgDef>.Create;
   
-  FOutputArgs := TList<TArgDef>.Create;
+  FOutputArgs := TObjectList<TArgDef>.Create;
   
   FControlOutputs := TList<string>.Create;
   
-  FAttrs := TList<TAttrDef>.Create;
+  FAttrs := TObjectList<TAttrDef>.Create;
 end;
 
 destructor TOpDef.Destroy;
 begin
+  FInputArgs.Clear;
   FInputArgs.Free;
+
+  FOutputArgs.Clear;
   FOutputArgs.Free;
+
+  FControlOutputs.Clear;
   FControlOutputs.Free;
+
+  FAttrs.Clear;
   FAttrs.Free;
+
   inherited Destroy;
 end;
 
@@ -229,7 +238,7 @@ Constructor TOpList.Create;
 begin
   inherited Create;
   
-  FOps := TList<TOpDef>.Create;
+  FOps := TObjectList<TOpDef>.Create;
 end;
 
 destructor TOpList.Destroy;
