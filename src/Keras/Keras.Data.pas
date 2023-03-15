@@ -73,8 +73,8 @@ type
   KerasDataset = class
     public
       Mnist : TMnist;
-
       constructor Create;
+      destructor Destroy; override;
   end;
 
   DataHandlerArgs = class
@@ -1961,6 +1961,12 @@ end;
 constructor KerasDataset.Create;
 begin
    Mnist := TMnist.Create;
+end;
+
+destructor KerasDataset.Destroy;
+begin
+   Mnist.free;
+   inherited Destroy;
 end;
 
 end.

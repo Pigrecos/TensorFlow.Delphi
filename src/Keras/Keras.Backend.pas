@@ -270,6 +270,7 @@ end;
 destructor BackendImpl.Destroy;
 begin
   _SESSION.Free;
+  Tops.clear_default_graph;
 
   PER_GRAPH_LAYER_NAME_UIDS.Clear;
   PER_GRAPH_LAYER_NAME_UIDS.Free;

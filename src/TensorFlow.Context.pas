@@ -83,7 +83,7 @@ type
 
   ContextSwitchStack = class
     private
-       FStack : TStack<ContextSwitch>;
+       FStack : TObjectStack<ContextSwitch>;
     public
       constructor Create(isEager, isFunc: Boolean);
       destructor  Destroy; override;
@@ -244,7 +244,7 @@ end;
 
 constructor ContextSwitchStack.Create(isEager, isFunc: Boolean);
 begin
-    FStack := TStack<ContextSwitch>.Create;
+    FStack := TObjectStack<ContextSwitch>.Create;
     Push(isEager, isFunc)
 end;
 
@@ -291,6 +291,7 @@ end;
 
 constructor TContext.Create;
 begin
+    inherited Create;
     _device_policy       := TFE_DEVICE_PLACEMENT_SILENT;
     defaultExecutionMode := C_EAGER_MODE;
     context_switches := ContextSwitchStack.Create(defaultExecutionMode = C_EAGER_MODE, false);
@@ -302,10 +303,10 @@ end;
 
 destructor TContext.Destroy;
 begin
-   inherited Destroy;
    context_switches.Free;
    FFunctionCallOptions.Free;
    FConfig.Free;
+   inherited Destroy;
 end;
 
 procedure TContext.ensure_initialized;
