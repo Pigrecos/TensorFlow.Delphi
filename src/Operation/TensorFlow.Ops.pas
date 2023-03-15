@@ -220,6 +220,7 @@ type
       /// </summary>
       /// <returns></returns>
       class function get_default_graph: TFGraph;
+      class procedure clear_default_graph;
       /// <summary>
       /// Returns the default session for the current thread.
       /// </summary>
@@ -248,7 +249,7 @@ type
       class procedure pop_graph;
 
       constructor Create;
-      destructor Destroy;override;
+      destructor Destroy; override;
 
       property isSingleThreaded    : Boolean           read FisSingleThreaded   write SetSingleThread;
       property default_graph_stack : DefaultGraphStack read Get_default_graph_stack;
@@ -547,7 +548,7 @@ end;
 
 destructor TOps.Destroy;
 begin
-    FreeAndNil(FLock);
+  FreeAndNil(FLock);
 end;
 
 class function TOps.executing_eagerly_outside_functions: Boolean;
@@ -561,15 +562,24 @@ end;
 class function TOps.get_default_graph: TFGraph;
 begin
     if Fdefault_graph_stack = nil then
-           Fdefault_graph_stack  := DefaultGraphStack.Create;
+      Fdefault_graph_stack  := DefaultGraphStack.Create;
 
     Result := Fdefault_graph_stack.get_default
+end;
+
+class procedure TOps.clear_default_graph;
+begin
+    if Fdefault_graph_stack <> nil then
+    begin
+      Fdefault_graph_stack.Free;
+      Fdefault_graph_stack := nil;
+    end;
 end;
 
 class function TOps.set_default_graph(g: TFGraph): TFGraph;
 begin
     if Fdefault_graph_stack = nil then
-           Fdefault_graph_stack  := DefaultGraphStack.Create;
+      Fdefault_graph_stack  := DefaultGraphStack.Create;
 
     Fdefault_graph_stack.get_controller(g);
     Result := g;
@@ -589,16 +599,15 @@ end;
 
 class function TOps.get_default_session: TFSession;
 begin
-     if FdefaultSession = nil then
-        FdefaultSession := TFSession.Create(tf.get_default_graph);
+    if FdefaultSession = nil then
+       FdefaultSession := TFSession.Create(tf.get_default_graph);
 
     Result := FdefaultSession;
 end;
 
 class function TOps.set_default_session(sess: TFSession): TFSession;
 begin
-   FdefaultSession := sess;
-
+    FdefaultSession := sess;
     Result := sess;
 end;
 
