@@ -30,13 +30,13 @@ type
     ftDims = 2;
     ftUnknownRank = 3;
   private
-    FDims: TList<TDim>;
+    FDims: TObjectList<TDim>;
     FUnknownRank: Boolean;
   public
     Constructor Create;
     destructor  Destroy; Override;
     // properties
-    property Dims: TList<TDim> read FDims;
+    property Dims: TObjectList<TDim> read FDims;
     property UnknownRank: Boolean read FUnknownRank write FUnknownRank;
   end;
 
@@ -62,11 +62,12 @@ Constructor TTensorShapeProto.Create;
 begin
   inherited Create;
   
-  FDims := TList<TDim>.Create;
+  FDims := TObjectList<TDim>.Create;
 end;
 
 destructor TTensorShapeProto.Destroy;
 begin
+  FDims.Clear;
   FDims.Free;
   inherited Destroy;
 end;

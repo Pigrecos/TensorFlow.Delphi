@@ -47,8 +47,8 @@ type
     FInt64Vals: TList<Int64>;
     FBoolVals: TList<Boolean>;
     FDcomplexVals: TList<Double>;
-    FResourceHandleVals: TList<TResourceHandleProto>;
-    FVariantVals: TList<TVariantTensorDataProto>;
+    FResourceHandleVals: TObjectList<TResourceHandleProto>;
+    FVariantVals: TObjectList<TVariantTensorDataProto>;
     FUint32Vals: TList<UInt32>;
     FUint64Vals: TList<Int64>;
   public
@@ -68,8 +68,8 @@ type
     property Int64Vals: TList<Int64> read FInt64Vals;
     property BoolVals: TList<Boolean> read FBoolVals;
     property DcomplexVals: TList<Double> read FDcomplexVals;
-    property ResourceHandleVals: TList<TResourceHandleProto> read FResourceHandleVals;
-    property VariantVals: TList<TVariantTensorDataProto> read FVariantVals;
+    property ResourceHandleVals: TObjectList<TResourceHandleProto> read FResourceHandleVals;
+    property VariantVals: TObjectList<TVariantTensorDataProto> read FVariantVals;
     property Uint32Vals: TList<UInt32> read FUint32Vals;
     property Uint64Vals: TList<Int64> read FUint64Vals;
   end;
@@ -82,14 +82,14 @@ type
   private
     FTypeName: string;
     FMetadata: TBytes;
-    FTensorss: TList<TTensorProto>;
+    FTensorss: TObjectList<TTensorProto>;
   public
     Constructor Create;
     destructor  Destroy; Override;
     // properties
     property TypeName: string read FTypeName write FTypeName;
     property Metadata: TBytes read FMetadata write FMetadata;
-    property Tensorss: TList<TTensorProto> read FTensorss;
+    property Tensorss: TObjectList<TTensorProto> read FTensorss;
   end;
 
 implementation
@@ -118,9 +118,9 @@ begin
   
   FDcomplexVals := TList<Double>.Create;
   
-  FResourceHandleVals := TList<TResourceHandleProto>.Create;
+  FResourceHandleVals := TObjectList<TResourceHandleProto>.Create;
   
-  FVariantVals := TList<TVariantTensorDataProto>.Create;
+  FVariantVals := TObjectList<TVariantTensorDataProto>.Create;
   
   FUint32Vals := TList<UInt32>.Create;
   
@@ -150,8 +150,8 @@ end;
 Constructor TVariantTensorDataProto.Create;
 begin
   inherited Create;
-  
-  FTensorss := TList<TTensorProto>.Create;
+
+  FTensorss := TObjectList<TTensorProto>.Create;
 end;
 
 destructor TVariantTensorDataProto.Destroy;

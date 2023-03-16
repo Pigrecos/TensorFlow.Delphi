@@ -19,6 +19,7 @@ unit TensorFlow.Framework;
 
 interface
       uses System.SysUtils,
+           System.Generics.Collections,
 
            Spring,
            Spring.Collections.Dictionaries,
@@ -134,9 +135,9 @@ type
      private
        class var registered_ops  : TDictionary<string,TOpDef>;
      public
-
-     class function get_registered_ops: TDictionary<string,TOpDef> ;
-     class function GetOpDef(tipo : string): TOpDef;
+       class procedure FreeDictionary;
+       class function get_registered_ops: TDictionary<string,TOpDef> ;
+       class function GetOpDef(tipo : string): TOpDef;
    end;
 
    random_seed = record
@@ -165,6 +166,22 @@ implementation
         NumPy.NDArray;
 
 { op_def_registry }
+
+class procedure op_def_registry.FreeDictionary;
+var
+         LItem: TPair<string, TOpDef>;
+begin
+    if Assigned(registered_ops)  then
+    begin
+       for LItem in registered_ops do
+       begin
+         LItem.Value.Free;
+       end;
+       registered_ops.Clear;
+       registered_ops.Free;
+       registered_ops := nil;
+    end;
+end;
 
 class function op_def_registry.GetOpDef(tipo: string): TOpDef;
 begin

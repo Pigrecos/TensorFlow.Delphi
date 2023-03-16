@@ -42,6 +42,7 @@ interface
        TensorFlow.bitwise_ops,
        TensorFlow.linalg_ops,
        Tensorflow.NameScope,
+       TensorFlow.Framework,
        Numpy,
        Numpy.Axis,
 
@@ -1284,6 +1285,7 @@ begin
   strings.Free;
   GraphKeys := System.Default(TGraphKeys);
   data.Free;
+  op_def_registry.FreeDictionary;
   //
   random.Free;
   numpy.Free;

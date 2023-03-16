@@ -46,8 +46,8 @@ type
     protected
       Fgraph : TFGraph;
     public
-      constructor Create;virtual;
-      destructor  Destroy; reintroduce ;virtual;
+      constructor Create; virtual;
+      destructor  Destroy; override;
   end;
 
   TUnitTest_Basic = class(GraphModeTestBase)
@@ -251,7 +251,8 @@ end;
 
 destructor GraphModeTestBase.Destroy;
 begin
-    Fgraph.gExit
+    Fgraph.gExit;
+    Fgraph.Free;
 end;
 
 { SessionTest }
@@ -259,12 +260,12 @@ end;
 constructor TUnitTest_Basic.Create;
 begin
   inherited Create;
-
 end;
 
 destructor TUnitTest_Basic.Destroy;
 begin
-  Fgraph.free;
+  //if assigned(Fgraph) then
+  //  Fgraph.free;
   inherited Destroy;
 end;
 

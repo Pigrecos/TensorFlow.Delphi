@@ -51,14 +51,14 @@ type
     ftI = 4;
   private
     FTypeId: TFullTypeId;
-    FArgss: TList<TFullTypeDef>;
+    FArgss: TObjectList<TFullTypeDef>;
     FAttr: TpbOneof;
   public
     Constructor Create;
     destructor  Destroy; Override;
     // properties
     property TypeId: TFullTypeId read FTypeId write FTypeId;
-    property Argss: TList<TFullTypeDef> read FArgss;
+    property Argss: TObjectList<TFullTypeDef> read FArgss;
     property Attr: TpbOneof read FAttr write FAttr;
   end;
 
@@ -70,7 +70,7 @@ Constructor TFullTypeDef.Create;
 begin
   inherited Create;
   
-  FArgss := TList<TFullTypeDef>.Create;
+  FArgss := TObjectList<TFullTypeDef>.Create;
 end;
 
 destructor TFullTypeDef.Destroy;
