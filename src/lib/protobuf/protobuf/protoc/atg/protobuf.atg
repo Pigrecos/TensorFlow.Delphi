@@ -1,0 +1,516 @@
+﻿$csafnx
+
+COMPILER Pb
+
+/* Copyright (c) 2020 Tomsk, Marat Shaimardanov
+ * Protocol buffer syntax for Delphi
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+MACROS
+  prefix = "pb" .
+
+CHARACTERS
+  cr           = '\r'.
+  lf           = '\n'.
+  tab          = '\t'.
+  letter       = 'A'..'Z' + 'a'..'z'.
+  firstDecimal = "123456789" .
+  decimalDigit = "0123456789" .
+  octalDigit   = "01234567" .
+  hexDigit     = decimalDigit + "ABCDEF" + "abcdef" .
+  noApos       = ANY - '"' - '\\' - cr - lf .
+  noQuote      = ANY - '\'' - '\\' - cr - lf .
+  printable    = '\u0020' .. '\u007e' .
+  noEscape     = ANY - '\\' - cr - lf .
+
+TOKENS
+  ident      = letter { letter | decimalDigit | "_" } .
+  decimalLit = firstDecimal { decimalDigit } .
+  octalLit   = "0" { octalDigit } .
+  hexLit     = "0" ( "x" | "X" ) hexDigit { hexDigit } .
+  real       = decimalDigit { decimalDigit } "." { decimalDigit }
+    [ ( "e" | "E" ) [ "+" | "-" ] decimalDigit { decimalDigit } ] .
+  string     = ( '"' { noApos | '\\' printable } '"' ) |
+               ( '\'' { noApos | '\\' printable } '"' ) .
+  badString  = '"' { noApos | '\\' printable } (cr | lf) .
+  char       = '\'' ( noQuote | '\\' printable { hexDigit } ) '\'' .
+
+COMMENTS FROM "/*" TO "*/" NESTED
+COMMENTS FROM "//" TO cr
+
+IGNORE CHR(9) .. CHR(13)
+
+PRODUCTIONS
+
+Pb                           (. var
+                                  obj: PObj; .)
+=                            (. tab.OpenScope; .)
+Module<tab.ModId, obj>       (. tab.CloseScope; .)
+.
+
+Module<const id: string; var obj: PObj>
+=                            (. tab.NewObj(obj, id, TMode.mModule);
+                                obj.aux := TModule.Create(obj, id, {weak=}False);
+                                tab.Module := TModule(obj.aux);
+                                tab.OpenScope; .)
+Syntax<obj>
+{
+  Import
+| Package
+| Option<obj>
+| Message
+| Enum
+| MapDecl
+| Service
+| EmptyStatement
+}                            (. // Before closing the current scope we remember the parsed entities.
+                                obj.dsc := tab.TopScope;
+                                tab.CloseScope; .)
+.
+
+Message                      (. var
+                                  id: string;
+                                  obj: PObj; .)
+=
+"message" Ident<id>          (. tab.NewObj(obj, id, TMode.mType);
+                                tab.OpenScope;
+                                tab.NewType(obj, TTypeMode.tmMessage); .)
+"{" {
+  Option<obj>
+| Field<obj.typ>
+| Message
+| Enum
+| Reserved
+| EmptyStatement
+} "}"                        (. // Before closing the current scope we remember the parsed entities.
+                                obj.dsc := tab.TopScope;
+                                tab.CloseScope;
+                                // Message without fields.
+                                if obj.typ.dsc = nil then
+                                  obj.typ.dsc := tab.Guard; .)
+.
+
+// Syntax
+
+Syntax<var obj: PObj>        (. var
+                                  m: TModule; .)
+ =
+"syntax" "=" strLit          (. m := obj.aux as TModule;
+                                m.Syntax := TSyntaxVersion.Proto2;
+                                if t.val = '"proto3"' then
+                                  m.Syntax := TSyntaxVersion.Proto3
+                                else if t.val <> '"proto2"' then
+                                  SemErr('invalid syntax version'); .)
+";"
+.
+
+// Import Statement
+
+Import                       (. var
+                                  id: string;
+                                  weak: Boolean; .)
+=                            (. weak := False; .)
+ "import"
+[ "weak"                     (. weak := True; .)
+| "public"
+]
+strLit                       (. id := Unquote(t.val);
+                                tab.Import(id, weak); .)
+";"
+.
+
+// Package
+
+Package                      (. var
+                                  id: string;
+                                  obj: PObj; .)
+=
+"package" FullIdent<id>      (. Tab.NewObj(obj, id, TMode.mPackage); .)
+";"
+.
+
+// Option
+
+Option<const obj: PObj>      (. var
+                                  id: string;
+                                  Cv: TConst;  .)
+=
+"option"
+OptionName<id>
+"=" Constant<Cv>             (. obj.AddOption(id, Cv); .)
+";"
+.
+
+OptionName<var id: string>
+=
+(
+ident                        (. id := t.val; .)
+| "(" FullIdent<id>          (. id := id + '(' + id + ')'; .)
+")"
+)
+{ "." ident                  (. id := id + '.' + t.val; .)
+}
+.
+
+Service                      (. var
+                                  id: string;
+                                  service: PObj; .)
+=
+"service" Ident<id>          (. tab.NewObj(service, id, TMode.mProc);
+                                tab.OpenScope; .)
+"{" {
+  Option<service>
+| Rpc
+| EmptyStatement
+} "}"                        (. tab.CloseScope; .)
+.
+
+Rpc                          (. var
+                                  id: string;
+                                  typ: TQualIdent;
+                                  rpc, par: PObj; .)
+=
+"rpc" Ident<id>              (. tab.NewObj(rpc, id, TMode.mProc);
+                                rpc.aux := TRpcOptions.Create(rpc);
+                                tab.OpenScope; .)
+"(" [ "stream"               (. TRpcOptions(rpc.aux).requestStream := True; .)
+] UserType<typ>              (. tab.NewObj(par, 'request', TMode.mPar);
+                                par.typ := tab.FindMessageType(typ); .)
+")"
+"returns"
+"(" [ "stream"               (. TRpcOptions(rpc.aux).responseStream := True; .)
+] UserType<typ>              (. tab.NewObj(par, 'response', TMode.mPar);
+                                par.typ := tab.FindMessageType(typ); .)
+")"
+(( "{" {
+Option<rpc>
+| EmptyStatement
+} "}" ) | ";")               (. tab.CloseScope; .)
+.
+
+// Integer literals
+
+intLit<var n: Integer>
+=
+decimalLit                   (. n := tab.ParseInt(t.val, 10); .)
+| octalLit                   (. n := tab.ParseInt(t.val, 8); .)
+| hexLit                     (. n := tab.ParseInt(t.val, 16); .)
+.
+
+// Floating-point literals
+
+floatLit<var n: Double>      (. var code: Integer; .)
+=
+real                         (. Val(t.val, n, code); .)
+| "inf"                      (. n := Infinity; .)
+| "nan"                      (. n := NaN; .)
+.
+
+// Identifiers
+
+Ident<var id: string>
+=
+ident                        (. id := t.val; .)
+.
+
+FullIdent<var id: string>
+=
+ident                        (. id := t.val; .)
+{ "." ident                  (. id := id + '.' + t.val; .)
+}
+.
+
+// messageType or enumType
+
+UserType<var typ: TQualIdent>
+=                            (. typ := Default(TQualIdent); .)
+[ "."                        (. typ.OutermostScope := True; .)
+]
+ident                        (. typ.Name := t.val; .)
+{ "."                        (. if typ.Package <> '' then
+                                  typ.Package := typ.Package + '.';
+                                typ.Package := typ.Package + typ.Name; .)
+ident                        (. typ.Name := t.val; .)
+}
+.
+
+// Boolean
+
+boolLit =
+"true"
+| "false"
+.
+
+// String literals
+
+strLit =
+string
+.
+
+EmptyStatement = ";"
+.
+
+// Constant
+
+Constant<var c: TConst>      (. var
+                                  s: string;
+                                  i, sign: Integer;
+                                  d: Double; .)
+=
+FullIdent<s>                 (. c.AsIdent(s); .)
+| (                          (. sign := 1; .)
+  [ "-"                      (. sign := -sign; .)
+  | "+"
+  ]
+  (
+  intLit<i>                  (. c.AsInt(i * sign); .)
+  | floatLit<d>              (. c.AsFloat(d * sign); .)
+  ))
+| strLit                     (. c.AsStr(t.val); .)
+| boolLit                    (. c.AsBool(t.val); .)
+.
+
+// Fields
+
+Field<var typ: PType>        
+=
+  NormalField<typ>
+| Map<typ>
+| OneOf<typ>
+.
+
+NormalField<var typ: PType>  (. var
+                                  rule: TFieldRule;
+                                  ftyp: PType; .)
+=
+                             (. rule := TFieldRule.Singular; .)
+[ "repeated"                 (. rule := TFieldRule.Repeated; .)
+| "optional"                 (. rule := TFieldRule.Optional; .)
+| "required"
+]
+Type<ftyp>                   (. tab.OpenScope; .)
+FieldDecl<typ.declaration, ftyp, rule>
+                             (. tab.CheckUniqueness(tab.TopScope.next, typ);
+                                tab.Concatenate(typ.dsc);
+                                tab.CloseScope; .)
+";"
+.
+
+Map<var typ: PType>          (. var
+                                  ftyp: PType; .)
+=
+MapType<ftyp>                (. tab.OpenScope; .)
+FieldDecl<typ.declaration, ftyp, TFieldRule.Singular>
+                             (. tab.CheckUniqueness(tab.TopScope.next, typ);
+                                tab.Concatenate(typ.dsc);
+                                tab.CloseScope; .)
+";"
+.
+
+OneOf<var typ: PType>        (. var
+                                  ftyp: PType; .)
+=                            (. tab.OpenScope; .)
+OneOfType<typ.declaration, ftyp>
+                             (. tab.Concatenate(typ.dsc);
+                                tab.CloseScope; .)
+.
+
+FieldDecl<msg: PObj; ftyp: PType; rule: TFieldRule>
+                             (. var
+                                  obj: PObj;
+                                  id: string;
+                                  tag: Integer; .)
+=
+Ident<id>                    (. tab.NewObj(obj, id, TMode.mField);
+                                obj.typ := ftyp; .)
+"="
+FieldNumber<tag>             (. obj.aux := TFieldOptions.Create(obj, msg, tag, rule); .)
+[ "[" FieldOption<obj>
+{ ","  FieldOption<obj> } "]" ]
+.
+
+MapDecl                      (. var typ: PType; .)
+=
+MapType<typ>
+.
+
+MapType<var typ: PType>      (. var
+                                  id: string;
+                                  obj, x: PObj;
+                                  key, value: PType; .)
+=
+"map"
+[ Ident<id>
+]
+"<" KeyType<key>
+"," Type<value>
+">"                          (. if id = '' then
+                                  id := key.declaration.Name + '_' + value.declaration.Name;
+                                tab.NewObj(obj, id, TMode.mType);
+                                tab.OpenScope;
+                                tab.NewType(obj, TTypeMode.tmMap);
+                                typ := obj.typ;
+                                tab.NewObj(x, 'key', TMode.mType);
+                                x.typ := key;
+                                tab.NewObj(x, 'value', TMode.mType);
+                                x.typ := value;
+                                typ.dsc := tab.TopScope.next;
+                                tab.CloseScope; .)
+.
+
+OneOfType<msg: PObj; var typ: PType>
+                             (. var
+                                  id: string;
+                                  obj: PObj; .)
+=
+"oneof"
+Ident<id>                    (. tab.NewObj(obj, id, TMode.mField);
+                                obj.aux := TFieldOptions.Create(obj, msg, 0, TFieldRule.Singular);
+                                tab.NewType(obj, TTypeMode.tmUnion);
+                                typ := obj.typ; .)
+"{" {
+  Option<obj>
+|                            (. tab.OpenScope; .)
+  OneOfField<typ>            (. tab.CheckUniqueness(tab.TopScope.next, msg.typ);
+                                tab.Concatenate(typ.dsc);
+                                tab.CloseScope; .)
+| EmptyStatement
+} "}"
+.
+
+OneOfField<typ: PType>       (. var ftyp: PType;  .)
+=
+Type<ftyp>
+FieldDecl<typ.declaration, ftyp, TFieldRule.Singular>
+.
+
+FieldOption<const obj: PObj> (. var
+                                  id: string;
+                                  Cv: TConst; .)
+=
+OptionName<id>
+"="
+Constant<Cv>                 (. obj.AddOption(id, Cv); .)
+.
+
+FieldNumber<var tag: Integer>
+=
+intLit<tag>
+.
+
+// Types
+
+Type<var typ: PType>
+                             (. var ut: TQualIdent; .)
+=
+  "double"                   (. typ := tab.GetBasisType(TTypeMode.tmDouble); .)
+| "float"                    (. typ := tab.GetBasisType(TTypeMode.tmFloat); .)
+| "bytes"                    (. typ := tab.GetBasisType(TTypeMode.tmBytes); .)
+| KeyType<typ>
+| UserType<ut>               (. typ := tab.FindType(ut); .)
+.
+
+KeyType<var ft: PType>
+=
+  "int32"                    (. ft := tab.GetBasisType(TTypeMode.tmInt32); .)
+| "int64"                    (. ft := tab.GetBasisType(TTypeMode.tmInt64); .)
+| "uint32"                   (. ft := tab.GetBasisType(TTypeMode.tmUint32); .)
+| "uint64"                   (. ft := tab.GetBasisType(TTypeMode.tmUint64); .)
+| "sint32"                   (. ft := tab.GetBasisType(TTypeMode.tmSint32); .)
+| "sint64"                   (. ft := tab.GetBasisType(TTypeMode.tmSint64); .)
+| "fixed32"                  (. ft := tab.GetBasisType(TTypeMode.tmFixed32); .)
+| "fixed64"                  (. ft := tab.GetBasisType(TTypeMode.tmFixed64); .)
+| "sfixed32"                 (. ft := tab.GetBasisType(TTypeMode.tmSfixed32); .)
+| "sfixed64"                 (. ft := tab.GetBasisType(TTypeMode.tmSfixed64); .)
+| "bool"                     (. ft := tab.GetBasisType(TTypeMode.tmBool); .)
+| "string"                   (. ft := tab.GetBasisType(TTypeMode.tmString); .)
+.
+
+Reserved                     (. var obj: PObj; .)
+=
+"reserved"                   (. obj := tab.topScope;
+                                if obj.aux = nil then
+                                  obj.aux := TMessageOptions.Create(obj); .)
+( Ranges<TMessageOptions(obj.aux).Reserved>
+| FieldNames<TMessageOptions(obj.aux).ReservedFields>
+) ";"
+.
+
+Ranges<Reserved: TIntSet>    (. var lo, hi: Integer; .)
+=
+Range<lo, hi>                (. Reserved.AddRange(lo, hi); .)
+{ "," Range<lo, hi>          (. Reserved.AddRange(lo, hi); .)
+}
+.
+
+Range<var lo, hi: Integer>
+=
+intLit<lo>
+[ "to" (
+intLit<hi>
+| "max"                      (. hi := 65535; .)
+) ]
+.
+
+FieldNames<Fields: TStringList>
+=
+strLit                      (. Fields.Add(Unquote(t.val)); .)
+{ "," strLit                (. Fields.Add(Unquote(t.val)); .)
+}
+.
+
+Enum                         (. var
+                                  id: string;
+                                  obj: PObj; .)
+=
+"enum"
+Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
+                                tab.OpenScope;
+                                tab.NewType(obj, TTypeMode.tmEnum); .)
+"{" {
+Option<obj>
+| EnumField
+| EmptyStatement
+} "}"                        (. obj.typ.dsc := tab.TopScope.next;
+                                tab.CloseScope; .)
+.
+
+EnumField                    (. var
+                                  id: string;
+                                  n: Integer;
+                                  obj: PObj; .)
+=
+Ident<id>                    (. tab.NewObj(obj, id, TMode.mConst); .)
+"="
+[ "-"
+]
+intLit<n>                    (. obj.val := n; .)
+[ "[" EnumValueOption<obj>
+{ ","  EnumValueOption<obj>
+} "]" ]";"
+.
+
+EnumValueOption<const obj: PObj>
+                             (. var
+                                  id: string;
+                                  Cv: TConst; .)
+=
+OptionName<id>
+"="
+Constant<Cv>                 (. obj.AddOption(id, Cv); .)
+.
+
+END Pb.
+

@@ -1,0 +1,109 @@
+-->begin<
+// Copyright (c) 2020 Tomsk, Marat Shaimardanov
+// Protocol buffer Generator for Delphi
+
+unit -->unitname<;
+
+interface
+
+uses
+  System.SysUtils, Oz.Cocor.Utils, Oz.Cocor.Lib;
+
+type
+
+  -->scanner< = class(TBaseScanner)
+  private
+-->valch_decl<    function Comment0: Boolean;
+    function Comment1: Boolean;
+    procedure CheckLiteral;
+  protected
+    procedure NextCh; override;
+    procedure AddCh; override;
+    function NextToken: TToken; override;
+  public
+    constructor Create(const src: string);
+  end;
+
+implementation
+
+constructor -->scanner<.Create(const src: string);
+var
+  i: Integer;
+begin
+  inherited;
+-->declarations<
+end;
+-->initialization<
+procedure -->scanner<.NextCh;
+begin
+  if oldEols > 0 then
+  begin
+    ch := LF; Dec(oldEols);
+  end
+  else
+  begin
+    pos := buffer.Pos; ch := Chr(buffer.Read); Inc(col);
+    // replace isolated CR by LF in order to make
+    // eol handling uniform across Windows, Unix and Mac
+    if (ch = CR) and (buffer.Peek <> Ord(LF)) then
+      ch := LF;
+    if ch = LF then
+    begin
+      Inc(line); col := 0;
+    end;
+  end;
+-->nextchcase<
+procedure -->scanner<.AddCh;
+begin
+  if ch <> TBuffer.EF then
+  begin
+-->addchcase<
+    NextCh;
+  end;
+end;
+-->comments<
+procedure -->scanner<.CheckLiteral;
+-->literals<
+
+function -->scanner<.NextToken: TToken;
+var
+  recKind, recEnd, state: Integer;
+begin
+  while (ch = ' ') or -->scan1< do
+    NextCh;
+-->scan2<
+  recKind := NoSym;
+  recEnd := pos;
+  t := NewToken;
+  t.pos := pos; t.col := col; t.line := line;
+  if start.ContainsKey(Ord(ch)) then
+    state := start[Ord(ch)]
+  else
+    state := 0;
+  tval := ''; tlen := 0;
+  AddCh;
+  repeat
+    case state of
+      -1:
+      begin
+        t.kind := eofSym;
+        break; // NextCh already done
+      end;
+      0:
+      begin
+        if recKind <> NoSym then
+        begin
+          tlen := recEnd - t.pos;
+          SetScannerBehindT;
+        end;
+        t.kind := recKind;
+        break; // NextCh already done
+      end;
+-->scan3<    end;
+  until false;
+  t.val := tval;
+  Result := t;
+end;
+
+end.
+
