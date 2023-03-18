@@ -16,12 +16,10 @@ unit TensorFlow.gen_control_flow_ops;
 
 interface
     uses System.SysUtils,
-         Spring,
-         TF4D.Core.CApi,
-         TensorFlow.DApi,
-         Numpy.Axis,
 
-         TensorFlow.Context,
+         Spring,
+
+         TensorFlow.DApi,
          Tensorflow.control_flow_ops ;
 
 type

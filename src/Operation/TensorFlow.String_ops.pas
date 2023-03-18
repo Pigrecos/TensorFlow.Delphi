@@ -26,9 +26,7 @@ interface
 
       TF4D.Core.CApi,
       TensorFlow.DApi,
-      TensorFlow.Context,
-      TensorFlow.Tensors.Ragged,
-      Numpy.Axis;
+      TensorFlow.Core;
 
 type
   string_ops = Class
@@ -63,10 +61,10 @@ type
 
 implementation
     uses Tensorflow,
-         Tensorflow.NameScope,
          Tensorflow.Utils,
          TensorFlow.Ops,
-         Tensorflow.array_ops,TensorFlow.Slice ;
+         Tensorflow.array_ops,
+         TensorFlow.Slice ;
 
 { string_ops }
 

@@ -19,9 +19,7 @@ interface
          Spring,
 
          TF4D.Core.CApi,
-         TensorFlow.DApiBase,
-         TensorFlow.DApi,
-         TensorFlow.Variable;
+         TensorFlow.DApi;
 
 type
   gen_resource_variable_ops = record
@@ -62,16 +60,8 @@ type
 
 implementation
      uses Tensorflow,
-           Numpy,
-           TensorFlow.Context,
-           TensorFlow.Ops,
-           Tensorflow.gen_array_ops,
-           TensorFlow.gen_math_ops,
-           Tensorflow.NameScope,
-           Tensorflow.Utils,
-           TensorFlow.Constant_op,
-           TensorFlow.EagerTensor,
-           TensorFlow.EagareRunner;
+          Tensorflow.Utils,
+          Tensorflow.Core;
 
 { gen_resource_variable_ops }
 

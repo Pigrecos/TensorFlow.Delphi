@@ -19,11 +19,11 @@ unit TensorFlow.gen_math_ops;
 interface
     uses System.SysUtils,
          Spring,
+
          TF4D.Core.CApi,
          TensorFlow.DApi,
-         Numpy.Axis,
-
-         TensorFlow.Context ;
+         TensorFlow.Core,
+         Numpy.Axis;
 
 type
 

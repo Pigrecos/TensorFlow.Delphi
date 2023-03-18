@@ -21,12 +21,9 @@ interface
 
          Spring,
 
-         TF4D.Core.CApi,
          TensorFlow.DApi,
-         TensorFlow.DApiBase,
          TensorFlow.OpDefLibrary,
-         Tensorflow.Utils,
-         TensorFlow.Context;
+         Tensorflow.Utils;
 
 type
   gen_ops = record

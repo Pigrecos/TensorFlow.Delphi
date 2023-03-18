@@ -26,8 +26,8 @@ interface
 
          TF4D.Core.CApi,
          TensorFlow.DApi,
-         Tensorflow.Variable,
-         keras.Engine,
+         TensorFlow.Core,
+         Keras.Core,
          Numpy,
 
          hdf5dll,

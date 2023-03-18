@@ -19,13 +19,13 @@ unit TensorFlow.clip_ops;
 
 interface
     uses System.SysUtils,
+
          Spring,
          Spring.Collections.Enumerable,
+
          TF4D.Core.CApi,
          TensorFlow.DApi,
-         Numpy.Axis,
-
-         TensorFlow.Context;
+         TensorFlow.Core;
 
 type
   clip_ops = record
@@ -46,11 +46,9 @@ type
 implementation
          uses TensorFlow.Tensor,
               Tensorflow.Utils,
-              Tensorflow.NameScope,
               TensorFlow.Ops,
               Tensorflow.math_ops,
               Tensorflow.array_ops,
-              TensorFlow.Constant_op,
               TensorFlow.nn_ops;
 
 { clip_ops }

@@ -26,10 +26,10 @@ interface
 
          TF4D.Core.CApi,
          TensorFlow.DApi,
-         TensorFlow.DApiBase,
+
          TensorFlow.Ops,
 
-         ProtoGen.controlFlow;
+         TensorFlow.Proto;
 type
 
  CondContext = class(TControlFlowContext)
@@ -103,6 +103,7 @@ end;
 destructor CondContext.Destroy;
 begin
     Fexternal_values.Free;
+
     inherited Destroy;
 end;
 
@@ -169,17 +170,16 @@ end;
 
 procedure CondContext._AddOpInternal(op: TFOperation);
 var
-      LRemResult: Tuple<TArray<TFOperation>, TArray<TFOperation>>;
+  LRemResult: Tuple<TArray<TFOperation>, TArray<TFOperation>>;
 begin
     if op.inputs.Count = 0 then
     begin
         //If we're in a while loop, remove any control inputs from outside the
         // loop.
         LRemResult := _RemoveExternalControlEdges(op);
-
         for var i := 0 to Length(op.control_inputs) -1 do
         begin
-          var input_op := op.control_inputs[i];
+            var input_op := op.control_inputs[i];
             if not OpInContext(input_op) then
             begin
                op._add_control_input(Fpivot.op);
@@ -215,7 +215,7 @@ begin
                 op._update_input(index, real_x);
         end;
         // Remove any external control dependency on this op.
-        _RemoveExternalControlEdges(op);
+        LRemResult := _RemoveExternalControlEdges(op);
         // TODO: implement below code dependencies
         //if (op.graph._is_function(op.type) || op.type == "SymbolicGradient")
         //    op._add_control_input(_pivot.op);

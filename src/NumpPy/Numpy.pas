@@ -22,14 +22,12 @@ interface
          System.TypInfo,
 
          Spring,
-         Spring.Collections.Enumerable,
 
          TF4D.Core.CApi,
          TensorFlow.DApi,
          TensorFlow.Slice,
 
-         Numpy.Axis,
-         NumPy.NDArray;
+         Numpy.Axis;
 
 type
 

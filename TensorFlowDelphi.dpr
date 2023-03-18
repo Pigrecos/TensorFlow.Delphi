@@ -4,31 +4,36 @@ program TensorFlowDelphi;
 
 uses
   FastMM5,
+  {$IFDEF EurekaLog}
+  EMemLeaks,
+  EResLeaks,
+  EFastMM5Support,
+  EDebugExports,
+  EDebugJCL,
+  EFixSafeCallException,
+  EMapWin32,
+  EAppVCL,
+  EDialogWinAPIMSClassic,
+  EDialogWinAPIEurekaLogDetailed,
+  EDialogWinAPIStepsToReproduce,
+  ExceptionLog7,
+  {$ENDIF EurekaLog}
   Vcl.Forms,
   untMain in 'untMain.pas' {frmMain},
   Tensorflow in 'src\Tensorflow.pas',
   Tensorflow.Utils in 'src\Tensorflow.Utils.pas',
-  ProtoGen.config in 'src\Proto\ProtoGen.config.pas',
   NumPy.NDArray in 'src\NumpPy\NumPy.NDArray.pas',
   Numpy.Axis in 'src\NumpPy\Numpy.Axis.pas',
-  ProtoGen.variable in 'src\Proto\ProtoGen.variable.pas',
   TensorFlow.Ops in 'src\Operation\TensorFlow.Ops.pas',
-  Tensorflow.Graph in 'src\Tensorflow.Graph.pas',
   TensorFlow.Variable in 'src\TensorFlow.Variable.pas',
-  TensorFlow.Framework in 'src\TensorFlow.Framework.pas',
   Complex in 'src\lib\Complex.pas',
   TensorFlow.DApi in 'src\Core\TensorFlow.DApi.pas',
   TensorFlow.DApiBase in 'src\Core\TensorFlow.DApiBase.pas',
-  TensorFlow.DApiEager in 'src\Core\TensorFlow.DApiEager.pas',
-  TensorFlow.EagareRunner in 'src\TensorFlow.EagareRunner.pas',
-  TensorFlow.Context in 'src\TensorFlow.Context.pas',
+  TF4D.Core.CApiEager in 'src\Core\TF4D.Core.CApiEager.pas',
   TensorFlow.Tensor in 'src\TensorFlow.Tensor.pas',
   TF4D.Core.CApi in 'src\Core\TF4D.Core.CApi.pas',
   Numpy in 'src\NumpPy\Numpy.pas',
-  Tensorflow.NameScope in 'src\Tensorflow.NameScope.pas',
   TensorFlow.OpDefLibrary in 'src\Operation\TensorFlow.OpDefLibrary.pas',
-  TensorFlow.EagerTensor in 'src\TensorFlow.EagerTensor.pas',
-  TensorFlow.Constant_op in 'src\TensorFlow.Constant_op.pas',
   TensorFlow.gen_math_ops in 'src\Operation\TensorFlow.gen_math_ops.pas',
   Tensorflow.gen_array_ops in 'src\Operation\Tensorflow.gen_array_ops.pas',
   Tensorflow.math_ops in 'src\Operation\Tensorflow.math_ops.pas',
@@ -41,9 +46,7 @@ uses
   TensorFlow.gen_control_flow_ops in 'src\Operation\TensorFlow.gen_control_flow_ops.pas',
   TensorFlow.control_flow_ops in 'src\Operation\TensorFlow.control_flow_ops.pas',
   TensorFlow.gen_sparse_ops in 'src\Operation\TensorFlow.gen_sparse_ops.pas',
-  TensorFlow.Tensors.Ragged in 'src\TensorFlow.Tensors.Ragged.pas',
   TensorFlow.resource_variable_ops in 'src\Operation\TensorFlow.resource_variable_ops.pas',
-  ProtoGen.cppShapeInference in 'src\Proto\ProtoGen.cppShapeInference.pas',
   Esempi in 'Esempi.pas',
   TensorFlow.gen_random_ops in 'src\Operation\TensorFlow.gen_random_ops.pas',
   TensorFlow.random_ops in 'src\Operation\TensorFlow.random_ops.pas',
@@ -52,8 +55,6 @@ uses
   TensorFlow.gen_data_flow_ops in 'src\Operation\TensorFlow.gen_data_flow_ops.pas',
   TensorFlow.nn_ops in 'src\Operation\TensorFlow.nn_ops.pas',
   TensorFlow.Initializer in 'src\Operation\TensorFlow.Initializer.pas',
-  Keras.ArgsDefinition in 'src\Keras\Keras.ArgsDefinition.pas',
-  Keras.Activations in 'src\Keras\Keras.Activations.pas',
   TensorFlow.NnOps in 'src\Operation\NnOps\TensorFlow.NnOps.pas',
   TensorFlow.gen_nn_ops in 'src\Operation\TensorFlow.gen_nn_ops.pas',
   TensorFlow.Activation in 'src\Operation\TensorFlow.Activation.pas',
@@ -71,9 +72,7 @@ uses
   TensorFlow.linalg_ops in 'src\Operation\TensorFlow.linalg_ops.pas',
   TensorFlow.array_grad in 'src\Gradient\TensorFlow.array_grad.pas',
   Keras.Regularizers in 'src\Keras\Keras.Regularizers.pas',
-  Keras.ILayersApi in 'src\Keras\Keras.ILayersApi.pas',
   Keras.LossFunc in 'src\Keras\Keras.LossFunc.pas',
-  Keras.Engine in 'src\Keras\Keras.Engine.pas',
   Keras.Backend in 'src\Keras\Keras.Backend.pas',
   TensorFlow.image_ops_impl in 'src\Operation\TensorFlow.image_ops_impl.pas',
   TensorFlow.gen_image_ops in 'src\Operation\TensorFlow.gen_image_ops.pas',
@@ -87,8 +86,6 @@ uses
   Keras.MetricsApi in 'src\Keras\Keras.MetricsApi.pas',
   TensorFlow.tensor_array_ops in 'src\Operation\TensorFlow.tensor_array_ops.pas',
   Keras.Container in 'src\Keras\Keras.Container.pas',
-  Keras.CommonDef in 'src\Keras\Keras.CommonDef.pas',
-  TensorFlow.Functions in 'src\TensorFlow.Functions.pas',
   TensorFlow.nn_grad in 'src\Gradient\TensorFlow.nn_grad.pas',
   ProtoGen.Main in 'src\Proto\ProtoGen.Main.pas',
   TensorFlow.stateless_random_ops in 'src\Operation\TensorFlow.stateless_random_ops.pas',
@@ -96,9 +93,11 @@ uses
   hdf5dll in 'src\lib\hdf5dll.pas',
   Hdf5 in 'src\lib\Hdf5.pas',
   Keras.Saving in 'src\Keras\Keras.Saving.pas',
-  ProtoGen.controlFlow in 'src\Proto\ProtoGen.controlFlow.pas',
   TensorFlow.CondContext in 'src\Operation\TensorFlow.CondContext.pas',
-  Keras.Callbacks in 'src\Keras\Keras.Callbacks.pas';
+  Keras.Callbacks in 'src\Keras\Keras.Callbacks.pas',
+  Keras.Core in 'src\Keras\Keras.Core.pas',
+  TensorFlow.Core in 'src\TensorFlow.Core.pas',
+  TensorFlow.Proto in 'src\Proto\TensorFlow.Proto.pas';
 
 {$R *.res}
 
@@ -108,6 +107,7 @@ begin
   Application.CreateForm(TfrmMain, frmMain);
   Application.Run;
 end.
+
 
 
 

@@ -29,17 +29,14 @@ interface
          TF4D.Core.CApi,
          TensorFlow.DApi,
          Tensorflow.Utils,
-         TensorFlow.Context,
-         Tensorflow.NameScope,
-         TensorFlow.Variable,
+         TensorFlow.Core,
          TensorFlow.Interfaces,
          TensorFlow.Initializer,
          TensorFlow.Activation,
 
-         Keras.Engine,
-         Keras.ArgsDefinition,
+         Keras.Core,
 
-         ProtoGen.variable;
+         TensorFlow.Proto;
 
 type
   LSTMStateTuple = class;
@@ -186,6 +183,7 @@ type
         function GetTrainVars : TList<IVariableV1>;
         function GetTrainW    : TList<IVariableV1>;
         function GetNotTrainW : TList<IVariableV1>;
+        function GetWeights   : TList<IVariableV1>;
         function GetOutShape  : TFShape;
         function GetBatchShape: TFShape;
         function GetDtype     : TF_DataType;
@@ -372,7 +370,7 @@ implementation
            Tensorflow.gen_math_ops,
            Tensorflow.math_ops,
            Tensorflow.nn_ops,
-           TensorFlow.Constant_op,
+           Tensorflow.Variable,
            TensorFlow,
 
            NumPy.NDArray;
@@ -599,6 +597,11 @@ end;
 function RnnCell.GetTrainW: TList<IVariableV1>;
 begin
     raise TFException.Create('Not Implemented - GetTrainW()');
+end;
+
+function RnnCell.GetWeights: TList<IVariableV1>;
+begin
+    raise TFException.Create('Not Implemented - GetWeights()');
 end;
 
 function RnnCell.get_initial_state(inputs, batch_size: TFTensor; dtype: TF_DataType): TValue;

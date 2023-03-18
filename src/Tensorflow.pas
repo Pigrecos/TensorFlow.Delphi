@@ -26,35 +26,25 @@ interface
        TF4D.Core.CApi,
        TensorFlow.DApiBase,
        TensorFlow.DApi,
-       TensorFlow.Context,
-       TensorFlow.EagareRunner,
-       TensorFlow.DApiEager,
+       TensorFlow.Core,
+
        Tensorflow.Utils,
        TensorFlow.OpDefLibrary,
        Tensorflow.Gradient,
        Tensorflow.String_ops,
        TensorFlow.Variable,
-       TensorFlow.Tensors.Ragged,
        TensorFlow.Initializer,
        TensorFlow.Activation,
        Keras.KerasApi,
        TensorFlow.Training,
        TensorFlow.bitwise_ops,
        TensorFlow.linalg_ops,
-       Tensorflow.NameScope,
-       TensorFlow.Framework,
        Numpy,
        Numpy.Axis,
 
        Keras.Data,
 
-       ProtoGen.Tensor,
-       Protogen.tensorShape,
-       ProtoGen.attrValue,
-       ProtoGen.types,
-       ProtoGen.opDef,
-       protogen.config,
-       ProtoGen.variable;
+       TensorFlow.Proto;
 
 
 
@@ -63,6 +53,15 @@ const
   C_EAGER_MODE : Integer = 1;
 
 type
+{$REGION 'InitializersImpl'}
+  InitializersImpl = class
+
+    constructor Create;
+    function random_normal_initializer(mean: Single = 0.0; stddev : Single = 0.05; seed: PInteger = nil; dtype: TF_DataType = TF_FLOAT): IInitializer;
+    function zeros_initializer(shape : PTFShape= nil; dtype: TF_DataType = TF_FLOAT): IInitializer;
+  end;
+{$ENDREGION}
+
 {$REGION 'CompatV1Api'}
   CompatV1Api = class
      private
@@ -322,8 +321,6 @@ type
 
 {$REGION 'MathApi'}
 MathApi = class
-  private
-
   public
     function argmax(input: TFTensor; axis: TAxis ; name: string = ''; dimension: PInteger = nil; output_type: TF_DataType = TF_INT64): TFTensor;
     function log(x: TFTensor; name: string = ''): TFTensor;
@@ -349,6 +346,21 @@ MathApi = class
     /// <returns></returns>
     function bincount(arr: TFTensor; weights: TFTensor = nil; minlength: TFTensor = nil; maxlength: TFTensor = nil; dtype: TF_DataType = TF_INT32;  name: string = ''; axis: PTFShape = nil; binary_output: Boolean = false): TFTensor;
     function in_top_k(predictions: TFTensor; targets: TFTensor; k: Integer; name: string = 'InTopK'): TFTensor;
+    /// <summary>
+    /// Finds values and indices of the `k` largest entries for the last dimension.
+    /// </summary>
+    /// <param name="input"></param>
+    /// <param name="k"></param>
+    /// <param name="sorted"></param>
+    /// <param name="name"></param>
+    /// <returns></returns>
+    function top_k(input: TfTensor; k: Integer; sorted: Boolean = true; name: string = ''): TFTensors;
+    function multiply(x: TFTensor; y: TFTensor; name: string = ''): TFTensor;
+    function divide_no_nan(a: TFTensor; b: TFTensor; name: string = '') : TFTensor;
+    function square(x : TFTensor; name: string = ''): TFTensor;
+    function count_nonzero(input: TFTensor; axis: TAxis; keepdims : PBoolean= nil; dtype: TF_DataType = TF_INT64; name: string = ''): TFTensor;
+    function softplus(features: TFTensor; name: string= ''): TFTensor;
+    function tanh(x : TFTensor; name: string = ''): TFTensor;
 end;
 {$ENDREGION}
 
@@ -443,6 +455,7 @@ end;
        function matmul(a: TFTensor; b: TFTensor) : TFTensor;overload;
        function qr(input: TFTensor; full_matrices: Boolean = true; name: string = ''): TFTensors;
        function tensor_diag_part(input: TFTensor; name: string = ''): TFTensor;
+       function l2_normalize(x: TFTensor; axis: Integer = 0; epsilon: Single = 1e-12; name: string = ''): TFTensor;
 
   end;
 {$ENDREGION}
@@ -518,6 +531,7 @@ end;
       linalg : LinalgApi;
       image  : image_internal;
       // Inizializer
+      initializers               : InitializersImpl;
       glorot_uniform_initializer : IInitializer;
       zeros_initializer          : IInitializer;
       ones_initializer           : IInitializer;
@@ -691,7 +705,6 @@ end;
       function GetTapeSet: TStack<ITape>;
       {$ENDREGION}
 
-
       {$REGION 'tf.variable'}
       // tf.variable
       //
@@ -825,6 +838,23 @@ end;
       function TensorArray(dtype: TF_DataType; size : TFTensor; dynamic_size: Boolean = false; clear_after_read : Boolean= true; element_shape: PTFShape = nil; colocate_with_first_write_call: Boolean = true; infer_shape: Boolean = true): TTensorArray ; overload;
       function squeeze(input: TFTensor; axis: Integer;              name: string= ''; squeeze_dims: Integer = -1): TFTensor;overload;
       function squeeze(input: TFTensor; axis: TArray<Integer> = []; name: string= ''; squeeze_dims: Integer = -1): TFTensor;overload;
+      /// <summary>
+      /// Returns the rank of a tensor.
+      /// </summary>
+      /// <param name="input"></param>
+      /// <param name="name"></param>
+      /// <returns>Returns a 0-D `int32` `Tensor` representing the rank of `input`.</returns>
+      function rank(input: TFTensor; name: string = ''): TFTensor;
+      /// <summary>
+      /// Stacks a list of rank-`R` tensors into one rank-`(R+1)` tensor.
+      /// </summary>
+      /// <param name="values"></param>
+      /// <param name="axis"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function stack(values: TValue; axis: Integer = 0; name: string = 'stack'): TFTensor;
+      function one_hot(indices: TFTensor; depth: Integer; on_value: TFTensor = nil; off_value: TFTensor = nil; dtype : TF_DataType = DtInvalid; axis : Integer= -1; name: string = ''): TFTensor;
+
       {$ENDREGION}
 
       {$REGION 'tf.sparse'}
@@ -864,6 +894,15 @@ end;
       function add(a: TFTensor; b: TFTensor; name: string = ''): TFTensor; overload;
       function add<Tx, Ty>(a: Tx; b: Ty; name: string = ''): TFTensor; overload;
       function multiply(x: TFTensor; y: TFTensor; name: string = ''): TFTensor; overload;
+      /// <summary>
+      /// Finds values and indices of the `k` largest entries for the last dimension.
+      /// </summary>
+      /// <param name="input"></param>
+      /// <param name="k"></param>
+      /// <param name="sorted"></param>
+      /// <param name="name"></param>
+      /// <returns></returns>
+      function top_k(input: TFTensor; k: Integer; sorted: Boolean = true; name : string= ''): TFTensors;
       /// <summary>
       /// return x * y
       /// </summary>
@@ -1195,6 +1234,7 @@ end;
       function square(x : TFTensor; name: string = ''): TFTensor;
       function squared_difference(x : TFTensor; y: TFTensor; name: string = '') : TFTensor;
       function exp(x: TFTensor; name: string = ''): TFTensor;
+      function divide_no_nan(a: TFTensor; b: TFTensor; name: string = '') : TFTensor;
       {$ENDREGION}
 
       {$REGION 'tf.random'}
@@ -1207,6 +1247,23 @@ end;
       Function  multinomial(logits: TFTensor; num_samples: Integer; seed: pInteger = nil; name: string = ''; output_dtype: TF_DataType = DtInvalid): TFTensor;
       {$ENDREGION}
 
+      {$REGION 'tf.tile'}
+      function tile(input: TFTensor; multiples: TFTensor; name: string = ''): TFTensor; overload;
+      function tile(input: TFTensor; multiples: TArray<TValue>; name : string= ''): TFTensor; overload;
+      function tile(input: TFTensor; multiples: TFShape; name : string = ''): TFTensor; overload;
+      {$ENDREGION}
+
+      {$REGION 'tf.control_flow'}
+      /// <summary>
+      /// Create an op that groups multiple operations.
+      /// </summary>
+      /// <typeparam name="T"></typeparam>
+      /// <param name="inputs"></param>
+      /// <param name="name"></param>
+      /// <returns>An Operation that executes all its inputs.</returns>
+      function group<T: ITensorOrOperation>(inputs : TArray<T>; name: string = ''): TFOperation;
+      {$ENDREGION}
+
       property Version : string read GetVersion;
       property MemoLog : TStringList  read FMemoLog write FMemoLog;
 
@@ -1217,18 +1274,16 @@ end;
    tf : TTensorflow;
 
 implementation
-   uses Oz.Pb.Classes, Oz.SGL.Collections,oz.Pb.StrBuffer, pbPublic, pbInput, pbOutput,
+   uses Oz.Pb.Classes, Oz.SGL.Collections,
 
-        NumPy.NDArray,
-        TensorFlow.EagerTensor,
         TensorFlow.Ops ,
-        TensorFlow.Constant_op,
         Tensorflow.math_ops,
         TensorFlow.gen_math_ops,
         Tensorflow.gen_array_ops,
         Tensorflow.array_ops,
         TensorFlow.clip_ops,
         TensorFlow.gen_control_flow_ops,
+        Tensorflow.control_flow_ops,
         tensorflow.gen_sparse_ops,
         TensorFlow.random_ops,
         TensorFlow.gen_nn_ops,
@@ -1265,6 +1320,8 @@ begin
     linalg    := LinalgApi.Create;
     image     := image_internal.Create;
     //
+    initializers := InitializersImpl.Create;
+    //
     glorot_uniform_initializer := GlorotUniform.Create;
     zeros_initializer          := TensorFlow.Initializer.Zeros.Create;
     ones_initializer           := TensorFlow.Initializer.Ones.Create;
@@ -1296,6 +1353,7 @@ begin
   linalg.Free;
   image.Free;
   //
+  initializers.Free;
   glorot_uniform_initializer.Free;
   zeros_initializer.Free;
   ones_initializer.Free;
@@ -1567,6 +1625,11 @@ begin
     Result := TTensor(x) / Tops.convert_to_tensor( TValue.From< TArray<T> >(y), Tdtypes.as_base_dtype(x.dtype), 'y')
 end;
 
+function TTensorflow.divide_no_nan(a, b: TFTensor; name: string): TFTensor;
+begin
+    Result := math_ops.div_no_nan(a, b);
+end;
+
 procedure TTensorflow.enable_eager_execution;
 begin
     Context.eager_mode;
@@ -1668,6 +1731,11 @@ end;
 function TTensorflow.greater_equal<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
 begin
     Result := gen_math_ops.greater_equal(x, y, name);
+end;
+
+function TTensorflow.group<T>(inputs: TArray<T>; name: string): TFOperation;
+begin
+    Result := control_flow_ops.group<T>(inputs, name);
 end;
 
 function TTensorflow.identity(input: TFTensor; name: string): TFTensor;
@@ -1830,6 +1898,11 @@ begin
     Result := range(start, limit,v, nTipo,'range');
 end;
 
+function TTensorflow.rank(input: TFTensor; name: string): TFTensor;
+begin
+    Result := array_ops.rank(input, name)
+end;
+
 function TTensorflow.real(input: TFTensor; name: string): TFTensor;
 begin
     Result := math_ops.real(input, name);
@@ -1948,6 +2021,11 @@ begin
    Result := array_ops.ones_like(nd, dtype, name, optimize);
 end;
 
+function TTensorflow.one_hot(indices: TFTensor; depth: Integer; on_value, off_value: TFTensor; dtype: TF_DataType; axis: Integer; name: string): TFTensor;
+begin
+    Result := array_ops.one_hot(indices, Tops.convert_to_tensor(depth), on_value, off_value, dtype, axis, name);
+end;
+
 function TTensorflow.sigmoid<T>(x: T; name: string): TFTensor;
 begin
     Result := math_ops.sigmoid(x, name);
@@ -2048,6 +2126,11 @@ begin
     Result := array_ops.squeeze(input, axis, name);
 end;
 
+function TTensorflow.stack(values: TValue; axis: Integer; name: string): TFTensor;
+begin
+    Result := array_ops.stack(values, axis, name);
+end;
+
 function TTensorflow.sub<Tx, Ty>(a: Tx; b: Ty; name: string): TFTensor;
 begin
    Result := gen_math_ops.sub(a, b, name);
@@ -2076,6 +2159,27 @@ end;
 function TTensorflow.tanh(x: TFTensor; name: string): TFTensor;
 begin
     Result := gen_math_ops.tanh(x, name);
+end;
+
+function TTensorflow.tile(input, multiples: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_array_ops.tile(input, multiples, name);
+end;
+
+function TTensorflow.tile(input: TFTensor; multiples: TArray<TValue>; name: string): TFTensor;
+begin
+    Result := gen_array_ops.tile(input, multiples, name);
+end;
+
+function TTensorflow.tile(input: TFTensor; multiples: TFShape; name: string): TFTensor;
+begin
+    var multiples_tensor := constant_op.constant( TValue.From<TFShape>(multiples));
+    Result := gen_array_ops.tile(input, multiples_tensor, name);
+end;
+
+function TTensorflow.top_k(input: TFTensor; k: Integer; sorted: Boolean; name: string): TFTensors;
+begin
+    Result := nn_ops.top_kv2(input, k, sorted, name)
 end;
 
 function TTensorflow.trainable_variables(scope: string): TArray<IVariableV1>;
@@ -2113,12 +2217,12 @@ end;
 
 function TTensorflow.variable_scope(scope: VariableScope; default_name: string; values: TArray<TFTensor>; reuse: PBoolean; auxiliary_name_scope: Boolean): variable_scope;
 begin
-    Result := Tensorflow.Variable.variable_scope.Create(scope, default_name, values, reuse, auxiliary_name_scope)
+    Result := Tensorflow.Core.variable_scope.Create(scope, default_name, values, reuse, auxiliary_name_scope)
 end;
 
 function TTensorflow.variable_scope(name, default_name: string; values: TArray<TFTensor>; reuse: PBoolean; auxiliary_name_scope: Boolean): variable_scope;
 begin
-    Result := Tensorflow.Variable.variable_scope.Create(name, default_name, values, reuse, auxiliary_name_scope)
+    Result := Tensorflow.Core.variable_scope.Create(name, default_name, values, reuse, auxiliary_name_scope)
 end;
 
 function TTensorflow.zeros(shape: TFShape; dtype: TF_DataType; name: string): TFTensor;
@@ -2510,6 +2614,21 @@ begin
     Result := gen_math_ops.log(x, name);
 end;
 
+function MathApi.multiply(x, y: TFTensor; name: string): TFTensor;
+begin
+    Result := math_ops.multiply(x, y, name)
+end;
+
+function MathApi.divide_no_nan(a, b: TFTensor; name: string): TFTensor;
+begin
+    Result := math_ops.div_no_nan(a, b);
+end;
+
+function MathApi.square(x: TFTensor; name: string): TFTensor;
+begin
+    Result := math_ops.square(x, name)
+end;
+
 function MathApi.erf(x: TFTensor; name: string): TFTensor;
 begin
     Result := math_ops.erf(x, name);
@@ -2525,10 +2644,34 @@ begin
    Result :=  math_ops.reduce_sum(x, axis, False, name);
 end;
 
+function MathApi.tanh(x: TFTensor; name: string): TFTensor;
+begin
+    Result := math_ops.tanh(x, name);
+end;
+
+function MathApi.top_k(input: TfTensor; k: Integer; sorted: Boolean; name: string): TFTensors;
+begin
+    Result := nn_ops.top_kv2(input, k, sorted, name);
+end;
+
 function MathApi.bincount(arr, weights, minlength, maxlength: TFTensor; dtype: TF_DataType; name: string; axis: PTFShape; binary_output: Boolean): TFTensor;
 begin
     Result := math_ops.bincount(arr, weights, minlength, maxlength, dtype, name, axis, binary_output);
 end;
+
+function MathApi.count_nonzero(input: TFTensor; axis: TAxis; keepdims: PBoolean; dtype: TF_DataType; name: string): TFTensor;
+begin
+   var bkDim  : Boolean := False;
+   if keepdims <> nil then  bkDim := keepdims^;
+
+   Result := math_ops.count_nonzero_v2(input, axis, bkDim, '', dtype);
+end;
+
+function MathApi.softplus(features: TFTensor; name: string): TFTensor;
+begin
+    Result := nn_ops.softplus(features, name);
+end;
+
 {$ENDREGION}
 
 {$REGION 'LinalgApi'}
@@ -2571,6 +2714,11 @@ begin
     Result := ops.matrix_inverse(input, adjoint, name);
 end;
 
+function LinalgApi.l2_normalize(x: TFTensor; axis: Integer; epsilon: Single; name: string): TFTensor;
+begin
+    Result := nn_impl.l2_normalize(x, axis, constant_op.constant(epsilon), name);
+end;
+
 function LinalgApi.lstsq(matrix, rhs: TFTensor; l2_regularizer: TNDArray; fast: Boolean; name: string): TFTensor;
 begin
     Result := ops.matrix_solve_ls(matrix, rhs, l2_regularizer, fast, name);
@@ -2609,6 +2757,25 @@ end;
 constructor DataOps.Create;
 begin
     FDataset := DatasetManager.Create;
+end;
+{$ENDREGION}
+
+{$REGION 'InitializersImpl'}
+{ InitializersImpl }
+
+constructor InitializersImpl.Create;
+begin
+   inherited Create;
+end;
+
+function InitializersImpl.random_normal_initializer(mean, stddev: Single; seed: PInteger; dtype: TF_DataType): IInitializer;
+begin
+   Result := RandomNormal.Create(mean, stddev, seed, dtype)
+end;
+
+function InitializersImpl.zeros_initializer(shape: PTFShape; dtype: TF_DataType): IInitializer;
+begin
+    Result := Zeros.Create(shape, dtype);
 end;
 {$ENDREGION}
 

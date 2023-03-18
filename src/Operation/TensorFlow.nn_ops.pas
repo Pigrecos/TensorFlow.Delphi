@@ -26,11 +26,12 @@ interface
          TF4D.Core.CApi,
          TensorFlow.DApi,
          TensorFlow.DApiBase,
-         Numpy.Axis,
-         TensorFlow.Context,
+
+         TensorFlow.Core,
          TensorFlow.NnOps,
          TensorFlow.Variable,
-         Keras.ArgsDefinition;
+
+         Keras.Core;
 
 type
   nn_ops = record
@@ -43,8 +44,10 @@ type
       /// <returns></returns>
       class function _flatten_outer_dims(logits: TFTensor) : TFTensor; static;
     public
+      class function top_kv2(input: TFTensor; k: Integer; sorted: Boolean = true; name: string = ''): TFTensors; static;
       class function convolution_internal(padding: string; strides: TArray<Integer>; dilation_rate: TArray<Integer>; rank: Integer; name: string = ''; data_format: string = ''):  ConvolutionInternal; static;
       class function l2_loss(t: TFTensor; name: string = ''): TFTensor; static;
+      class function softplus(features: TFTensor; name: string = ''): TFTensor; static;
       /// <summary>
       /// Adds `bias` to `value`.
       /// </summary>
@@ -85,11 +88,9 @@ implementation
      uses Tensorflow,
           TensorFlow.Tensor,
           Tensorflow.Utils,
-          Tensorflow.NameScope,
           TensorFlow.Ops,
           Tensorflow.math_ops,
           Tensorflow.array_ops,
-          TensorFlow.Constant_op,
           TensorFlow.gen_nn_ops,
           TensorFlow.gen_math_ops,
           TensorFlow.random_ops;
@@ -166,6 +167,11 @@ end;
 class function nn_ops.l2_loss(t: TFTensor; name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('L2Loss', name, ExecuteOpArgs.Create([ t ])).First;
+end;
+
+class function nn_ops.softplus(features: TFTensor; name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('Softplus', name, ExecuteOpArgs.Create([ features ])).First;
 end;
 
 class function nn_ops.leaky_relu(features: TFTensor; alpha: Single; name: string): TFTensor;
@@ -277,6 +283,12 @@ begin
                                 // defined.
                                 raise TFException.Create('Not Implemented sparse_softmax_cross_entropy_with_logits');
                             end );
+end;
+
+class function nn_ops.top_kv2(input: TFTensor; k: Integer; sorted: Boolean; name: string): TFTensors;
+begin
+     Result :=  tf.Context.ExecuteOp('TopKV2', name, ExecuteOpArgs.Create([input, k])
+                                .SetAttributes(['sorted', sorted ]));
 end;
 
 class function nn_ops._flatten_outer_dims(logits: TFTensor): TFTensor;

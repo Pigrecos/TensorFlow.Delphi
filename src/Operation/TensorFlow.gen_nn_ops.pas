@@ -19,11 +19,8 @@ interface
 
              Spring,
 
-             TF4D.Core.CApi,
              TensorFlow.DApi,
-             Numpy.Axis,
-
-             TensorFlow.Context,
+             TensorFlow.Core,
              TensorFlow.Variable,
              TensorFlow.NnOps ;
 
@@ -171,8 +168,6 @@ type
 
 implementation
       uses Tensorflow,
-           TensorFlow.Ops,
-           Tensorflow.NameScope,
            Tensorflow.Utils;
 
 { gen_nn_ops }
@@ -336,14 +331,14 @@ end;
 
 class function gen_nn_ops.softmax_cross_entropy_with_logits(features, labels: TFTensor; name: string): Tuple<TFTensor, TFTensor>;
 begin
-    var Res := tf.Context.ExecuteOp( 'SoftmaxCrossEntropyWithLogits', name, ExecuteOpArgs.Create([features, labels]) ).First;
+    var Res := tf.Context.ExecuteOp( 'SoftmaxCrossEntropyWithLogits', name, ExecuteOpArgs.Create([features, labels]) );
 
     Result := Tuple<TFTensor, TFTensor>.Create(Res[0],Res[1]);
 end;
 
 class function gen_nn_ops.sparse_softmax_cross_entropy_with_logits(features, labels: TFTensor; name: string): Tuple<TFTensor, TFTensor>;
 begin
-    var Res := tf.Context.ExecuteOp( 'SparseSoftmaxCrossEntropyWithLogits', name, ExecuteOpArgs.Create([features, labels]) ).First;
+    var Res := tf.Context.ExecuteOp( 'SparseSoftmaxCrossEntropyWithLogits', name, ExecuteOpArgs.Create([features, labels]) );
 
     Result := Tuple<TFTensor, TFTensor>.Create(Res[0],Res[1]);
 end;
@@ -362,7 +357,7 @@ end;
 class function gen_nn_ops.average_pool(input: TFTensor; ksize, strides: TArray<Integer>; padding, data_format, name: string): TFTensor;
 begin
     Result := tf.Context.ExecuteOp('AvgPool', name, ExecuteOpArgs.Create([input])
-                                                                        .SetAttributes(['ksize', ksize,'strides', strides,'padding', padding,'data_format', data_format ]) ).First;
+                                          .SetAttributes(['ksize', ksize,'strides', strides,'padding', padding,'data_format', data_format ]) ).First;
 end;
 
 class function gen_nn_ops.bias_add(value: TFTensor; bias: IVariableV1; data_format, name: string): TFTensor;
@@ -371,7 +366,7 @@ begin
       data_format := 'NHWC';
 
     Result := tf.Context.ExecuteOp('BiasAdd', name, ExecuteOpArgs.Create([value, TValue.From<IVariableV1>(bias)])
-                                                                        .SetAttributes(['data_format', data_format ]) ).First;
+                                          .SetAttributes(['data_format', data_format ]) ).First;
 end;
 
 class function gen_nn_ops.bias_add_grad(out_backprop: TFTensor; data_format, name: string): TFTensor;

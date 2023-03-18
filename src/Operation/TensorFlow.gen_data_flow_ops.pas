@@ -17,10 +17,7 @@ interface
         uses System.SysUtils,
              Spring,
              TF4D.Core.CApi,
-             TensorFlow.DApi,
-             Numpy.Axis,
-
-             TensorFlow.Context ;
+             TensorFlow.DApi ;
 
 type
   gen_data_flow_ops = record

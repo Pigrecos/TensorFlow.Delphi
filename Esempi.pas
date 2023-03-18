@@ -28,14 +28,11 @@ interface
           TensorFlow.DApi,
           Tensorflow.Utils,
           TensorFlow.Ops,
-          TensorFlow.Context,
-          Tensorflow.NameScope,
-          TensorFlow.EagerTensor,
+          TensorFlow.Core,
           TensorFlow.Slice,
 
-          Keras.Engine,
+          Keras.Core,
           Keras.KerasApi,
-          Keras.ArgsDefinition,
           keras.Models,
           Keras.Layer,
 
@@ -93,6 +90,62 @@ type
       /// https://www.tensorflow.org/api_docs/python/tf/keras/metrics/top_k_categorical_accuracy
       /// </summary>
       procedure top_k_categorical_accuracy;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/metrics/TopKCategoricalAccuracy
+      /// </summary>
+      procedure TopKCategoricalAccuracy;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/metrics/Recall
+      /// </summary>
+      procedure Recall;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/metrics/Precision
+      /// </summary>
+      procedure Precision;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/metrics/BinaryAccuracy
+      /// </summary>
+      procedure BinaryAccuracy;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/metrics/CategoricalAccuracy
+      /// </summary>
+      procedure CategoricalAccuracy;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/metrics/CategoricalCrossentropy
+      /// </summary>
+      procedure CategoricalCrossentropy;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/metrics/Accuracy
+      /// </summary>
+      procedure Accuracy;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/metrics/CosineSimilarity
+      /// </summary>
+      procedure CosineSimilarity;
+      /// <summary>
+      /// https://www.tensorflow.org/addons/api_docs/python/tfa/metrics/HammingLoss
+      /// </summary>
+      procedure HammingLoss;
+      /// <summary>
+      /// https://www.tensorflow.org/addons/api_docs/python/tfa/metrics/F1Score
+      /// </summary>
+      procedure F1Score;
+      /// <summary>
+      /// https://www.tensorflow.org/addons/api_docs/python/tfa/metrics/FBetaScore
+      /// </summary>
+      procedure FBetaScore;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/metrics/SparseCategoricalAccuracy
+      /// </summary>
+      procedure SparseCategoricalAccuracy;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/metrics/SparseCategoricalCrossentropy
+      /// </summary>
+      procedure SparseCategoricalCrossentropy;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/metrics/SparseTopKCategoricalAccuracy
+      /// </summary>
+      procedure SparseTopKCategoricalAccuracy;
   end;
 
   PreprocessingTests = class(EagerModeTestBase)
@@ -205,6 +258,10 @@ type
         procedure ActivationTest_Exponential;
         procedure ActivationTest_HardSigmoid;
         procedure ActivationTest_Swish;
+        /// <summary>
+        /// https://www.tensorflow.org/addons/api_docs/python/tfa/activations/mish
+        /// </summary>
+        procedure ActivationTest_Mish;
         //
         procedure Attention_BaseDenseAttention;
         procedure Attention_Attention;
@@ -279,6 +336,10 @@ type
         procedure MeanAbsoluteError_Sample_Weight;
         procedure MeanAbsoluteError_SUM;
         procedure MeanAbsoluteError_None;
+        /// <summary>
+        /// https://www.tensorflow.org/addons/api_docs/python/tfa/losses/SigmoidFocalCrossEntropy
+        /// </summary>
+        procedure SigmoidFocalCrossEntropy;
   end;
 
    procedure On_Epoch_Begin(msg: string);
@@ -291,11 +352,10 @@ implementation
              DUnitX.TestFramework,
 
              Keras.LossFunc,
-             Keras.LayersApi,
              Keras.Utils,
              keras.Preprocessing,
 
-             ProtoGen.variable;
+             Tensorflow.Proto;
 
 procedure On_Epoch_Begin(msg: string);
 begin
@@ -497,12 +557,258 @@ procedure EagerModeTestBase.top_k_categorical_accuracy;
 begin
     var y_true := np.np_array< TArray<Integer>>([[ 0, 0, 1 ], [ 0, 1, 0 ]]);
     var y_pred := np.np_array< TArray<Single>>([[ 0.1, 0.9, 0.8 ], [ 0.05, 0.95, 0 ]]);
-
     var m := tf.keras.metrics.top_k_categorical_accuracy(y_true, y_pred, 3);
-
     var expected : TArray<Single> := [ 1, 1 ];
     var actual := m.numpy.ToArray<Single>;
     Assert.IsTrue(TUtils.SequenceEqual<Single>(expected, actual));
+end;
+
+procedure EagerModeTestBase.TopKCategoricalAccuracy;
+begin
+    var y_true := np.np_array< TArray<Integer>>([[ 0, 0, 1 ], [ 0, 1, 0 ]]);
+    var y_pred := np.np_array< TArray<Single>>([[ 0.1, 0.9, 0.8 ], [ 0.05, 0.95, 0 ]]);
+    var m      := tf.keras.metrics.TopKCategoricalAccuracy(1);
+    m.update_state(y_true, y_pred);
+    var r : NDArray := m.R_result.numpy;
+    Assert.AreEqual<Single>(r,0.5);
+
+    m.reset_states;
+    var weights := np.np_array< Single >([ 0.7, 0.3]);
+    m.update_state(y_true, y_pred, weights);
+    r := m.R_result.numpy;
+    Assert.AreEqual<Single>(r, 0.3);
+end;
+
+procedure EagerModeTestBase.Recall;
+begin
+    var y_true := np.np_array< Integer >([ 0, 1, 1, 1 ]);
+    var y_pred := np.np_array< Integer >([ 1, 0, 1, 1 ]);
+    var m      := tf.keras.metrics.Recall;
+    m.update_state(y_true, y_pred);
+    var r : NDArray := m.R_result.numpy;
+    Assert.AreEqual<Single>(r,0.6666667);
+
+    m.reset_states;
+    var weights := np.np_array< Single >([ 0, 0, 1, 0 ]);
+    m.update_state(y_true, y_pred, weights);
+    r := m.R_result.numpy;
+    Assert.AreEqual<Single>(r, 1);
+end;
+
+procedure EagerModeTestBase.Precision;
+begin
+    var y_true := np.np_array< Integer >([ 0, 1, 1, 1 ]);
+    var y_pred := np.np_array< Integer >([ 1, 0, 1, 1 ]);
+    var m      := tf.keras.metrics.Precision;
+    m.update_state(y_true, y_pred);
+    var r : NDArray := m.R_result.numpy;
+    Assert.AreEqual<Single>(r,0.6666667);
+
+    m.reset_states;
+    var weights := np.np_array< Single >([ 0, 0, 1, 0 ]);
+    m.update_state(y_true, y_pred, weights);
+    r := m.R_result.numpy;
+    Assert.AreEqual<Single>(r, 1);
+
+    // With top_k=2, it will calculate precision over y_true[:2]
+    // and y_pred[:2]
+    y_true := np.np_array< Integer >([ 0, 0, 1, 1 ]);
+    y_pred := np.np_array< Integer >([ 1, 1, 1, 1 ]);
+    m := tf.keras.metrics.Precision(0.5, 2);
+    m.update_state(y_true, y_pred);
+    r := m.R_result.numpy;
+    Assert.AreEqual<Single>(r, 0);
+
+    // With top_k=4, it will calculate precision over y_true[:4]
+    // and y_pred[:4]
+    y_true := np.np_array< Integer >([ 0, 0, 1, 1 ]);
+    y_pred := np.np_array< Integer >([ 1, 1, 1, 1 ]);
+    m := tf.keras.metrics.Precision(0.5, 4);
+    m.update_state(y_true, y_pred);
+    r := m.R_result.numpy;
+    Assert.AreEqual<Single>(r, 0.5);
+end;
+
+procedure EagerModeTestBase.BinaryAccuracy;
+begin
+    var y_true := np.np_array< TArray<Integer> >([ [ 1 ], [ 1 ],[ 0 ], [ 0 ] ]);
+    var y_pred := np.np_array< TArray<Single> >([ [0.98 ], [ 1 ], [ 0 ], [ 0.6 ] ]);
+    var m      := tf.keras.metrics.BinaryAccuracy;
+    var weights := np.np_array< Single >([ 1, 0, 0, 1 ]);
+    m.update_state(y_true, y_pred, weights);
+    var r : NDArray := m.R_result.numpy;
+    Assert.AreEqual<Single>(r, 0.5);
+end;
+
+procedure EagerModeTestBase.CategoricalAccuracy;
+begin
+    var y_true := np.np_array< TArray<Integer> >([ [ 0, 0, 1 ], [ 0, 1, 0 ] ]);
+    var y_pred := np.np_array< TArray<Single> >([ [ 0.1, 0.9, 0.8 ], [ 0.05, 0.95, 0 ] ]);
+    var m      := tf.keras.metrics.CategoricalAccuracy;
+    m.update_state(y_true, y_pred);
+    var r : NDArray := m.R_result.numpy;
+    Assert.AreEqual<Single>(r,0.5);
+
+    m.reset_states;
+    var weights := np.np_array< Single >([ 0.7, 0.3 ]);
+    m.update_state(y_true, y_pred, weights);
+    r := m.R_result.numpy;
+    Assert.AreEqual<Single>(r, 0.3);
+end;
+
+procedure EagerModeTestBase.CategoricalCrossentropy;
+begin
+    var y_true := np.np_array< TArray<Integer> >([ [ 0, 1, 0 ], [ 0, 0, 1 ] ]);
+    var y_pred := np.np_array< TArray<Single> >([ [ 0.05, 0.95, 0 ], [ 0.1, 0.8, 0.1 ] ]);
+    var m      := tf.keras.metrics.CategoricalCrossentropy;
+    m.update_state(y_true, y_pred);
+    var r : NDArray := m.R_result.numpy;
+    Assert.AreEqual<Single>(r,1.1769392);
+
+    m.reset_states;
+    var weights := np.np_array< Single >([ 0.3, 0.7 ]);
+    m.update_state(y_true, y_pred, weights);
+    r := m.R_result.numpy;
+    Assert.AreEqual<Single>(r, 1.6271976);
+end;
+
+procedure EagerModeTestBase.Accuracy;
+begin
+    var y_true := np.np_array< TArray<Integer> >([ [ 1 ], [ 2 ], [ 3 ], [ 4 ] ]);
+    var y_pred := np.np_array< TArray<Single> >([  [ 0 ], [ 2 ], [ 3 ], [ 4 ] ]);
+    var m      := tf.keras.metrics.Accuracy;
+    m.update_state(y_true, y_pred);
+    var r : NDArray := m.R_result.numpy;
+    Assert.AreEqual<Single>(r,0.75);
+
+    m.reset_states;
+    var weights := np.np_array< Single >([ 1, 1, 0, 0 ]);
+    m.update_state(y_true, y_pred, weights);
+    r := m.R_result.numpy;
+    Assert.AreEqual<Single>(r, 0.5);
+end;
+
+procedure EagerModeTestBase.CosineSimilarity;
+begin
+    var y_true := np.np_array< TArray<Integer> >([ [ 0, 1 ], [ 1, 1 ] ]);
+    var y_pred := np.np_array< TArray<Single> >([  [ 1, 0 ], [ 1, 1 ] ]);
+    var asse : TAxis := 1;
+    var m      := tf.keras.metrics.CosineSimilarity('cosine_similarity', TF_FLOAT, @asse);
+    m.update_state(y_true, y_pred);
+    var r : NDArray := m.R_result.numpy;
+    Assert.AreEqual<Single>(r,0.49999997);
+
+    m.reset_states;
+    var weights := np.np_array< Single >([ 0.3, 0.7 ]);
+    m.update_state(y_true, y_pred, weights);
+    r := m.R_result.numpy;
+    Assert.AreEqual<Single>(r, 0.6999999);
+end;
+
+procedure EagerModeTestBase.SparseCategoricalAccuracy;
+begin
+    var y_true := np.np_array< Integer >([ 2, 1 ]);
+    var y_pred := np.np_array< TArray<Single> >([  [ 0.1, 0.6, 0.3 ], [ 0.05, 0.95, 0 ] ]);
+
+    var m      := tf.keras.metrics.SparseCategoricalAccuracy;
+    m.update_state(y_true, y_pred);
+    var r : NDArray := m.R_result.numpy;
+    Assert.AreEqual<Single>(r,0.5);
+
+    m.reset_states;
+    var weights := np.np_array< Single >([ 0.7, 0.3 ]);
+    m.update_state(y_true, y_pred, weights);
+    r := m.R_result.numpy;
+    Assert.AreEqual<Single>(r, 0.3);
+end;
+
+procedure EagerModeTestBase.SparseCategoricalCrossentropy;
+begin
+    var y_true := np.np_array< Integer >([ 1, 2 ]);
+    var y_pred := np.np_array< TArray<Single> >([  [ 0.05, 0.95, 0 ], [ 0.1, 0.8, 0.1 ] ]);
+
+    var m      := tf.keras.metrics.SparseCategoricalCrossentropy;
+    m.update_state(y_true, y_pred);
+    var r : NDArray := m.R_result.numpy;
+    Assert.AreEqual<Single>(r,1.1769392);
+end;
+
+procedure EagerModeTestBase.SparseTopKCategoricalAccuracy;
+begin
+    var y_true := np.np_array< Integer >([ 2, 1 ]);
+    var y_pred := np.np_array< TArray<Single> >([  [ 0.1, 0.9, 0.8 ], [ 0.05, 0.95, 0 ] ]);
+
+    var m      := tf.keras.metrics.SparseTopKCategoricalAccuracy(1);
+    m.update_state(y_true, y_pred);
+    var r : NDArray := m.R_result.numpy;
+    Assert.AreEqual<Single>(r,0.5);
+
+    m.reset_states;
+    var weights := np.np_array< Single >([ 0.7, 0.3 ]);
+    m.update_state(y_true, y_pred, weights);
+    r := m.R_result.numpy;
+    Assert.AreEqual<Single>(r, 0.3);
+end;
+
+procedure EagerModeTestBase.HammingLoss;
+begin
+    // multi-class hamming loss
+    var y_true := np.np_array< TArray<Integer> >([
+        [ 1, 0, 0, 0 ],
+        [ 0, 0, 1, 0 ],
+        [ 0, 0, 0, 1 ],
+        [ 0, 1, 0, 0 ] ]);
+    var y_pred := np.np_array< TArray<Single> >([
+        [ 0.8, 0.1, 0.1, 0.0 ],
+        [ 0.2, 0.0, 0.8, 0.0 ],
+        [ 0.05, 0.05, 0.1, 0.8 ],
+        [ 1.0, 0.0, 0.0, 0.0 ]]);
+
+    var threshold  : Single := 0.6;
+    var m      := tf.keras.metrics.HammingLoss('multiclass',@threshold);
+    m.update_state(y_true, y_pred);
+    var r : NDArray := m.R_result.numpy;
+    Assert.AreEqual<Single>(r,0.25);
+
+    // multi-label hamming loss
+    y_true := np.np_array< TArray<Integer> >([
+        [ 1, 0, 1, 0 ],
+        [ 0, 1, 0, 1 ],
+        [ 0, 0, 0, 1 ] ]);
+    y_pred := np.np_array< TArray<Single> >([
+        [ 0.82, 0.5, 0.9, 0.0 ],
+        [ 0, 1, 0.4, 0.98 ],
+        [ 0.89, 0.79, 0, 0.3 ]]);
+
+    threshold  := 0.8;
+    m      := tf.keras.metrics.HammingLoss('multilabel',@threshold);
+    m.update_state(y_true, y_pred);
+    r := m.R_result.numpy;
+    Assert.AreEqual<Single>(r,0.16666667);
+end;
+
+procedure EagerModeTestBase.F1Score;
+begin
+    var y_true := np.np_array< TArray<Integer> >([ [ 1, 1, 1 ], [ 1, 0, 0 ], [ 1, 1, 0 ] ]);
+    var y_pred := np.np_array< TArray<Single> >([ [ 0.2, 0.6, 0.7 ], [ 0.2, 0.6, 0.6 ], [ 0.6, 0.8, 0 ] ]);
+    var threshold  : Single := 0.5;
+    var m      := tf.keras.metrics.F1Score(3,'',@threshold);
+    m.update_state(y_true, y_pred);
+    var r := m.R_result.numpy.ToArray<Single>;
+    var a : TArray<Single> := [ 0.5, 0.8, 0.6666667 ];
+    Assert.IsTrue( TUtils.SequenceEqual<Single>(r,a)  );
+end;
+
+procedure EagerModeTestBase.FBetaScore;
+begin
+    var y_true := np.np_array< TArray<Integer> >([ [ 1, 1, 1 ], [ 1, 0, 0 ], [ 1, 1, 0 ] ]);
+    var y_pred := np.np_array< TArray<Single> >([ [ 0.2, 0.6, 0.7 ], [ 0.2, 0.6, 0.6 ], [ 0.6, 0.8, 0 ] ]);
+    var threshold  : Single := 0.5;
+    var m      := tf.keras.metrics.FBetaScore(3,'',2.0, @threshold);
+    m.update_state(y_true, y_pred);
+    var r := m.R_result.numpy.ToArray<Single>;
+    var a : TArray<Single> := [ 0.3846154, 0.90909094, 0.8333334 ];
+    Assert.IsTrue( TUtils.SequenceEqual<Single>(r,a)  );
 end;
 
 { ActivationFunctionTest }
@@ -859,6 +1165,18 @@ begin
     Equal( [ -0.9, -0.3, 0.0, 2.0 ], output.ToArray<Single>);
 end;
 
+procedure Keras_Layers_test.ActivationTest_Mish;
+begin
+    var aInput : TArray<Single> := [1.0, 0.0, 1.0];
+    var input : TTensor := tf.constant( aInput );
+
+    var output : TTensor := tf.keras.activations.Mish(input);
+
+    var aexpected : TArray<Single> := [ 0.86509836, 0, 0.86509836 ];
+
+    Assert.IsTrue( TUtils.SequenceEqual<Single>(aexpected, output.ToArray<Single>),'Assert - ActivationTest_Mish');
+end;
+
 procedure Keras_Layers_test.ActivationTest_ELU;
 begin
     var aInput : TArray<Single> := [-3, -2, -1, 0, 1, 2];
@@ -1100,12 +1418,12 @@ procedure Keras_Layers_test.Attention_MultiHeadAttention;
 begin
     var batch_size := 3;
 
-    var query       := tf.keras.Input(TFShape.Create([4, 8]), TFShape.Null);
-    var value       := tf.keras.Input(TFShape.Create([2, 8]), TFShape.Null);
-    var mask_tensor := tf.keras.Input(TFShape.Create([4, 2]), TFShape.Null);
+    var query       := tf.keras.Input(TFShape.Create([4, 8]));
+    var value       := tf.keras.Input(TFShape.Create([2, 8]));
+    var mask_tensor := tf.keras.Input(TFShape.Create([4, 2]));
 
     var attention_layer := tf.keras.layers.MultiHeadAttention(2, 2);
-    attention_layer.Apply( TFTensors.Create([ query, value, mask_tensor ]) );
+    attention_layer.Apply( TFTensors.Create([ query.First, value.First, mask_tensor.First ]) );
 
     var from_data := 10 * NDArray( np.random.randn([batch_size, 4, 8]) );
     var to_data   := 10 * NDArray( np.random.randn([batch_size, 2, 8]) );
@@ -1690,7 +2008,7 @@ begin
     //>>> mae(y_true, y_pred, sample_weight =[0.7, 0.3]).numpy()
     //0.25
     var loss := tf.keras.losses.MeanAbsoluteError;
-    var sample_weight := Numpy.np.np_array<Single>([0.7, 0.3],np.np_float32);
+    var sample_weight := np.np_array<Single>([0.7, 0.3],np.np_float32);
     var call := loss.Call(y_true_float_MAE, y_pred_float_MAE, sample_weight);
 
     var expected := TNDArray.create(Single(0.25));
@@ -1709,6 +2027,16 @@ begin
 
     var expected := TNDArray.create(Single(1.0));
     Assert.IsTrue(expected.Equals(call.numpy));
+end;
+
+procedure Keras_Losses_test.SigmoidFocalCrossEntropy;
+begin
+    var y_true := np.expand_dims( np.np_array<Single>([1.0, 1.0, 0],np.np_float32),-1 );
+    var y_pred := np.expand_dims( np.np_array<Single>([0.97, 0.91, 0.03],np.np_float32),-1 );
+    var bce := tf.keras.losses.SigmoidFocalCrossEntropy;
+    var loss := bce.Call(y_true, y_pred);
+    var a : TArray<Single> := [ 6.8532745e-06, 1.909787e-04, 2.0559824e-05];
+    Assert.IsTrue( TUtils.SequenceEqual<Single>(a, loss.numpy.ToArray<Single>) );
 end;
 
 procedure Keras_Losses_test.MeanAbsoluteError_None;
@@ -1773,7 +2101,7 @@ begin
     x           := layers.Dense(64, tf.keras.activations.Relu).Apply(x);
     var outputs := layers.Dense(10).Apply(x);
 
-    var model := tf.keras.Model( TFTensors.Create(inputs), outputs, 'mnist_model');
+    var model := tf.keras.Model( TFTensors.Create(inputs), outputs, 'mnist_model') ;
     model.OnEpochBegin      :=  On_Epoch_Begin;
     model.OnTrainBatchBegin :=  On_Train_Batch_Begin;
     model.OnEndSummary      :=  On_End_Summary;
@@ -1810,7 +2138,7 @@ begin
 
     Assert.AreEqual(model.Layers.Count, 8);
 
-    var res := model.predict(tf.constant(np.arange(24).astype(np.np_float32)[ [np.newaxis, Slice.All] ]));
+    var res := model.predict(TFTensors.Create( tf.constant(np.arange(24).astype(np.np_float32)[ [np.newaxis, Slice.All] ]) ));
 
     Assert.Istrue(res.shape= TFShape.Create([1, 24]));
     model.fit(np.arange(24).astype(np.np_float32)[[np.newaxis, Slice.All]], np.arange(24).astype(np.np_float32)[[np.newaxis, Slice.All]],{Batch_Size} -1,{Epochs} 1,{Verbose} 0);
@@ -1827,7 +2155,7 @@ begin
 
     model.compile('rmsprop', 'mse', [ 'accuracy' ]);
 
-    var output_array := model.predict(input_array);
+    var output_array := model.predict(TFTensors.Create( input_array ));
 
     Assert.IsTrue(TFShape.Create([32, 10, 64]) =  output_array.shape);
 end;

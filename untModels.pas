@@ -10,24 +10,18 @@ interface
 
               Numpy,
               Tensorflow,
+              Tensorflow.Core,
               TensorFlow.DApiBase,
               TensorFlow.DApi,
               Tensorflow.Utils,
-              TensorFlow.Ops,
-              TensorFlow.Context,
-              Tensorflow.NameScope,
-              TensorFlow.EagerTensor,
-              TensorFlow.Slice,
 
-              Keras.Engine,
+              Keras.Core,
               keras.LayersApi,
               keras.Data,
               Keras.KerasApi,
-              Keras.ArgsDefinition,
               keras.Models,
               Keras.Layer,
               keras.Optimizer,
-              Keras.Activations,
 
               TensorFlow.Variable,
               TensorFlow.Tensor,
@@ -166,7 +160,7 @@ type
     private
       FConfig : ExampleConfig;
       // MNIST dataset parameters.
-      mModel : Model;
+      mModel : IModel;
       layers : LayersApi;
 
       x_test, y_test,
@@ -397,13 +391,13 @@ begin
          var batch_x := tTrain.Value1;
          var batch_y := tTrain.Value2;
         // Run the optimization to update W and b values.
-        run_optimization(conv_net, optimizer, batch_x, batch_y);
+        run_optimization(conv_net, optimizer, batch_x.First, batch_y.First);
 
         if step mod display_step = 0 then
         begin
-            var pred := conv_net.Apply(TFTensors.Create(batch_x));
-            var loss : TTensor := cross_entropy_loss(pred.first, batch_y);
-            var acc  : TTensor := accuracy(pred.first, batch_y);
+            var pred := conv_net.Apply(batch_x);
+            var loss : TTensor := cross_entropy_loss(pred.first, batch_y.First);
+            var acc  : TTensor := accuracy(pred.first, batch_y.First);
             var fLoss := Single(loss);
             var facc  := Single(acc);
             logMsg.Add( Format('step: %d, loss: %.3f, accuracy: %.3f',[step, floss,facc]) );
@@ -854,7 +848,7 @@ begin
         end else
         begin
             for var image_batch in train_dataset do
-                 train_step(image_batch.Value1) ;
+                 train_step(image_batch.Value1.First) ;
 
             if i mod 100 = 0 then
             begin
@@ -874,7 +868,7 @@ begin
     var noise := np.random.normal(@sSize);
     noise := noise.astype(np.np_float32);
 
-    var tensor_result : TFTensor := g.predict(noise).first;
+    var tensor_result : TFTensor := g.predict(TFTensors.Create(noise)).first;
     var gen_imgs := tensor_result.numpy;
     SaveImage(gen_imgs, step);
 end;

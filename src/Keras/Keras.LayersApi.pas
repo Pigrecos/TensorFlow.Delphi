@@ -20,15 +20,15 @@ interface
 
           Spring,
 
+          TF4D.Core.CApi,
           TensorFlow.DApi,
           TensorFlow.Initializer,
+          TensorFlow.Core,
+
           Numpy.Axis,
 
-          Keras.Engine,
-          Keras.Activations,
-          Keras.Regularizers,
-          Keras.ILayersApi,
-          Keras.ArgsDefinition,
+          Keras.Core,
+
           Keras.Layer,
           Keras.Preprocessing;
 
@@ -407,7 +407,16 @@ type
         /// In this case, values of 'None' in the 'shape' argument represent ragged dimensions. For more information about RaggedTensors, see this guide.
         /// </param>
         /// <returns>A tensor.</returns>
-        function Input(shape: TFShape; batch_size : Integer = -1; name : string = ''; sparse: Boolean = false; ragged : Boolean= false): TFTensors;
+        function Input(shape      : TFShape;
+                       batch_size : Integer = -1;
+                       name       : string = '';
+                       dtype      : TF_DataType = DtInvalid;
+                       sparse     : Boolean = false;
+                       tensor     : TFTensor = nil;
+                       ragged     : Boolean= false;
+                       type_spec  : TypeSpec= nil;
+                       batch_input_shape: PTFShape= nil;
+                       batch_shape: PTFShape= nil): TFTensors;
 
         function InputLayer(input_shape: TFShape; name : string= ''; sparse : Boolean= false; ragged : Boolean= false): ILayer;
 
@@ -597,8 +606,8 @@ type
         // ILayerApi.Cropping
         //
         function Cropping1D(cropping: TNDArray): ILayer;
-        function Cropping2D(cropping: TNDArray; data_format : Cropping2DArgs.DataFormat = Cropping2DArgs.DataFormat.channels_last): ILayer;
-        function Cropping3D(cropping: TNDArray; data_format : Cropping3DArgs.DataFormat = Cropping3DArgs.DataFormat.channels_last_): ILayer;
+        function Cropping2D(cropping: TNDArray; data_format : DataFormat = DataFormat.channels_last): ILayer;
+        function Cropping3D(cropping: TNDArray; data_format : DataFormat = DataFormat.channels_last): ILayer;
 
         // ILayerApi.Merging
         //
@@ -965,7 +974,7 @@ begin
    Result := Keras.Layer.Cropping1D.Create( args );
 end;
 
-function LayersApi.Cropping2D(cropping: TNDArray; data_format: Cropping2DArgs.DataFormat): ILayer;
+function LayersApi.Cropping2D(cropping: TNDArray; data_format: DataFormat): ILayer;
  var
    args     : Cropping2DArgs;
 begin
@@ -977,7 +986,7 @@ begin
    Result := Keras.Layer.Cropping2D.Create( args );
 end;
 
-function LayersApi.Cropping3D(cropping: TNDArray; data_format: Cropping3DArgs.DataFormat): ILayer;
+function LayersApi.Cropping3D(cropping: TNDArray; data_format: DataFormat): ILayer;
  var
    args     : Cropping3DArgs;
 begin
@@ -1200,18 +1209,36 @@ begin
    Result := Keras.Layer.GlobalMaxPooling2D.Create( args );
 end;
 
-function LayersApi.Input(shape: TFShape; batch_size: Integer; name: string; sparse, ragged: Boolean): TFTensors;
-var
-  args : InputLayerArgs;
+function LayersApi.Input(shape : TFShape; batch_size : Integer; name : string; dtype : TF_DataType; sparse : Boolean; tensor : TFTensor; ragged : Boolean; type_spec : TypeSpec; batch_input_shape: PTFShape; batch_shape: PTFShape): TFTensors;
 begin
-   args := InputLayerArgs.Create;
-   args.InputShape  := shape;
-   args.BatchSize   := batch_size;
-   args.Name        := name;
-   args.Sparse      := sparse;
-   args.Ragged      := ragged ;
+   if (sparse) and (ragged) then
+      raise Exception.Create('Cannot set both `sparse` and `ragged` to `true` in a Keras `Input`.');
 
-   var input_layer := Keras.Layer.InputLayer.Create(args);
+   var input_layer_config := InputLayerArgs.Create;
+   input_layer_config.Name  := name;
+   input_layer_config.DType := dtype;
+   input_layer_config.Sparse:= sparse;
+   input_layer_config.Ragged:= ragged ;
+   input_layer_config.InputTensor := tensor ;
+   // skip the `type_spec`
+
+   if(not shape.IsNil) and (batch_input_shape <> nil) then
+      raise Exception.Create('Only provide the `shape` OR `batch_input_shape` argument to Input, not both at the same time.');
+
+   if(batch_input_shape = nil)  and (shape.IsNil) and (tensor = nil) and (type_spec = nil) then
+     raise Exception.Create('Please provide to Input a `shape` or a `tensor` or a `type_spec` argument. Note that `shape` does not include the batch dimension.');
+
+   if (batch_input_shape <> nil) then
+   begin
+        shape := (batch_input_shape^)['1:'];
+        input_layer_config.BatchInputShape := batch_input_shape^;
+   end else
+   begin
+        input_layer_config.BatchSize  := batch_size;
+        input_layer_config.InputShape := shape;
+   end;
+
+   var input_layer := Keras.Layer.InputLayer.Create(input_layer_config);
 
    Result := input_layer.InboundNodes[0].Outputs;
 end;

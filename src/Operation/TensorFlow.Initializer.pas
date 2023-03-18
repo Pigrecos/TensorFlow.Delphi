@@ -16,10 +16,12 @@ unit TensorFlow.Initializer;
 
 interface
     uses System.SysUtils,
+         system.Generics.Collections,
          System.Math,
+
          Spring,
          Spring.Collections,
-         Spring.Collections.Enumerable,
+
          TF4D.Core.CApi,
          TensorFlow.DApi,
          TensorFlow.DApiBase;
@@ -88,6 +90,23 @@ type
         function Apply(args: InitializerArgs): TFTensor; override;
   end;
 
+  RandomNormal = class (IInitializer)
+     private
+        Fseed        : pInteger;
+        Fmean        : Single;
+        Fstddev      : Single;
+        Fdtype       : TF_DataType;
+        Fconfig      : TDictionary<string, TValue>;
+        FClassName   : string;
+     public
+
+        constructor Create(mean : Single= 0.0; stddev: Single = 0.05; seed : PInteger= nil; dtype: TF_DataType = TF_FLOAT) ;
+        destructor Destroy; override;
+        function Apply(args: InitializerArgs): TFTensor;override;
+
+        property cClassName : string read FClassName;
+  end;
+
   RandomUniform = class (IInitializer)
      private
         Fseed        : pInteger;
@@ -123,9 +142,8 @@ type
   end;
 
 implementation
-        uses TensorFlow.Constant_op,
-             Tensorflow.Utils,
-             TensorFlow.Context,
+        uses Tensorflow.Utils,
+             Tensorflow.Core,
              TensorFlow.random_ops,
              Tensorflow.array_ops,
              TensorFlow.Tensor,
@@ -320,6 +338,38 @@ begin
     args.VerifyShape := Fverify_shape;
     var sh : TFShape := args.Shape;
     Result := constant_op.constant(TValue.From<T>(Fvalue), args.DType, @sh, args.VerifyShape, false,'Const')
+end;
+
+{ RandomNormal }
+
+constructor RandomNormal.Create(mean, stddev: Single; seed: PInteger; dtype: TF_DataType);
+begin
+    FClassName := 'RandomNormal';
+
+    Fmean   := mean;
+    Fstddev := stddev;
+    Fseed   := seed;
+    Fdtype  := dtype;
+
+    Fconfig := TDictionary<string, TValue>.Create;
+
+    Fconfig.Add('mean', Fmean);
+    Fconfig.Add('stddev', Fstddev);
+    Fconfig.Add('seed', TValue.From<PInteger>(Fseed));
+
+end;
+
+destructor RandomNormal.Destroy;
+begin
+    Fconfig.Free;
+end;
+
+function RandomNormal.Apply(args: InitializerArgs): TFTensor;
+begin
+    if args.DType = TF_DataType.DtInvalid then
+       args.DType := Fdtype;
+
+    Result := random_ops.random_normal(args.Shape, Fmean, Fstddev, args.DType, Fseed);
 end;
 
 end.

@@ -28,13 +28,8 @@ interface
            TF4D.Core.CApi,
            TensorFlow.DApiBase,
            TensorFlow.DApi,
-           TensorFlow.Context,
            Tensorflow.Utils,
-
-           Protogen.tensorShape,
-           ProtoGen.attrValue,
-           ProtoGen.types,
-           ProtoGen.opDef;
+           TensorFlow.Proto;
 
 type
 
@@ -63,7 +58,7 @@ OpDefLibrary = class
 
 
 implementation
-     uses TensorFlow.Ops,  Oz.Pb.Classes,oz.Pb.StrBuffer;
+     uses TensorFlow.Ops,  Oz.Pb.Classes;
 
 { OpDefLibrary }
 
@@ -412,8 +407,8 @@ begin
        var tt := ret_op.op.Inputs;
 
     g.gExit;
-    Result := ret_op;
 
+    Result := ret_op;
 end;
 
 class function OpDefLibrary._MakeShape(shape: TFShape; attr_def:TAttrDef): TTensorShapeProto;

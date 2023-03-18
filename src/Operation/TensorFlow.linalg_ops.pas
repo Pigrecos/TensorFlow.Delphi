@@ -30,7 +30,7 @@ interface
       TF4D.Core.CApi,
       TensorFlow.DApi,
       TensorFlow.DApiBase,
-      TensorFlow.Context,
+      TensorFlow.Core,
       Numpy.Axis;
 
 type
@@ -58,7 +58,6 @@ implementation
            TensorFlow.Tensor,
            TensorFlow.Ops,
            Tensorflow.Utils,
-           Tensorflow.NameScope,
            Tensorflow.array_ops,
            Tensorflow.math_ops,
            NumPy.NDArray;

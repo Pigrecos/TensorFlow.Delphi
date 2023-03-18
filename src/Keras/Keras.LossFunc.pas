@@ -18,7 +18,10 @@ interface
      uses System.SysUtils,
 
           TF4D.Core.CApi,
-          TensorFlow.DApi;
+          TensorFlow.DApi,
+          Tensorflow.Core,
+
+          Keras.Core;
 
 
 type
@@ -40,17 +43,6 @@ type
          SUM                 : string = 'sum';
          SUM_OVER_BATCH_SIZE : string = 'sum_over_batch_size';
          WEIGHTED_MEAN       : string = 'weighted_mean';
-   end;
-
-   ILossFunc = interface
-   ['{AE7EE5F7-1243-45C6-86B1-C43DB3146C9F}']
-     //function GetReduction : string;
-     //function GetName : string;
-
-     function Call(y_true: TFTensor; y_pred: TFTensor; sample_weight: TFTensor = nil): TFTensor;
-
-    // property Reduction : string read GetReduction;
-    // property Name      : string read GetName;
    end;
 
    /// <summary>
@@ -353,17 +345,33 @@ type
         {$ENDIF}
    end;
 
-   ILossesApi = interface
-       function  BinaryCrossentropy(from_logits : Boolean= false; label_smoothing: Single = 0; axis: Integer = -1; reduction : string= 'auto'; name: string = 'binary_crossentropy'): ILossFunc;
-       function  SparseCategoricalCrossentropy(reduction : string= ''; name : string= '';from_logits: Boolean = false) : ILossFunc;
-       function  CategoricalCrossentropy(reduction : string= ''; name : string= ''; from_logits: Boolean = false): ILossFunc;
-       function  MeanSquaredError(reduction : string= ''; name : string= '') : ILossFunc;
-       function  MeanSquaredLogarithmicError(reduction : string= ''; name : string= '') : ILossFunc;
-       function  MeanAbsolutePercentageError(reduction : string= ''; name : string= '') : ILossFunc;
-       function  MeanAbsoluteError(reduction : string= ''; name : string= '') : ILossFunc;
-       function  CosineSimilarity(reduction : string= ''; name : string= '';axis: Integer=-1): ILossFunc;
-       function  Huber(reduction : string= ''; name : string= ''; delta: TFTensor=nil): ILossFunc;
-       function  LogCosh(reduction : string= ''; name : string= ''): ILossFunc;
+   TSigmoidFocalCrossEntropy = class(Loss, ILossFunc)
+     private
+       FAlpha : Single;
+       FGamma : Single;
+       {$IFNDEF AUTOREFCOUNT}
+         private const
+           objDestroyingFlag = Integer($80000000);
+           function GetRefCount: Integer; inline;
+       {$ENDIF}
+     protected
+       {$IFNDEF AUTOREFCOUNT}
+         [Volatile] FRefCount: Integer;
+         class procedure __MarkDestroying(const Obj); static; inline;
+       {$ENDIF}
+       function QueryInterface(const IID: TGUID; out Obj): HResult; stdcall;
+       function _AddRef: Integer; stdcall;
+       function _Release: Integer; stdcall;
+     public
+
+       constructor Create(from_logits: Boolean = false; alpha: Single = 0.25; gamma: Single = 2.0; reduction : string= 'none'; name: string = 'sigmoid_focal_crossentropy');
+       function    Apply(y_true: TFTensor; y_pred: TFTensor; from_logits: boolean = false; axis: Integer = -1): TFTensor; override;
+       {$IFNDEF AUTOREFCOUNT}
+          procedure AfterConstruction; override;
+          procedure BeforeDestruction; override;
+          class function NewInstance: TObject; override;
+          property RefCount: Integer read GetRefCount;
+        {$ENDIF}
    end;
 
    LossesApi = class(TInterfacedObject, ILossesApi)
@@ -380,17 +388,19 @@ type
        function  CosineSimilarity(reduction : string= ''; name : string= '';axis: Integer=-1): ILossFunc;
        function  Huber(reduction : string= ''; name : string= ''; delta: TFTensor=nil): ILossFunc;
        function  LogCosh(reduction : string= ''; name : string= ''): ILossFunc;
+       function  SigmoidFocalCrossEntropy(from_logits: Boolean = false; alpha: Single = 0.25; gamma: Single = 2.0; reduction: string = 'none'; name: string = 'sigmoid_focal_crossentropy'): ILossFunc;
    end;
 
 implementation
          uses Tensorflow,
               TensorFlow.Ops,
-              TensorFlow.Constant_op,
               TensorFlow.Tensor,
               TensorFlow.nn_impl,
               TensorFlow.gen_math_ops,
               Tensorflow.math_ops,
               Tensorflow.array_ops,
+
+              NumPy.Axis,
               NumPy.NDArray,
 
               Keras.Utils;
@@ -1370,6 +1380,114 @@ begin
 end;
 {$ENDREGION}
 
+{ TSigmoidFocalCrossEntropy }
+
+constructor TSigmoidFocalCrossEntropy.Create(from_logits: Boolean; alpha, gamma: Single; reduction, name: string);
+begin
+    inherited Create(reduction, Name, from_logits);
+    Falpha  := alpha;
+    Fgamma  := gamma;
+end;
+
+function TSigmoidFocalCrossEntropy.Apply(y_true, y_pred: TFTensor; from_logits: boolean; axis: Integer): TFTensor;
+begin
+    y_true := tf.cast(y_true, y_pred.dtype);
+    var ce := tf.keras.backend.binary_crossentropy(y_true, y_pred, from_logits);
+    var pred_prob : TTensor ;
+    if from_logits then
+     pred_prob := tf.sigmoid(y_pred)
+    else
+      pred_prob := y_pred;
+
+    var p_t               : TTensor := (y_true * pred_prob) + ((Single(1) - TTensor(y_true)) * (Single(1) - pred_prob));
+    var alpha_factor      : TTensor := constant_op.constant(Single(1.0));
+    var modulating_factor : TTensor := constant_op.constant(Single(1.0));
+
+    if Falpha > 0 then
+    begin
+        var alpha : TTensor := tf.cast(constant_op.constant(Falpha), y_true.dtype);
+        alpha_factor        := y_true * alpha + (Single(1) - TTensor(y_true)) * (Single(1) - alpha);
+    end;
+
+    if Fgamma > 0 then
+    begin
+        var gamma         := tf.cast(constant_op.constant(Fgamma), y_true.dtype);
+        modulating_factor := tf.pow(Single(1) - p_t, gamma);
+    end;
+
+    var assi : Taxis := -1;
+    Result := tf.reduce_sum(alpha_factor * modulating_factor * ce, @assi);
+end;
+
+{$IFNDEF AUTOREFCOUNT}
+function TSigmoidFocalCrossEntropy.GetRefCount: Integer;
+begin
+  Result := FRefCount and not objDestroyingFlag;
+end;
+
+class procedure TSigmoidFocalCrossEntropy.__MarkDestroying(const Obj);
+var
+  LRef: Integer;
+begin
+  repeat
+    LRef := TSigmoidFocalCrossEntropy(Obj).FRefCount;
+  until AtomicCmpExchange(TSigmoidFocalCrossEntropy(Obj).FRefCount, LRef or objDestroyingFlag, LRef) = LRef;
+end;
+
+procedure TSigmoidFocalCrossEntropy.AfterConstruction;
+begin
+// Release the constructor's implicit refcount
+  AtomicDecrement(FRefCount);
+end;
+
+procedure TSigmoidFocalCrossEntropy.BeforeDestruction;
+begin
+  if RefCount <> 0 then
+    Error(reInvalidPtr);
+end;
+
+// Set an implicit refcount so that refcounting during construction won't destroy the object.
+class function TSigmoidFocalCrossEntropy.NewInstance: TObject;
+begin
+  Result := inherited NewInstance;
+  TSigmoidFocalCrossEntropy(Result).FRefCount := 1;
+end;
+
+{$ENDIF AUTOREFCOUNT}
+
+function TSigmoidFocalCrossEntropy.QueryInterface(const IID: TGUID; out Obj): HResult;
+begin
+  if GetInterface(IID, Obj) then
+    Result := 0
+  else
+    Result := E_NOINTERFACE;
+end;
+
+function TSigmoidFocalCrossEntropy._AddRef: Integer;
+begin
+{$IFNDEF AUTOREFCOUNT}
+  Result := AtomicIncrement(FRefCount);
+{$ELSE}
+  Result := __ObjAddRef;
+{$ENDIF}
+end;
+
+function TSigmoidFocalCrossEntropy._Release: Integer;
+begin
+{$IFNDEF AUTOREFCOUNT}
+  Result := AtomicDecrement(FRefCount);
+  if Result = 0 then
+  begin
+    // Mark the refcount field so that any refcounting during destruction doesn't infinitely recurse.
+    __MarkDestroying(Self);
+    Destroy;
+  end;
+{$ELSE}
+  Result := __ObjRelease;
+{$ENDIF}
+end;
+{$ENDREGION}
+
 { LossesApi }
 
 constructor LossesApi.Create;
@@ -1421,6 +1539,11 @@ end;
 function LossesApi.MeanSquaredLogarithmicError(reduction, name: string): ILossFunc;
 begin
     Result := TMeanSquaredLogarithmicError.Create(reduction, name);
+end;
+
+function LossesApi.SigmoidFocalCrossEntropy(from_logits: Boolean; alpha, gamma: Single; reduction, name: string): ILossFunc;
+begin
+    Result := TSigmoidFocalCrossEntropy.Create(from_logits, alpha, gamma, reduction, name)
 end;
 
 function LossesApi.SparseCategoricalCrossentropy(reduction, name: string; from_logits: Boolean): ILossFunc;

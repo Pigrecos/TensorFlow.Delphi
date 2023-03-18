@@ -20,9 +20,7 @@ interface
 
          TF4D.Core.CApi,
          TensorFlow.DApi,
-         TensorFlow.DApiBase,
-
-         Tensorflow.Interfaces;
+         TensorFlow.DApiBase;
 type
 
     /// <summary>
@@ -142,8 +140,8 @@ type
 
 implementation
        uses Tensorflow.Utils,
+            Tensorflow.Core,
             TensorFlow.control_flow_util,
-            TensorFlow.Constant_op,
             TensorFlow.control_flow_ops,
             Tensorflow.array_ops;
 

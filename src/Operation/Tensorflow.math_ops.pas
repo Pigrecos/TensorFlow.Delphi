@@ -26,8 +26,7 @@ interface
          TensorFlow.DApi,
          Numpy.Axis,
 
-         TensorFlow.Context,
-         TensorFlow.Variable ;
+         TensorFlow.Core ;
 
 type
     math_ops = record
@@ -268,20 +267,19 @@ type
       class function tensordot(a: TFTensor; b: TFTensor; axes: TNDArray; name : string = ''): TFTensor; static;
       class function _tensordot_axes(a: TFTensor; axes: TNDArray) : Tuple< TArray<Integer>,TArray<Integer> >; static;
       class function _tensordot_reshape(a: TFTensor; axes: TArray<Integer>; flipped: Boolean = false) : Tuple< TFTensor, TArray<Integer>,TArray<Integer> >; static;
+      class function count_nonzero_v2(input: TFTensor; axis: TAxis; keepdims : Boolean= false; name: string = ''; dtype : TF_DataType = TF_INT64): TFTensor; static;
   end;
 
 implementation
          uses Tensorflow,
               TensorFlow.Tensor,
-              TensorFlow.Constant_op,
               TensorFlow.Ops,
+              Tensorflow.Variable,
               Tensorflow.gen_array_ops,
               TensorFlow.gen_data_flow_ops,
               TensorFlow.gen_math_ops,
               Tensorflow.array_ops,
-              Tensorflow.NameScope,
               Tensorflow.Utils,
-              TensorFlow.Framework,
               NumPy.NDArray,
               Numpy;
 
@@ -1200,6 +1198,17 @@ end;
 class function math_ops.cos(x: TFTensor; name: string): TFTensor;
 begin
    Result := tf.Context.ExecuteOp('Cos', name, ExecuteOpArgs.Create([x])).First
+end;
+
+class function math_ops.count_nonzero_v2(input: TFTensor; axis: TAxis; keepdims: Boolean; name: string; dtype: TF_DataType): TFTensor;
+begin
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'count_nonzero', @input),
+                      function(v1: TNameScope): TFTensor
+                        begin
+                            name := string(v1.ToString);
+                            var zero := array_ops.zeros(TFShape.Scalar, input.dtype);
+                            Result   := reduce_sum(cast(gen_math_ops.not_equal(input, zero), dtype), axis, keepdims);
+                        end );
 end;
 
 class function math_ops.cumsum<T>(x: TFTensor; axis: T; exclusive, reverse: Boolean; name: string): TFTensor;

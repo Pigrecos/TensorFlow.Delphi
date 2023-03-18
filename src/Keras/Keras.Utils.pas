@@ -33,11 +33,11 @@ interface
 
             TF4D.Core.CApi,
             TensorFlow.DApi,
-            TensorFlow.DApiBase,
-            TensorFlow.Variable,
+
+            TensorFlow.Core,
 
             Keras.Layer,
-            Keras.Engine,
+            Keras.Core,
             Keras.Models;
 
 type
@@ -101,9 +101,11 @@ type
   end;
 
   losses_utils = record
+  private
+      class function remove_squeezable_dimensions(labels: TFTensor; predictions: TFTensor; expected_rank_diff: Integer = 0; name: string = ''): Tuple<TFTensor, TFTensor>; static;
     public
       class function compute_weighted_loss(losses: TFTensor; sample_weight: TFTensor = nil; reduction: string = ''; name: string = ''): TFTensor; static;
-      class function squeeze_or_expand_dimensions(y_pred: TFTensor; sample_weight: TFTensor): Tuple<TFTensor,TFTensor>; static;
+      class function squeeze_or_expand_dimensions(y_pred: TFTensor; y_true: TFTensor = nil; sample_weight: TFTensor= nil): Tuple<TFTensor,TFTensor,TFTensor>; static;
       class function reduce_weighted_loss(weighted_losses: TFTensor; reduction: string): TFTensor; static;
       class function _safe_mean(losses: TFTensor; num_present: TFTensor): TFTensor; static;
       class function _num_elements(losses: TFTensor): TFTensor; static;
@@ -134,15 +136,13 @@ implementation
                Tensorflow,
                Tensorflow.Utils,
                TensorFlow.Initializer,
-               Tensorflow.NameScope,
                TensorFlow.Ops,
                Tensorflow.math_ops,
                Tensorflow.array_ops,
 
-               Keras.ArgsDefinition,
                Keras.LossFunc,
 
-               ProtoGen.variable,
+               TensorFlow.Proto,
 
                ipztar, ipzzip,ipzgzip;
 
@@ -781,13 +781,56 @@ begin
             end);
 end;
 
-class function losses_utils.squeeze_or_expand_dimensions(y_pred, sample_weight: TFTensor): Tuple<TFTensor, TFTensor>;
+class function losses_utils.remove_squeezable_dimensions(labels: TFTensor; predictions: TFTensor; expected_rank_diff: Integer; name: string):Tuple<TFTensor,TFTensor>;
 begin
+    Result := Tuple.Create(labels, predictions);
+end;
+
+class function losses_utils.squeeze_or_expand_dimensions(y_pred: TFTensor; y_true: TFTensor = nil; sample_weight: TFTensor= nil): Tuple<TFTensor,TFTensor,TFTensor>;
+begin
+    var y_pred_shape := y_pred.shape;
+    var y_pred_rank  := y_pred_shape.ndim;
+    if y_true <> nil then
+    begin
+        var y_true_shape := y_true.shape;
+        var y_true_rank  := y_true_shape.ndim;
+        if (y_true_rank > -1) and  (y_pred_rank > -1) then
+        begin
+            if ((y_pred_rank - y_true_rank) <> 1) or (y_pred_shape[-1] = 1) then
+            begin
+                var y_true_y_pred := remove_squeezable_dimensions(y_true, y_pred);
+                y_true := y_true_y_pred.Value1;
+                y_pred := y_true_y_pred.Value2;
+            end;
+        end;
+    end;
+
+    if sample_weight = nil then
+    begin
+        Result := Tuple.Create(y_pred, y_true, sample_weight);
+        Exit;
+    end;
+
     var weights_shape := sample_weight.shape;
     var weights_rank  := weights_shape.ndim;
     if weights_rank = 0 then
-        Exit( Tuple.Create(y_pred, sample_weight) );
-    raise TFException.Create('Not Implemented ');
+    begin
+        Result := Tuple.Create(y_pred, y_true, sample_weight);
+        Exit;
+    end;
+
+    if (y_pred_rank > -1) and (weights_rank > -1) then
+    begin
+        if (weights_rank - y_pred_rank) = 1 then
+          sample_weight := tf.squeeze(sample_weight, -1)
+        else if (y_pred_rank - weights_rank) = 1 then
+          sample_weight := tf.expand_dims(sample_weight, -1);
+
+        Result := Tuple.Create(y_pred, y_true, sample_weight);
+        Exit;
+    end;
+
+    raise Exception.Create('Not Implemented');
 end;
 
 class function losses_utils.reduce_weighted_loss(weighted_losses: TFTensor; reduction: string): TFTensor;

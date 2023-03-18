@@ -19,7 +19,7 @@ interface
           Spring,
 
           TensorFlow.DApi,
-          TensorFlow.Constant_op;
+          Tensorflow.Core;
 
 type
   PAxis = ^TAxis;

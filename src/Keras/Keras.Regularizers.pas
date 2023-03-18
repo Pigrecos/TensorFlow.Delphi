@@ -16,31 +16,13 @@ unit Keras.Regularizers;
 
 interface
        uses System.SysUtils,
-            System.Generics.Collections,
 
             Spring,
-
-            TF4D.Core.CApi,
             TensorFlow.DApi,
-            Numpy.Axis,
-            TensorFlow.Context,
-            TensorFlow.Variable;
+
+            Keras.Core;
 
 type
-   RegularizerArgs  = class
-    public
-      X : TFTensor;
-
-     constructor Create(t: TFTensor);
-  end;
-
-   IRegularizer = interface
-    ['{F08A34E9-848E-4BF7-915F-6216D1C4E078}']
-
-    function Apply(args: RegularizerArgs): TFTensor;
-  end;
-
-
   TL2 = class( TInterfacedObject, IRegularizer )
      protected
        Fl2 : Single;
@@ -70,13 +52,6 @@ implementation
         uses Tensorflow,
              TensorFlow.Tensor,
              Tensorflow.math_ops;
-
-{ RegularizerArgs }
-
-constructor RegularizerArgs.Create(t: TFTensor);
-begin
-    X := t;
-end;
 
 { L2 }
 

@@ -34,9 +34,7 @@ interface
          NumPy.NDArray,
          Numpy.Axis,
 
-         ProtoGen.tensorShape,
-         ProtoGen.types,
-         ProtoGen.Tensor;
+         TensorFlow.Proto;
 
 type
 
@@ -240,13 +238,11 @@ implementation
         uses system.Generics.Defaults,
              Winapi.Windows,
              Tensorflow,
-             TensorFlow.EagerTensor,
-             Tensorflow.NameScope,
+             TensorFlow.Core,
              TensorFlow.Ops,
              Tensorflow.array_ops,
              Numpy,
-             Complex,
-             TensorFlow.Variable;
+             Complex;
 
 function sum(_enumerable: TArray<TValue>): Double;
 begin

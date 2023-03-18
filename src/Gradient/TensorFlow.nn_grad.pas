@@ -28,6 +28,7 @@ interface
          TF4D.Core.CApi,
          TensorFlow.DApi,
          TensorFlow.DApiBase,
+         TensorFlow.Core,
          Tensorflow.Gradient;
 
 type
@@ -43,7 +44,6 @@ type
 
 implementation
         uses Tensorflow,
-             TensorFlow.Constant_op,
              Tensorflow.Utils,
              TensorFlow.Ops,
              TensorFlow.Tensor,
@@ -54,10 +54,7 @@ implementation
              TensorFlow.gen_nn_ops,
              TensorFlow.nn_ops,
 
-             TensorFlow.NnOps,
-
-             Numpy,
-             NumPy.NDArray;
+             TensorFlow.NnOps;
 
 function  IsZero(g: TFTensor): Boolean;
 var
@@ -167,6 +164,14 @@ begin
     grad_0 := grads[0];
 
     Result := TArray<TFTensor>.Create(_BroadcastMul(grad_0, sparse_softmax_grad_without_gradient), nil) ;
+end;
+
+function _SoftplusGrad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;
+begin
+    var grad := grads[0];
+    var x    := op.inputs[0];
+    var softplus := TTensor(grad) * math_ops.sigmoid(x);
+    Result := [ softplus ];
 end;
 
 function _SquaredDifferenceGrad(op: TFOperation; grads: TArray<TFTensor>) : TArray<TFTensor>;
@@ -422,6 +427,7 @@ begin
                        TGradFunc.Create('Softmax',                             _SoftmaxGrad),
                        TGradFunc.Create('SoftmaxCrossEntropyWithLogits',       _SoftmaxCrossEntropyWithLogitsGrad),
                        TGradFunc.Create('SparseSoftmaxCrossEntropyWithLogits', _SparseSoftmaxCrossEntropyWithLogitsGrad),
+                       TGradFunc.Create('Softplus',                            _SoftplusGrad),
                        TGradFunc.Create('SquaredDifference',                   _SquaredDifferenceGrad),
                        TGradFunc.Create('Conv2DBackpropInput',                 _Conv2DBackpropInputGrad ),
                        TGradFunc.Create('Conv2D',                              _Conv2DGrad),

@@ -3,31 +3,7 @@ unit ProtoGen.Main;
 interface
       uses
           System.Classes, System.Generics.Collections, System.Rtti, System.SysUtils, Generics.Collections, Oz.Pb.Classes,
-          ProtoGen.costgraph,
-          ProtoGen.graph,
-          ProtoGen.attrvalue,
-          ProtoGen.resourcehandle,
-          ProtoGen.opdef,
-          ProtoGen.stepstats,
-          ProtoGen.tensorshape,
-          ProtoGen.types,
-          ProtoGen.cluster,
-          ProtoGen.coordinationconfig,
-          ProtoGen.debug,
-          ProtoGen.rewriterconfig,
-          ProtoGen.tensor,
-          ProtoGen.&function,
-          ProtoGen.fulltype,
-          ProtoGen.nodedef,
-          ProtoGen.versions,
-          ProtoGen.verifierconfig,
-          ProtoGen.allocationdescription,
-          ProtoGen.tensordescription,
-
-          ProtoGen.Variable,
-          ProtoGen.CppShapeInference,
-          ProtoGen.Config,
-          ProtoGen.ControlFlow;
+          TensorFlow.Proto;
 
 type
   TLoadHelper = record helper for TpbLoader

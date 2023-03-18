@@ -31,7 +31,7 @@ interface
          TensorFlow.DApi,
          Numpy.Axis,
 
-         TensorFlow.Context ;
+         TensorFlow.Core ;
 
 type
 
@@ -274,12 +274,7 @@ implementation
              TensorFlow.Ops,
              Tensorflow.gen_array_ops,
              TensorFlow.gen_math_ops,
-             Tensorflow.NameScope,
              Tensorflow.Utils,
-             TensorFlow.Constant_op,
-             TensorFlow.EagerTensor,
-             TensorFlow.Variable,
-             TensorFlow.Framework,
              TensorFlow.Tensor;
 
 { array_ops }
@@ -814,6 +809,11 @@ begin
         begin
            var tten := v.AsType<TFTensor>;
            dtype := Tdtypes.as_base_dtype( tten.dtype ) ;
+           Break;
+        end
+        else if v.IsType<Integer> then
+        begin
+           dtype := TF_INT32;
            Break;
         end;
         if (dtype <> TF_DataType.DtInvalid) then

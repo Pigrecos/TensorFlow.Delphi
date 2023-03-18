@@ -20,10 +20,7 @@ interface
          Spring,
 
          TensorFlow.DApiBase,
-         TF4D.Core.CApi,
-         TensorFlow.DApi,
-         TensorFlow.Context,
-         TensorFlow.ControlFlowState ;
+         TensorFlow.DApi ;
 
 type
 
@@ -69,10 +66,7 @@ type
   end;
 
 implementation
-        uses Tensorflow,
-             Tensorflow.Utils,
-             TensorFlow.Ops,
-             Tensorflow.NameScope;
+        uses Tensorflow;
 
 { control_flow_util }
 

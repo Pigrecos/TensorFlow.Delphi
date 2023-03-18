@@ -27,11 +27,9 @@ interface
          TensorFlow.DApiBase,
          TF4D.Core.CApi,
          TensorFlow.DApi,
-         Numpy.Axis,
          TensorFlow.ControlFlowState,
-         TensorFlow.Context,
          TensorFlow.Interfaces,
-         Tensorflow.Tensors.Ragged ;
+         TensorFlow.Core ;
 
 type
   MergeOutput = record
@@ -193,10 +191,8 @@ type
 implementation
       uses Tensorflow,
            TensorFlow.Tensor,
-           Tensorflow.Constant_op,
            Tensorflow.Utils,
            TensorFlow.Ops,
-           Tensorflow.NameScope,
            Tensorflow.math_ops,
            Tensorflow.gen_array_ops,
            Tensorflow.array_ops,
@@ -803,4 +799,5 @@ begin
 end;
 
 end.
+
 

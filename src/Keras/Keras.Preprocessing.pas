@@ -26,9 +26,7 @@ interface
 
           TensorFlow.DApi,
 
-          Keras.Engine,
-          Keras.ILayersApi,
-          Keras.ArgsDefinition,
+          Keras.Core,
           Keras.Layer,
           Keras.Data;
 

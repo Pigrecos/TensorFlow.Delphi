@@ -21,7 +21,6 @@ interface
               System.RegularExpressions,
 
               Spring,
-              spring.Collections,
 
               TensorFlow.DApiBase;
 

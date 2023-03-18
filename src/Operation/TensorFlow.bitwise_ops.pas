@@ -19,10 +19,8 @@ interface
 
          Spring,
 
-         TF4D.Core.CApi,
-         TensorFlow.DApiBase,
          TensorFlow.DApi,
-         TensorFlow.Context ;
+         TensorFlow.Core ;
 
 type
   /// <summary>

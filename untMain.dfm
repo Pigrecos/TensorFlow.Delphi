@@ -41,7 +41,7 @@ object frmMain: TfrmMain
     end
     object btnKerasLayers: TBitBtn
       Left = 439
-      Top = 8
+      Top = 6
       Width = 106
       Height = 25
       Caption = 'Keras Layers'
@@ -95,8 +95,8 @@ object frmMain: TfrmMain
         'mmo1')
       ScrollBars = ssVertical
       TabOrder = 0
-      ExplicitWidth = 762
-      ExplicitHeight = 524
+      ExplicitLeft = 2
+      ExplicitTop = 2
     end
   end
 end

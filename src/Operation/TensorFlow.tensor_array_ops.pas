@@ -20,9 +20,8 @@ unit TensorFlow.tensor_array_ops;
 interface
     uses System.SysUtils,
 
-         TF4D.Core.CApi,
          TensorFlow.DApi,
-         TensorFlow.Tensors.Ragged;
+         TensorFlow.Core;
 
 type
   tensor_array_ops = record

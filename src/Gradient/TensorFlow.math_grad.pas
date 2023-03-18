@@ -27,6 +27,7 @@ interface
 
          TF4D.Core.CApi,
          TensorFlow.DApi,
+         TensorFlow.Core,
          TensorFlow.DApiBase,
          Tensorflow.Gradient;
 
@@ -43,7 +44,6 @@ type
 
 implementation
       uses Tensorflow,
-           TensorFlow.Constant_op,
            Tensorflow.Utils,
            TensorFlow.Ops,
            TensorFlow.Tensor,

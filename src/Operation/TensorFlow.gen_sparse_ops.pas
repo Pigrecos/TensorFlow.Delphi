@@ -17,11 +17,8 @@ unit TensorFlow.gen_sparse_ops;
 interface
    uses  System.SysUtils,
          Spring,
-         TF4D.Core.CApi,
-         TensorFlow.DApi,
-         Numpy.Axis,
 
-         TensorFlow.Context ;
+         TensorFlow.DApi ;
 
 type
   gen_sparse_ops = Record
@@ -45,7 +42,7 @@ type
 
 implementation
       uses Tensorflow,
-               TensorFlow.Ops,
+
                Tensorflow.Utils;
 { gen_sperse_ops }
 

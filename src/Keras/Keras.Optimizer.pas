@@ -29,15 +29,14 @@ interface
             TF4D.Core.CApi,
             TensorFlow.DApi,
             TensorFlow.DApiBase,
-            Numpy.Axis,
-            TensorFlow.Context,
-            TensorFlow.Variable,
+
+            TensorFlow.Core,
             TensorFlow.Training,
             TensorFlow.Initializer,
 
-            ProtoGen.variable,
+            TensorFlow.Proto,
 
-            Keras.ArgsDefinition;
+            Keras.Core;
 
 type
    DeviceDType = class( TEqualityComparer<DeviceDType>)
@@ -51,15 +50,10 @@ type
 
    end;
 
-    IOptimizer  = interface
-      ['{1B287EFE-CFFD-4E65-A439-D8D0E43309E7}']
-
-    end;
-
-    /// <summary>
-    /// Updated base class for optimizers.
-    /// </summary>
-    OptimizerV2 = class(TInterfacedObjectEx, IOptimizer)
+   /// <summary>
+   /// Updated base class for optimizers.
+   /// </summary>
+   OptimizerV2 = class(TInterfacedObjectEx, IOptimizer)
       private
          // delphi class inherithed limit!!
          FIternalTrackable : Trackable;
@@ -99,8 +93,8 @@ type
          function  apply_gradients(grads_and_vars: Tuple<TFTensor, ResourceVariable>;           name : string= ''; experimental_aggregate_gradients : Boolean = True) : TFOperation; overload;
          procedure apply_grad_to_update_var(_var: ResourceVariable; grad: TFTensor; apply_state : TDictionary<DeviceDType, TDictionary<string, TFTensor>> );
          procedure _distributed_apply(grads_and_vars : TArray< Tuple<TFTensor, ResourceVariable> >; name: string; _apply_state: TDictionary<DeviceDType, TDictionary<string, TFTensor>> );
-         function  _aggregate_gradients(grads_and_vars : TArray< Tuple<TFTensor, IVariableV1> > ) : TArray<TFTensor>;
-         function  _clip_gradients(grads: TArray<TFTensor>): TArray<TFTensor>;
+         function  aggregate_gradients(grads_and_vars : TArray< Tuple<TFTensor, IVariableV1> > ) : TArray<TFTensor>;
+         function  clip_gradients(grads: TArray<TFTensor>): TArray<TFTensor>;
          function  _prepare(var_list: TArray<IVariableV1>): TDictionary<DeviceDType, TDictionary<string, TFTensor>>;
          function  _decayed_lr(var_dtype: TF_DataType): TFTensor;
          procedure _create_all_weights(var_list: TArray<IVariableV1>);
@@ -145,16 +139,16 @@ type
          constructor Create(args: RMSpropArgs);
 
          property centered : Boolean read GetCent;
-    end;
-    TSGD = class(OptimizerV2)
+   end;
+   TSGD = class(OptimizerV2)
       private
          procedure _prepare_local(device_dtype: DeviceDType; _apply_state : TDictionary<DeviceDType, TDictionary<string, TFTensor>> ); override;
          function  _resource_apply_dense(_var: IVariableV1; grad: TFTensor; _apply_state : TDictionary<DeviceDType, TDictionary<string, TFTensor>> ): TFOperation; override;
       public
          constructor Create(learning_rate: Single; momentum : Single = 0.0; nesterov : Boolean = false; decay: Single = 0.0);
-    end;
+   end;
 
-    OptimizerApi = class
+   OptimizerApi = class
       private
 
       public
@@ -183,16 +177,17 @@ type
         /// <returns></returns>
         function RMSprop(learning_rate : Single = 0.001; rho : Single = 0.9; momentum : Single = 0.0; epsilon : Single = 1e-7; centered : Boolean = false; name: string = 'RMSprop'): OptimizerV2;
         function SGD(learning_rate: Single): TSGD;
-    end;
+   end;
+
 implementation
         uses Tensorflow,
              TensorFlow.Tensor,
              TensorFlow.Ops,
-             Tensorflow.NameScope,
              Tensorflow.Utils,
              TensorFlow.control_flow_ops,
              Tensorflow.array_ops,
              Tensorflow.math_ops,
+             Tensorflow.Variable,
 
              Keras.Utils;
 
@@ -312,14 +307,14 @@ begin
           end );
 end;
 
-function OptimizerV2._aggregate_gradients(grads_and_vars: TArray<Tuple<TFTensor, IVariableV1>>): TArray<TFTensor>;
+function OptimizerV2.aggregate_gradients(grads_and_vars: TArray<Tuple<TFTensor, IVariableV1>>): TArray<TFTensor>;
 begin
     Result := [];
     for var i := 0 to Length(grads_and_vars)-1 do
          Result := Result + [ grads_and_vars[i].Value1 ];
 end;
 
-function OptimizerV2._clip_gradients(grads: TArray<TFTensor>): TArray<TFTensor>;
+function OptimizerV2.clip_gradients(grads: TArray<TFTensor>): TArray<TFTensor>;
 begin
     Result := grads;
 end;

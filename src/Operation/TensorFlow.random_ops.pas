@@ -21,14 +21,10 @@ interface
       uses System.SysUtils,
            rtti,
            Spring,
-           Spring.Collections.Enumerable,
-           Spring.Collections.Lists,
-           TF4D.Core.CApi,
-           TensorFlow.DApiBase,
-           TensorFlow.DApi,
-           Numpy.Axis,
 
-           TensorFlow.Context ;
+           TF4D.Core.CApi,
+           TensorFlow.DApi,
+           TensorFlow.Core ;
 
 type
   random_ops = record
@@ -94,9 +90,7 @@ implementation
       uses Tensorflow,
            TensorFlow.Ops,
            Tensorflow.Utils,
-           Tensorflow.NameScope,
            Tensorflow.math_ops,
-           TensorFlow.Framework,
            TensorFlow.gen_random_ops,
            TensorFlow.Tensor;
 

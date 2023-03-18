@@ -24,11 +24,8 @@ interface
            Spring,
 
            TF4D.Core.CApi,
-           TensorFlow.DApiBase,
            TensorFlow.DApi,
-           Numpy.Axis,
-
-           TensorFlow.Context ;
+           TensorFlow.Core ;
 
 type
    stateless_random_ops  = record
@@ -43,7 +40,6 @@ type
 
 implementation
       uses Tensorflow.Utils,
-           Tensorflow.NameScope,
            Tensorflow.Ops,
            TensorFlow.gen_random_ops,
            Tensorflow.math_ops,

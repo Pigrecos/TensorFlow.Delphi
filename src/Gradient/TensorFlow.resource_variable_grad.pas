@@ -19,15 +19,14 @@ unit TensorFlow.resource_variable_grad;
 
 interface
     uses System.SysUtils,
-         System.Generics.Collections,
+
          Generics.Defaults,
          System.Math,
 
          Spring,
 
-         TF4D.Core.CApi,
          TensorFlow.DApi,
-         TensorFlow.DApiBase,
+         TensorFlow.Core,
          Tensorflow.Gradient;
 
 type
@@ -42,15 +41,7 @@ type
     end;
 
 implementation
-      uses Tensorflow,
-           TensorFlow.Constant_op,
-           Tensorflow.Utils,
-           TensorFlow.Ops,
-           TensorFlow.Tensor,
-           Tensorflow.math_ops,
-           Tensorflow.gen_array_ops,
-           TensorFlow.gen_math_ops,
-           Tensorflow.array_ops;
+      uses Tensorflow;
 
 // [RegisterGradient("ReadVariableOp")]
 function _ReadGrad(op: TFOperation; grads: TArray<TFTensor>): TArray<TFTensor>;

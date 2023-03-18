@@ -27,6 +27,7 @@ interface
          Spring.Collections.Enumerable,
 
          TF4D.Core.CApi,
+         TensorFlow.Core,
          TensorFlow.DApi,
          TensorFlow.DApiBase,
          Tensorflow.Gradient;
@@ -44,19 +45,16 @@ type
 
 implementation
       uses Tensorflow,
-           TensorFlow.EagerTensor,
-           TensorFlow.Constant_op,
            Tensorflow.Utils,
            TensorFlow.Ops,
            TensorFlow.Tensor,
            Tensorflow.math_ops,
            Tensorflow.gen_array_ops,
-           TensorFlow.gen_math_ops,
+
            Tensorflow.array_ops,
            TensorFlow.control_flow_util,
-           TensorFlow.Framework,
            TensorFlow.Slice,
-           Numpy,
+
            NumPy.NDArray;
 
 // [RegisterGradient("BroadcastTo")]

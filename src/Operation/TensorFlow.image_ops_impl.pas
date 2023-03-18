@@ -25,7 +25,7 @@ interface
          Spring.Collections.Lists,
 
          TensorFlow.DApi,
-         TensorFlow.Context;
+         TensorFlow.Core;
 
 type
   ResizeMethod= record
@@ -61,8 +61,6 @@ type
 implementation
          uses Tensorflow,
               TensorFlow.Tensor,
-              TensorFlow.Tensors.Ragged,
-              Tensorflow.NameScope,
               Tensorflow.Utils,
               TensorFlow.Ops,
               Tensorflow.array_ops,

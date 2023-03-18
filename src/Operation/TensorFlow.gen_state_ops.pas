@@ -24,7 +24,7 @@ interface
          Spring.Collections.Lists,
 
          TF4D.Core.CApi,
-         TensorFlow.DApiBase,
+         Tensorflow.Core,
          TensorFlow.DApi,
          TensorFlow.Variable;
 
@@ -70,15 +70,7 @@ type
 
 implementation
       uses Tensorflow,
-           Numpy,
-           TensorFlow.Context,
-           TensorFlow.Ops,
-           Tensorflow.gen_array_ops,
-           TensorFlow.gen_math_ops,
-           Tensorflow.NameScope,
-           Tensorflow.Utils,
-           TensorFlow.Constant_op,
-           TensorFlow.EagerTensor;
+           Tensorflow.Utils;
 
 
 { gen_state_ops }

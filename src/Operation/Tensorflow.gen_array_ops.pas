@@ -22,9 +22,8 @@ interface
          Spring,
          TF4D.Core.CApi,
          TensorFlow.DApi,
-         Numpy.Axis,
 
-         TensorFlow.Context ;
+         TensorFlow.Core ;
 
 type
   gen_array_ops = record
@@ -189,8 +188,6 @@ type
 
 implementation
           uses Tensorflow,
-               TensorFlow.EagareRunner,
-               TensorFlow.Ops,
                Tensorflow.Utils;
 { gen_array_ops }
 

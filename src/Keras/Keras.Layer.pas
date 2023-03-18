@@ -32,28 +32,20 @@ interface
 
             Neon.Core.Persistence,
             Neon.Core.Persistence.JSON,
-            Neon.Core.Utils,
 
             TF4D.Core.CApi,
             TensorFlow.DApi,
             TensorFlow.DApiBase,
-            TensorFlow.Framework,
+            TensorFlow.Core,
             Numpy.Axis,
-            TensorFlow.Context,
-            TensorFlow.Variable,
             TensorFlow.Training,
             TensorFlow.Initializer,
             TensorFlow.NnOps,
-            TensorFlow.Functions,
 
-            Keras.Regularizers,
-            Keras.Activations,
-            Keras.ArgsDefinition,
-            Keras.Engine,
+            Keras.Core,
             Keras.Data,
 
-            ProtoGen.nodeDef,
-            ProtoGen.variable;
+            TensorFlow.Proto;
 
 
 threadvar  tls_CallContext : TCallContext;
@@ -81,6 +73,9 @@ type
        function GetTrainVars: TList<IVariableV1>;
        function GetNonTrainVars: TList<IVariableV1>;
        function GetNotTrainW: TList<IVariableV1>;
+       function GetWeights   : TList<IVariableV1>;
+       procedure SetWeights(value: TList<IVariableV1>);
+       function GetVars: TList<IVariableV1>;
        function GetBatchShape: TFShape;
        function GetInNodes: TList<INode>;
        function GetOutNodes: TList<INode>;
@@ -92,8 +87,6 @@ type
        procedure _handle_activity_regularization(inputs: TFTensors; outputs: TFTensors);
        procedure _set_mask_metadata(inputs: TFTensors; outputs: TFTensors; previous_mask: TFTensors);
        function  compute_mask(inputs: TFTensor; mask: TFTensor = nil): TFTensor;
-       function  GetW: TList<IVariableV1>;
-       procedure SetW(const Value: TList<IVariableV1>);
        function  GetLayers: TList<ILayer>; virtual;
        procedure SetCallCtx(const Value: TCallContext);
        {$IFNDEF AUTOREFCOUNT}
@@ -150,6 +143,8 @@ type
        procedure Build(input_shape: TFShape); virtual;
        procedure add_loss(losses: TFunc<TFTensor>); virtual;
        procedure _init_set_name(_name: string; zero_based: Boolean = true); virtual;
+       function  _gather_children_variables(include_trainable: Boolean = false; include_non_trainable: Boolean = false): TList<IVariableV1>;
+       procedure Initialize(_args: LayerArgs); virtual;
     public
         constructor Create(_args: LayerArgs);
         destructor Destroy; override;
@@ -192,10 +187,12 @@ type
         property dynamicc             : Boolean             read Fdynamic;
         property SupportsMasking      : Boolean             read FSupportsMasking;
         property inputSpec            : TInputSpec          read FinputSpec;
-        property TrainableWeights     : TList<IVariableV1>  read GetTrainW;
         property TrainableVariables   : TList<IVariableV1>  read GetTrainVars;
         property NonTrainableVariables: TList<IVariableV1>  read GetNonTrainVars;
+        property Variables            : TList<IVariableV1>  read GetVars;
+        property TrainableWeights     : TList<IVariableV1>  read GetTrainW;
         property NonTrainableWeights  : TList<IVariableV1>  read GetNotTrainW;
+        property weights              : TList<IVariableV1>  read GetWeights write SetWeights;
         property Id                   : Integer             read FId;
         property Name                 : string              read GetName;
         property BatchInputShape      : TFShape             read GetBatchShape;
@@ -206,7 +203,7 @@ type
         property NodesByDepth         : TDictionary<Integer, TList<INode>> read FNodesByDepth write FNodesByDepth;
         property OutputShape          : TFShape             read GetoutShape;
         property Layers               : TList<ILayer>       read GetLayers;
-        property weights              : TList<IVariableV1>  read GetW write SetW;
+
   end;
 {$ENDREGION}
 
@@ -357,7 +354,6 @@ type
       bias   : IVariableV1;
 
       constructor Create(_args: DenseArgs);
-      class function from_config(args: LayerArgs): Dense;
 
       property activation : TActivation read getAct;
   end;
@@ -511,7 +507,6 @@ type
       typeSpec     : TensorSpec;
 
       constructor Create(_args: InputLayerArgs);
-      class function from_config(_args: LayerArgs): InputLayer;
   end;
 
   {$ENDREGION}
@@ -1377,7 +1372,7 @@ type
   /// <summary>
   /// Encapsulates metric logic and state.
   /// </summary>
-  Metric = class(Layer)
+  Metric = class(Layer, IMetricFunc)
     protected
       total      : IVariableV1;
       count      : IVariableV1;
@@ -1451,12 +1446,10 @@ implementation
              Keras.Backend,
 
              Tensorflow,
+             Tensorflow.Variable,
              TensorFlow.Tensor,
              TensorFlow.Ops,
-             TensorFlow.Constant_op,
              Tensorflow.Utils,
-             Tensorflow.NameScope,
-             TensorFlow.EagerTensor,
              TensorFlow.nn_ops,
              TensorFlow.nn_impl,
              Tensorflow.math_ops,
@@ -1464,7 +1457,6 @@ implementation
              TensorFlow.gen_math_ops,
              TensorFlow.embedding_ops,
              TensorFlow.image_ops_impl,
-             TensorFlow.Tensors.Ragged,
              TensorFlow.Slice,
              NumPy.NDArray,
 
@@ -1474,6 +1466,11 @@ implementation
 { Layer }
 
 constructor Layer.Create(_args: LayerArgs);
+begin
+   Initialize(_args)
+end;
+
+procedure Layer.Initialize(_args: LayerArgs);
 begin
     Fargs := _args;
     // A stateful layer is a layer whose updates are run during inference too,
@@ -1594,12 +1591,7 @@ end;
 
 function Layer.GetNonTrainVars: TList<IVariableV1>;
 begin
-    Result := FNonTrainableWeights;
-end;
-
-function Layer.GetNotTrainW: TList<IVariableV1>;
-begin
-    Result := FNonTrainableWeights;
+    Result := NonTrainableWeights;
 end;
 
 function Layer.GetInNodes: TList<INode>;
@@ -1624,7 +1616,7 @@ end;
 
 function Layer.GetoutShape: TFShape;
 begin
-    Result := Default(TFShape) ;
+    Result := System.Default(TFShape) ;
     if FInboundNodes.Count < 1 then Exit;
 
     Result := FInboundNodes[0].Outputs.shape;
@@ -1637,29 +1629,58 @@ end;
 
 function Layer.GetTrainVars: TList<IVariableV1>;
 begin
-    Result := FTrainableWeights;
+    Result := TrainableWeights;
 end;
 
 function Layer.GetTrainW: TList<IVariableV1>;
 begin
-   Result := FTrainableWeights;
+    if not Trainable then
+      Exit( TList<IVariableV1>.Create );
+
+    var children_weights := _gather_children_variables(true);
+
+    var enu_children_weights := Enumerable<IVariableV1>.Create(children_weights.ToArray);
+    var Res : Enumerable<IVariableV1> := enu_children_weights.Concat(FTrainableWeights.ToArray);
+    Res     := Res.Distinct;
+
+    Result := TList<IVariableV1>.Create(Res.ToArray);
 end;
 
-function Layer.GetW: TList<IVariableV1>;
+function Layer.GetNotTrainW: TList<IVariableV1>;
 begin
-    var weights := TList<IVariableV1>.Create;
-    weights.AddRange(FTrainableWeights);
-    weights.AddRange(FNonTrainableWeights);
-    Result := weights;
+    if not Trainable then
+    begin
+      var children_weights := _gather_children_variables(true,True);
+
+      var enu_children_weights := Enumerable<IVariableV1>.Create(children_weights.ToArray);
+      var Res : Enumerable<IVariableV1> := enu_children_weights.Concat(FTrainableWeights.ToArray);
+      Res     := Res.Concat(FNonTrainableWeights.ToArray);
+      Res     := Res.Distinct;
+
+      Result := TList<IVariableV1>.Create(Res.ToArray);
+    end else
+    begin
+      var children_weights := _gather_children_variables(False,True);
+
+      var enu_children_weights := Enumerable<IVariableV1>.Create(children_weights.ToArray);
+      var Res : Enumerable<IVariableV1> := enu_children_weights.Concat(FNonTrainableWeights.ToArray);
+      Res     := Res.Distinct;
+
+      Result := TList<IVariableV1>.Create(Res.ToArray);
+    end;
 end;
 
-procedure Layer.SetW(const Value: TList<IVariableV1>);
+function Layer.GetWeights: TList<IVariableV1>;
+begin
+    Result := TList<IVariableV1>.Create( TrainableWeights.ToArray + NonTrainableWeights.ToArray) ;
+end;
+
+procedure Layer.SetWeights(value: TList<IVariableV1>);
 begin
     if weights.Count <> value.Count then raise TFException.Create(
                                 'You called `set_weights` on layer \'+ Fname +
                                 'with a weight list of length '+ IntToStr(value.Count)+', but the layer was ' +
                                 'expecting '+ IntToStr(weights.count)+ ' weights.');
-
 
     for var t in TUtils.zip<IVariableV1>(weights, value) do
     begin
@@ -1671,6 +1692,11 @@ begin
         else
            raise Exception.Create('state_ops.assign Error!');
     end;
+end;
+
+function Layer.GetVars: TList<IVariableV1>;
+begin
+    Result := Weights
 end;
 
 function Layer.get_config: LayerArgs;
@@ -1892,6 +1918,31 @@ begin
     end;
 end;
 
+function Layer._gather_children_variables(include_trainable, include_non_trainable: Boolean): TList<IVariableV1>;
+begin
+    var res := TList<IVariableV1>.Create;
+    var nested_layers := _flatten_layers(false, false);
+    for var _layer in nested_layers do
+    begin
+        if _layer is Layer  then
+        begin
+            if (include_trainable = true) and (include_non_trainable = true) then
+            begin
+                res.AddRange(Layer(_layer).Variables);
+            end
+            else if (include_trainable = true) and (include_non_trainable = false) then
+            begin
+                res.AddRange(Layer(_layer).TrainableVariables);
+            end
+            else if(include_trainable = false) and (include_non_trainable = true) then
+            begin
+                res.AddRange(Layer(_layer).NonTrainableVariables);
+            end
+        end;
+    end;
+    Result := res;
+end;
+
 function Layer._get_trainable_state: TDictionary<ILayer, boolean>;
 begin
     Ftrainable_state := TDictionary<ILayer, Boolean>.Create;
@@ -2036,7 +2087,7 @@ begin
   if alpha < 0  then
     raise TFException.Create('Alpha must be a number greater than 0.');
 
-  Fbuilt := true;
+  inherited Build(input_shape);
 end;
 
 function ELU.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
@@ -2061,7 +2112,7 @@ end;
 
 procedure Exponential.Build(input_shape: TFShape);
 begin
-   Fbuilt := true;
+  inherited Build(input_shape);
 end;
 
 function Exponential.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
@@ -2129,7 +2180,7 @@ begin
   if alpha < 0  then
     raise TFException.Create('Alpha must be a number greater than 0.');
 
-  Fbuilt := true;
+  inherited Build(input_shape);
 end;
 
 function SELU.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
@@ -2306,7 +2357,7 @@ begin
                                                  Result := tf.identity(weights);
                                               end;
 
-    weights := Tensorflow.Framework.smart_module.smart_cond(_training, dropped_weights, false_pred);
+    weights := smart_module.smart_cond(_training, dropped_weights, false_pred);
     //return (tf.matmul(weights, value), weights);
     Result := Tuple.Create(tf.linalg.einsum('bij,bjk->bik', TFTensors.Create([weights, value])), weights );
 end;
@@ -2627,11 +2678,6 @@ begin
         outputs := activation(outputs);
 
     Result := TFTensors.Create(outputs);
-end;
-
-class function Dense.from_config(args: LayerArgs): Dense;
-begin
-    Result := Dense.Create(args as DenseArgs);
 end;
 
 function Dense.getAct: TActivation;
@@ -2961,7 +3007,7 @@ begin
             args.BatchInputShape := aBatch;
         end else
         begin
-            args.BatchInputShape := default(TFShape);
+            args.BatchInputShape := System.default(TFShape);
         end;
 
         var graph := tf.keras.backend.get_graph;
@@ -2987,20 +3033,15 @@ begin
     typeSpec := TensorSpec.Create(args.InputTensor.shape, args.InputTensor.dtype, Name);
 end;
 
-class function InputLayer.from_config(_args: LayerArgs): InputLayer;
-begin
-    Result := InputLayer.Create(_args as InputLayerArgs);
-end;
-
 { MultiHeadAttention }
 
 constructor MultiHeadAttention.Create(_args: MultiHeadAttentionArgs);
 begin
     inherited Create(_args) ;
 
-    Fquery_shape          := Default(TFShape);
-    Fkey_shape            := Default(TFShape);
-    Fvalue_shape          := Default(TFShape);
+    Fquery_shape          := System.Default(TFShape);
+    Fkey_shape            := System.Default(TFShape);
+    Fvalue_shape          := System.Default(TFShape);
     Fbuilt_from_signature := False;
     Fquery_dense          := nil;
     Fkey_dense            := nil;
@@ -3096,7 +3137,7 @@ end;
 
 procedure MultiHeadAttention._build_from_signature(query, value, key: TFTensor);
 begin
-    var s : TFShape := default(TFShape);
+    var s : TFShape := System.default(TFShape);
     if Assigned(key)  then s := key.shape;
 
     _build_from_signature(query.shape, value.shape, s);
@@ -3708,7 +3749,7 @@ begin
     if args.cropping.shape = TFShape.Create([1]) then
     begin
           var crop : Integer := NDarray(args.cropping[0]);
-          if args.data_format = Cropping2DArgs.DataFormat.channels_last then
+          if args.data_format = DataFormat.channels_last then
           begin
                 output := output[ [Slice.Create(nil,nil),
                                               Slice.Create(crop, output.shape[1] - crop),
@@ -3727,7 +3768,7 @@ begin
     begin
           var crop_1 : Integer := NDArray(args.cropping[0]);
           var crop_2 : Integer := NDArray(args.cropping[1]);
-          if args.data_format = Cropping2DArgs.DataFormat.channels_last then
+          if args.data_format = DataFormat.channels_last then
           begin
                 output := output[ [Slice.Create(nil,nil),
                                               Slice.Create(crop_1, output.shape[1] - crop_1),
@@ -3748,7 +3789,7 @@ begin
 
           var y_start : Integer := NDArray(args.cropping[[1, 0]]);
           var y_end   : Integer := NDArray(args.cropping[[1, 1]]);
-          if args.data_format = Cropping2DArgs.DataFormat.channels_last then
+          if args.data_format = DataFormat.channels_last then
           begin
                 output := output[ [Slice.Create(nil,nil),
                                               Slice.Create(x_start, output.shape[1] - x_end),
@@ -3771,7 +3812,7 @@ begin
     if args.cropping.shape = TFShape.Create([1]) then
     begin
           var crop : Integer := NDarray(args.cropping[0]);
-          if args.data_format = Cropping2DArgs.DataFormat.channels_last then
+          if args.data_format = DataFormat.channels_last then
           begin
                 Result := TFShape.Create([input_shape[0], input_shape[1] - crop * 2, input_shape[2] - crop * 2, input_shape[3]]);
           end else
@@ -3784,7 +3825,7 @@ begin
     begin
           var crop_1 : Integer := NDArray(args.cropping[0]);
           var crop_2 : Integer := NDArray(args.cropping[1]);
-          if args.data_format = Cropping2DArgs.DataFormat.channels_last then
+          if args.data_format = DataFormat.channels_last then
           begin
                 Result := TFShape.Create([input_shape[0], input_shape[1] - crop_1 * 2, input_shape[2] - crop_2 * 2, input_shape[3]]);
           end else
@@ -3800,7 +3841,7 @@ begin
           var crop_2_start : Integer := NDArray(args.cropping[[1, 0]]);
           var crop_2_end   : Integer := NDArray(args.cropping[[1, 1]]);
 
-          if args.data_format = Cropping2DArgs.DataFormat.channels_last  then
+          if args.data_format = DataFormat.channels_last  then
           begin
               Result := TFShape.Create([input_shape[0], input_shape[1] - crop_1_start - crop_1_end, input_shape[2] - crop_2_start - crop_2_end, input_shape[3]]);
           end else
@@ -3840,7 +3881,7 @@ begin
     if args.cropping.shape = TFShape.Create([1]) then
     begin
           var crop : Integer := NDarray(args.cropping[0]);
-          if args.data_format = Cropping3DArgs.DataFormat.channels_last_ then
+          if args.data_format = DataFormat.channels_last then
           begin
                 output := output[ [Slice.Create(nil,nil),
                                               Slice.Create(crop, output.shape[1] - crop),
@@ -3862,7 +3903,7 @@ begin
           var crop_1 : Integer := NDArray(args.cropping[0]);
           var crop_2 : Integer := NDArray(args.cropping[1]);
           var crop_3 : Integer := NDArray(args.cropping[2]);
-          if args.data_format = Cropping3DArgs.DataFormat.channels_last_ then
+          if args.data_format = DataFormat.channels_last then
           begin
                 output := output[ [Slice.Create(nil,nil),
                                               Slice.Create(crop_1, output.shape[1] - crop_1),
@@ -3888,7 +3929,7 @@ begin
 
           var z       : Integer := NDArray(args.cropping[[2, 0]]);
           var z_end   : Integer := NDArray(args.cropping[[2, 1]]);
-          if args.data_format = Cropping3DArgs.DataFormat.channels_last_ then
+          if args.data_format = DataFormat.channels_last then
           begin
                 output := output[ [Slice.Create(nil,nil),
                                               Slice.Create(x, output.shape[1] - x_end),
@@ -3914,7 +3955,7 @@ begin
     if args.cropping.shape = TFShape.Create([1]) then
     begin
           var crop : Integer := NDarray(args.cropping[0]);
-          if args.data_format = Cropping3DArgs.DataFormat.channels_last_ then
+          if args.data_format = DataFormat.channels_last then
           begin
                 Result := TFShape.Create([input_shape[0], input_shape[1] - crop * 2, input_shape[2] - crop * 2, input_shape[3] - crop * 2, input_shape[4]]);
           end else
@@ -3928,7 +3969,7 @@ begin
           var crop_start_1 : Integer := NDArray(args.cropping[0]);
           var crop_start_2 : Integer := NDArray(args.cropping[1]);
           var crop_start_3 : Integer := NDArray(args.cropping[2]);
-          if args.data_format = Cropping3DArgs.DataFormat.channels_last_ then
+          if args.data_format = DataFormat.channels_last then
           begin
                 Result := TFShape.Create([input_shape[0], input_shape[1] - crop_start_1 * 2, input_shape[2] - crop_start_2 * 2, input_shape[3] - crop_start_3 * 2, input_shape[4]]);
           end else
@@ -3947,7 +3988,7 @@ begin
           var z       : Integer := NDArray(args.cropping[[2, 0]]);
           var z_end   : Integer := NDArray(args.cropping[[2, 1]]);
 
-          if args.data_format = Cropping3DArgs.DataFormat.channels_last_  then
+          if args.data_format = DataFormat.channels_last  then
           begin
               Result := TFShape.Create([input_shape[0], input_shape[1] - x - x_end, input_shape[2] - y - y_end, input_shape[3] - z - z_end, input_shape[4]]);
           end else
@@ -4489,7 +4530,7 @@ function BatchNormalization._fused_batch_norm(inputs: TFTensor; training: TFTens
 var
   training_value: Nullable<Boolean>;
 begin
-    var input_batch_size      : TFShape := default(TFShape);
+    var input_batch_size      : TFShape := System.default(TFShape);
     var use_fused_avg_updates : Boolean := true;
     var exponential_avg_factor: Single  := 0;
     if use_fused_avg_updates then
@@ -5598,4 +5639,3 @@ begin
 end;
 
 end.
-

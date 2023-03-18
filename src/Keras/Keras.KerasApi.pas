@@ -21,11 +21,10 @@ interface
           TF4D.Core.CApi,
           TensorFlow.DApi,
           TensorFlow.Initializer,
+          TensorFlow.Core,
 
           Keras.Data,
-          Keras.ILayersApi,
-          Keras.Layer,
-          Keras.Activations,
+
           Keras.Optimizer,
           Keras.Regularizers,
           Keras.Backend,
@@ -34,15 +33,27 @@ interface
           Keras.LayersApi,
           Keras.LossFunc,
           Keras.Utils,
-          Keras.Engine,
+          Keras.Core,
           Keras.Models;
 
 type
 
   IKerasApi = interface
     function GetLayers: ILayersApi;
+    function GetLosses: ILossesApi;
+    function GetMetrics:IMetricsApi;
 
-    property layers : ILayersApi read GetLayers;
+    /// <summary>
+    /// `Model` groups layers into an object with training and inference features.
+    /// </summary>
+    /// <param name="input"></param>
+    /// <param name="output"></param>
+    /// <returns></returns>
+    function Model(inputs: TFTensors; outputs: TFTensors; name: string = ''): IModel;
+
+    property layers : ILayersApi  read GetLayers;
+    property losses : ILossesApi  read GetLosses;
+    property metrics: IMetricsApi read GetMetrics;
   end;
 
   TInitializers = class
@@ -67,8 +78,12 @@ type
   KerasInterface = class(TInterfacedObject,IKerasApi)
     private
       Flayers  : ILayersApi;
+      Flosses  : ILossesApi;
+      Fmetrics : IMetricsApi;
 
       function GetLayers: ILayersApi;
+      function GetLosses: ILossesApi;
+      function GetMetrics:IMetricsApi;
     public
       datasets     : KerasDataset;
       Inizializers : TInitializers;
@@ -102,15 +117,17 @@ type
       /// If set, the layer will not create a placeholder tensor.
       /// </param>
       /// <returns></returns>
-      function  Input(shape             : TFShape;
-                      batch_input_shape : TFShape;
-                      batch_size        : Integer= -1;
-                      dtype             : TF_DataType = DtInvalid;
-                      name              : string = '';
-                      sparse            : Boolean = false;
-                      ragged            : Boolean = false;
-                      tensor            : TFTensor = nil): TFTensor; overload;
-      function  Input(shape             : TFShape): TFTensor; overload;
+      function  Input( shape      : TFShape;
+                       batch_size : Integer = -1;
+                       name       : string = '';
+                       dtype      : TF_DataType = DtInvalid;
+                       sparse     : Boolean = false;
+                       tensor     : TFTensor = nil;
+                       ragged     : Boolean= false;
+                       type_spec  : TypeSpec= nil;
+                       batch_input_shape: PTFShape= nil;
+                       batch_shape: PTFShape= nil): TFTensors; overload;
+
       function  Input(shape: TFShape; name : string): TFTensor; overload;
       function  Sequential(layers: TList<ILayer> = nil; name : string= ''): Sequential;
       /// <summary>
@@ -119,11 +136,11 @@ type
       /// <param name="input"></param>
       /// <param name="output"></param>
       /// <returns></returns>
-      function Model(inputs: TFTensors; outputs: TFTensors; name: string = ''): Functional;
+      function Model(inputs: TFTensors; outputs: TFTensors; name: string = ''): IModel;
   end;
 
 implementation
-       uses Keras.ArgsDefinition;
+       uses Tensorflow;
 
 { Initializers }
 
@@ -179,43 +196,27 @@ begin
     Result := Flayers;
 end;
 
-function KerasInterface.Input(shape: TFShape): TFTensor;
+function KerasInterface.GetLosses: ILossesApi;
 begin
-    Result := Input(shape, default(TFShape), -1, DtInvalid, '', false, false, nil);
+    Result := Flosses;
+end;
+
+function KerasInterface.GetMetrics: IMetricsApi;
+begin
+    Result := Fmetrics;
 end;
 
 function KerasInterface.Input(shape: TFShape; name : string): TFTensor;
 begin
-    Result := Input(shape, default(TFShape), -1, DtInvalid, name, false, false, nil);
+    Result := Input(shape,-1, name).First;
 end;
 
-function KerasInterface.Input(shape, batch_input_shape: TFShape; batch_size: Integer; dtype: TF_DataType; name: string; sparse, ragged: Boolean; tensor: TFTensor): TFTensor;
-var
-  args : InputLayerArgs;
+function KerasInterface.Input(shape : TFShape; batch_size : Integer; name : string; dtype : TF_DataType; sparse : Boolean; tensor : TFTensor; ragged : Boolean; type_spec : TypeSpec; batch_input_shape: PTFShape; batch_shape: PTFShape): TFTensors;
 begin
-   if not batch_input_shape.isNull then
-   begin
-        var a :=  batch_input_shape.dims;
-        Delete(a,0,1);
-        shape := a;
-   end;
-
-   args := InputLayerArgs.Create;
-   args.Name            := name;
-   args.InputShape      := shape;
-   args.BatchInputShape := batch_input_shape;
-   args.BatchSize       := batch_size;
-   args.DType           := dtype;
-   args.Sparse          := sparse;
-   args.Ragged          := ragged;
-   args.InputTensor     := tensor;
-
-   var input_layer := Keras.Layer.InputLayer.Create(args);
-   Result := input_layer.InboundNodes[0].Outputs.first;
-   
+    Result := tf.keras.layers.Input(shape, batch_size, name, dtype, sparse, tensor, ragged, type_spec, batch_input_shape, batch_shape)
 end;
 
-function KerasInterface.Model(inputs, outputs: TFTensors; name: string): Functional;
+function KerasInterface.Model(inputs, outputs: TFTensors; name: string): IModel;
 begin
     Result := Functional.Create(inputs, outputs, name);
 end;

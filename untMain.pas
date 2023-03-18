@@ -31,9 +31,7 @@ uses
   TensorFlow.DApi,
   Tensorflow.Utils,
   TensorFlow.Ops,
-  TensorFlow.Context,
-  Tensorflow.NameScope,
-  TensorFlow.EagerTensor,
+  Tensorflow.Core,
 
   TensorFlow.Variable,
   TensorFlow.Tensor,
@@ -46,7 +44,7 @@ type
     protected
       Fgraph : TFGraph;
     public
-      constructor Create; virtual;
+      constructor Create;virtual;
       destructor  Destroy; override;
   end;
 
@@ -165,10 +163,9 @@ implementation
 
               System.Types,
               System.TypInfo,
-              TensorFlow.Constant_op,
+
               Tensorflow.array_ops,
               Tensorflow.math_ops,
-
               TensorFlow.Slice,
 
               System.Generics.Collections,
@@ -185,7 +182,7 @@ begin
     var inputs  := tf.keras.Input(TFShape.Create([784]), 'I0');
     var outputs := tf.keras.layers.Dense(64, tf.keras.activations.Relu).Apply(TFTensors.create(inputs));
     outputs     := tf.keras.layers.Dense(10, tf.keras.activations.Relu).Apply(outputs);
-    var m : Model := tf.keras.Model(TFTensors.create(inputs), outputs, 'MyNN');
+    var m := tf.keras.Model(TFTensors.create(inputs), outputs, 'MyNN');
     try
       m.OnEpochBegin      :=  On_Epoch_Begin;
       m.OnTrainBatchBegin :=  On_Train_Batch_Begin;
@@ -194,7 +191,7 @@ begin
       frmMain.mmo1.Lines.add('===== Build Model via Functional API =====');
       m.summary;
     finally
-      m.free;
+      //m.free;
     end;
 
     //UseSequentialAPI to create Model
@@ -234,7 +231,7 @@ begin
       mModel.add(tf.keras.layers.Dense(1, tf.keras.activations.Sigmoid));
       mModel.compile(tf.keras.optimizers.Adam, tf.keras.losses.MeanSquaredError, ['accuracy']);
       mModel.fit(x, y, {batch_size}-1, {epochs}50, {verbose}1);
-      var s := mModel.predict(x, 4).tostring;
+      var s := mModel.predict(TFTensors.Create(x), 4).tostring;
       frmMain.mmo1.Lines.Add(s);
     finally
      mModel.free;
@@ -260,13 +257,12 @@ end;
 constructor TUnitTest_Basic.Create;
 begin
   inherited Create;
+
 end;
 
 destructor TUnitTest_Basic.Destroy;
 begin
-  //if assigned(Fgraph) then
-  //  Fgraph.free;
-  inherited Destroy;
+   inherited Destroy;
 end;
 
 procedure TUnitTest_Basic.Session_Autocast_Case0;
@@ -687,6 +683,9 @@ begin
     mmo1.Lines.Add('Keras Activation Layers[Swish]');
     k_Layers.ActivationTest_Swish;
 
+    mmo1.Lines.Add('Keras Activation Layers[Mish]');
+    k_Layers.ActivationTest_Mish;
+
     mmo1.Lines.Add('');
     mmo1.Lines.Add('End Test Keras Activation Layers...');
     mmo1.Lines.Add('========================================');
@@ -927,6 +926,9 @@ begin
     mmo1.Lines.Add('End Test Keras MeanAbsoluteError Losses...');
     mmo1.Lines.Add('========================================');
 
+    mmo1.Lines.Add('Keras SigmoidFocalCrossEntropy Losses[None]');
+    k_losses.SigmoidFocalCrossEntropy;
+
     // Free Layer test class
     //
     k_losses.Free;
@@ -1044,8 +1046,8 @@ end;
 
 procedure TfrmMain.btnModelsClick(Sender: TObject);
 begin
-  // ****mnistGAN experimental For testing, under development
-  (*var mnistGAN := TMnistGAN.Create;
+  // mnistGAN under development and Testing...
+ (* var mnistGAN := TMnistGAN.Create;
     mmo1.Clear;
     mmo1.Lines.Add('Model Name: '+ mnistGAN.Config.Name);
     mnistGAN.Run;*)
@@ -1209,6 +1211,34 @@ begin
       NeuralNetworkTest.NeuralNetworkTest_l2_loss;
       mmo1.Lines.Add('Metric top_k_categorical_accuracy Test Start....');
       NeuralNetworkTest.top_k_categorical_accuracy ;
+      mmo1.Lines.Add('Metric TopKCategoricalAccuracy Test Start....');
+      NeuralNetworkTest.TopKCategoricalAccuracy ;
+      mmo1.Lines.Add('Metric Recall Test Start....');
+      NeuralNetworkTest.Recall ;
+      mmo1.Lines.Add('Metric Precision Test Start....');
+      NeuralNetworkTest.Precision ;
+      mmo1.Lines.Add('Metric BinaryAccuracy Test Start....');
+      NeuralNetworkTest.BinaryAccuracy ;
+      mmo1.Lines.Add('Metric CategoricalAccuracy Test Start....');
+      NeuralNetworkTest.CategoricalAccuracy ;
+      mmo1.Lines.Add('Metric CategoricalCrossentropy Test Start....');
+      NeuralNetworkTest.CategoricalCrossentropy ;
+      mmo1.Lines.Add('Metric Accuracy Test Start....');
+      NeuralNetworkTest.Accuracy ;
+      mmo1.Lines.Add('Metric CosineSimilarity Test Start....');
+      NeuralNetworkTest.CosineSimilarity ;
+      mmo1.Lines.Add('Metric HammingLoss Test Start....');
+      NeuralNetworkTest.HammingLoss ;
+      mmo1.Lines.Add('Metric F1Score Test Start....');
+      NeuralNetworkTest.F1Score ;
+      mmo1.Lines.Add('Metric FBetaScore Test Start....');
+      NeuralNetworkTest.FBetaScore ;
+      mmo1.Lines.Add('Metric SparseCategoricalAccuracy Test Start....');
+      NeuralNetworkTest.SparseCategoricalAccuracy ;
+      mmo1.Lines.Add('Metric SparseCategoricalCrossentropy Test Start....');
+      NeuralNetworkTest.SparseCategoricalCrossentropy ;
+      mmo1.Lines.Add('Metric SparseTopKCategoricalAccuracy Test Start....');
+      NeuralNetworkTest.SparseTopKCategoricalAccuracy ;
 
       mmo1.Lines.Add('Neural NetworkTest Test End....');
       NeuralNetworkTest.Free;

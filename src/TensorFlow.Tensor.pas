@@ -20,10 +20,11 @@ unit TensorFlow.Tensor;
 interface
     uses
        System.SysUtils, System.Classes, System.Types, Generics.Collections, Winapi.Windows,
-       System.AnsiStrings, System.Rtti, Spring,Spring.Collections.Base,
+       System.AnsiStrings, System.Rtti, Spring,
        TF4D.Core.CApi,
-       TensorFlow.DApiEager,
+
        TensorFlow.DApi,
+       TensorFlow.Core,
        TensorFlow.Variable,
        NumPy.NDArray;
 

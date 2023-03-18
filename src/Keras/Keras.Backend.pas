@@ -19,6 +19,7 @@ unit Keras.Backend;
 
 interface
     uses System.SysUtils,
+         System.Math,
          System.Generics.Collections,
          System.TypInfo,
          rtti,
@@ -29,7 +30,7 @@ interface
          TensorFlow.Training,
          Tensorflow.Utils,
          TF4D.Core.CApi,
-         Tensorflow.Graph,
+         TensorFlow.Core,
          TensorFlow.DApi;
 
 type
@@ -147,13 +148,12 @@ type
       /// <returns></returns>
       function concatenate(tensors: TFTensors; axis: Integer = -1): TFTensor;
       function conv2d_transpose(x: TFTensor; kernel: IVariableV1; output_shape: TFTensor; strides: PTFShape = nil; padding: string = 'valid'; data_format : string= ''; dilation_rate: PTFShape = nil): TFTensor;
+      function sparse_categorical_crossentropy(target: TFTensor; output: TFTensor; from_logits: Boolean = false; axis: Integer = -1; ignore_class: PInteger = nil): TFTensor;
  end;
 
 implementation
         uses Tensorflow,
              TensorFlow.Tensor,
-             TensorFlow.Functions,
-             TensorFlow.Constant_op,
              TensorFlow.clip_ops,
              TensorFlow.Ops,
              TensorFlow.Slice,
@@ -270,7 +270,7 @@ end;
 destructor BackendImpl.Destroy;
 begin
   _SESSION.Free;
-  Tops.clear_default_graph;
+   Tops.clear_default_graph;
 
   PER_GRAPH_LAYER_NAME_UIDS.Clear;
   PER_GRAPH_LAYER_NAME_UIDS.Free;
@@ -418,6 +418,59 @@ begin
     end;
 end;
 
+function BackendImpl.sparse_categorical_crossentropy(target, output: TFTensor; from_logits: Boolean; axis: Integer; ignore_class: PInteger): TFTensor;
+begin
+    target := Tensorflow.tf.cast(target, Tensorflow.tf.int64_t);
+    if not from_logits then
+    begin
+        var epsilon_ : TTensor := constant_op.constant(epsilon, TDTypes.as_base_dtype(output.dtype),'Const');
+        output       := Tensorflow.tf.clip_by_value(output, epsilon_, Integer(1) - epsilon_);
+        output       := Tensorflow.tf.math.log(output);
+    end;
+    var output_rank := output.shape.ndim;
+    if output_rank > -1 then
+    begin
+        axis := Abs(axis) mod output_rank;
+        if axis <> (output_rank - 1) then
+        begin
+            (*var permutation = list(
+                itertools.chain(
+                    range(axis), range(axis + 1, output_rank), [axis]
+                )
+            );
+            output = tf.transpose(output, perm: permutation);*)
+            raise Exception.Create('Not Implemented');
+        end;
+    end;
+
+    var output_shape := Tensorflow.tf.shape(output);
+    var target_rank  := target.shape.ndim;
+    var update_shape := (target_rank > -1) and (output_rank > -1) and (target_rank <> output_rank - 1);
+    if update_shape then
+    begin
+        target := Tensorflow.tf.reshape(target, -1);
+        output := Tensorflow.tf.reshape(output, TFShape.Create([ -1, output.shape[-1] ]));
+    end;
+
+    if Assigned(ignore_class) then
+       raise Exception.Create('Not Implemented');
+
+    var res := Tensorflow.tf.nn.sparse_softmax_cross_entropy_with_logits(target, output);
+
+    if Assigned(ignore_class) then
+      raise Exception.Create('Not Implemented');
+
+    if (update_shape) and (output_rank >= 3)  then
+    begin
+        // If our output includes timesteps or
+        // spatial dimensions we need to reshape
+        res := Tensorflow.tf.reshape(res, output_shape[':-1']);
+    end;
+
+    Result := res;
+
+end;
+
 function BackendImpl.spatial_2d_padding(x: TFTensor; padding: TNDArray; data_format: string): TFTensor;
 var
   padArray   : TArray< TArray<Integer> >;
@@ -513,7 +566,7 @@ begin
     output := TTensor(output) / math_ops.reduce_sum(output, TAxis(axis), true);
     // Compute cross entropy from probabilities.
     var epsilon_ := constant_op.constant(epsilon, Tdtypes.as_base_dtype(output.dtype),'Const');
-    output       := clip_ops.clip_by_value(output, epsilon_, 1.0 - TTensor(epsilon_));
+    output       := clip_ops.clip_by_value(output, epsilon_, Single(1.0) - TTensor(epsilon_));
     Result := - TTensor(math_ops.reduce_sum( TTensor(target) * math_ops.log(output), TAxis(axis) ));
 end;
 
@@ -601,5 +654,4 @@ begin
 end;
 
 end.
-
 

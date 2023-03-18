@@ -17,12 +17,13 @@ unit TensorFlow.Activation;
 interface
     uses System.SysUtils,
          System.Math,
+
          Spring,
+
          TF4D.Core.CApi,
          TensorFlow.DApi,
-         TensorFlow.DApiBase,
          Tensorflow.Utils,
-         TensorFlow.Context;
+         TensorFlow.Core;
 
 type
   IActivation = interface
@@ -130,7 +131,6 @@ type
 
 implementation
          uses Tensorflow,
-         TensorFlow.Constant_op,
               TensorFlow.Tensor,
               Tensorflow.gen_ops,
               Tensorflow.array_ops,

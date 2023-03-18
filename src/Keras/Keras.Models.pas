@@ -25,10 +25,10 @@ interface
           TensorFlow.DApi,
           TensorFlow.Variable,
           Tensorflow.Gradient,
+          TensorFlow.Core,
 
-          Keras.ArgsDefinition,
           keras.Callbacks,
-          Keras.Engine,
+          Keras.Core,
           Keras.Layer,
           Keras.Optimizer,
           Keras.LossFunc,
@@ -36,13 +36,7 @@ interface
           Keras.Data;
 
 type
-    TCB_On_Epoch_Begin       = reference to procedure(msg: string);
-    TCB_On_Epoch_End         = reference to procedure(msg: string);
-    TCB_On_Train_Batch_Begin = reference to procedure(msg: string);
-    TCB_On_Train_Batch_End   = reference to procedure(msg: string);
-    TCB_On_End_Summary       = reference to procedure(msg: string);
-
-     ModelConfig = class
+    ModelConfig = class
       public
         Name        : string;
         Layers      : TList<LayerConfig>;
@@ -50,7 +44,7 @@ type
         OutputLayers: TList<NodeConfig>;
 
         function ToString: string; override;
-     end;
+    end;
 
     /// <summary>
     /// `Model` groups layers into an object with training and inference features.
@@ -75,8 +69,25 @@ type
         compiled_metrics         : MetricsContainer;
 
         function GetLayers: TList<ILayer>;  virtual;
-        function Gettrainable_variables: TList<IVariableV1>;
-        function GetMetrics: TList<Metric>;
+        function GetTrainW: TList<IVariableV1>;
+        function GetNotTrainW: TList<IVariableV1>;
+        function GetMetrics: TList<IMetricFunc>;
+        //
+        function  Get_OnEpochBegin: TCB_On_Epoch_Begin;
+        procedure Set_OnEpochBegin(Value: TCB_On_Epoch_Begin);
+        //
+        function  Get_OnEpochEnd: TCB_On_Epoch_End;
+        procedure Set_OnEpochEnd(Value: TCB_On_Epoch_End);
+        //
+        function  Get_OnTrainBatchBegin: TCB_On_Train_Batch_Begin;
+        procedure Set_OnTrainBatchBegin(Value: TCB_On_Train_Batch_Begin);
+        //
+        function  Get_OnTrainBatchEnd: TCB_On_Train_Batch_End;
+        procedure Set_OnTrainBatchEnd(Value: TCB_On_Train_Batch_End);
+        //
+        function  Get_OnEndSummary: TCB_On_End_Summary;
+        procedure Set_OnEndSummary(Value: TCB_On_End_Summary);
+
       protected
         Fis_graph_network : Boolean;
         Finputs           : TFTensors;
@@ -84,12 +95,13 @@ type
 
       public
         loss         : ILossFunc;
-        optimizer    : OptimizerV2;
+        optimizer    : IOptimizer;
         output_names : TArray<String>;
         stop_training: Boolean;
 
         constructor Create(_args: ModelArgs);
         destructor  Destroy; override;
+        procedure Initialize(_args: LayerArgs); override;
         procedure Build(input_shape: TFShape); override;
         procedure _configure_steps_per_execution(steps_per_execution: Integer);
         procedure _reset_compile_cache;
@@ -97,8 +109,9 @@ type
         procedure reset_metrics;
         // Model.Compile
         //
-        procedure compile(_optimizer : OptimizerV2= nil; _loss: ILossFunc = nil; metrics : TArray<string>= nil); overload;
-        procedure compile(_optimizer: string; _loss: string; metrics: TArray<string>); overload;
+        procedure compile(_optimizer : IOptimizer= nil; _loss: ILossFunc = nil; metrics : TArray<string>= nil); overload;
+        procedure compile(_optimizer : string;          _loss: string;          metrics: TArray<string>); overload;
+        procedure compile(_optimizer : IOptimizer= nil; _loss: ILossFunc = nil; metrics : TArray<IMetricFunc>= nil); overload;
         // Model.Predict
         //
         /// <summary>
@@ -115,7 +128,7 @@ type
         /// <param name="workers"></param>
         /// <param name="use_multiprocessing"></param>
         /// <returns></returns>
-        function predict(x                   : TFTensor;
+        function predict(x                   : TFTensors;
                          batch_size          : Integer= -1;
                          verbose             : Integer = 0;
                          steps               : Integer = -1;
@@ -179,7 +192,17 @@ type
                       initial_epoch       : Integer= 0;
                       max_queue_size      : Integer= 10;
                       workers             : Integer= 1;
-                      use_multiprocessing : Boolean= false): History; overload;
+                      use_multiprocessing : Boolean= false): ICallback; overload;
+        function fit( x: TArray<TNDArray>; y      : TNDArray;
+                  batch_size          : Integer= -1;
+                  epochs              : Integer= 1;
+                  verbose             : Integer = 1;
+                  validation_split    : Single= 0.0;
+                  shuffle             : Boolean= true;
+                  initial_epoch       : Integer= 0;
+                  max_queue_size      : Integer= 10;
+                  workers             : Integer= 1;
+                  use_multiprocessing : Boolean= false): ICallback; overload;
         function fit(dataset             : IDatasetV2;
                       validation_data     : IDatasetV2= nil;
                       batch_size          : Integer= -1;
@@ -191,17 +214,18 @@ type
                       max_queue_size      : Integer= 10;
                       workers             : Integer= 1;
                       use_multiprocessing : Boolean= false): History; overload;
-        function FitInternal(data_handler : DataHandler; epochs: Integer; verbose: Integer; validation_data: IDatasetV2 = nil): History;
+        function FitInternal(data_handler : DataHandler; epochs: Integer; verbose: Integer; validation_data: IDatasetV2; train_step_func : TFunc< DataHandler, OwnedIterator, TDictionary<string, single>>): History;
         // Model.Train
         //
         function train_step_function(data_handler : DataHandler; iterator: OwnedIterator): TDictionary<string, single>;
+        function train_step_multi_inputs_function(data_handler: DataHandler; iterator: OwnedIterator): TDictionary<string, single>;
         /// <summary>
         /// The logic for one training step.
         /// </summary>
         /// <param name="data"></param>
         /// <returns></returns>
-        function  train_step(data_handler : DataHandler; x: TFTensor; y: TFTensor): TDictionary<string, single>;
-        procedure _minimize(tape: TGradientTape; optimizer: OptimizerV2; loss: TFTensor; trainable_variables: TList<IVariableV1>);
+        function  train_step(data_handler : DataHandler; x: TFTensors; y: TFTensors): TDictionary<string, single>;
+        procedure _minimize(tape: TGradientTape; optimizer: IOptimizer; loss: TFTensor; trainable_variables: TList<IVariableV1>);
         // MOdel.Summary
         //
         /// <summary>
@@ -210,16 +234,19 @@ type
         procedure summary(line_length: Integer = -1; positions: TArray<Single> = []);
         procedure load_weights(filepath: string; by_name: Boolean = false; skip_mismatch : Boolean= false; options: TObject = nil);
         procedure save_weights(filepath: string; overwrite : Boolean= true; save_format: string = ''; options: TObject = nil);
+        procedure save(filepath: string; overwrite : Boolean= true; include_optimizer: Boolean = true; save_format: string = 'tf'; {SaveOptions? options = null,} signatures : ConcreteFunction = nil; save_traces : Boolean= true);
 
         property Layers              : TList<ILayer>      read GetLayers ;
-        property TrainableVariables  : TList<IVariableV1> read Gettrainable_variables ;
-        property Metrics             : TList<Metric>      read GetMetrics ;
+        property TrainableWeights    : TList<IVariableV1> read GetTrainW ;
+        property NonTrainableWeights : TList<IVariableV1> read GetNotTrainW ;
+        property Metrics             : TList<IMetricFunc> read GetMetrics ;
+        property IsGraphNetwork      : Boolean            read Fis_graph_network;
         // callbacks
-        property OnEpochBegin      : TCB_On_Epoch_Begin       read FOnEpochBegin      write FOnEpochBegin;
-        property OnEpochEnd        : TCB_On_Epoch_End         read FOnEpochEnd        write FOnEpochEnd;
-        property OnTrainBatchBegin : TCB_On_Train_Batch_Begin read FOnTrainBatchBegin write FOnTrainBatchBegin;
-        property OnTrainBatchEnd   : TCB_On_Train_Batch_End   read FOnTrainBatchEnd   write FOnTrainBatchEnd;
-        property OnEndSummary      : TCB_On_End_Summary       read FOnEndSummary      write FOnEndSummary;
+        property OnEpochBegin      : TCB_On_Epoch_Begin       read Get_OnEpochBegin      write Set_OnEpochBegin;
+        property OnEpochEnd        : TCB_On_Epoch_End         read Get_OnEpochEnd        write Set_OnEpochEnd;
+        property OnTrainBatchBegin : TCB_On_Train_Batch_Begin read Get_OnTrainBatchBegin write Set_OnTrainBatchBegin;
+        property OnTrainBatchEnd   : TCB_On_Train_Batch_End   read Get_OnTrainBatchEnd   write Set_OnTrainBatchEnd;
+        property OnEndSummary      : TCB_On_End_Summary       read Get_OnEndSummary      write Set_OnEndSummary;
     end;
 
     /// <summary>
@@ -290,6 +317,7 @@ type
 
         function GetOutShape: TFShape;
         function GetLayers: TList<ILayer>; override;
+        procedure InitLayers(layers: TList<ILayer>);
       protected
         function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; override;
       public
@@ -298,6 +326,7 @@ type
         constructor Create(_args : SequentialArgs);
         destructor  Destroy; override;
         procedure add(tensor: TFTensor); overload;
+        procedure add(tensor: TFTensors); overload;
         /// <summary>
         /// Adds a layer instance on top of the layer stack.
         /// </summary>
@@ -318,14 +347,13 @@ implementation
               TensorFlow.Ops,
               Tensorflow.Utils,
               TensorFlow.Slice,
-              Tensorflow.Graph,
 
               NumPy.NDArray,
 
               Keras.Utils,
               Keras.Saving,
 
-              ProtoGen.variable,
+              TensorFlow.Proto,
 
               hdf5dll,
               hdf5;
@@ -341,10 +369,14 @@ begin
     _init_batch_counters;
 end;
 
+procedure Model.Initialize(_args: LayerArgs);
+begin
+  _init_batch_counters;
+  inherited Initialize(_args);
+end;
+
 destructor Model.Destroy;
 begin
-  optimizer.Free;
-
   FOnEpochBegin := nil;
   FOnTrainBatchBegin := nil;
   FOnEndSummary      := nil;
@@ -361,8 +393,8 @@ var
   dataArgs: DataHandlerArgs;
 begin
     dataArgs := DataHandlerArgs.Create;
-    dataArgs.X             :=  x;
-    dataArgs.Y             :=  y;
+    dataArgs.X             :=  TFTensors.Create(x);
+    dataArgs.Y             :=  TFTensors.Create(y);
     dataArgs.BatchSize     :=  batch_size;
     dataArgs.StepsPerEpoch :=  steps;
     dataArgs.InitialEpoch  :=  0;
@@ -427,7 +459,7 @@ begin
 end;
 
 function Model.fit(x, y: TNDArray; batch_size, epochs, verbose: Integer; validation_split: Single; shuffle: Boolean; initial_epoch, max_queue_size, workers: Integer;
-  use_multiprocessing: Boolean): History;
+  use_multiprocessing: Boolean): ICallback;
 var
    dataArgs        : DataHandlerArgs;
    train_count     : Integer;
@@ -453,7 +485,7 @@ begin
 
     var data_handler := DataHandler.Create(dataArgs);
 
-    Result := FitInternal(data_handler, epochs, verbose);
+    Result := FitInternal(data_handler, epochs, verbose, nil, train_step_function);
 end;
 
 function Model.fit(dataset: IDatasetV2; validation_data : IDatasetV2; batch_size, epochs, verbose: Integer; validation_split: Single; shuffle: Boolean; initial_epoch, max_queue_size, workers: Integer;
@@ -476,16 +508,63 @@ begin
 
     var data_handler := DataHandler.Create(dataArgs);
 
-    Result := FitInternal(data_handler, epochs, verbose, validation_data);
+    Result := FitInternal(data_handler, epochs, verbose, validation_data, train_step_function);
 
 end;
 
-function Model.FitInternal(data_handler : DataHandler; epochs: Integer; verbose: Integer; validation_data: IDatasetV2 = nil): History;
+function Model.fit(x: TArray<TNDArray>; y: TNDArray; batch_size, epochs, verbose: Integer; validation_split: Single; shuffle: Boolean; initial_epoch, max_queue_size,
+  workers: Integer; use_multiprocessing: Boolean): ICallback;
+var
+   dataArgs        : DataHandlerArgs;
+   train_count     : Integer;
+   train_x         : TArray<TFTensor>;
+   train_y         : NDArray;
+begin
+    for var tx in x do
+    begin
+        if tx.dims[0] <> y.dims[0] then
+           raise Exception.Create('The array x and y should have same value at dim 0, but got '+ tx.dims[0].ToString+' and '+ y.dims[0].ToString);
+    end;
+    train_count := trunc(y.dims[0] * (1 - validation_split));
+
+    train_x := [];
+    for var tx in x do
+    begin
+        train_x := train_x + [ tx[ [Slice.Create(0, train_count)] ] ]
+    end;
+    train_y     := y[ [Slice.Create(0, train_count)] ];
+
+    dataArgs := DataHandlerArgs.Create;
+
+    dataArgs.X             := TFTensors.Create(train_x);
+    dataArgs.Y             := train_y;
+    dataArgs.BatchSize     := batch_size;
+    dataArgs.InitialEpoch  := initial_epoch;
+    dataArgs.Epochs        := epochs;
+    dataArgs.Shuffle       := shuffle;
+    dataArgs.MaxQueueSize  := max_queue_size;
+    dataArgs.Workers       := workers;
+    dataArgs.UseMultiprocessing := use_multiprocessing;
+    dataArgs.Model         := Self;
+    dataArgs.StepsPerExecution := Fsteps_per_execution;
+
+    var data_handler := DataHandler.Create(dataArgs);
+
+    if (Length(data_handler.DataAdapter.GetDataset.structure) > 2) or
+       (data_handler.DataAdapter.GetDataset.FirstInputTensorCount > 1) then
+    begin
+        Result := FitInternal(data_handler, epochs, verbose, nil,train_step_multi_inputs_function);
+    end else
+    begin
+        Result := FitInternal(data_handler, epochs, verbose, nil,train_step_function);
+    end;
+end;
+
+function Model.FitInternal(data_handler : DataHandler; epochs: Integer; verbose: Integer; validation_data: IDatasetV2; train_step_func : TFunc< DataHandler, OwnedIterator, TDictionary<string, single>>): History;
 var
   iterator: OwnedIterator;
   epoch   : Integer;
   step    : Integer;
-  results : TList<Tuple<string, TFTensor>>;
 
   cCallbacks : CallbackList;
   cbParam    : CallbackParams;
@@ -524,7 +603,7 @@ begin
             if Assigned(FOnTrainBatchBegin) then
                FOnTrainBatchBegin(cCallbacks.sLog) ;
 
-            logs         := train_step_function(data_handler, iterator);
+            logs         := train_step_func(data_handler, iterator);
             var end_step := step + data_handler.StepIncrement;
             cCallbacks.on_train_batch_end(end_step, logs);
 
@@ -564,9 +643,9 @@ end;
 
 function Model.test_step(data_handler : DataHandler; x, y: TFTensor): TList<Tuple<string, TFTensor>>;
 begin
-    var x_y  := data_handler.DataAdapter.Expand1d(x, y);
-    x := x_y.Value1;
-    y := x_y.Value2;
+    var x_y  := data_handler.DataAdapter.Expand1d(TFTensors.Create(x) , TFTensors.Create(y));
+    x := x_y.Value1.First;
+    y := x_y.Value2.First;
     var y_pred := Apply(TFTensors.Create(x), nil, false);
     compiled_loss.Call(y, y_pred.first);
 
@@ -580,10 +659,13 @@ begin
     end;
 end;
 
-function Model.train_step_function(data_handler : DataHandler; iterator: OwnedIterator): TDictionary<string, single>;
+function Model.train_step_multi_inputs_function(data_handler : DataHandler; iterator: OwnedIterator): TDictionary<string, single>;
 begin
-    var data    := iterator.next();
-    var outputs := train_step(data_handler, data[0], data[1]);
+    var data := iterator.next;
+    var eData := Enumerable<TFTensor>.Create(data);
+    var x_size := data_handler.DataAdapter.GetDataset.FirstInputTensorCount;
+
+    var outputs := train_step(data_handler, TFTensors.Create(eData.Take(x_size).ToArray), TFTensors.Create(eData.Skip(x_size).ToArray));
     TUtils.tf_with<TControlDependenciesController,TFTensor>(Tops.control_dependencies([]),
       function(d : TControlDependenciesController ): TFtensor
         begin
@@ -594,15 +676,29 @@ begin
     Result := outputs;
 end;
 
-function Model.train_step(data_handler : DataHandler; x, y: TFTensor): TDictionary<string, single>;
+function Model.train_step_function(data_handler : DataHandler; iterator: OwnedIterator): TDictionary<string, single>;
+begin
+    var data    := iterator.next();
+    var outputs := train_step(data_handler, TFTensors.Create(data[0]), TFTensors.Create(data[1]));
+    TUtils.tf_with<TControlDependenciesController,TFTensor>(Tops.control_dependencies([]),
+      function(d : TControlDependenciesController ): TFtensor
+        begin
+            if      Ftrain_counter is RefVariable          then Result := (Ftrain_counter as RefVariable)         .assign_add(Integer(1))
+            else if Ftrain_counter is BaseResourceVariable then Result := (Ftrain_counter as BaseResourceVariable).assign_add(Integer(1))
+            else raise Exception.Create('Model.train_step_function Error!');
+        end);
+    Result := outputs;
+end;
+
+function Model.train_step(data_handler : DataHandler; x, y: TFTensors): TDictionary<string, single>;
 begin
     var x_y := data_handler.DataAdapter.Expand1d(x, y);
     x := x_y.Value1;
     y := x_y.Value2;
 
     var tape   := tf.GradientTape;
-    var y_pred := Apply(TFTensors.Create(x), nil, true);
-    var loss   := compiled_loss.Call(y, y_pred.First);
+    var y_pred := Apply(x, nil, true);
+    var loss   := compiled_loss.Call(y.First, y_pred.First);
 
     // For custom training steps, users can just write:
     // trainable_variables = self.trainable_variables
@@ -611,18 +707,22 @@ begin
     // The _minimize call does a few extra steps unnecessary in most cases,
     // such as loss scaling and gradient clipping.
     _minimize(tape, optimizer, loss, TrainableVariables);
-    compiled_metrics.update_state(y, y_pred.First);
+    compiled_metrics.update_state(y.First, y_pred.First);
 
     Result := TDictionary<string, single>.Create;
     for var i := 0 to metrics.Count - 1 do
     begin
        var res : TTensor := metrics[i].R_result;
+
+       if TFTensor(res).ndim > 0 then
+           res  := tf.reduce_mean(res);
+
        var f : Single := Single(res);
        Result.Add(metrics[i].Name, f);
     end;
 end;
 
-procedure Model._minimize(tape: TGradientTape; optimizer: OptimizerV2; loss: TFTensor; trainable_variables: TList<IVariableV1>);
+procedure Model._minimize(tape: TGradientTape; optimizer: IOptimizer; loss: TFTensor; trainable_variables: TList<IVariableV1>);
 var
   gradients : TArray<TFTensor>;
   gradientsAndVariables: TList<Tuple<TFTensor, IVariableV1>>;
@@ -634,8 +734,8 @@ begin
       for var i := 0 to Length(gradients) - 1 do
         gradientsAndVariables.Add(Tuple<TFTensor, IVariableV1>.Create(gradients[i], trainable_variables[i]));
 
-      gradients := optimizer._aggregate_gradients(gradientsAndVariables.ToArray);
-      gradients := optimizer._clip_gradients(gradients);
+      gradients := optimizer.aggregate_gradients(gradientsAndVariables.ToArray);
+      gradients := optimizer.clip_gradients(gradients);
 
       gradientsAndResVariables := TList<Tuple<TFTensor, ResourceVariable>>.Create;
       try
@@ -661,14 +761,17 @@ begin
     Result := TList<ILayer>.Create(res) ;
 end;
 
-function Model.GetMetrics: TList<Metric>;
+function Model.GetMetrics: TList<IMetricFunc>;
 begin
-    var _metrics := TList<Metric>.Create;
+    var _metrics := TList<IMetricFunc>.Create;
 
     if Fis_compiled then
     begin
         if compiled_loss <> nil then
-            _metrics.AddRange(compiled_loss.metrics);
+        begin
+           for var i := 0 to compiled_loss.metrics.Count -1 do
+             _metrics.Add(compiled_loss.metrics[i]);
+        end;
         if compiled_metrics <> nil then
             _metrics.AddRange(compiled_metrics.metrics);
     end;
@@ -685,25 +788,104 @@ begin
        metric.reset_states;
 end;
 
-function Model.Gettrainable_variables: TList<IVariableV1>;
+function Model.GetTrainW: TList<IVariableV1>;
 var
   variables : TList<IVariableV1> ;
 begin
     variables := TList<IVariableV1>.Create;
+    try
+      if not Trainable then
+      begin
+          Exit(variables);
+      end;
 
-    if not Trainable then
-    begin
-        Exit(variables);
+      for var trackable_obj in Fself_tracked_trackables do
+      begin
+          if trackable_obj.Trainable then
+              variables.AddRange(trackable_obj.TrainableVariables);
+      end;
+      variables.AddRange( FTrainableWeights );
+
+      Result := TList<IVariableV1>.Create( Enumerable<IVariableV1>.Create(variables.ToArray).Distinct.ToArray );
+    finally
+      variables.Free;
     end;
+end;
 
-    for var trackable_obj in Fself_tracked_trackables do
-    begin
-        if trackable_obj.Trainable then
-            variables.AddRange(trackable_obj.TrainableVariables);
+function Model.Get_OnEpochBegin: TCB_On_Epoch_Begin;
+begin
+    Result := FOnEpochBegin;
+end;
+
+procedure Model.Set_OnEpochBegin(Value: TCB_On_Epoch_Begin);
+begin
+    FOnEpochBegin := Value;
+end;
+
+function Model.Get_OnEpochEnd: TCB_On_Epoch_End;
+begin
+     Result := FOnEpochEnd;
+end;
+
+procedure Model.Set_OnEpochEnd(Value: TCB_On_Epoch_End);
+begin
+    FOnEpochEnd := Value;
+end;
+
+function Model.Get_OnTrainBatchBegin: TCB_On_Train_Batch_Begin;
+begin
+    Result := FOnTrainBatchBegin;
+end;
+
+procedure Model.Set_OnTrainBatchBegin(Value: TCB_On_Train_Batch_Begin);
+begin
+    FOnTrainBatchBegin := Value;
+end;
+
+function Model.Get_OnTrainBatchEnd: TCB_On_Train_Batch_End;
+begin
+    Result := FOnTrainBatchEnd
+end;
+
+procedure Model.Set_OnTrainBatchEnd(Value: TCB_On_Train_Batch_End);
+begin
+    FOnTrainBatchEnd := Value;
+end;
+
+function Model.Get_OnEndSummary: TCB_On_End_Summary;
+begin
+    Result := FOnEndSummary
+end;
+
+procedure Model.Set_OnEndSummary(Value: TCB_On_End_Summary);
+begin
+    FOnEndSummary  := Value;
+end;
+
+function Model.GetNotTrainW: TList<IVariableV1>;
+var
+  variables : TList<IVariableV1> ;
+begin
+    variables := TList<IVariableV1>.Create;
+    try
+      for var trackable_obj in Fself_tracked_trackables do
+          variables.AddRange(trackable_obj.NonTrainableWeights);
+
+      if  not Trainable then
+      begin
+          var trainable_variables := TList<IVariableV1>.Create;
+          for var trackable_obj in Fself_tracked_trackables do
+              variables.AddRange(trackable_obj.TrainableWeights);
+
+          variables.AddRange(trainable_variables);
+          variables.AddRange(FTrainableWeights);
+          variables.AddRange(FNonTrainableWeights);
+      end;
+
+      Result := TList<IVariableV1>.Create( Enumerable<IVariableV1>.Create(variables.ToArray).Distinct.ToArray );
+    finally
+      variables.Free;
     end;
-    variables.AddRange( FTrainableWeights );
-
-    Result := variables;
 end;
 
 function Model.PredictInternal(data_handler: DataHandler; verbose: Integer): TFTensors;
@@ -776,7 +958,7 @@ begin
 
 end;
 
-function Model.predict(x: TFTensor; batch_size, verbose, steps, max_queue_size, workers: Integer; use_multiprocessing: Boolean): TFTensors;
+function Model.predict(x: TFTensors; batch_size, verbose, steps, max_queue_size, workers: Integer; use_multiprocessing: Boolean): TFTensors;
 var
   dataArgs : DataHandlerArgs;
 begin
@@ -838,6 +1020,11 @@ begin
     end;
 end;
 
+procedure Model.save(filepath: string; overwrite, include_optimizer: Boolean; save_format: string; signatures: ConcreteFunction; save_traces: Boolean);
+begin
+
+end;
+
 procedure Model.save_weights(filepath: string; overwrite: Boolean; save_format: string; options: TObject);
 var
   fileId   : Int64;
@@ -879,25 +1066,6 @@ begin
     tf.keras.backend._GRAPH := nil;
 end;
 
-procedure Model.compile(_optimizer: OptimizerV2; _loss: ILossFunc; metrics: TArray<string>);
-begin
-    if Assigned(_optimizer) then Self.optimizer := _optimizer
-    else                         Self.optimizer := TRMSprop.Create( RMSpropArgs.Create ) ;
-
-    if Assigned(_loss) then Self.loss := _loss
-    else                    Self.loss := TMeanSquaredError.Create ;
-
-    compiled_loss    := LossesContainer.Create(loss, output_names);
-    compiled_metrics := MetricsContainer.Create(metrics, output_names);
-
-    var experimental_steps_per_execution : Integer := 1;
-    _configure_steps_per_execution(experimental_steps_per_execution);
-
-    // Initialize cache attrs.
-    _reset_compile_cache;
-    Fis_compiled := true;
-end;
-
 procedure Model.Build(input_shape: TFShape);
 var
   graph : TFGraph;
@@ -933,6 +1101,44 @@ begin
     else raise Exception.Create('compile - LossFunc :'+ _loss+' Not Implemented');
 
     compile(_opt, l_Loss, metrics);
+end;
+
+procedure Model.compile(_optimizer: IOptimizer; _loss: ILossFunc; metrics: TArray<string>);
+begin
+    if Assigned(_optimizer) then Self.optimizer := _optimizer
+    else                         Self.optimizer := TRMSprop.Create( RMSpropArgs.Create ) ;
+
+    if Assigned(_loss) then Self.loss := _loss
+    else                    Self.loss := TMeanSquaredError.Create ;
+
+    compiled_loss    := LossesContainer.Create(loss, output_names);
+    compiled_metrics := MetricsContainer.Create(metrics, output_names);
+
+    var experimental_steps_per_execution : Integer := 1;
+    _configure_steps_per_execution(experimental_steps_per_execution);
+
+    // Initialize cache attrs.
+    _reset_compile_cache;
+    Fis_compiled := true;
+end;
+
+procedure Model.compile(_optimizer: IOptimizer; _loss: ILossFunc; metrics: TArray<IMetricFunc>);
+begin
+    if Assigned(_optimizer) then Self.optimizer := _optimizer
+    else                         Self.optimizer := TRMSprop.Create( RMSpropArgs.Create ) ;
+
+    if Assigned(_loss) then Self.loss := _loss
+    else                    Self.loss := TMeanSquaredError.Create ;
+
+    compiled_loss    := LossesContainer.Create(loss, output_names);
+    compiled_metrics := MetricsContainer.Create(metrics, output_names);
+
+    var experimental_steps_per_execution : Integer := 1;
+    _configure_steps_per_execution(experimental_steps_per_execution);
+
+    // Initialize cache attrs.
+    _reset_compile_cache;
+    Fis_compiled := true;
 end;
 
 { Functional }
@@ -1055,9 +1261,9 @@ begin
     if created_layers.ContainsKey(layer_name) then
         layer := created_layers[layer_name]
     else begin
-        if      layer_data.ClassName = 'InputLayer' then layer := InputLayer.from_config(layer_data.Config)
-        else if layer_data.ClassName = 'Dense'      then layer := Dense.from_config(layer_data.Config)
-        else raise Exception.Create('Not Implemented');
+        //if      layer_data.ClassName = 'InputLayer' then layer := InputLayer.from_config(layer_data.Config)
+        //else if layer_data.ClassName = 'Dense'      then layer := Dense.from_config(layer_data.Config)
+        //else raise Exception.Create('Not Implemented');
 
         created_layers.AddOrSetValue(layer_name, layer);
     end;
@@ -1502,8 +1708,6 @@ begin
     inherited Create(_args.Inputs, _args.Outputs, _args.Name);
 
     args := _args;
-    if args.Layers = nil then
-        args.Layers := TList<ILayer>.Create;
 
     // SupportsMasking = true;
     Fcompute_output_and_mask_jointly := true;
@@ -1514,10 +1718,7 @@ begin
 
     // Add to the model any layers passed to the constructor.
     if args.Layers <> nil then
-    begin
-        for var layer in args.Layers do
-            add(layer);
-    end;
+      InitLayers(args.Layers) ;
 end;
 
 destructor Sequential.Destroy;
@@ -1528,11 +1729,25 @@ begin
   inherited Destroy;
 end;
 
+procedure Sequential.InitLayers(layers: TList<ILayer>);
+begin
+    for var layer in args.Layers do
+      add(layer);
+end;
+
 procedure Sequential.add(tensor: TFTensor);
 begin
     var layer := (tensor.KerasHistory as TKerasHistory).Layer;
     add(layer);
 end;
+
+procedure Sequential.add(tensor: TFTensors);
+begin
+    var t := tensor.First;
+    var layer := (t.KerasHistory as TKerasHistory).Layer;
+    add(layer);
+end;
+
 
 procedure Sequential.add(layer: ILayer);
 begin
@@ -1547,8 +1762,9 @@ begin
         begin
             if not layer.BatchInputShape.isNil then
             begin
+                var shp := layer.BatchInputShape;
                 // Instantiate an input layer.
-                var x := tf.keras.Input(default(TFShape), layer.BatchInputShape, -1, layer.DType, layer.Name + '_input');
+                var x := tf.keras.Input(System.default(TFShape), -1, layer.Name + '_input', layer.DType, False, nil, False, nil, @shp );
 
                 // This will build the current layer
                 // and create the node connecting the current layer
@@ -1674,7 +1890,7 @@ begin
     if Fself_tracked_trackables[0].Name.EndsWith('_input') then sName :=  Fself_tracked_trackables[0].Name
     else                                                        sName :=  Fself_tracked_trackables[0].Name+'_input';
 
-    var inputs := tf.keras.Input(default(TFShape), input_shape, -1, input_dtype, sName);
+    var inputs := tf.keras.Input(System.default(TFShape), -1, sName, input_dtype, False, nil, False, nil, @input_shape );
 
     layer_input  := TFTensors.Create(inputs);
     outputs      := nil;

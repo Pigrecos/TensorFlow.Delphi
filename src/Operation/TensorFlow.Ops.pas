@@ -21,23 +21,18 @@ interface
      uses System.SysUtils, System.SyncObjs, Winapi.Windows, System.Rtti,
           Spring,
           Spring.Collections,
-          Spring.Collections.MultiMaps,
+
           Spring.Collections.Enumerable,
           System.Generics.Collections,
 
           TF4D.Core.CApi,
           NumPy.NDArray,
-          Tensorflow.NameScope,
-          TensorFlow.Context,
-          Tensorflow.Graph,
-          TensorFlow.Variable,
+          TensorFlow.Core,
           TensorFlow.DApi,
           TensorFlow.DApiBase,
           Tensorflow,
 
-          ProtoGen.attrValue,
-          ProtoGen.opDef,
-          ProtoGen.nodeDef;
+          TensorFlow.Proto;
 
 type
   TOps = class
@@ -249,7 +244,7 @@ type
       class procedure pop_graph;
 
       constructor Create;
-      destructor Destroy; override;
+      destructor Destroy;override;
 
       property isSingleThreaded    : Boolean           read FisSingleThreaded   write SetSingleThread;
       property default_graph_stack : DefaultGraphStack read Get_default_graph_stack;
@@ -257,12 +252,10 @@ type
 
 implementation
            uses Tensorflow.Utils,
-                TensorFlow.EagerTensor,
-                TensorFlow.Constant_op,
-                Tensorflow.gen_array_ops,
+
                 TensorFlow.gen_math_ops,
                 Tensorflow.array_ops,
-                Numpy.Axis, Numpy,
+                Numpy.Axis,
                 TensorFlow.Tensor,
 
                 Tensorflow.Gradient,
@@ -548,7 +541,7 @@ end;
 
 destructor TOps.Destroy;
 begin
-  FreeAndNil(FLock);
+    FreeAndNil(FLock);
 end;
 
 class function TOps.executing_eagerly_outside_functions: Boolean;
@@ -579,7 +572,7 @@ end;
 class function TOps.set_default_graph(g: TFGraph): TFGraph;
 begin
     if Fdefault_graph_stack = nil then
-      Fdefault_graph_stack  := DefaultGraphStack.Create;
+           Fdefault_graph_stack  := DefaultGraphStack.Create;
 
     Fdefault_graph_stack.get_controller(g);
     Result := g;
@@ -599,15 +592,16 @@ end;
 
 class function TOps.get_default_session: TFSession;
 begin
-    if FdefaultSession = nil then
-       FdefaultSession := TFSession.Create(tf.get_default_graph);
+     if FdefaultSession = nil then
+        FdefaultSession := TFSession.Create(tf.get_default_graph);
 
     Result := FdefaultSession;
 end;
 
 class function TOps.set_default_session(sess: TFSession): TFSession;
 begin
-    FdefaultSession := sess;
+   FdefaultSession := sess;
+
     Result := sess;
 end;
 

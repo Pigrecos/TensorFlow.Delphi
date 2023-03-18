@@ -17,16 +17,14 @@ unit TensorFlow.resource_variable_ops;
 interface
         uses System.SysUtils,
              Spring,
-             spring.Collections.Dictionaries,
-             Spring.Collections.Lists,
 
              TF4D.Core.CApi,
+             Tensorflow.Core,
              TensorFlow.DApiBase,
              TensorFlow.DApi,
              TensorFlow.Variable,
 
-             ProtoGen.types,
-             ProtoGen.cppShapeInference;
+             TensorFlow.Proto;
 
 type
   resource_variable_ops = record

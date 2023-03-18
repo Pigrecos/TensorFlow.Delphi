@@ -23,28 +23,11 @@ interface
 
           Spring,
 
-          TensorFlow.DApi,
+          Keras.Core,
 
-          Keras.Engine ;
+          TensorFlow.DApi;
 
 type
-  ICallback = interface
-    ['{4FCFF764-DBF2-4F28-92E6-14C32F4E1C2D}']
-        function GetLog: string;
-
-        procedure on_train_begin;
-        procedure on_epoch_begin(epoch: Integer);
-        procedure on_train_batch_begin(step: Int64);
-        procedure on_train_batch_end(end_step: Int64; logs: TDictionary<string, Single>);
-        procedure on_epoch_end(epoch: Integer; epoch_logs: TDictionary<string, Single>);
-        //
-        procedure on_predict_begin;
-        procedure on_predict_batch_begin(step: Int64);
-        procedure on_predict_batch_end(end_step: Int64; logs: TDictionary<string, TFTensors>);
-        procedure on_predict_end;
-
-        property sLog : string read GetLog;
-  end;
 
   CallbackParams = class  abstract
      public
@@ -63,6 +46,8 @@ type
        Fhistory     : TDictionary<string, TList<Single>> ;
 
        function GetLog: string;
+       function Get_history: TDictionary<string, TList<Single>>;
+       procedure Set_history(Value: TDictionary<string, TList<Single>>);
     public
        procedure on_train_begin;
        procedure on_epoch_begin(epoch: Integer);
@@ -79,7 +64,6 @@ type
 
        property epochs      : TList<Integer>  read Fepochs;
        property parameters  : CallbackParams  read Fparameters;
-       property hHistory    : TDictionary<string, TList<Single>>  read Fhistory write Fhistory;
   end;
 
   CallbackList = class
@@ -112,7 +96,10 @@ type
        Fparameters    : CallbackParams;
        Fsw            : TStopwatch  ;
        FMSg           : string;
+       Fhistory       : TDictionary<string, TList<Single>> ;
 
+       function  Get_history: TDictionary<string, TList<Single>>;
+       procedure Set_history(Value: TDictionary<string, TList<Single>>);
        function GetLog: string;
     public
       procedure on_train_begin;
@@ -157,6 +144,16 @@ end;
 function History.GetLog: string;
 begin
 
+end;
+
+function History.Get_history: TDictionary<string, TList<Single>>;
+begin
+    Result := Fhistory
+end;
+
+procedure History.Set_history(Value: TDictionary<string, TList<Single>>);
+begin
+    Fhistory := Value
 end;
 
 procedure History.on_epoch_begin(epoch: Integer);
@@ -330,6 +327,16 @@ end;
 function ProgbarLogger.GetLog: string;
 begin
    Result := FMSg;
+end;
+
+function ProgbarLogger.Get_history: TDictionary<string, TList<Single>>;
+begin
+    Result := Fhistory
+end;
+
+procedure ProgbarLogger.Set_history(Value: TDictionary<string, TList<Single>>);
+begin
+    Fhistory := Value;
 end;
 
 procedure ProgbarLogger.on_epoch_begin(epoch: Integer);

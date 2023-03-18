@@ -22,17 +22,15 @@ interface
           IdHTTP, IdSSLOpenSSL,
 
           Spring,
+          spring.Collections.Enumerable,
           Spring.Container.Common,
 
           TF4D.Core.CApi,
           TensorFlow.DApi,
           TensorFlow.dataset_ops,
-          TensorFlow.Framework,
-          TensorFlow.functions,
-          TensorFlow.Variable,
+          TensorFlow.Core,
 
-          Keras.Engine,
-          Keras.CommonDef;
+          Keras.Core;
 
 type
   IDatasetV2    = class;
@@ -73,14 +71,15 @@ type
   KerasDataset = class
     public
       Mnist : TMnist;
+
       constructor Create;
       destructor Destroy; override;
   end;
 
   DataHandlerArgs = class
     public
-      X                  : TFTensor;
-      Y                  : TFTensor;
+      X                  : TFTensors;
+      Y                  : TFTensors;
       Dataset            : IDatasetV2;
       BatchSize          : Integer;
       StepsPerEpoch      : Integer;
@@ -98,8 +97,8 @@ type
 
   DataAdapterArgs = class
     public
-      X                  : TFTensor;
-      Y                  : TFTensor;
+      X                  : TFTensors;
+      Y                  : TFTensors;
       Dataset            : IDatasetV2;
       BatchSize          : Integer;
       Steps              : Integer;
@@ -125,10 +124,10 @@ type
     /// <param name="x">input features</param>
     /// <param name="y">target labels</param>
     /// <returns></returns>
-    function CanHandle(x: TFTensor; y: TFTensor = nil): Boolean;
+    function CanHandle(x: TFTensors; y: TFTensors = nil): Boolean;
     function GetDataset: IDatasetV2;
     function GetSize: Integer;
-    function Expand1d(x: TFTensor; y: TFTensor): Tuple<TFTensor, TFTensor>;
+    function Expand1d(x: TFTensors; y: TFTensors): Tuple<TFTensors, TFTensors>;
     function ShouldRecreateIterator: Boolean;
   end;
 
@@ -137,11 +136,11 @@ type
        Fargs   : DataAdapterArgs;
        Fdataset: IDatasetV2 ;
     public
-       function CanHandle(x: TFTensor; y: TFTensor = nil): Boolean; virtual;
+       function CanHandle(x: TFTensors; y: TFTensors = nil): Boolean; virtual;
        function GetDataset: IDatasetV2; virtual;
        function GetSize: Integer; virtual;
-       Function Expand1d(x: TFTensor; y: TFTensor): Tuple<TFTensor, TFTensor>; virtual;
-       function ShouldRecreateIterator: Boolean;
+       Function Expand1d(x: TFTensors; y: TFTensors): Tuple<TFTensors, TFTensors>; virtual;
+       function ShouldRecreateIterator: Boolean; virtual;
   end;
 
   DatasetAdapter = class(DataAdapter, IDataAdapter)
@@ -264,6 +263,7 @@ type
        function  slice_inputs(indices_dataset: IDatasetV2; elements: TFTensors): IDatasetV2;
        procedure _process_tensorlike;
        function GetSize: Integer; override;
+       function ShouldRecreateIterator: Boolean; override;
   end;
 
   DatasetOptions = class
@@ -286,7 +286,7 @@ type
        procedure Dispose;
   end;
 
-  IDatasetV2 = class(TEnumerable< Tuple<TFTensor, TFTensor> >)
+  IDatasetV2 = class(TEnumerable< Tuple<TFTensors, TFTensors> >)
     private
       Fclass_name    : TArray<String>;
       Fvariant_tensor: TFTensor;
@@ -299,6 +299,7 @@ type
       function  Get_element_spec:TArray<TensorSpec>;  virtual; abstract;
       function  Get_Length: Integer; virtual; abstract;
     public
+      FirstInputTensorCount : Integer;
       /// <summary>
       /// Caches the elements in this dataset.
       /// </summary>
@@ -393,7 +394,7 @@ type
     protected
       Fops : dataset_ops;
 
-      function DoGetEnumerator: TEnumerator< Tuple<TFTensor, TFTensor> >; override;
+      function DoGetEnumerator: TEnumerator< Tuple<TFTensors, TFTensors> >; override;
     public
       constructor Create;
 
@@ -419,19 +420,19 @@ type
       function cardinality(name: string = ''): TFTensor;override ;
 
       type
-        TDatasetEnumerator = class(TEnumerator< Tuple<TFTensor, TFTensor> >)
+        TDatasetEnumerator = class(TEnumerator< Tuple<TFTensors, TFTensors> >)
         private
           FDatasetV2     : IDatasetV2;
           FownedIterator : ownedIterator;
           FIndex         : Integer;
-          FCurrent       : Tuple<TFTensor, TFTensor>;
-          function GetCurrent: Tuple<TFTensor, TFTensor>;
+          FCurrent       : Tuple<TFTensors, TFTensors>;
+          function GetCurrent: Tuple<TFTensors, TFTensors>;
         protected
-          function DoGetCurrent: Tuple<TFTensor, TFTensor>; override;
+          function DoGetCurrent: Tuple<TFTensors, TFTensors>; override;
           function DoMoveNext: Boolean; override;
         public
           constructor Create(const ADataSet: IDatasetV2);
-          property Current: Tuple<TFTensor, TFTensor> read GetCurrent;
+          property Current: Tuple<TFTensors, TFTensors> read GetCurrent;
           function MoveNext: Boolean;
         end;
       function GetEnumerator: TDatasetEnumerator; reintroduce; inline;
@@ -650,11 +651,8 @@ implementation
                 System.Classes,
 
                 Tensorflow,
-                TensorFlow.Context,
                 TensorFlow.Ops,
-                Tensorflow.Graph,
                 Tensorflow.Utils,
-                TensorFlow.Constant_op,
                 Tensorflow.math_ops,
                 Tensorflow.gen_array_ops,
                 Tensorflow.array_ops,
@@ -700,7 +698,7 @@ end;
 
 procedure OwnedIterator.Dispose;
 begin
-   tf.Runner.Execute(tf.Context, 'DeleteIterator', 0, [ _iterator_resource, _deleter ], []);
+   //tf.Runner.Execute(tf.Context, 'DeleteIterator', 0, [ _iterator_resource, _deleter ], []);
 end;
 
 function OwnedIterator.next: TArray<TFTensor>;
@@ -726,9 +724,9 @@ begin
     _dataset := dataset;
     _element_spec := dataset.element_spec;
     // _flat_output_types =
-    var tI := ops.anonymous_iterator_v2(_dataset.output_types, _dataset.output_shapes);
-    _iterator_resource := tI.Value1;
-    _deleter           := tI.Value2;
+    //var tI := ops.anonymous_iterator_v2(_dataset.output_types, _dataset.output_shapes);
+    _iterator_resource := ops.anonymous_iterator_v3(_dataset.output_types, _dataset.output_shapes);
+    // TODO(Rinne): deal with graph mode.
     ops.make_iterator(dataset.variant_tensor, _iterator_resource);
 end;
 
@@ -755,17 +753,21 @@ end;
 
 { DataAdapter }
 
-function DataAdapter.CanHandle(x, y: TFTensor): Boolean;
+function DataAdapter.CanHandle(x, y: TFTensors): Boolean;
 begin
     raise Exception.Create('Not Implemented');
 end;
 
-function DataAdapter.Expand1d(x, y: TFTensor): Tuple<TFTensor, TFTensor>;
+function DataAdapter.Expand1d(x, y: TFTensors): Tuple<TFTensors, TFTensors>;
 begin
-    if x.shape.ndim = 1 then
-        x := array_ops.expand_dims(x, -1);
-    if y.shape.ndim = 1 then
-        y := array_ops.expand_dims(y, -1);
+    for var i := 0 to x.Count - 1 do
+      if x[i].shape.ndim = 1 then
+         x[i] := array_ops.expand_dims(x[i], -1);
+
+    for var i := 0 to x.Count - 1 do
+      if y[i].shape.ndim = 1 then
+         y[i] := array_ops.expand_dims(y[i], -1);
+
     Result := Tuple.Create(x, y);
 end;
 
@@ -894,11 +896,12 @@ begin
 
     inputs := TFTensors.Create;
     if _args.X <> nil then
-        inputs.Add(_args.X);
+        inputs.AddRange(_args.X.ToArray);
     if _args.Y <> nil then
-        inputs.Add(_args.Y);
+        inputs.AddRange(_args.Y.ToArray);
 
     Fdataset := slice_inputs(indices_dataset, inputs);
+    Fdataset.FirstInputTensorCount := _args.X.Count;
 end;
 
 function TensorLikeDataAdapter.permutation(tensor: TFTensors): TFTensors;
@@ -914,6 +917,11 @@ end;
 function TensorLikeDataAdapter.GetSize: Integer;
 begin
    Result := FSize;
+end;
+
+function TensorLikeDataAdapter.ShouldRecreateIterator: Boolean;
+begin
+    Result := False;
 end;
 
 function TensorLikeDataAdapter.slice_batch_indices(indices: TFTensor): IDatasetV2;
@@ -1040,6 +1048,7 @@ end;
 constructor DatasetV2.Create;
 begin
     Fops := default(dataset_ops);
+    FirstInputTensorCount := 1;
 end;
 
 function DatasetV2.Get_output_types: TArray<TF_DataType>;
@@ -1194,6 +1203,7 @@ begin
 
     // (4) Apply stats aggregator options
 
+    dataset.FirstInputTensorCount  := FirstInputTensorCount;
     Result := dataset;
 end;
 
@@ -1202,7 +1212,7 @@ begin
     Result := tf.Context.ExecuteOp('DatasetCardinality', name, ExecuteOpArgs.Create([variant_tensor])).First;
 end;
 
-function DatasetV2.DoGetEnumerator: TEnumerator<Tuple<TFTensor, TFTensor>>;
+function DatasetV2.DoGetEnumerator: TEnumerator<Tuple<TFTensors, TFTensors>>;
 begin
     Result := GetEnumerator;
 end;
@@ -1222,7 +1232,7 @@ begin
   FownedIterator := OwnedIterator.Create(FDatasetV2);
 end;
 
-function DatasetV2.TDatasetEnumerator.DoGetCurrent: Tuple<TFTensor, TFTensor>;
+function DatasetV2.TDatasetEnumerator.DoGetCurrent: Tuple<TFTensors, TFTensors>;
 begin
   Result := GetCurrent;
 end;
@@ -1232,7 +1242,7 @@ begin
   Result := MoveNext;
 end;
 
-function DatasetV2.TDatasetEnumerator.GetCurrent: Tuple<TFTensor, TFTensor>;
+function DatasetV2.TDatasetEnumerator.GetCurrent: Tuple<TFTensors, TFTensors>;
 begin
    Result := FCurrent;
 end;
@@ -1246,8 +1256,10 @@ begin
       res := FownedIterator.next;
       if res = nil then Exit;
 
-      if Length(res) = 1 then FCurrent := Tuple<TFTensor, TFTensor>.Create(res[0], nil)
-      else                    FCurrent := Tuple<TFTensor, TFTensor>.Create(res[0], res[1]) ;
+      var eRes := Enumerable<TFTensor>.Create(res);
+
+      if Length(res) = FDatasetV2.FirstInputTensorCount then FCurrent := Tuple<TFTensors, TFTensors>.Create(TFTensors.Create(eRes.Take(FDatasetV2.FirstInputTensorCount).ToArray), nil)
+      else                                                   FCurrent := Tuple<TFTensors, TFTensors>.Create(TFTensors.Create(eRes.Take(FDatasetV2.FirstInputTensorCount).ToArray), TFTensors.Create(eRes.Skip(FDatasetV2.FirstInputTensorCount).ToArray)) ;
 
       Inc(FIndex);
       Result := True;
@@ -1260,6 +1272,8 @@ end;
 
 constructor UnaryDataset.Create(input_dataset: IDatasetV2);
 begin
+     inherited Create;
+
      Finput_dataset := input_dataset;
      Fstructure     := input_dataset.structure;
 end;
@@ -1418,7 +1432,7 @@ end;
 
 constructor DatasetSource.Create;
 begin
-
+    inherited Create;
 end;
 
 { GeneratorDataset }
@@ -1515,6 +1529,8 @@ end;
 
 constructor ConcatenateDataset.Create(input_dataset, dataset_to_concatenate: IDatasetV2);
 begin
+    inherited Create;
+
     Finput_dataset          := input_dataset;
     Fdataset_to_concatenate := dataset_to_concatenate;
     var _structure := TList<TensorSpec>.Create;
@@ -1808,13 +1824,16 @@ var
   epoch        : Integer;
   data_iterator: OwnedIterator;
 begin
+    data_iterator := OwnedIterator.Create(Fdataset);
+
     Result := TList<Tuple<Integer, OwnedIterator>>.Create;
     for epoch := initial_epoch to epochs - 1 do
     begin
       if Finsufficient_data then
         Break;
+      if Fadapter.ShouldRecreateIterator then
+        data_iterator := OwnedIterator.Create(Fdataset);
 
-      data_iterator := OwnedIterator.Create(Fdataset);
       TList<Tuple<Integer, OwnedIterator>>(Result).Add(Tuple<Integer, OwnedIterator>.Create(epoch, data_iterator));
     end;
     // _adapter.on_epoch_end()

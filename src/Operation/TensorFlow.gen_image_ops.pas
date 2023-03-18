@@ -22,7 +22,7 @@ interface
          rtti,
 
          TensorFlow.DApi,
-         TensorFlow.Context;
+         TensorFlow.Core;
 
 type
   gen_image_ops = record

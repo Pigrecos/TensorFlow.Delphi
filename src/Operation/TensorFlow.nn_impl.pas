@@ -26,8 +26,7 @@ interface
              TensorFlow.DApi,
              Numpy.Axis,
 
-             TensorFlow.Context,
-             TensorFlow.Variable;
+             TensorFlow.Core;
 
 type
   nn_impl = record
@@ -107,8 +106,6 @@ implementation
          TensorFlow.Tensor,
          Tensorflow.Utils,
          TensorFlow.Ops,
-         TensorFlow.Constant_op,
-         Tensorflow.NameScope,
          Tensorflow.array_ops,
          TensorFlow.gen_nn_ops,
          TensorFlow.gen_math_ops,

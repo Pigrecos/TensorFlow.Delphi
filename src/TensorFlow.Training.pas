@@ -27,9 +27,8 @@ interface
           TF4D.Core.CApi,
           TensorFlow.DApiBase,
           TensorFlow.DApi,
-          TensorFlow.Framework,
+          TensorFlow.Core,
           TensorFlow.Variable,
-          Tensorflow.NameScope,
           TensorFlow.Initializer,
           Tensorflow.Utils;
 
@@ -358,7 +357,6 @@ implementation
        uses Tensorflow,
             TensorFlow.Ops,
             TensorFlow.Tensor,
-            TensorFlow.Context,
             Tensorflow.Gradient,
             TensorFlow.control_flow_ops,
             TensorFlow.resource_variable_ops,

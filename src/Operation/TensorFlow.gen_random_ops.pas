@@ -21,11 +21,8 @@ interface
            Spring,
 
            TF4D.Core.CApi,
-           TensorFlow.DApiBase,
            TensorFlow.DApi,
-           Numpy.Axis,
-
-           TensorFlow.Context ;
+           TensorFlow.Core ;
 
 type
   gen_random_ops = record
@@ -89,7 +86,7 @@ type
 
 implementation
         uses Tensorflow,
-             TensorFlow.Ops,
+
              Tensorflow.Utils;
 
 { gen_random_ops }

@@ -24,7 +24,7 @@ interface
 
          TF4D.Core.CApi,
          TensorFlow.DApi,
-         TensorFlow.Context,
+         TensorFlow.Core,
          TensorFlow.Variable ;
 
 type
@@ -49,10 +49,9 @@ type
   end;
 
 implementation
-         uses TensorFlow.Constant_op,
+         uses
               TensorFlow.Ops,
               Tensorflow.array_ops,
-              Tensorflow.NameScope,
               Tensorflow.Utils;
 
 { embedding_ops }
