@@ -165,7 +165,11 @@ type
         procedure on_predict_batch_begin(step: Int64);
         procedure on_predict_batch_end(end_step: Int64; logs: TDictionary<string, TFTensors>);
         procedure on_predict_end;
-
+        //
+        procedure on_test_begin;
+        procedure on_test_batch_begin(step: Int64);
+        procedure on_test_batch_end(end_step: Int64; logs : TList<Tuple<string, TFTensor>>);
+        //
         property sLog    : string read GetLog;
         property hHistory : TDictionary<string, TList<Single>> read Get_history write Set_history;
   end;

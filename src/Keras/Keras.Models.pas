@@ -144,7 +144,7 @@ type
                          use_multiprocessing : Boolean = false): TFTensors; overload;
         function PredictInternal(data_handler: DataHandler; verbose: Integer): TFTensors;
         function run_predict_step(iterator: OwnedIterator): TFTensors;
-        function predict_step(data: TFTensor): TFTensors; overload;
+        function predict_step(data: TFTensors): TFTensors; overload;
         // Model.Evaluate
         //
         /// <summary>
@@ -389,9 +389,14 @@ end;
 
 procedure Model.evaluate(x, y: TNDArray; batch_size, verbose, steps, max_queue_size, workers: Integer; use_multiprocessing, return_dict: Boolean);
 var
-  res     : TList<Tuple<string, TFTensor> > ;
   dataArgs: DataHandlerArgs;
+
+  cCallbacks : CallbackList;
+  cbParam    : CallbackParams;
 begin
+    if x.dims[0] <> y.dims[0] then
+        raise Exception.Create('The array x and y should have same value at dim 0, but got '+x.dims[0].ToString+' and '+y.dims[0].ToString);
+
     dataArgs := DataHandlerArgs.Create;
     dataArgs.X             :=  TFTensors.Create(x);
     dataArgs.Y             :=  TFTensors.Create(y);
@@ -407,18 +412,27 @@ begin
 
     var data_handler := DataHandler.Create(dataArgs);
 
+    cbParam    := CallbackParams.Create;
+    cbParam.mModel  := Self;
+    cbParam.Verbose := verbose;
+    cbParam.Steps   := data_handler.Inferredsteps;
+
+    cCallbacks := CallbackList.Create(cbParam) ;
+
+    cCallbacks.on_test_begin;
     for var epoch_iterator in data_handler.enumerate_epochs do
     begin
-        var epoch   := epoch_iterator.Value1;
+        //var epoch   := epoch_iterator.Value1;
         var iterator:= epoch_iterator.Value2;
         reset_metrics;
-        // callbacks.on_epoch_begin(epoch)
-        // data_handler.catch_stop_iteration();
-        res := nil ;
+
         for var step in data_handler.steps do
         begin
-            // callbacks.on_train_batch_begin(step)
-            res := test_function(data_handler, iterator);
+            cCallbacks.on_test_batch_begin(step);
+            var logs := test_function(data_handler, iterator);
+
+            var end_step := step + data_handler.StepIncrement;
+            cCallbacks.on_test_batch_end(end_step, logs)
         end;
     end;
 end;
@@ -438,7 +452,7 @@ begin
     logs := nil ;
     for var epoch_iterator in data_handler.enumerate_epochs do
     begin
-        var epoch   := epoch_iterator.Value1;
+        //var epoch   := epoch_iterator.Value1;
         var iterator:= epoch_iterator.Value2;
         reset_metrics;
         // callbacks.on_epoch_begin(epoch)
@@ -910,7 +924,7 @@ begin
     cCallbacks.on_predict_begin;
     for  var it in data_handler.enumerate_epochs do
     begin
-        var epoch   := it.Value1;
+        // var epoch   := it.Value1;
         var iterator:= it.Value2;
 
         for var step in data_handler.steps do
@@ -982,7 +996,7 @@ end;
 function Model.run_predict_step(iterator: OwnedIterator): TFTensors;
 begin
     var data   := iterator.next;
-    var outputs:= predict_step(data[0]);
+    var outputs:= predict_step( TFTensors.Create(data) );
     TUtils.tf_with<TControlDependenciesController,TFTensor>(Tops.control_dependencies([]),
       function(d : TControlDependenciesController ): TFtensor
         begin
@@ -1042,9 +1056,9 @@ begin
      FOnEndSummary(strSummary)
 end;
 
-function Model.predict_step(data: TFTensor): TFTensors;
+function Model.predict_step(data: TFTensors): TFTensors;
 begin
-    Result := Apply(TFTensors.Create(data), nil, false);
+    Result := Apply(data, nil, false);
 end;
 
 procedure Model._configure_steps_per_execution(steps_per_execution: Integer);

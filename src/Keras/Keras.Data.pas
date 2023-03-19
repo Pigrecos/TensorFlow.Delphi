@@ -277,7 +277,7 @@ type
        _dataset           : IDatasetV2;
        _element_spec      : TArray<TensorSpec>;
        ops                : dataset_ops;
-       _deleter           : TFTensor;
+       //_deleter           : TFTensor;
        _iterator_resource : TFTensor;
 
        constructor Create(dataset: IDatasetV2);
@@ -719,8 +719,6 @@ begin
     dataset  := dataset.apply_options();
     _dataset := dataset;
     _element_spec := dataset.element_spec;
-    // _flat_output_types =
-    //var tI := ops.anonymous_iterator_v2(_dataset.output_types, _dataset.output_shapes);
     _iterator_resource := ops.anonymous_iterator_v3(_dataset.output_types, _dataset.output_shapes);
     // TODO(Rinne): deal with graph mode.
     ops.make_iterator(dataset.variant_tensor, _iterator_resource);

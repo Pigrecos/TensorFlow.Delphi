@@ -60,6 +60,11 @@ type
        procedure on_predict_batch_end(end_step: Int64; logs: TDictionary<string, TFTensors>);
        procedure on_predict_end;
        //
+       procedure on_test_begin;
+       procedure on_test_batch_begin(step: Int64);
+       procedure on_test_batch_end(end_step: Int64; logs : TList<Tuple<string, TFTensor>>);
+      //
+       //
        constructor Create(_parameters: CallbackParams);
 
        property epochs      : TList<Integer>  read Fepochs;
@@ -85,6 +90,10 @@ type
        procedure on_predict_batch_end(end_step: Int64; logs: TDictionary<string, TFTensors>);
        procedure on_predict_end;
        //
+       procedure on_test_begin;
+       procedure on_test_batch_begin(step: Int64);
+       procedure on_test_batch_end(end_step: Int64; logs : TList<Tuple<string, TFTensor>>);
+       //
        property hHistory  : History read GetHistory;
        property sLog      : string  read FMSg;
   end;
@@ -107,6 +116,9 @@ type
       procedure on_train_batch_begin(step: Int64);
       procedure on_train_batch_end(end_step: Int64; logs: TDictionary<string, Single>);
       procedure on_epoch_end(epoch: Integer; epoch_logs: TDictionary<string, Single>);
+      procedure on_test_begin;
+      procedure on_test_batch_begin(step: Int64);
+      procedure on_test_batch_end(end_step: Int64; logs : TList<Tuple<string, TFTensor>>);
       //
       procedure on_predict_begin;
       procedure on_predict_batch_begin(step: Int64);
@@ -157,6 +169,22 @@ begin
 end;
 
 procedure History.on_epoch_begin(epoch: Integer);
+begin
+
+end;
+
+procedure History.on_test_begin;
+begin
+    Fepochs := TList<Integer>.Create;
+    Fhistory:= TDictionary<string, TList<Single>>.Create;
+end;
+
+procedure History.on_test_batch_begin(step: Int64);
+begin
+
+end;
+
+procedure History.on_test_batch_end(end_step: Int64; logs: TList<Tuple<string, TFTensor>>);
 begin
 
 end;
@@ -235,6 +263,36 @@ begin
     for var i := 0 to Fcallbacks.Count - 1 do
     begin
          Fcallbacks[i].on_epoch_begin(epoch);
+         FMSg := FMSg + Fcallbacks[i].sLog + sLineBreak;
+    end;
+end;
+
+procedure CallbackList.on_test_begin;
+begin
+    FMSg := '';
+    for var i := 0 to Fcallbacks.Count - 1 do
+    begin
+         Fcallbacks[i].on_test_begin;
+         FMSg := FMSg + Fcallbacks[i].sLog + sLineBreak;
+    end;
+end;
+
+procedure CallbackList.on_test_batch_end(end_step: Int64; logs: TList<Tuple<string, TFTensor>>);
+begin
+    FMSg := '';
+    for var i := 0 to Fcallbacks.Count - 1 do
+    begin
+         Fcallbacks[i].on_test_batch_end(end_step, logs);
+         FMSg := FMSg + Fcallbacks[i].sLog + sLineBreak;
+    end;
+end;
+
+procedure CallbackList.on_test_batch_begin(step: Int64);
+begin
+    FMSg := '';
+    for var i := 0 to Fcallbacks.Count - 1 do
+    begin
+         Fcallbacks[i].on_train_batch_begin(step);
          FMSg := FMSg + Fcallbacks[i].sLog + sLineBreak;
     end;
 end;
@@ -344,6 +402,29 @@ begin
     _reset_progbar;
     _maybe_init_progbar;
     FMSg := Format('Epoch: %.3d/%.3d',[epoch + 1,Fparameters.Epochs]);
+end;
+
+procedure ProgbarLogger.on_test_begin;
+begin
+    Fsw  := TStopwatch.StartNew;
+end;
+
+procedure ProgbarLogger.on_test_batch_begin(step: Int64);
+begin
+    Fsw.Reset;
+    Fsw.Start
+end;
+
+procedure ProgbarLogger.on_test_batch_end(end_step: Int64; logs: TList<Tuple<string, TFTensor>>);
+begin
+    Fsw.Stop;
+
+    var elapse := Fsw.ElapsedMilliseconds;
+    var results : string := '';
+    for var it in logs do
+     results := results + ' - ' + Format('%s: %.6f',[ it.Value1, it.Value2]);
+
+    FMSg := Format('%.4d/%.4d - %dms/step - %s',[end_step + 1,Fparameters.Steps,elapse, results]);
 end;
 
 procedure ProgbarLogger.on_train_batch_begin(step: Int64);
