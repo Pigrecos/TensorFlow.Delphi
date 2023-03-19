@@ -109,7 +109,7 @@ var
 begin
     threshold := 0.5;
     y_pred := math_ops.cast(TTensor(y_pred) > threshold, y_pred.dtype);
-    Result := tf.keras.backend.mean(math_ops.equal(y_true, y_pred), -1);
+    Result := TKerasApi.keras.backend.mean(math_ops.equal(y_true, y_pred), -1);
 end;
 
 function MetricsApi.Accuracy(name: string; dtype: TF_DataType): IMetricFunc;
@@ -176,7 +176,7 @@ begin
     var a : TAxis := -1;
     if axis <> nil then
        a := axis^;
-    Result := tf.keras.backend.categorical_crossentropy(y_true, y_pred, from_logits, a);
+    Result := TKerasApi.keras.backend.categorical_crossentropy(y_true, y_pred, from_logits, a);
 end;
 
 function MetricsApi.sparse_categorical_accuracy(y_true, y_pred: TFTensor): TFTensor;
@@ -212,14 +212,14 @@ end;
 function MetricsApi.mean_absolute_error(y_true, y_pred: TFTensor): TFTensor;
 begin
     y_true := math_ops.cast(y_true, y_pred.dtype);
-    Result := tf.keras.backend.mean(math_ops.abs(TTensor(y_pred) - y_true), -1);
+    Result := TKerasApi.keras.backend.mean(math_ops.abs(TTensor(y_pred) - y_true), -1);
 end;
 
 function MetricsApi.mean_absolute_percentage_error(y_true, y_pred: TFTensor): TFTensor;
 begin
     y_true := math_ops.cast(y_true, y_pred.dtype);
-    var diff := (TTensor(y_true) - y_pred) / math_ops.maximum(math_ops.abs(y_true), tf.keras.backend.epsilon);
-    Result   := Single(100) * TTensor(tf.keras.backend.mean(math_ops.abs(diff), -1));
+    var diff := (TTensor(y_true) - y_pred) / math_ops.maximum(math_ops.abs(y_true), TKerasApi.keras.backend.epsilon);
+    Result   := Single(100) * TTensor(TKerasApi.keras.backend.mean(math_ops.abs(diff), -1));
 end;
 
 function MetricsApi.Precision(thresholds: Single; top_k, class_id: Integer; name: string; dtype: TF_DataType): IMetricFunc;
@@ -237,7 +237,7 @@ begin
     var assi : TAxis := -1;
     if Assigned(axis) then assi := axis^;
 
-    Result := tf.keras.backend.sparse_categorical_crossentropy(y_true, y_pred, from_logits, assi, ignore_class);
+    Result := TKerasApi.keras.backend.sparse_categorical_crossentropy(y_true, y_pred, from_logits, assi, ignore_class);
 end;
 
 function MetricsApi.SparseCategoricalAccuracy(name: string; dtype: TF_DataType): IMetricFunc;
@@ -264,7 +264,7 @@ class function metrics_utils.accuracy(y_true, y_pred: TFTensor): TFTensor;
 begin
     if y_true.dtype <> y_pred.dtype then
         y_pred := tf.cast(y_pred, y_true.dtype);
-    Result := tf.cast(tf.equal(y_true, y_pred), tf.keras.backend.floatx);
+    Result := tf.cast(tf.equal(y_true, y_pred), TKerasApi.keras.backend.floatx);
 end;
 
 class function metrics_utils.cosine_similarity(y_true, y_pred: TFTensor; axis: PAxis): TFTensor;
@@ -307,7 +307,7 @@ end;
 class function metrics_utils.binary_matches(y_true, y_pred: TFTensor; threshold: Single): TFTensor;
 begin
     y_pred := tf.cast(TTensor(y_pred) > threshold, y_pred.dtype);
-    Result := tf.cast(tf.equal(y_true, y_pred), tf.keras.backend.floatx);
+    Result := tf.cast(tf.equal(y_true, y_pred), TKerasApi.keras.backend.floatx);
 end;
 
 class function metrics_utils.sparse_categorical_matches(y_true, y_pred: TFTensor): TFTensor;
@@ -323,7 +323,7 @@ begin
     end;
     y_pred := tf.math.argmax(y_pred, -1);
     y_pred := tf.cast(y_pred, y_true.dtype);
-    var matches := tf.cast(tf.equal(y_true, y_pred),  tf.keras.backend.floatx );
+    var matches := tf.cast(tf.equal(y_true, y_pred),  TKerasApi.keras.backend.floatx );
     if reshape_matches then
     begin
         Result := tf.reshape(matches, y_true_org_shape);
@@ -346,7 +346,7 @@ begin
         y_true          := tf.reshape(y_true, -1);
     end;
     var x := tf.math.in_top_k( y_pred, tf.cast(y_true, np.np_int32), k);
-    var matches := tf.cast(x, tf.keras.backend.floatx );
+    var matches := tf.cast(x, TKerasApi.keras.backend.floatx );
     if reshape_matches then
     begin
         Result := tf.reshape(matches, y_true_org_shape);

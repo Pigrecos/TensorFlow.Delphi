@@ -646,7 +646,7 @@ begin
     l.Add( Tuple.Create(Ftrue_positives, np.zeros(num_thresholds)) );
     l.Add( Tuple.Create(Ffalse_negatives, np.zeros(num_thresholds)) );
 
-    tf.keras.backend.batch_set_value(l);
+    TKerasApi.keras.backend.batch_set_value(l);
 end;
 
 function Recall.R_result: TFTensor;
@@ -688,7 +688,7 @@ begin
     l.Add( Tuple.Create(Ftrue_positives, np.zeros(num_thresholds)) );
     l.Add( Tuple.Create(Ffalse_positives, np.zeros(num_thresholds)) );
 
-    tf.keras.backend.batch_set_value(l);
+    TKerasApi.keras.backend.batch_set_value(l);
 end;
 
 function Precision.R_result: TFTensor;
@@ -806,7 +806,7 @@ begin
     l.Add( Tuple.Create(Ffalse_negatives, reset_value) );
     l.Add( Tuple.Create(Fweights_intermediate, reset_value) );
 
-    tf.keras.backend.batch_set_value(l);
+    TKerasApi.keras.backend.batch_set_value(l);
 end;
 
 { F1Score }

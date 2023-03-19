@@ -484,15 +484,12 @@ end;
 {$ENDREGION}
 
 {$REGION 'TTensorflow'}
-  TTensorflow = class(TFDisposable)
+  TTensorflow = class
     private
       FtapeSet : TGradientTape;
       FMemoLog : TStringList;
 
       function  GetVersion: string;
-    protected
-		  procedure NativeDispose(hnd: Pointer); override;
-
     public
      const
       byte8_t   = TF_DataType.TF_UINT8;
@@ -511,7 +508,7 @@ end;
       Context  : TContext;
       OpDefLib : OpDefLibrary;
       Runner   : TEagerRunner;
-      keras    : KerasInterface;
+      keras    : IKerasApi;
       compat   : CompatApi;
       strings  : StringsApi;
       GraphKeys: TGraphKeys;
@@ -1269,6 +1266,10 @@ end;
   end;
 {$ENDREGION}
 
+   TKerasApi = record
+     class function Keras : KerasInterface; static;
+   end;
+
   var
    tf : TTensorflow;
 
@@ -1278,6 +1279,13 @@ implementation
 
         TensorFlow.Ops ,
         TensorFlow.Tensor;
+
+{ TKerasApi }
+
+class function TKerasApi.Keras: KerasInterface;
+begin
+    Result := KerasInterface(tf.keras);
+end;
 
 {$REGION 'TTensorflow'}
 { TTensorflow }
@@ -1351,7 +1359,6 @@ begin
   if Assigned(gradientFunctions) then  gradientFunctions.Free;
 
   inherited Destroy;
-
 end;
 
 procedure TTensorflow.LogMsg(Msg: string);
@@ -1659,18 +1666,6 @@ end;
 function TTensorflow.GetVersion: string;
 begin
      Result := string(AnsiString(TF_Version));
-end;
-
-procedure TTensorflow.NativeDispose(hnd: Pointer);
-begin
-  inherited;
-
-  Context.Free;
-  Status.Free;
-  OpDefLib.Free;
-  Runner.Free;
-  FtapeSet.Free;
-
 end;
 
 function TTensorflow.negative(x: TFTensor; name: string): TFTensor;
@@ -2791,8 +2786,7 @@ end;
 
 finalization
 begin
-     tf.keras.free;
-     tf.Free;
+    tf.Free;
 end;
 
 end.

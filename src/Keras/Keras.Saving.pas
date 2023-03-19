@@ -194,7 +194,7 @@ begin
       filtered_layers.free;
     end;
 
-    tf.keras.backend.batch_set_value(weight_value_tuples);
+    TKerasApi.keras.backend.batch_set_value(weight_value_tuples);
 end;
 
 class function hdf5_format.Split<T>(list: TArray<T>; chunkSize: Integer): TList<TList<T>>;

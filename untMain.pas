@@ -194,7 +194,7 @@ begin
     end;
 
     //UseSequentialAPI to create Model
-    var sModel := tf.keras.Sequential;
+    var sModel := TKerasApi.keras.Sequential;
     try
       sModel.OnEpochBegin      :=  On_Epoch_Begin;
       sModel.OnTrainBatchBegin :=  On_Train_Batch_Begin;
@@ -218,7 +218,7 @@ begin
     var x := np.np_array<Single>([ [ 0, 0 ], [ 0, 1 ], [ 1, 0 ], [ 1, 1 ] ],np.np_float32);
     var y := np.np_array<Single>([ [ 0 ],    [ 1 ],    [ 1 ],    [ 0 ] ],np.np_float32);
 
-    mModel := tf.keras.Sequential;
+    mModel := TKerasApi.keras.Sequential;
     try
       mModel.OnEpochBegin      :=  On_Epoch_Begin;
       mModel.OnTrainBatchBegin :=  On_Train_Batch_Begin;

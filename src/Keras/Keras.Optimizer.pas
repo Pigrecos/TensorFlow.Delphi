@@ -148,9 +148,35 @@ type
          constructor Create(learning_rate: Single; momentum : Single = 0.0; nesterov : Boolean = false; decay: Single = 0.0);
    end;
 
-   OptimizerApi = class
-      private
+   IOptimizerApi = interface
+    ['{24F08DA9-C0F8-40ED-BE5B-289F184A6D32}']
+        /// <summary>
+        /// Adam optimization is a stochastic gradient descent method that is based on
+        /// adaptive estimation of first-order and second-order moments.
+        /// </summary>
+        /// <param name="learning_rate"></param>
+        /// <param name="beta_1"></param>
+        /// <param name="beta_2"></param>
+        /// <param name="epsilon"></param>
+        /// <param name="amsgrad"></param>
+        /// <param name="name"></param>
+        /// <returns></returns>
+        function  Adam(learning_rate : Single = 0.001; beta_1 : Single = 0.9; beta_2 : Single = 0.999; epsilon: Single = 1e-7; amsgrad : Boolean= false; name : string= 'Adam') : OptimizerV2;
+        /// <summary>
+        /// Construct a new RMSprop optimizer.
+        /// </summary>
+        /// <param name="learning_rate"></param>
+        /// <param name="rho"></param>
+        /// <param name="momentum"></param>
+        /// <param name="epsilon"></param>
+        /// <param name="centered"></param>
+        /// <param name="name"></param>
+        /// <returns></returns>
+        function RMSprop(learning_rate : Single = 0.001; rho : Single = 0.9; momentum : Single = 0.0; epsilon : Single = 1e-7; centered : Boolean = false; name: string = 'RMSprop'): OptimizerV2;
+        function SGD(learning_rate: Single): TSGD;
+   end;
 
+   OptimizerApi = class(TInterfacedObject, IOptimizerApi)
       public
         destructor Destroy ; override;
         /// <summary>

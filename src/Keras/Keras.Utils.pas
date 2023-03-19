@@ -244,7 +244,7 @@ begin
                     TUtils.tf_with<TNameScope>( Tops.init_scope,
                           procedure(v1: TNameScope)
                             begin
-                               constants.AddOrSetValue(i, tf.keras.backend.eval_in_eager_or_function(TFTensors.Create(op_input)) );
+                               constants.AddOrSetValue(i, TKerasApi.keras.backend.eval_in_eager_or_function(TFTensors.Create(op_input)) );
                             end );
                 end;
             end;
@@ -282,13 +282,13 @@ class function base_layer_utils.get_default_graph_uid_map: TDictionary<string, I
 begin
     var graph := Tops.get_default_graph;
     var name_uid_map : TDictionary<string, Integer> ;
-    if tf.keras.backend.PER_GRAPH_LAYER_NAME_UIDS.ContainsKey(graph) then
+    if TKerasApi.keras.backend.PER_GRAPH_LAYER_NAME_UIDS.ContainsKey(graph) then
     begin
-        name_uid_map := tf.keras.backend.PER_GRAPH_LAYER_NAME_UIDS[graph];
+        name_uid_map := TKerasApi.keras.backend.PER_GRAPH_LAYER_NAME_UIDS[graph];
     end else
     begin
         name_uid_map := TDictionary<string, Integer>.Create;
-        tf.keras.backend.PER_GRAPH_LAYER_NAME_UIDS.Add(graph, name_uid_map);
+        TKerasApi.keras.backend.PER_GRAPH_LAYER_NAME_UIDS.Add(graph, name_uid_map);
     end;
 
     Result := name_uid_map;

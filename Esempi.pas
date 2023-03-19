@@ -2075,7 +2075,7 @@ begin
     lLayers.Add( tf.keras.layers.InputLayer(TFShape.Create([4])) );
     lLayers.Add( tf.keras.layers.Dense(8) );
 
-    var model := tf.keras.Sequential(lLayers );
+    var model := TKerasApi.keras.Sequential(lLayers );
     model.OnEpochBegin      :=  On_Epoch_Begin;
     model.OnTrainBatchBegin :=  On_Train_Batch_Begin;
 
@@ -2085,7 +2085,7 @@ end;
 
 procedure LayersTest.Sequential;
 begin
-   var model := tf.keras.Sequential;
+   var model := TKerasApi.keras.Sequential;
    model.add(tf.keras.Input(TFShape.Create([16])) );
 end;
 
@@ -2146,7 +2146,7 @@ end;
 
 procedure LayersTest.Embedding;
 begin
-    var model := tf.keras.Sequential;
+    var model := TKerasApi.keras.Sequential;
     var layer := tf.keras.layers.Embedding(1000, 64, {embeddings_initializer}nil, {mask_zero}False, {input_shape}nil, {input_length}10);
     model.add(layer);
 
@@ -2163,7 +2163,7 @@ end;
 procedure LayersTest.Dense;
 begin
     // Create a `Sequential` model and add a Dense layer as the first layer.
-    var model := tf.keras.Sequential;
+    var model := TKerasApi.keras.Sequential;
     model.add(tf.keras.Input(TFShape.Create([16])));
     model.add(tf.keras.layers.Dense(32, tf.keras.activations.Relu));
     // Now the model will take as input arrays of shape (None, 16)
@@ -2258,7 +2258,7 @@ procedure PreprocessingTests.TokenizeWithNoOOV;
 var
  tTokenizer : Tokenizer;
 begin
-    tTokenizer := tf.keras.preprocessing.text.Tokenizer.Create;
+    tTokenizer := TKerasApi.keras.preprocessing.text.Tokenizer.Create;
     tTokenizer.fit_on_texts(texts);
 
     Assert.AreEqual(27, tTokenizer.word_index.Count);
@@ -2272,7 +2272,7 @@ procedure PreprocessingTests.TokenizeWithNoOOV_Tkn;
 var
  tTokenizer : Tokenizer;
 begin
-    tTokenizer := tf.keras.preprocessing.text.Tokenizer.Create;
+    tTokenizer := TKerasApi.keras.preprocessing.text.Tokenizer.Create;
     tTokenizer.fit_on_texts(tokenized_texts);
 
     Assert.AreEqual(27, tTokenizer.word_index.Count);
@@ -2286,7 +2286,7 @@ procedure PreprocessingTests.TokenizeWithOOV;
 var
  tTokenizer : Tokenizer;
 begin
-    tTokenizer := tf.keras.preprocessing.text.Tokenizer.Create(OOV);
+    tTokenizer := TKerasApi.keras.preprocessing.text.Tokenizer.Create(OOV);
     tTokenizer.fit_on_texts(texts);
 
     Assert.AreEqual(28, tTokenizer.word_index.Count);
@@ -2301,7 +2301,7 @@ procedure PreprocessingTests.TokenizeWithOOV_Tkn;
 var
  tTokenizer : Tokenizer;
 begin
-    tTokenizer := tf.keras.preprocessing.text.Tokenizer.Create(OOV);
+    tTokenizer := TKerasApi.keras.preprocessing.text.Tokenizer.Create(OOV);
     tTokenizer.fit_on_texts(tokenized_texts);
 
     Assert.AreEqual(28, tTokenizer.word_index.Count);
@@ -2317,7 +2317,7 @@ var
  tTokenizer : Tokenizer;
  sequences  : TList<TArray<Integer>>;
 begin
-    tTokenizer := tf.keras.preprocessing.text.Tokenizer;
+    tTokenizer := TKerasApi.keras.preprocessing.text.Tokenizer;
     tTokenizer.fit_on_texts(texts);
 
     sequences := tTokenizer.texts_to_sequences( texts );
@@ -2332,7 +2332,7 @@ var
  tTokenizer : Tokenizer;
  sequences  : TList<TArray<Integer>>;
 begin
-    tTokenizer := tf.keras.preprocessing.text.Tokenizer;
+    tTokenizer := TKerasApi.keras.preprocessing.text.Tokenizer;
     tTokenizer.fit_on_texts(tokenized_texts);
 
     sequences := tTokenizer.texts_to_sequences( tokenized_texts );
@@ -2348,11 +2348,11 @@ var
  sequences  : TList<TArray<Integer>>;
  padded     : TNDArray;
 begin
-    tTokenizer := tf.keras.preprocessing.text.Tokenizer.Create(OOV);
+    tTokenizer := TKerasApi.keras.preprocessing.text.Tokenizer.Create(OOV);
     tTokenizer.fit_on_texts(texts);
 
     sequences := tTokenizer.texts_to_sequences(texts);
-    padded    := tf.keras.preprocessing.sequence.pad_sequences(sequences);
+    padded    := TKerasApi.keras.preprocessing.sequence.pad_sequences(sequences);
 
     Assert.AreEqual<Int64>(4, padded.dims[0]);
     Assert.AreEqual<Int64>(22, padded.dims[1]);
@@ -2382,7 +2382,7 @@ procedure PreprocessingTests.TextToMatrixBinary;
 var
  tTokenizer : Tokenizer;
 begin
-    tTokenizer := tf.keras.preprocessing.text.Tokenizer.Create;
+    tTokenizer := TKerasApi.keras.preprocessing.text.Tokenizer.Create;
     tTokenizer.fit_on_texts(texts);
 
     Assert.AreEqual(27, tTokenizer.word_index.Count);
@@ -2399,7 +2399,7 @@ procedure PreprocessingTests.TextToMatrixFrequency;
 var
  tTokenizer : Tokenizer;
 begin
-    tTokenizer := tf.keras.preprocessing.text.Tokenizer.Create;
+    tTokenizer := TKerasApi.keras.preprocessing.text.Tokenizer.Create;
     tTokenizer.fit_on_texts(texts);
 
     Assert.AreEqual(27, tTokenizer.word_index.Count);

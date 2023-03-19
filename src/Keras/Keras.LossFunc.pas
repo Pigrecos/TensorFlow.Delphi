@@ -451,7 +451,7 @@ end;
 function TCategoricalCrossentropy.Apply(y_true, y_pred: TFTensor; from_logits: boolean; axis: Integer): TFTensor;
 begin
     // Try to adjust the shape so that rank of labels = rank of logits - 1.
-    Result := tf.keras.backend.categorical_crossentropy(y_true, y_pred, from_logits);
+    Result := TKerasApi.keras.backend.categorical_crossentropy(y_true, y_pred, from_logits);
 end;
 
 {$IFNDEF AUTOREFCOUNT}
@@ -1198,7 +1198,7 @@ begin
 
     if not from_logits then
     begin
-        var epsilon := tf.constant(tf.Keras.backend.epsilon, y_pred.dtype);
+        var epsilon := tf.constant(TKerasApi.Keras.backend.epsilon, y_pred.dtype);
         y_pred      := tf.clip_by_value(y_pred, epsilon, 1 - TTEnsor(epsilon));
         y_pred      := tf.log(y_pred);
     end;
@@ -1304,8 +1304,8 @@ end;
 
 function TBinaryCrossentropy.Apply(y_true, y_pred: TFTensor; from_logits: boolean; axis: Integer): TFTensor;
 begin
-    var sum := tf.keras.backend.binary_crossentropy(y_true, y_pred, from_logits);
-    Result  := tf.keras.backend.mean(sum, axis);
+    var sum := TKerasApi.keras.backend.binary_crossentropy(y_true, y_pred, from_logits);
+    Result  := TKerasApi.keras.backend.mean(sum, axis);
 end;
 
 {$IFNDEF AUTOREFCOUNT}
@@ -1389,7 +1389,7 @@ end;
 function TSigmoidFocalCrossEntropy.Apply(y_true, y_pred: TFTensor; from_logits: boolean; axis: Integer): TFTensor;
 begin
     y_true := tf.cast(y_true, y_pred.dtype);
-    var ce := tf.keras.backend.binary_crossentropy(y_true, y_pred, from_logits);
+    var ce := TKerasApi.keras.backend.binary_crossentropy(y_true, y_pred, from_logits);
     var pred_prob : TTensor ;
     if from_logits then
      pred_prob := tf.sigmoid(y_pred)

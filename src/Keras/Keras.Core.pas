@@ -51,6 +51,13 @@ type
   Cropping2DArgs = class;
 
   {$REGION 'interfaces'}
+  IInitializersApi = interface
+     ['{D6AC2579-8B83-43A6-9C10-1BF9B293B3C4}']
+
+      function Orthogonal(gain: Single = 1.0; seed : pInteger= nil) : IInitializer;
+      function he_normal(seed : PInteger= nil) : IInitializer;
+  end;
+
   INode = interface
     ['{F604E1FF-BF7E-4A41-967E-FEB9C4A2B52F}']
     function  GetInputTensor: TFTensors;
@@ -852,20 +859,44 @@ type
       property node_index   : Integer read Fnode_index;
       property tensor_index : Integer read Ftensor_index;
   end;
-  
-  
+
+  IActivationsApi = interface
+    ['{1C028BD3-46A1-494B-9B50-9387E8AAFF71}']
+     function Get_Linear : TActivation;
+     function Get_Relu   : TActivation;
+     function Get_Sigmoid: TActivation;
+     function Get_Softmax: TActivation;
+     function Get_Tanh   : TActivation;
+     function Get_mish   : TActivation;
+
+     property Linear : TActivation read Get_Linear;
+     property Relu   : TActivation read Get_Relu;
+     property Sigmoid: TActivation read Get_Sigmoid;
+     property Softmax: TActivation read Get_Softmax;
+     property Tanh   : TActivation read Get_Tanh;
+     property mish   : TActivation read Get_mish;
+  end;
+
   // Keras.Activations
   //
-  TActivations = class
-     Linear : TActivation;
-     Relu   : TActivation;
-     Sigmoid: TActivation;
-     Softmax: TActivation;
-     Tanh   : TActivation;
-     mish   : TActivation;
+  TActivations = class(TInterfacedObject, IActivationsApi)
+    private
+       FLinear : TActivation;
+       FRelu   : TActivation;
+       FSigmoid: TActivation;
+       FSoftmax: TActivation;
+       FTanh   : TActivation;
+       Fmish   : TActivation;
 
-     constructor Create;
-     destructor  Destroy; override;
+       function Get_Linear : TActivation;
+       function Get_Relu   : TActivation;
+       function Get_Sigmoid: TActivation;
+       function Get_Softmax: TActivation;
+       function Get_Tanh   : TActivation;
+       function Get_mish   : TActivation;
+    public
+       constructor Create;
+       destructor  Destroy; override;
    end; 
 
    {$REGION 'Keras.ArgsDefinitions'} 
@@ -1463,7 +1494,7 @@ type
    	constructor Create;
    end;		  
    {$ENDREGION}
-   
+
 implementation
         uses Tensorflow.Utils,
              Tensorflow.Tensor,
@@ -1721,31 +1752,31 @@ end;
 
 constructor TActivations.Create;
 begin
-    Linear :=  function(features: TFTensor; name: string = ''): TFTensor
+    FLinear :=  function(features: TFTensor; name: string = ''): TFTensor
                 begin
                   Result := features;
                 end;
 
-    Relu :=  function(features: TFTensor; name: string = ''): TFTensor
+    FRelu :=  function(features: TFTensor; name: string = ''): TFTensor
                 begin
                     Result := tf.Context.ExecuteOp('Relu', name, ExecuteOpArgs.Create([features])).First;
                 end;
 
-    Sigmoid :=  function(features: TFTensor; name: string = ''): TFTensor
+    FSigmoid :=  function(features: TFTensor; name: string = ''): TFTensor
                 begin
                    Result := tf.Context.ExecuteOp('Sigmoid', name, ExecuteOpArgs.Create([features])).First;
                 end;
 
-    Softmax :=  function(features: TFTensor; name: string = ''): TFTensor
+    FSoftmax :=  function(features: TFTensor; name: string = ''): TFTensor
                 begin
                   Result := tf.Context.ExecuteOp('Softmax', name, ExecuteOpArgs.Create([features])).First;
                 end;
 
-    Tanh :=  function(features: TFTensor; name: string = ''): TFTensor
+    FTanh :=  function(features: TFTensor; name: string = ''): TFTensor
                 begin
                   Result := tf.Context.ExecuteOp('Tanh', name, ExecuteOpArgs.Create([features])).First;
                 end;
-    mish :=  function(features: TFTensor; name: string = ''): TFTensor
+    Fmish :=  function(features: TFTensor; name: string = ''): TFTensor
                 begin
                   Result := TTensor(features) * tf.math.tanh(tf.math.softplus(features));
                 end;
@@ -1753,15 +1784,45 @@ end;
 
 destructor TActivations.Destroy;
 begin
-     Linear  := nil;
-     Relu    := nil;
-     Sigmoid := nil;
-     Softmax := nil;
-     Tanh    := nil;
-     mish    := nil;
+     FLinear  := nil;
+     FRelu    := nil;
+     FSigmoid := nil;
+     FSoftmax := nil;
+     FTanh    := nil;
+     Fmish    := nil;
 end;
 
-{$REGION 'Keras.ArgsDefinitions'} 
+function TActivations.Get_Linear: TActivation;
+begin
+    Result := FLinear;
+end;
+
+function TActivations.Get_mish: TActivation;
+begin
+    Result := Fmish
+end;
+
+function TActivations.Get_Relu: TActivation;
+begin
+    Result := FRelu
+end;
+
+function TActivations.Get_Sigmoid: TActivation;
+begin
+    Result := FSigmoid
+end;
+
+function TActivations.Get_Softmax: TActivation;
+begin
+    Result := FSoftmax
+end;
+
+function TActivations.Get_Tanh: TActivation;
+begin
+    Result := FTanh
+end;
+
+{$REGION 'Keras.ArgsDefinitions'}
 { ConvolutionalArgs }
 
 constructor ConvolutionalArgs.Create;

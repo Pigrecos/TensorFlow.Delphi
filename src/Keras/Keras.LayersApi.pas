@@ -1630,6 +1630,7 @@ begin
     else if name = 'sigmoid' then Result := tf.keras.activations.Sigmoid
     else if name = 'tanh'    then Result := tf.keras.activations.Tanh
     else if name = 'softmax' then Result := tf.keras.activations.Softmax
+    else if name = 'mish'    then Result := tf.keras.activations.mish
     else raise Exception.Create('Activation '+name+' not found')
 end;
 

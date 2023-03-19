@@ -1063,7 +1063,7 @@ procedure Model._reset_compile_cache;
 begin
     // Used to cache `trainable` attr of `Layer`s for `fit`.
     Fcompiled_trainable_state := _get_trainable_state;
-    tf.keras.backend._GRAPH := nil;
+    TKerasApi.keras.backend._GRAPH := nil;
 end;
 
 procedure Model.Build(input_shape: TFShape);
@@ -1077,7 +1077,7 @@ begin
     end;
 
     if tf.executing_eagerly then graph := TFuncGraph.Create('build_graph')
-    else                         graph := tf.keras.backend.get_graph;
+    else                         graph := TKerasApi.keras.backend.get_graph;
 
     graph.as_default;
     var x := tf.placeholder(DType, input_shape);

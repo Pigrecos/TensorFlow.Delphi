@@ -1759,7 +1759,7 @@ begin
     var outputs : TFTensors ;
     CallContext.enter(true);
 
-    var graph := tf.keras.backend.get_graph;
+    var graph := TKerasApi.keras.backend.get_graph;
     graph.as_default;
 
     var scope := Tops.name_scope(_name_scope);
@@ -2333,7 +2333,7 @@ begin
     training := @b; // TODO: Delete this line when backend.learning_phase is available
     if training = nil then
     begin
-        if tf.keras.backend.learning_phase = GraphLearningPhase.train_mode then _training := True
+        if TKerasApi.keras.backend.learning_phase = GraphLearningPhase.train_mode then _training := True
         else                                                                    _training := False;
     end else
     begin
@@ -2983,7 +2983,7 @@ begin
     if string.IsNullOrEmpty(args.Name) then
     begin
         var prefix := 'input';
-        Fname      := prefix + '_' + tf.keras.backend.get_uid(prefix).ToString;
+        Fname      := prefix + '_' + TKerasApi.keras.backend.get_uid(prefix).ToString;
         args.Name  := name;
     end;
 
@@ -3004,11 +3004,11 @@ begin
             args.BatchInputShape := System.default(TFShape);
         end;
 
-        var graph := tf.keras.backend.get_graph;
+        var graph := TKerasApi.keras.backend.get_graph;
         graph.as_default;
 
         var batch := BatchInputShape;
-        args.InputTensor := tf.keras.backend.placeholder(@batch, -1, DType, args.Sparse, Name, args.Ragged);
+        args.InputTensor := TKerasApi.keras.backend.placeholder(@batch, -1, DType, args.Sparse, Name, args.Ragged);
 
         graph.gExit;
 
@@ -3604,7 +3604,7 @@ begin
     //(x: TFTensor; kernel: IVariableV1; output_shape: TFTensor; strides: PTFShape = nil; padding: string = 'valid'; data_format : string= ''; dilation_rate: PTFShape = nil):
     var sShape  := strides;
     var sdShape := dilation_rate;
-    var outputs := tf.keras.backend.conv2d_transpose(inputs.First, kernel, output_shape_tensor, @sShape, padding, data_format, @sdShape);
+    var outputs := TKerasApi.keras.backend.conv2d_transpose(inputs.First, kernel, output_shape_tensor, @sShape, padding, data_format, @sdShape);
 
     if not tf.Context.executing_eagerly then
     begin
@@ -4278,7 +4278,7 @@ end;
 
 function Concatenate._merge_function(inputs: TFTensors): TFTensors;
 begin
-    var Res := tf.keras.backend.concatenate(inputs, axis);
+    var Res := TKerasApi.keras.backend.concatenate(inputs, axis);
     Result := TFTensors.Create(Res);
 end;
 {$ENDREGION}
@@ -5229,7 +5229,7 @@ end;
 
 function ZeroPadding2D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
 begin
-    var Res := tf.keras.backend.spatial_2d_padding(inputs.First, padding, data_format);
+    var Res := TKerasApi.keras.backend.spatial_2d_padding(inputs.First, padding, data_format);
     Result := TFTensors.Create(Res) ;
 end;
 
@@ -5416,7 +5416,7 @@ end;
 
 function UpSampling2D.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
 begin
-   var Res := tf.keras.backend.resize_images(inputs.First, size[0], size[1], data_format, interpolation);
+   var Res := TKerasApi.keras.backend.resize_images(inputs.First, size[0], size[1], data_format, interpolation);
    Result := TFTensors.Create(res);
 end;
 

@@ -534,7 +534,7 @@ end;
 
 procedure DigitRecognitionCnnKeras.PrepareData;
 begin
-    var dp : DatasetPass := tf.keras.datasets.mnist.load_data;
+    var dp : DatasetPass := TKerasApi.keras.datasets.mnist.load_data;
     x_train := dp.Train.Value1;
     y_train := dp.Train.Value2;
 
@@ -627,7 +627,7 @@ end;
 
 procedure MnistFnnKerasFunctional.PrepareData;
 begin
-    var dp : DatasetPass := tf.keras.datasets.mnist.load_data;
+    var dp : DatasetPass := TKerasApi.keras.datasets.mnist.load_data;
     x_train := dp.Train.Value1;
     y_train := dp.Train.Value2;
 
@@ -773,7 +773,7 @@ end;
 
 procedure TMnistGAN.PrepareData;
 begin
-    data  := tf.keras.datasets.mnist.load_data;
+    data  := TKerasApi.keras.datasets.mnist.load_data;
 
     train_images := data.Train.Value1.reshape(TFshape.Create([data.Train.Value1.Shape[0],28,28,1])).astype(np.np_float32);
     train_images := (NDArray(train_images) - 127.5) / 127.5 ;
@@ -792,7 +792,7 @@ end;
 
 function TMnistGAN.Make_Generator_model: Model;
 begin
-    var mModel := tf.keras.Sequential(nil,'GENERATOR');
+    var mModel := TKerasApi.keras.Sequential(nil,'GENERATOR');
 
     mModel.OnEpochBegin      := On_Epoch_Begin;
     mModel.OnTrainBatchBegin := On_Train_Batch_Begin;
@@ -825,7 +825,7 @@ end;
 
 function TMnistGAN.Make_Discriminator_model: Model;
 begin
-    var model := tf.keras.Sequential(nil,'DISCRIMINATOR');
+    var model := TKerasApi.keras.Sequential(nil,'DISCRIMINATOR');
 
     model.OnEpochBegin      := On_Epoch_Begin;
     model.OnTrainBatchBegin := On_Train_Batch_Begin;
