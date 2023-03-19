@@ -161,7 +161,7 @@ type
         /// <param name="amsgrad"></param>
         /// <param name="name"></param>
         /// <returns></returns>
-        function  Adam(learning_rate : Single = 0.001; beta_1 : Single = 0.9; beta_2 : Single = 0.999; epsilon: Single = 1e-7; amsgrad : Boolean= false; name : string= 'Adam') : OptimizerV2;
+        function  Adam(learning_rate : Single = 0.001; beta_1 : Single = 0.9; beta_2 : Single = 0.999; epsilon: Single = 1e-7; amsgrad : Boolean= false; name : string= 'Adam') : IOptimizer;
         /// <summary>
         /// Construct a new RMSprop optimizer.
         /// </summary>
@@ -172,8 +172,8 @@ type
         /// <param name="centered"></param>
         /// <param name="name"></param>
         /// <returns></returns>
-        function RMSprop(learning_rate : Single = 0.001; rho : Single = 0.9; momentum : Single = 0.0; epsilon : Single = 1e-7; centered : Boolean = false; name: string = 'RMSprop'): OptimizerV2;
-        function SGD(learning_rate: Single): TSGD;
+        function RMSprop(learning_rate : Single = 0.001; rho : Single = 0.9; momentum : Single = 0.0; epsilon : Single = 1e-7; centered : Boolean = false; name: string = 'RMSprop'): IOptimizer;
+        function SGD(learning_rate: Single): IOptimizer;
    end;
 
    OptimizerApi = class(TInterfacedObject, IOptimizerApi)
@@ -190,7 +190,7 @@ type
         /// <param name="amsgrad"></param>
         /// <param name="name"></param>
         /// <returns></returns>
-        function  Adam(learning_rate : Single = 0.001; beta_1 : Single = 0.9; beta_2 : Single = 0.999; epsilon: Single = 1e-7; amsgrad : Boolean= false; name : string= 'Adam') : OptimizerV2;
+        function  Adam(learning_rate : Single = 0.001; beta_1 : Single = 0.9; beta_2 : Single = 0.999; epsilon: Single = 1e-7; amsgrad : Boolean= false; name : string= 'Adam') : IOptimizer;
         /// <summary>
         /// Construct a new RMSprop optimizer.
         /// </summary>
@@ -201,8 +201,8 @@ type
         /// <param name="centered"></param>
         /// <param name="name"></param>
         /// <returns></returns>
-        function RMSprop(learning_rate : Single = 0.001; rho : Single = 0.9; momentum : Single = 0.0; epsilon : Single = 1e-7; centered : Boolean = false; name: string = 'RMSprop'): OptimizerV2;
-        function SGD(learning_rate: Single): TSGD;
+        function RMSprop(learning_rate : Single = 0.001; rho : Single = 0.9; momentum : Single = 0.0; epsilon : Single = 1e-7; centered : Boolean = false; name: string = 'RMSprop'): IOptimizer;
+        function SGD(learning_rate: Single): IOptimizer;
    end;
 
 implementation
@@ -542,7 +542,7 @@ end;
 
 { OptimizerApi }
 
-function OptimizerApi.Adam(learning_rate, beta_1, beta_2, epsilon: Single; amsgrad: Boolean; name: string): OptimizerV2;
+function OptimizerApi.Adam(learning_rate, beta_1, beta_2, epsilon: Single; amsgrad: Boolean; name: string): IOptimizer;
 begin
     Result := TAdam.Create(learning_rate, beta_1, beta_2, epsilon, amsgrad, name)
 end;
@@ -552,7 +552,7 @@ begin
   inherited Destroy;
 end;
 
-function OptimizerApi.RMSprop(learning_rate, rho, momentum, epsilon: Single; centered: Boolean; name: string): OptimizerV2;
+function OptimizerApi.RMSprop(learning_rate, rho, momentum, epsilon: Single; centered: Boolean; name: string): IOptimizer;
 begin
     var rmsArg := RMSpropArgs.Create;
 
@@ -566,7 +566,7 @@ begin
     Result := TRMSprop.Create(rmsArg);
 end;
 
-function OptimizerApi.SGD(learning_rate: Single): TSGD;
+function OptimizerApi.SGD(learning_rate: Single): IOptimizer;
 begin
     Result := TSGD.Create(learning_rate);
 end;

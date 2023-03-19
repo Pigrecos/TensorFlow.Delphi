@@ -148,7 +148,7 @@ type
       function    InitConfig: ExampleConfig;
       function    Run: Boolean;
       destructor  Destroy; override;
-      procedure   run_optimization(conv_net: ConvNet; optimizer: OptimizerV2; x: TFTensor; y: TFTensor);
+      procedure   run_optimization(conv_net: ConvNet; optimizer: IOptimizer; x: TFTensor; y: TFTensor);
       function    cross_entropy_loss(x: TFTensor; y: TFTensor) : TFTensor;
       function    accuracy(y_pred: TFTensor; y_true: TFTensor): TFTensor;
 
@@ -217,8 +217,8 @@ type
       discriminator : Model;
       generator     : Model;
 
-      discriminator_optimizer : OptimizerV2;
-      generator_optimizer     : OptimizerV2;
+      discriminator_optimizer : IOptimizer;
+      generator_optimizer     : IOptimizer;
 
       logMsg   : TStringList;
 
@@ -429,7 +429,7 @@ end;
 procedure DigitRecognitionCnnKeras.Train;
 var
   cArg      : ConvNetArgs;
-  optimizer : OptimizerV2;
+  optimizer : IOptimizer;
 begin
     cArg := ConvNetArgs.Create;
     cArg.NumClasses := num_classes;
@@ -495,7 +495,7 @@ begin
 
 end;
 
-procedure DigitRecognitionCnnKeras.run_optimization(conv_net: ConvNet; optimizer: OptimizerV2; x: TFTensor; y: TFTensor);
+procedure DigitRecognitionCnnKeras.run_optimization(conv_net: ConvNet; optimizer: IOptimizer; x: TFTensor; y: TFTensor);
 begin
     var g    := tf.GradientTape;
     var pred := conv_net.Apply(TFTensors.Create(x), nil, true);
