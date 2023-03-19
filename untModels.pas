@@ -252,10 +252,66 @@ type
       property Config : ExampleConfig  read FConfig;
   end;
 
+  procedure LeNetModel ;
 
 implementation
             uses System.IOUtils,
                  untMain,Esempi;
+
+procedure LeNetModel ;
+begin
+    var inputs := tf.keras.Input(TFShape.Create([28, 28, 1]));
+    var conv1  := tf.keras.layers.Conv2D(16, TFShape.Create([3, 3]), 'relu', 'same').Apply(inputs);
+    var pool1  := tf.keras.layers.MaxPooling2D(TFShape.Create([2, 2]), 2).Apply(conv1);
+    var conv2  := tf.keras.layers.Conv2D(32, TFShape.Create([3, 3]), 'relu', 'same').Apply(pool1);
+    var pool2  := tf.keras.layers.MaxPooling2D(TFShape.Create([2, 2]), 2).Apply(conv2);
+    var flat1  := tf.keras.layers.Flatten.Apply(pool2);
+
+    var inputs_2 := tf.keras.Input(TFShape.Create([28, 28, 1]));
+    var conv1_2  := tf.keras.layers.Conv2D(16, TFShape.Create([3, 3]), 'relu', 'same').Apply(inputs_2);
+    var pool1_2  := tf.keras.layers.MaxPooling2D(TFShape.Create([4, 4]), 4).Apply(conv1_2);
+    var conv2_2  := tf.keras.layers.Conv2D(32, TFShape.Create([1, 1]), 'relu', 'same').Apply(pool1_2);
+    var pool2_2  := tf.keras.layers.MaxPooling2D(TFShape.Create([2, 2]), 2).Apply(conv2_2);
+    var flat1_2  := tf.keras.layers.Flatten.Apply(pool2_2);
+
+    var concat := tf.keras.layers.Concatenate.Apply( TFTensors.Create(Tuple.Create(flat1.First, flat1_2.First)) );
+    var dense1 := tf.keras.layers.Dense(512, 'relu').Apply(concat);
+    var dense2 := tf.keras.layers.Dense(128, 'relu').Apply(dense1);
+    var dense3 := tf.keras.layers.Dense(10,  'relu').Apply(dense2);
+    var output := tf.keras.layers.Softmax(-1).Apply(dense3);
+
+    var model := tf.keras.Model( TFTensors.Create(Tuple.Create(inputs.First, inputs_2.First)), output);
+
+    model.OnEpochBegin      := On_Epoch_Begin;
+    model.OnTrainBatchBegin := On_Train_Batch_Begin;
+    model.OnEndSummary      := On_End_Summary;
+
+    model.summary;
+
+   (* var data_loader := MnistModelLoader();
+
+    var dataset = data_loader.LoadAsync(new ModelLoadSetting
+    {
+        TrainDir = "mnist",
+        OneHot = false,
+        ValidationSize = 59900,
+    }).Result;              *)
+
+    var loss := tf.keras.losses.SparseCategoricalCrossentropy;
+    var optimizer := TAdam.Create(0.001);
+    model.compile(optimizer, loss, ['accuracy']);
+
+    (*var x1 : TNDArray := np.reshape(dataset.Train.Data, (dataset.Train.Data.shape[0], 28, 28, 1));
+    var x2 : TNDArray := x1;
+
+    var x = new NDArray[] { x1, x2 };
+    model.fit(x, dataset.Train.Labels, batch_size: 8, epochs: 3);
+
+    x1 = np.ones((1, 28, 28, 1), TF_DataType.TF_FLOAT);
+    x2 = np.zeros((1, 28, 28, 1), TF_DataType.TF_FLOAT);
+    var pred = model.predict((x1, x2));
+    Console.WriteLine(pred); *)
+end;
 { ConvNetArgs }
 
 constructor ConvNetArgs.Create;

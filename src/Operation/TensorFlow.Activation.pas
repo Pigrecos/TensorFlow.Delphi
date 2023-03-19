@@ -132,10 +132,7 @@ type
 implementation
          uses Tensorflow,
               TensorFlow.Tensor,
-              Tensorflow.gen_ops,
-              Tensorflow.array_ops,
-              Tensorflow.math_ops,
-              TensorFlow.nn_ops;
+              TensorFlow.Operations;
 { sigmoid }
 
 function sigmoid.Activate(x: TFTensor; name: string): TFTensor;

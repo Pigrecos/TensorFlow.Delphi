@@ -237,10 +237,11 @@ type
 implementation
         uses system.Generics.Defaults,
              Winapi.Windows,
+
              Tensorflow,
              TensorFlow.Core,
              TensorFlow.Ops,
-             Tensorflow.array_ops,
+             TensorFlow.Operations,
              Numpy,
              Complex;
 

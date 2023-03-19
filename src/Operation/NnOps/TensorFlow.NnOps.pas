@@ -365,11 +365,7 @@ type
 implementation
       uses TensorFlow.DApiBase,
            TensorFlow.Ops,
-           TensorFlow.gen_nn_ops,
-           Tensorflow.array_ops,
-           Tensorflow.gen_math_ops,
-           Tensorflow.math_ops,
-           Tensorflow.nn_ops,
+           TensorFlow.Operations,
            Tensorflow.Variable,
            TensorFlow,
 

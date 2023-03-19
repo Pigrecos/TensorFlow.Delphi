@@ -93,8 +93,7 @@ type
 implementation
          uses Tensorflow,
               tensorFlow.Tensor,
-              Tensorflow.math_ops,
-              Tensorflow.array_ops,
+              TensorFlow.Operations,
               TensorFlow.Slice,
 
               keras.Container,

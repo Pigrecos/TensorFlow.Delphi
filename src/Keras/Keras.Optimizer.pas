@@ -184,9 +184,7 @@ implementation
              TensorFlow.Tensor,
              TensorFlow.Ops,
              Tensorflow.Utils,
-             TensorFlow.control_flow_ops,
-             Tensorflow.array_ops,
-             Tensorflow.math_ops,
+             TensorFlow.Operations,
              Tensorflow.Variable,
 
              Keras.Utils;

@@ -94,10 +94,8 @@ type
   end;
 
 implementation
-      uses TensorFlow.gen_math_ops,
-           Tensorflow.math_ops,
+      uses TensorFlow.Operations,
            TensorFlow.Tensor,
-
            Tensorflow;
 
 { NDArray }

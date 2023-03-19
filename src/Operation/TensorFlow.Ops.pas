@@ -253,8 +253,7 @@ type
 implementation
            uses Tensorflow.Utils,
 
-                TensorFlow.gen_math_ops,
-                Tensorflow.array_ops,
+                TensorFlow.Operations,
                 Numpy.Axis,
                 TensorFlow.Tensor,
 

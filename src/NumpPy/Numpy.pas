@@ -115,6 +115,7 @@ np = record
         class function cos(x: TNDArray): TNDArray;static;
         // numPy.Manipulation
         class function expand_dims(a: TNDArray; axis: TAxis): TNDArray;static;
+        class function reshape(x1: TNDArray; newshape: TFShape): TNDArray;static;
         class function concatenate(tTuple: Tuple<TNDArray,TNDArray>; axis: Integer = 0): TNDArray;static;
 end;
 
@@ -126,9 +127,7 @@ end;
 implementation
         uses Winapi.Windows,
              Tensorflow,
-             Tensorflow.math_ops,
-             Tensorflow.array_ops,
-             TensorFlow.random_ops;
+             TensorFlow.Operations;
 
 { np }
 
@@ -309,6 +308,11 @@ class function np.prod<T>(_array: TArray<T>): TNDArray;
 begin
      var a := TValue.From< TArray<T> >(_array);
      Result := TNDarray.create( tf.reduce_prod( TNDarray.create(a) ) );
+end;
+
+class function np.reshape(x1: TNDArray; newshape: TFShape): TNDArray;
+begin
+    Result := x1.reshape(newshape) ;
 end;
 
 class function np.sin(x: TNDArray): TNDArray;

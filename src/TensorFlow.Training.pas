@@ -358,10 +358,7 @@ implementation
             TensorFlow.Ops,
             TensorFlow.Tensor,
             Tensorflow.Gradient,
-            TensorFlow.control_flow_ops,
-            TensorFlow.resource_variable_ops,
-            Tensorflow.array_ops,
-            Tensorflow.math_ops ;
+            TensorFlow.Operations ;
 
 { Trackable }
 
@@ -1156,4 +1153,3 @@ begin
 end;
 
 end.
-

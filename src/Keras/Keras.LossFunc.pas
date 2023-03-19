@@ -395,10 +395,7 @@ implementation
          uses Tensorflow,
               TensorFlow.Ops,
               TensorFlow.Tensor,
-              TensorFlow.nn_impl,
-              TensorFlow.gen_math_ops,
-              Tensorflow.math_ops,
-              Tensorflow.array_ops,
+              TensorFlow.Operations,
 
               NumPy.Axis,
               NumPy.NDArray,

@@ -47,12 +47,7 @@ implementation
              Tensorflow.Utils,
              TensorFlow.Ops,
              TensorFlow.Tensor,
-             Tensorflow.math_ops,
-             Tensorflow.gen_array_ops,
-             TensorFlow.gen_math_ops,
-             Tensorflow.array_ops,
-             TensorFlow.gen_nn_ops,
-             TensorFlow.nn_ops,
+             TensorFlow.Operations,
 
              TensorFlow.NnOps;
 

@@ -207,6 +207,11 @@ type
                       kernel_initializer: string = 'glorot_uniform';
                       bias_initializer  : string = 'zeros'): ILayer; overload;
 
+      function Conv2D(filters           : Integer;
+                      kernel_size       : TFShape;
+                      activation        : string;
+                      padding           : string): ILayer; overload;
+
        /// <summary>
        /// Transposed convolution layer (sometimes called Deconvolution).
        /// </summary>
@@ -532,7 +537,8 @@ type
         /// It defaults to the image_data_format value found in your Keras config file at ~/.keras/keras.json.
         /// If you never set it, then it will be "channels_last"</param>
         /// <returns></returns>
-        function MaxPooling2D(pool_size : PTFShape= nil; strides : PTFShape= nil; padding : string= 'valid'; data_format: string = ''): ILayer;
+        function MaxPooling2D(pool_size : PTFShape= nil; strides : PTFShape= nil; padding : string= 'valid'; data_format: string = ''): ILayer; overload;
+        function MaxPooling2D(pool_size : TFShape;       strides : TFShape;       padding : string= 'valid'; data_format: string = ''): ILayer; overload;
 
         /// <summary>
         /// Max pooling layer for 2D inputs (e.g. images).
@@ -829,6 +835,15 @@ begin
     if not strides.IsNil then     pStrides := @strides;
 
     Result := Conv2D(filters, pkSize, pStrides, padding, data_format, dilation_rate, groups, activation, use_bias, kernel_initializer, bias_initializer);
+end;
+
+function LayersApi.Conv2D(filters: Integer; kernel_size: TFShape; activation, padding: string): ILayer;
+begin
+    var pkSize   : PTFShape := nil;
+    var pStrides : PTFShape := nil;
+    if not kernel_size.IsNil then pkSize  := @kernel_size;
+
+    Result := Conv2D(filters, pkSize, pStrides, padding, '', nil, 1, activation);
 end;
 
 function LayersApi.Conv2D(filters: Integer; kernel_size, strides: PTFShape; padding, data_format: string; dilation_rate: PTFShape; groups: Integer; activation: TActivation;
@@ -1373,6 +1388,16 @@ begin
    args.DataFormat:= data_format;
 
    Result := Keras.Layer.MaxPooling1D.Create(args);
+end;
+
+function LayersApi.MaxPooling2D(pool_size, strides: TFShape; padding, data_format: string): ILayer;
+begin
+    var pSize    : PTFShape := nil;
+    var pStrides : PTFShape := nil;
+    if not pool_size.IsNil then pSize    := @pool_size;
+    if not strides.IsNil   then pStrides := @strides;
+
+    Result := MaxPooling2D(pSize, pStrides, padding, data_format)
 end;
 
 function LayersApi.MaxPooling2D(pool_size, strides: PTFShape; padding, data_format: string): ILayer;

@@ -48,11 +48,7 @@ implementation
            Tensorflow.Utils,
            TensorFlow.Ops,
            TensorFlow.Tensor,
-           Tensorflow.math_ops,
-           Tensorflow.gen_array_ops,
-
-           Tensorflow.array_ops,
-           TensorFlow.control_flow_util,
+           TensorFlow.Operations,
            TensorFlow.Slice,
 
            NumPy.NDArray;

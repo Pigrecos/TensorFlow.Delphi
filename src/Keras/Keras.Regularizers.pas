@@ -51,7 +51,7 @@ type
 implementation
         uses Tensorflow,
              TensorFlow.Tensor,
-             Tensorflow.math_ops;
+             TensorFlow.Operations;
 
 { L2 }
 

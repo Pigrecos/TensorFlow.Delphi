@@ -137,8 +137,7 @@ implementation
                Tensorflow.Utils,
                TensorFlow.Initializer,
                TensorFlow.Ops,
-               Tensorflow.math_ops,
-               Tensorflow.array_ops,
+               TensorFlow.Operations,
 
                Keras.LossFunc,
 

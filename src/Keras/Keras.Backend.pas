@@ -154,13 +154,9 @@ type
 implementation
         uses Tensorflow,
              TensorFlow.Tensor,
-             TensorFlow.clip_ops,
              TensorFlow.Ops,
              TensorFlow.Slice,
-             Tensorflow.array_ops,
-             Tensorflow.math_ops,
-             TensorFlow.image_ops_impl,
-             TensorFlow.nn_impl,
+            TensorFlow.Operations,
 
              Numpy,
              NumPy.NDArray,

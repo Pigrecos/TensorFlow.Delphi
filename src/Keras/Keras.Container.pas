@@ -225,8 +225,7 @@ implementation
              TensorFlow.Tensor,
              TensorFlow.Ops,
              Tensorflow.Utils,
-             Tensorflow.math_ops,
-             Tensorflow.array_ops,
+             TensorFlow.Operations,
 
              Numpy,
 

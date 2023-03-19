@@ -416,6 +416,11 @@ type
                     kernel_initializer: string = 'glorot_uniform';
                     bias_initializer  : string = 'zeros'): ILayer; overload;
 
+     function Conv2D(filters           : Integer;
+                     kernel_size       : TFShape;
+                     activation        : string;
+                     padding           : string): ILayer; overload;
+
      function Conv2DTranspose(filters                : Integer;
                                 kernel_size          : PTFShape= nil;
                                 strides              : PTFShape= nil;
@@ -527,7 +532,8 @@ type
                     unroll               : Boolean= false): ILayer;
 
       function MaxPooling1D(pool_size : PInteger= nil; strides : PInteger= nil; padding : string= 'valid'; data_format: string = ''): ILayer;
-      function MaxPooling2D(pool_size : PTFShape= nil; strides : PTFShape= nil; padding : string= 'valid'; data_format: string = ''): ILayer;
+      function MaxPooling2D(pool_size : PTFShape= nil; strides : PTFShape= nil; padding : string= 'valid'; data_format: string = ''): ILayer; overload;
+      function MaxPooling2D(pool_size : TFShape;       strides : TFShape;       padding : string= 'valid'; data_format: string = ''): ILayer; overload;
 
       function Permute(dims: TArray<Integer>): ILayer;
 

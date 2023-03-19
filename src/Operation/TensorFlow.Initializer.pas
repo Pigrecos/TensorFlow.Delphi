@@ -144,8 +144,7 @@ type
 implementation
         uses Tensorflow.Utils,
              Tensorflow.Core,
-             TensorFlow.random_ops,
-             Tensorflow.array_ops,
+             TensorFlow.Operations,
              TensorFlow.Tensor,
              Tensorflow;
 

@@ -320,7 +320,7 @@ implementation
          uses Tensorflow,
               TensorFlow.Ops,
               Tensorflow.Utils,
-              TensorFlow.gen_math_ops;
+              TensorFlow.Operations;
 
 { TTensor }
 

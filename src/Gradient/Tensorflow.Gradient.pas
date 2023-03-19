@@ -33,7 +33,7 @@ interface
          Tensorflow.Core,
          TensorFlow.DApiBase,
          TensorFlow.Variable,
-         TensorFlow.ControlFlowState;
+         TensorFlow.Operations;
 
 type
   gradients_impl  = class
@@ -145,13 +145,7 @@ var
 implementation
        uses Tensorflow,
             TensorFlow.Ops,
-            Tensorflow.Utils,
-            Tensorflow.math_ops,
-            TensorFlow.gen_math_ops,
-            Tensorflow.array_ops,
-            Tensorflow.gen_array_ops,
-            TensorFlow.control_flow_ops,
-            TensorFlow.control_flow_util;
+            Tensorflow.Utils;
 
 { gradients_util }
 

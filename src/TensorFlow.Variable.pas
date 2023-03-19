@@ -167,13 +167,7 @@ implementation
           Tensorflow,
           Tensorflow.Utils,
           TensorFlow.Ops,
-          Tensorflow.array_ops,
-          Tensorflow.gen_array_ops,
-          TensorFlow.gen_state_ops,
-          TensorFlow.control_flow_ops,
-          TensorFlow.gen_control_flow_ops,
-          TensorFlow.gen_resource_variable_ops,
-          TensorFlow.resource_variable_ops;
+          TensorFlow.Operations;
 
 
 

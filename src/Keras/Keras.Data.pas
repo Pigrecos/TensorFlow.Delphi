@@ -27,7 +27,7 @@ interface
 
           TF4D.Core.CApi,
           TensorFlow.DApi,
-          TensorFlow.dataset_ops,
+          TensorFlow.Operations,
           TensorFlow.Core,
 
           Keras.Core;
@@ -653,10 +653,6 @@ implementation
                 Tensorflow,
                 TensorFlow.Ops,
                 Tensorflow.Utils,
-                Tensorflow.math_ops,
-                Tensorflow.gen_array_ops,
-                Tensorflow.array_ops,
-                TensorFlow.random_ops,
 
                 Numpy,
                 NumPy.NDArray;

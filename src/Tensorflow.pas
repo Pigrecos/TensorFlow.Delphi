@@ -31,14 +31,13 @@ interface
        Tensorflow.Utils,
        TensorFlow.OpDefLibrary,
        Tensorflow.Gradient,
-       Tensorflow.String_ops,
        TensorFlow.Variable,
        TensorFlow.Initializer,
        TensorFlow.Activation,
        Keras.KerasApi,
        TensorFlow.Training,
-       TensorFlow.bitwise_ops,
-       TensorFlow.linalg_ops,
+       TensorFlow.Operations,
+
        Numpy,
        Numpy.Axis,
 
@@ -1274,23 +1273,10 @@ end;
    tf : TTensorflow;
 
 implementation
-   uses Oz.Pb.Classes, Oz.SGL.Collections,
+   uses Oz.Pb.Classes,
+        Oz.SGL.Collections,
 
         TensorFlow.Ops ,
-        Tensorflow.math_ops,
-        TensorFlow.gen_math_ops,
-        Tensorflow.gen_array_ops,
-        Tensorflow.array_ops,
-        TensorFlow.clip_ops,
-        TensorFlow.gen_control_flow_ops,
-        Tensorflow.control_flow_ops,
-        tensorflow.gen_sparse_ops,
-        TensorFlow.random_ops,
-        TensorFlow.gen_nn_ops,
-        TensorFlow.nn_ops,
-        TensorFlow.nn_impl,
-        TensorFlow.image_ops_impl,
-        tensorflow.stateless_random_ops,
         TensorFlow.Tensor;
 
 {$REGION 'TTensorflow'}
@@ -2810,5 +2796,3 @@ begin
 end;
 
 end.
-
-
