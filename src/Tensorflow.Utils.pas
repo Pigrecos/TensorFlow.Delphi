@@ -20,6 +20,7 @@ interface
          System.Variants,
          System.Rtti,
          System.Generics.Collections,
+         IdHTTP, IdSSLOpenSSL,
 
          Spring,
          Spring.Collections,
@@ -41,6 +42,9 @@ type
   TValueHelp = record Helper for TValue
 
     public
+      class operator Implicit(Const Value: Uint8):TValue;
+      class operator Implicit(Const Value: Int8):TValue;
+      //
       class operator Implicit(const Value: TNDArray): TValue;
       class operator Implicit(const Value: TValue): TNDArray;
       class operator Implicit(const Value: NDArray): TValue;
@@ -228,6 +232,8 @@ type
 
       class function range(start, _end: Integer): Enumerable<integer>;  overload; static;
       class function range(_end: Integer): Enumerable<integer> ;  overload; static;
+      class procedure DownloadAsync(url: string; dirSaveTo: string; fileName: string; showProgressInConsole: Boolean = false);
+      class procedure UnzipAsync(zipFile: string; saveTo: string; showProgressInConsole: Boolean = false);
  end;
 
  function GetArg(sNome: string; vVal : TValue):  TParameter;
@@ -235,7 +241,7 @@ type
  function all(_enumerable: TArray<TValue>): Boolean;
 
 implementation
-        uses system.Generics.Defaults,
+        uses system.Generics.Defaults, System.Classes, system.IOUtils, System.ZLib,
              Winapi.Windows,
 
              Tensorflow,
@@ -1601,8 +1607,95 @@ begin
     Result := lIsSubSet;
 end;
 
+class procedure TUtils.DownloadAsync(url, dirSaveTo, fileName: string; showProgressInConsole: Boolean);
+var
+  IdHTTP1 : TIdHTTP;
+  IdSSL   : TIdSSLIOHandlerSocketOpenSSL;
+  Stream  : TMemoryStream;
+begin
+    if not TPath.IsPathRooted(dirSaveTo) then
+        dirSaveTo := TPath.Combine(ExtractFileDir(ParamStr(0)), dirSaveTo);
+
+    var fileSaveTo := TPath.Combine(dirSaveTo, fileName);
+
+    if (showProgressInConsole) and (IsConsole) then
+      WriteLn('Downloading '+ fileName);
+
+    if FileExists(fileSaveTo) then
+    begin
+        if (showProgressInConsole) and (IsConsole) then
+          WriteLn('The file '+ fileName +' already exists');
+        Exit;
+    end;
+
+    TDirectory.CreateDirectory(dirSaveTo);
+
+    IdHTTP1 := TIdHTTP.Create(nil);
+    IdSSL := TIdSSLIOHandlerSocketOpenSSL.Create(IdHTTP1);
+    IdSSL.SSLOptions.SSLVersions := [sslvTLSv1, sslvTLSv1_1, sslvTLSv1_2];
+    IdHTTP1.IOHandler := IdSSL;
+    Stream := TMemoryStream.Create;
+    try
+      IdHTTP1.Get(url, Stream);
+      Stream.SaveToFile(fileSaveTo);
+    finally
+      Stream.Free;
+      IdHTTP1.Free;
+    end;
+end;
+
+class procedure TUtils.UnzipAsync(zipFile, saveTo: string; showProgressInConsole: Boolean);
+var
+  DecompressionStream: TDecompressionStream;
+  FileStreamIn,
+  FileStreamOut      : TFileStream;
+begin
+    if not TPath.IsPathRooted(saveTo) then
+        saveTo := TPath.Combine(ExtractFileDir(ParamStr(0)), saveTo);
+
+    TDirectory.CreateDirectory(SaveTo);
+
+    if not TPath.IsPathRooted(zipFile) then
+        zipFile := TPath.Combine(ExtractFileDir(ParamStr(0)), zipFile);
+
+    var destFileName := TPath.GetFileNameWithoutExtension(zipFile);
+    var destFilePath := TPath.Combine(saveTo, destFileName);
+
+    if (showProgressInConsole) and (IsConsole) then
+        WriteLn('Unzippinng '+ TPath.GetFileName(zipFile));
+
+    if FileExists(destFilePath) then
+    begin
+       if (showProgressInConsole) and (IsConsole) then
+            WriteLn('The file '+ destFileName + ' already exists');
+    end;
+
+    FileStreamIn  := TFileStream.Create(zipFile, fmOpenRead);
+    FileStreamOut := TFileStream.Create(destFilePath, fmCreate);
+    try
+       DecompressionStream := TDecompressionStream.Create(FileStreamIn, 15 + 16);
+       try
+         FileStreamOut.CopyFrom(DecompressionStream, 0);
+       finally
+         DecompressionStream.Free;
+       end;
+    finally
+      FileStreamIn.Free;
+      FileStreamOut.Free;
+    end;
+end;
 
 { TValueHelper }
+
+class operator TValueHelp.Implicit(Const Value: Uint8):TValue;
+begin
+  Result := TValue.From<Uint8>(Value);
+end ;
+
+class operator TValueHelp.Implicit(Const Value: Int8):TValue;
+begin
+  Result := TValue.From<Int8>(Value);
+end ;
 
 class operator TValueHelp.Implicit(const Value: TValue): TFTensor;
 begin

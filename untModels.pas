@@ -252,13 +252,16 @@ type
       property Config : ExampleConfig  read FConfig;
   end;
 
-  procedure LeNetModel ;
+  TKerasUnitsTest = class
+     class procedure LeNetModel;
+  end;
+
 
 implementation
             uses System.IOUtils,
                  untMain,Esempi;
 
-procedure LeNetModel ;
+class procedure TKerasUnitsTest.LeNetModel ;
 begin
     var inputs := tf.keras.Input(TFShape.Create([28, 28, 1]));
     var conv1  := tf.keras.layers.Conv2D(16, TFShape.Create([3, 3]), 'relu', 'same').Apply(inputs);
@@ -288,29 +291,29 @@ begin
 
     model.summary;
 
-   (* var data_loader := MnistModelLoader();
+    var data_loader := MnistModelLoader.Create;
 
-    var dataset = data_loader.LoadAsync(new ModelLoadSetting
-    {
-        TrainDir = "mnist",
-        OneHot = false,
-        ValidationSize = 59900,
-    }).Result;              *)
+    var ms := ModelLoadSetting.Create;
+    ms.TrainDir       := 'mnist';
+    ms.OneHot         := false;
+    ms.ValidationSize := 59900;
 
-    var loss := tf.keras.losses.SparseCategoricalCrossentropy;
+    var dataset := data_loader.LoadAsync(ms) ;
+
+    var loss      := tf.keras.losses.SparseCategoricalCrossentropy;
     var optimizer := TAdam.Create(0.001);
     model.compile(optimizer, loss, ['accuracy']);
 
-    (*var x1 : TNDArray := np.reshape(dataset.Train.Data, (dataset.Train.Data.shape[0], 28, 28, 1));
+    var x1 : TNDArray := np.reshape(dataset.Train.Data, TFShape.Create([dataset.Train.Data.shape[0], 28, 28, 1]));
     var x2 : TNDArray := x1;
 
-    var x = new NDArray[] { x1, x2 };
-    model.fit(x, dataset.Train.Labels, batch_size: 8, epochs: 3);
+    var x : TArray<TNDArray> := [ x1, x2 ];
+    model.fit(x, dataset.Train.Labels, 8, 3);
 
-    x1 = np.ones((1, 28, 28, 1), TF_DataType.TF_FLOAT);
-    x2 = np.zeros((1, 28, 28, 1), TF_DataType.TF_FLOAT);
-    var pred = model.predict((x1, x2));
-    Console.WriteLine(pred); *)
+    x1 := np.ones(TFShape.Create([1, 28, 28, 1]), TF_DataType.TF_FLOAT);
+    x2 := np.zeros(TFShape.Create([1, 28, 28, 1]), TF_DataType.TF_FLOAT);
+    var pred := model.predict(TFTensors.Create([x1, x2]));
+    //Console.WriteLine(pred);
 end;
 { ConvNetArgs }
 

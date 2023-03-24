@@ -172,7 +172,9 @@ implementation
 
               DUnitX.TestFramework,
 
-              Keras.Models;
+              Keras.Models,
+              keras.Data,
+              Keras.Optimizer;
 {$R *.dfm}
 
 procedure SampleBuildModel;
@@ -1045,12 +1047,12 @@ end;
 
 procedure TfrmMain.btnModelsClick(Sender: TObject);
 begin
-    LeNetModel ;
-  // mnistGAN under development and Testing...
-    var mnistGAN := TMnistGAN.Create;
+    TKerasUnitsTest.LeNetModel ;
+   // mnistGAN under development and Testing...
+    (*var mnistGAN := TMnistGAN.Create;
     mmo1.Clear;
     mmo1.Lines.Add('Model Name: '+ mnistGAN.Config.Name);
-    mnistGAN.Run;
+    mnistGAN.Run;*)
   //
     var Cnn := DigitRecognitionCnnKeras.Create;
     mmo1.Clear;

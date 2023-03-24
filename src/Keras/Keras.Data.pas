@@ -15,9 +15,9 @@ unit Keras.Data;
 {$ENDREGION}
 
 interface
-     uses System.SysUtils, Winapi.Windows,
+     uses System.SysUtils, Winapi.Windows, System.Classes,
           System.Generics.Collections,
-          system.ZLib,
+          System.ZLib,
 
           IdHTTP, IdSSLOpenSSL,
 
@@ -35,6 +35,113 @@ interface
 type
   IDatasetV2    = class;
   OwnedIterator = class;
+
+
+
+  IDataSet = interface
+    ['{1B9D8B83-E47A-4FC2-ABF7-4BA5F12F7853}']
+    function Get_Data: TNDArray;
+    function Get_Labels : TNDArray;
+
+    property Data   : TNDArray read Get_Data;
+    property Labels : TNDArray read Get_Labels;
+  end;
+
+ DataSetBase = class(TInterfacedObject,IDataSet)
+   private
+     function Get_Data: TNDArray; virtual; abstract;
+     function Get_Labels : TNDArray;  virtual; abstract;
+     procedure Set_Data(value: TNDArray); virtual; abstract;
+     procedure Set_Labels(value : TNDArray); virtual; abstract;
+   public
+
+     property Data   : TNDArray read Get_Data   write Set_Data;
+     property Labels : TNDArray read Get_Labels write Set_Labels;
+  end;
+
+  MnistDataSet = class(DataSetBase)
+    private
+       FNumOfExamples  : Integer;
+       FEpochsCompleted: Integer;
+       FIndexInEpoch   : Integer;
+       FData           : TNDArray;
+       FLabels         : TNDArray;
+
+       function Get_Data: TNDArray; override;
+       function Get_Labels : TNDArray; override;
+       procedure Set_Data(value: TNDArray); override;
+       procedure Set_Labels(value : TNDArray); override;
+    public
+       constructor Create(_images, _labels: TNDArray; dataType: TF_DataType; reshape: Boolean);
+       function GetNextBatch(batch_size: Integer; fake_data: Boolean = False; shuffle: Boolean = True): Tuple<TNDArray,TNDArray>;
+
+       property NumOfExamples: Integer   read FNumOfExamples   write FNumOfExamples;
+       property EpochsCompleted: Integer read FEpochsCompleted write FEpochsCompleted;
+       property IndexInEpoch: Integer    read FIndexInEpoch    write FIndexInEpoch;
+
+  end;
+
+  ModelLoadSetting = record
+     public
+      TrainDir       : string;
+      OneHot         : Boolean;
+      DataType       : TF_DataType;
+      ReShape        : Boolean;
+      ValidationSize : Integer;
+      TrainSize      : Nullable<Integer>;
+      TestSize       : Nullable<Integer>;
+      SourceUrl      : string;
+      ShowProgressInConsole : Boolean;
+
+      class function Create: ModelLoadSetting; static;
+  end;
+
+  DataSets<TDataSet: IDataSet> = class
+    private
+      FTrain      : TDataSet;
+      FValidation : TDataSet;
+      FTest       : TDataSet;
+    public
+
+      property Train      : TDataSet read FTrain      write FTrain;
+      property Validation : TDataSet read FValidation write FValidation;
+      property Test       : TDataSet read FTest       write FTest;
+
+      constructor Create(_train, _validation, _test: TDataSet);
+      function    Randomize(x: TNDArray; y: TNDArray): Tuple<TNDArray,TNDArray>;
+      /// <summary>
+      /// selects a few number of images determined by the batch_size variable (if you don't know why, read about Stochastic Gradient Method)
+      /// </summary>
+      /// <param name="x"></param>
+      /// <param name="y"></param>
+      /// <param name="start"></param>
+      /// <param name="end"></param>
+      /// <returns></returns>
+      function GetNextBatch(x: TNDArray; y: TNDArray; start: Integer; _end: Integer): Tuple<TNDArray,TNDArray>;
+
+  end;
+
+  IModelLoader<TDataSet: IDataset> = interface
+    function LoadAsync(setting: ModelLoadSetting): Datasets<TDataSet>;
+  end;
+
+  MnistModelLoader = class(TInterfacedObject, IModelLoader<MnistDataSet>)
+    private
+       const DEFAULT_SOURCE_URL = 'https://storage.googleapis.com/cvdf-datasets/mnist/';
+       const TRAIN_IMAGES = 'train-images-idx3-ubyte.gz';
+       const TRAIN_LABELS = 'train-labels-idx1-ubyte.gz';
+       const TEST_IMAGES = 't10k-images-idx3-ubyte.gz';
+       const TEST_LABELS = 't10k-labels-idx1-ubyte.gz';
+
+       constructor Create;
+       function ExtractImages(ffile: string; limit : Nullable<Integer>): TNDArray;
+       function ExtractLabels(ffile: string; one_hot : Boolean; limit : Nullable<Integer>; num_classes: Integer = 10): TNDArray;
+       function DenseToOneHot(labels_dense: TNDArray; num_classes: Integer) : TNDArray;
+       function Read32(bytestream: TFileStream) : Integer;
+    public
+
+      function LoadAsync(setting: ModelLoadSetting): Datasets<MnistDataSet>;
+  end;
 
   DatasetPass = class
     private
@@ -648,14 +755,16 @@ type
 implementation
           uses  System.Math,
                 System.IOUtils,
-                System.Classes,
 
                 Tensorflow,
                 TensorFlow.Ops,
                 Tensorflow.Utils,
+                Tensorflow.Slice,
 
                 Numpy,
-                NumPy.NDArray;
+                NumPy.NDArray,
+
+                Keras.Utils;
 
 { ConcreteFunction_helper }
 
@@ -758,7 +867,7 @@ begin
       if x[i].shape.ndim = 1 then
          x[i] := array_ops.expand_dims(x[i], -1);
 
-    for var i := 0 to x.Count - 1 do
+    for var i := 0 to y.Count - 1 do
       if y[i].shape.ndim = 1 then
          y[i] := array_ops.expand_dims(y[i], -1);
 
@@ -1980,6 +2089,281 @@ destructor KerasDataset.Destroy;
 begin
    Mnist.free;
    inherited Destroy;
+end;
+
+{ MnistDataSet }
+
+constructor MnistDataSet.Create(_images, _labels: TNDArray; dataType: TF_DataType; reshape: Boolean);
+begin
+    EpochsCompleted := 0;
+    IndexInEpoch    := 0;
+
+    NumOfExamples := _images.dims[0];
+
+    // images = images.reshape((images.dims[0], images.dims[1] * images.dims[2]));
+    _images := _images.astype(dataType);
+    // for debug np.multiply performance
+    _images := np.multiply(_images, TNDArray.Create(Single(1.0 / 255.0)) );
+    FData := _images;
+
+    _labels := _labels.astype(dataType);
+    FLabels := _labels;
+end;
+
+function MnistDataSet.GetNextBatch(batch_size: Integer; fake_data, shuffle: Boolean): Tuple<TNDArray, TNDArray>;
+begin
+    if FIndexInEpoch >= FNumOfExamples then
+        FIndexInEpoch := 0;
+
+    var start := FIndexInEpoch;
+    // Shuffle for the first epoch
+    if (FEpochsCompleted = 0) and (start = 0) and (shuffle) then
+    begin
+        var perm0 := np.arange(FNumOfExamples);
+        np.random.shuffle(perm0);
+        FData   := FData[perm0];
+        FLabels := FLabels[perm0];
+    end;
+
+    // Go to the next epoch
+    if (start + batch_size) > FNumOfExamples then
+    begin
+        // Finished epoch
+        FEpochsCompleted := FEpochsCompleted + 1;
+
+        // Get the rest examples in this epoch
+        var rest_num_examples := FNumOfExamples - start;
+        var images_rest_part  := FData[np.arange(start, FNumOfExamples)];
+        var labels_rest_part  := FLabels[np.arange(start, FNumOfExamples)];
+        // Shuffle the data
+        if shuffle then
+        begin
+            var perm := np.arange(FNumOfExamples);
+            np.random.shuffle(perm);
+            FData   := FData[perm];
+            FLabels := FLabels[perm];
+        end;
+
+        start := 0;
+        FIndexInEpoch := batch_size - rest_num_examples;
+        var _end := FIndexInEpoch;
+        var images_new_part := FData[np.arange(start, _end)];
+        var labels_new_part := FLabels[np.arange(start, _end)];
+
+        Result := Tuple.Create(np.concatenate([ images_rest_part, images_new_part ], 0),
+                               np.concatenate([ labels_rest_part, labels_new_part ], 0));
+    end else
+    begin
+        FIndexInEpoch := FIndexInEpoch + batch_size;
+        var _end      := FIndexInEpoch;
+        Result := Tuple.Create( FData[np.arange(start, _end)], FLabels[np.arange(start, _end)] );
+    end;
+end;
+
+function MnistDataSet.Get_Data: TNDArray;
+begin
+    Result := FData;
+end;
+
+procedure MnistDataSet.Set_Data(value: TNDArray);
+begin
+    FData := value;
+end;
+
+function MnistDataSet.Get_Labels: TNDArray;
+begin
+    Result := FLabels
+end;
+
+procedure MnistDataSet.Set_Labels(value: TNDArray);
+begin
+    FLabels := value;
+end;
+
+constructor DataSets<TDataSet>.Create(_train, _validation, _test: TDataSet);
+begin
+    FTrain      := _train;
+    FValidation := _validation;
+    FTest       := _test;
+end;
+
+function DataSets<TDataSet>.Randomize(x, y: TNDArray): Tuple<TNDArray, TNDArray>;
+begin
+    var perm := np.random.permutation(y.dims[0]);
+    np.random.shuffle(perm);
+    Result := Tuple.Create(x[perm], y[perm]);
+end;
+
+function DataSets<TDataSet>.GetNextBatch(x, y: TNDArray; start, _end: Integer): Tuple<TNDArray, TNDArray>;
+begin
+    var Sslice := Slice.create(start, _end);
+    var x_batch := x[[Sslice]];
+    var y_batch := y[[Sslice]];
+    Result := Tuple.Create(x_batch, y_batch);
+end;
+
+{ MnistModelLoader }
+
+constructor MnistModelLoader.Create;
+begin
+
+end;
+
+function MnistModelLoader.LoadAsync(setting: ModelLoadSetting): Datasets<MnistDataSet>;
+begin
+    if (setting.TrainSize.HasValue) and (setting.ValidationSize >= setting.TrainSize.Value) then
+       raise Exception.Create('Validation set should be smaller than training set');
+
+    var sourceUrl := setting.SourceUrl;
+
+    if string.IsNullOrEmpty(sourceUrl) then
+        sourceUrl := DEFAULT_SOURCE_URL;
+
+    // load train images
+    TUtils.DownloadAsync(sourceUrl + TRAIN_IMAGES, setting.TrainDir, TRAIN_IMAGES, setting.ShowProgressInConsole);
+    TUtils.UnzipAsync(TPath.Combine(setting.TrainDir, TRAIN_IMAGES), setting.TrainDir, setting.ShowProgressInConsole);
+
+    var trainImages := ExtractImages(TPath.Combine(setting.TrainDir, TPath.GetFileNameWithoutExtension(TRAIN_IMAGES)), setting.TrainSize);
+
+    // load train labels
+    TUtils.DownloadAsync(sourceUrl + TRAIN_LABELS, setting.TrainDir, TRAIN_LABELS, setting.ShowProgressInConsole);
+    TUtils.UnzipAsync(TPath.Combine(setting.TrainDir, TRAIN_LABELS), setting.TrainDir, setting.ShowProgressInConsole);
+
+    var trainLabels := ExtractLabels(TPath.Combine(setting.TrainDir, TPath.GetFileNameWithoutExtension(TRAIN_LABELS)), setting.OneHot, setting.TrainSize);
+
+    // load test images
+    TUtils.DownloadAsync(sourceUrl + TEST_IMAGES, setting.TrainDir, TEST_IMAGES, setting.ShowProgressInConsole);
+    TUtils.UnzipAsync(TPath.Combine(setting.TrainDir, TEST_IMAGES), setting.TrainDir, setting.ShowProgressInConsole);
+
+    var testImages := ExtractImages(TPath.Combine(setting.TrainDir, TPath.GetFileNameWithoutExtension(TEST_IMAGES)), setting.TestSize);
+
+    // load test labels
+    TUtils.DownloadAsync(sourceUrl + TEST_LABELS, setting.TrainDir, TEST_LABELS, setting.ShowProgressInConsole);
+    TUtils.UnzipAsync(TPath.Combine(setting.TrainDir, TEST_LABELS), setting.TrainDir, setting.ShowProgressInConsole);
+
+    var testLabels := ExtractLabels(TPath.Combine(setting.TrainDir, TPath.GetFileNameWithoutExtension(TEST_LABELS)), setting.OneHot, setting.TestSize);
+
+    var _end := trainImages.dims[0];
+
+    var validationSize := setting.ValidationSize;
+
+    var validationImages : TNDArray := trainImages[np.arange(validationSize)];
+    var validationLabels := trainLabels[np.arange(validationSize)];
+
+    trainImages := trainImages[np.arange<Integer>(validationSize, _end)];
+    trainLabels := trainLabels[np.arange<Integer>(validationSize, _end)];
+
+    var dtype := setting.DataType;
+    var reshape := setting.ReShape;
+
+    var train      := MnistDataSet.Create(trainImages, trainLabels, dtype, reshape);
+    var validation := MnistDataSet.Create(validationImages, validationLabels, dtype, reshape);
+    var test       := MnistDataSet.Create(testImages, testLabels, dtype, reshape);
+
+    Result := Datasets<MnistDataSet>.Create(train, validation, test);
+end;
+
+function MnistModelLoader.ExtractImages(ffile: string; limit: Nullable<Integer>): TNDArray;
+var
+  bytestream  : TFileStream;
+  magic,
+  num_images,
+  rows, cols  : Integer;
+  buf         : TBytes;
+  data        : TNDarray;
+begin
+    if not TPath.IsPathRooted(ffile) then
+      ffile := TPath.Combine(ExtractFileDir(ParamStr(0)), ffile);
+
+    bytestream := TFileStream.Create(ffile, fmOpenRead);
+    try
+      magic := Read32(bytestream);
+      if magic <> 2051 then
+         raise Exception.CreateFmt('Invalid magic number %d in MNIST image file: %s', [magic, ffile]);
+
+      num_images := Read32(bytestream);
+      if limit.HasValue then
+        num_images := Min(num_images, limit);
+
+      rows := Read32(bytestream);
+      cols := Read32(bytestream);
+
+      SetLength(buf, rows * cols * num_images);
+      bytestream.ReadBuffer(buf[0], Length(buf));
+
+      data := np.frombuffer(buf, TFShape.Create([num_images, rows * cols]), np.np_uint8);
+      Result := data;
+
+    finally
+     bytestream.Free;
+    end;
+
+end;
+
+function MnistModelLoader.ExtractLabels(ffile: string; one_hot: Boolean; limit: Nullable<Integer>; num_classes: Integer): TNDArray;
+var
+  bytestream    : TFileStream;
+  magic,
+  num_items     : Integer;
+  buf           : TBytes;
+  labels_one_hot: TNDarray;
+begin
+    if not TPath.IsPathRooted(ffile) then
+      ffile := TPath.Combine(ExtractFileDir(ParamStr(0)), ffile);
+
+    bytestream := TFileStream.Create(ffile, fmOpenRead);
+    try
+      magic := Read32(bytestream);
+      if magic <> 2049 then
+        raise Exception.CreateFmt('Invalid magic number %d in MNIST label file: %s', [magic, ffile]);
+
+      num_items := Read32(bytestream);
+      if limit.HasValue then
+        num_items := Min(num_items, limit);
+
+      SetLength(buf, num_items);
+      bytestream.ReadBuffer(buf[0], Length(buf));
+
+      labels_one_hot := np.frombuffer(buf, TFShape.Create([num_items]), np.np_uint8);
+
+      if one_hot then
+        Result := DenseToOneHot(labels_one_hot, num_classes)
+      else
+        Result := labels_one_hot;
+
+    finally
+     bytestream.Free;
+    end;
+end;
+
+function MnistModelLoader.DenseToOneHot(labels_dense: TNDArray; num_classes: Integer): TNDArray;
+begin
+    var num_labels := labels_dense.dims[0];
+    // var index_offset = np.arange(num_labels) * num_classes;
+    var labels_one_hot := np.zeros(TFShape.Create([num_labels, num_classes]));
+    var labels         := labels_dense.ToArray<byte>;
+    for var row : Integer := 0 to num_labels - 1 do
+    begin
+        var col := labels[row];
+        labels_one_hot[[row, col]] := TNDArray.Create(Single(1.0));
+    end;
+
+    Result := labels_one_hot;
+end;
+
+function MnistModelLoader.Read32(bytestream: TFileStream): Integer;
+begin
+    var buffer : TArray<Byte> ; SetLength(buffer,SizeOf(uint));
+    var count := bytestream.Read(buffer, 0, 4);
+    Result := np.frombuffer(buffer, '>u4').ToArray<Integer>[0];
+end;
+
+{ ModelLoadSetting }
+
+class function ModelLoadSetting.Create: ModelLoadSetting;
+begin
+    Result.DataType        := TF_FLOAT;
+    Result.ValidationSize  := 5000;
 end;
 
 end.

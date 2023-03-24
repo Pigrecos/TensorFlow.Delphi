@@ -532,7 +532,7 @@ var
    dataArgs        : DataHandlerArgs;
    train_count     : Integer;
    train_x         : TArray<TFTensor>;
-   train_y         : NDArray;
+   train_y         : TNDArray;
 begin
     for var tx in x do
     begin
@@ -551,7 +551,7 @@ begin
     dataArgs := DataHandlerArgs.Create;
 
     dataArgs.X             := TFTensors.Create(train_x);
-    dataArgs.Y             := train_y;
+    dataArgs.Y             := TFTensors.Create(train_y);
     dataArgs.BatchSize     := batch_size;
     dataArgs.InitialEpoch  := initial_epoch;
     dataArgs.Epochs        := epochs;
@@ -564,8 +564,7 @@ begin
 
     var data_handler := DataHandler.Create(dataArgs);
 
-    if (Length(data_handler.DataAdapter.GetDataset.structure) > 2) or
-       (data_handler.DataAdapter.GetDataset.FirstInputTensorCount > 1) then
+    if (Length(data_handler.DataAdapter.GetDataset.structure) > 2) or (data_handler.DataAdapter.GetDataset.FirstInputTensorCount > 1) then
     begin
         Result := FitInternal(data_handler, epochs, verbose, nil,train_step_multi_inputs_function);
     end else

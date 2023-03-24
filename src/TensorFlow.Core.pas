@@ -2118,6 +2118,16 @@ begin
         var vval := Value.AsType<Integer>;
         Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_INT32);
     end
+    else if value.TypeInfo = TypeInfo(UInt8) then
+    begin
+        var vval := Value.AsType<UInt8>;
+        Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_UINT8);
+    end
+    else if value.TypeInfo = TypeInfo(Int8) then
+    begin
+        var vval := Value.AsType<Int8>;
+        Result := TEagerTensor.Create([vval], TFShape.scalar, TF_DataType.TF_INT8);
+    end
     else if value.TypeInfo = TypeInfo(Int64) then
     begin
         var vval := Value.AsType<Int64>;

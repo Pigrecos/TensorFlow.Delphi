@@ -92,7 +92,8 @@ np = record
         class function arange<T>(_end: T): TNDArray; overload; static;
         class function arange<T>(start: T; _end: T ): TNDArray; overload; static;
         class function arange<T>(start: T; _end: T ; step : T ): TNDArray; overload; static;
-        class function frombuffer(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType): TNDArray;static;
+        class function frombuffer(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType): TNDArray;overload; static;
+        class function frombuffer(bytes: TArray<Byte>; dtype: String): TNDArray; overload; static;
         class function ones(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_DOUBLE): TNDArray;static;
         class function zeros(shape: TFShape; dtype: TF_DataType = TF_DataType.TF_DOUBLE): TNDArray;static;
         class function ones_like(a: TNDArray; dtype : TF_DataType= TF_DataType.DtInvalid): TNDArray;static;
@@ -116,12 +117,14 @@ np = record
         // numPy.Manipulation
         class function expand_dims(a: TNDArray; axis: TAxis): TNDArray;static;
         class function reshape(x1: TNDArray; newshape: TFShape): TNDArray;static;
-        class function concatenate(tTuple: Tuple<TNDArray,TNDArray>; axis: Integer = 0): TNDArray;static;
+        class function concatenate(tTuple: Tuple<TNDArray,TNDArray>; axis: Integer = 0): TNDArray; overload; static;
+        class function concatenate(arrays: TArray<TNDArray>; axis: Integer = 0): TNDArray; overload; static;
 end;
 
 NumPyImpl = class
    public
-     function frombuffer(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType): TNDArray;
+     function frombuffer(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType): TNDArray; overload;
+     function frombuffer(bytes: TArray<Byte>; dtype: string): TNDArray; overload;
 end;
 
 implementation
@@ -202,9 +205,24 @@ begin
     Result := TNDArray.Create(array_ops.concat([tTuple.Value1, tTuple.Value2], axis));
 end;
 
+class function np.concatenate(arrays: TArray<TNDArray>; axis: Integer): TNDArray;
+var
+  nArray : TArray<TFTensor>;
+begin
+    for var i := 0 to Length(arrays)-1  do
+      nArray := nArray + [ arrays[i] ];
+
+    Result := TNDArray.Create(array_ops.concat(nArray, axis));
+end;
+
 class function np.floor(x: TNDArray): TNDArray;
 begin
    Result := TNDArray.Create( math_ops.floor(x) );
+end;
+
+class function np.frombuffer(bytes: TArray<Byte>; dtype: String): TNDArray;
+begin
+   Result := tf.numpy.frombuffer(bytes, dtype);
 end;
 
 class function np.frombuffer(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType): TNDArray;
@@ -335,6 +353,24 @@ end;
 function NumPyImpl.frombuffer(bytes: TArray<Byte>; shape: TFShape; dtype: TF_DataType): TNDArray;
 begin
     Result := TNDArray.Create(bytes, shape, dtype);
+end;
+
+function NumPyImpl.frombuffer(bytes: TArray<Byte>; dtype: string): TNDArray;
+begin
+    if dtype = '>u4' then
+    begin
+        var size : Integer := Length(bytes) div sizeof(uint);
+        var ints : TArray<Integer>;
+        SetLength(ints, size);
+        for var index : Integer := 0 to size - 1 do
+            ints[index] := bytes[0] * 256 + bytes[1] + bytes[2] * 256 + bytes[3];
+
+        Var SShape := TFShape.Create([size]);
+        Result := TNDArray.Create(ints,@SShape);
+        Exit;
+    end;
+
+    raise Exception.Create('Not Implemented');
 end;
 
 { NDArrayRender }

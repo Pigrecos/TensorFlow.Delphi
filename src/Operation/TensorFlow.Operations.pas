@@ -6076,6 +6076,7 @@ begin
                             begin
                                 labels := tops.convert_to_tensor(labels);
                                 logits := tops.convert_to_tensor(logits);
+
                                 var precise_logits : TFTensor;
                                 if logits.dtype = TF_HALF then precise_logits := math_ops.cast(logits, tdtypes.Cfloat32)
                                 else                           precise_logits := logits;
@@ -8564,7 +8565,7 @@ end;
 function linalg_ops.norm(tensor: TFTensor; _ord: string; axis: PAxis; name: string; keepdims: Boolean): TFTensor;
 begin
     var vvalue : TValue := tensor;
-    var is_matrix_norm := (axis <> nil) and (Length(axis^.axis) = 2);
+    var is_matrix_norm := (axis <> nil) and (Length(axis^.axis.Value) = 2);
     Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'eye', @vvalue),
                   function(v1: TNameScope): TFTensor
                     begin

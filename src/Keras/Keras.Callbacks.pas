@@ -454,7 +454,7 @@ begin
     for var i := 1 to 30 - progress.Length do
         remaining := remaining + '.';
 
-    FMSg := Format('Epoch: %.4d/%.4d [%s%s] - %d - %s',[end_step + 1,Fparameters.Steps,progress,remaining,elapse, results]);
+    FMSg := Format('Epoch: %.4d/%.4d [%s%s] - %s - %s',[end_step + 1,Fparameters.Steps,progress,remaining,FormatDateTime('hh:nn:ss:zzz',elapse), results]);
 end;
 
 procedure ProgbarLogger.on_epoch_end(epoch: Integer; epoch_logs: TDictionary<string, Single>);

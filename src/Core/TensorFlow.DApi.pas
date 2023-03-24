@@ -1272,6 +1272,11 @@ TEagerTensor = class(TFTensor)
        constructor Create(bytes: TArray<TArray<TArray<Byte>>>;shape: TFShape; dtype: TF_DataType);overload;
        constructor Create(bytes: TArray<TArray<TArray<TArray<Byte>>>>;shape: TFShape; dtype: TF_DataType);overload;
 
+       constructor Create(bytes: TArray<Int8>;shape: TFShape; dtype: TF_DataType);overload;
+       constructor Create(bytes: TArray<TArray<Int8>>;shape: TFShape; dtype: TF_DataType);overload;
+       constructor Create(bytes: TArray<TArray<TArray<Int8>>>;shape: TFShape; dtype: TF_DataType);overload;
+       constructor Create(bytes: TArray<TArray<TArray<TArray<Int8>>>>;shape: TFShape; dtype: TF_DataType);overload;
+
        constructor Create(bytes: TArray<Int16>;shape: TFShape; dtype: TF_DataType);overload;
        constructor Create(bytes: TArray<TArray<Int16>>;shape: TFShape; dtype: TF_DataType);overload;
        constructor Create(bytes: TArray<TArray<TArray<Int16>>>;shape: TFShape; dtype: TF_DataType);overload;
@@ -4282,7 +4287,7 @@ begin
     end
     else if mask.dtype = TF_DataType.TF_INT32 then
     begin
-        Result := GetData(mask.ToArray<Integer>)
+        Result := GetData(mask.ToArray<Integer>);
     end
     else if mask.dtype = TF_DataType.TF_INT64 then
     begin
@@ -5284,6 +5289,30 @@ end;
 constructor TEagerTensor.Create(bytes: TArray<TArray<TArray<TArray<Byte>>>>; shape: TFShape; dtype: TF_DataType);
 begin
     inherited Create( TFTensor.InitTensor<Byte>(bytes,shape,dtype));
+    NewEagerTensorHandle(Handle);
+end;
+
+constructor TEagerTensor.Create(bytes: TArray<Int8>;shape: TFShape; dtype: TF_DataType);
+begin
+    inherited Create( TFTensor.InitTensor<Int8>(bytes,shape,dtype) );
+    NewEagerTensorHandle(Handle);
+end;
+
+constructor TEagerTensor.Create(bytes: TArray<TArray<Int8>>;shape: TFShape; dtype: TF_DataType);
+begin
+    inherited Create( TFTensor.InitTensor<Int8>(bytes,shape,dtype) );
+    NewEagerTensorHandle(Handle);
+end;
+
+constructor TEagerTensor.Create(bytes: TArray<TArray<TArray<Int8>>>;shape: TFShape; dtype: TF_DataType);
+begin
+    inherited Create( TFTensor.InitTensor<Int8>(bytes,shape,dtype) );
+    NewEagerTensorHandle(Handle);
+end;
+
+constructor TEagerTensor.Create(bytes: TArray<TArray<TArray<TArray<Int8>>>>;shape: TFShape; dtype: TF_DataType);
+begin
+    inherited Create( TFTensor.InitTensor<Int8>(bytes,shape,dtype));
     NewEagerTensorHandle(Handle);
 end;
 
@@ -6696,8 +6725,10 @@ begin
 end;
 
 constructor TFShape.Create(dims: TArray<Integer>);
+var
+   i64Dim :  TArray<TF_int64_t>;
 begin
-    var i64Dim :  TArray<TF_int64_t> := [];
+    i64Dim := [];
     for var i := 0 to Length(dims)-1 do
        i64Dim := i64Dim + [ Int64(dims[i]) ] ;
 
