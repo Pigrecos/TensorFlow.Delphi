@@ -967,7 +967,7 @@ end;
 
 procedure ConstantTest.ScalarConst;
 begin
-    var tensor1 := tf.constant(8); // int
+    var tensor1 := tf.constant(Integer(8)); // int
     Assert.AreEqual(tensor1.dtype, TF_DataType.TF_INT32);
     var tensor2 := tf.constant(Single(6.0)); // float
     Assert.AreEqual(tensor2.dtype, TF_DataType.TF_FLOAT);

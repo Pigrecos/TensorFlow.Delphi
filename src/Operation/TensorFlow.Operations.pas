@@ -4019,7 +4019,7 @@ begin
                                TF_DOUBLE : ones := constant(Double(1));
                                TF_FLOAT  : ones := constant(Single(1));
                             else
-                               ones := constant(1)
+                               ones := constant(Integer(1))
                             end;
 
                             if shape.ndim = 0 then
@@ -4135,7 +4135,7 @@ begin
                                      TF_INT8   : zeros := constant(Int8(0));
                                      TF_UINT8  : zeros := constant(UInt8(0));
                                   else
-                                     zeros := constant(0)
+                                     zeros := constant(Integer(0))
                                   end;
                                   Result := gen_array_ops.fill(shape, zeros,  name);
                               end );

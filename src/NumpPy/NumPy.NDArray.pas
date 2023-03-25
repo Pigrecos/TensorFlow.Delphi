@@ -435,6 +435,7 @@ class function NDArrayConverter.Scalar<T>(nd: TNDArray): T;
 begin
     case nd.Dtype of
       TF_UINT8: Result := Scalar<T>( PByte(nd.data)^ );
+      TF_INT8 : Result := Scalar<T>( PInt8(nd.data)^ );
       TF_FLOAT: Result := Scalar<T>( Single((nd.data)^) );
       TF_DOUBLE:Result := Scalar<T>( Double(PDouble(nd.data)^) );
       TF_INT32: Result := Scalar<T>( PInteger(nd.data)^ );

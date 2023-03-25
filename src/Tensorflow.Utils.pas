@@ -1120,6 +1120,14 @@ begin
     begin
         Result := np.np_array(tensor.IntVals.ToArray).reshape(shape);
     end
+    else if tensor.Dtype = TDataType.DT_INT64 then
+    begin
+        Result := np.np_array(tensor.Int64Vals.ToArray).reshape(shape);
+    end
+    else if tensor.Dtype = TDataType.DT_UINT64 then
+    begin
+        Result := np.np_array(tensor.Uint64Vals.ToArray).reshape(shape);
+    end
     else if tensor.Dtype = TDataType.DT_BOOL then
     begin
         Result := np.np_array(tensor.BoolVals.ToArray).reshape(shape);
@@ -1691,7 +1699,6 @@ class operator TValueHelp.Implicit(Const Value: Uint8):TValue;
 begin
   Result := TValue.From<Uint8>(Value);
 end ;
-
 class operator TValueHelp.Implicit(Const Value: Int8):TValue;
 begin
   Result := TValue.From<Int8>(Value);

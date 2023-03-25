@@ -133,13 +133,13 @@ type
        const TEST_IMAGES = 't10k-images-idx3-ubyte.gz';
        const TEST_LABELS = 't10k-labels-idx1-ubyte.gz';
 
-       constructor Create;
        function ExtractImages(ffile: string; limit : Nullable<Integer>): TNDArray;
        function ExtractLabels(ffile: string; one_hot : Boolean; limit : Nullable<Integer>; num_classes: Integer = 10): TNDArray;
        function DenseToOneHot(labels_dense: TNDArray; num_classes: Integer) : TNDArray;
        function Read32(bytestream: TFileStream) : Integer;
     public
 
+      constructor Create;
       function LoadAsync(setting: ModelLoadSetting): Datasets<MnistDataSet>;
   end;
 

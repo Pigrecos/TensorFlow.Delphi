@@ -1049,10 +1049,10 @@ procedure TfrmMain.btnModelsClick(Sender: TObject);
 begin
     TKerasUnitsTest.LeNetModel ;
    // mnistGAN under development and Testing...
-    (*var mnistGAN := TMnistGAN.Create;
+    var mnistGAN := TMnistGAN.Create;
     mmo1.Clear;
     mmo1.Lines.Add('Model Name: '+ mnistGAN.Config.Name);
-    mnistGAN.Run;*)
+    mnistGAN.Run;
   //
     var Cnn := DigitRecognitionCnnKeras.Create;
     mmo1.Clear;
@@ -1562,7 +1562,7 @@ end;
 
 procedure ManagedAPI.GradientSliceTest;
 begin
-    var X : TTensor           := tf.zeros(10);
+    var X : TTensor           := tf.zeros(Integer(10));
     var W : TResourceVariable := tf.Variable(Single(-0.06), 'weight');
     var b : TResourceVariable := tf.Variable(Single(-0.73), 'bias');
     var g := tf.GradientTape;

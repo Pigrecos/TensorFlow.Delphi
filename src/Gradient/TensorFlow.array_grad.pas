@@ -271,7 +271,7 @@ begin
     var begin_vec := op.inputs[1];
     var input_rank:= array_ops.rank(input_vec);
     var slice_size:= array_ops.shape(op.outputs[0]);
-    var aValue : TArray<TFTensor> := [ input_rank, Tops.convert_to_tensor(1) ];
+    var aValue : TArray<TFTensor> := [ input_rank, Tops.convert_to_tensor(Integer(1)) ];
     var shape      := array_ops.stack( aValue );
     var before_pad := array_ops.reshape(begin_vec, shape);
     var after_pad  := array_ops.reshape( TTensor(array_ops.shape(input_vec)) - slice_size - begin_vec, shape);

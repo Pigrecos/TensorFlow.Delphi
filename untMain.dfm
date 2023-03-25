@@ -95,8 +95,8 @@ object frmMain: TfrmMain
         'mmo1')
       ScrollBars = ssVertical
       TabOrder = 0
-      ExplicitWidth = 762
-      ExplicitHeight = 524
+      ExplicitLeft = 2
+      ExplicitTop = 2
     end
   end
 end
