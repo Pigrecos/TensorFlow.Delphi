@@ -198,6 +198,10 @@ type
       procedure SimpleRNN;
       procedure Resizing;
       procedure LayerNormalization;
+      /// <summary>
+      /// https://www.tensorflow.org/api_docs/python/tf/keras/layers/Normalization
+      /// </summary>
+      procedure Normalization;
   end;
 
   ActivationFunctionTest = class(EagerModeTestBase)
@@ -2188,15 +2192,13 @@ end;
 procedure LayersTest.SimpleRNN;
 begin
 (*
-
-
-            tf.UseKeras<KerasInterface>();
-            var inputs = np.arange(6 * 10 * 8).reshape((6, 10, 8)).astype(np.float32);
-            /*var simple_rnn = keras.layers.SimpleRNN(4);
-            var output = simple_rnn.Apply(inputs);
-            Assert.AreEqual((32, 4), output.shape);*/
-            var simple_rnn = tf.keras.layers.SimpleRNN(4, return_sequences: true, return_state: true);
-            var (whole_sequence_output, final_state) = simple_rnn.Apply(inputs);
+    tf.UseKeras<KerasInterface>();
+    var inputs = np.arange(6 * 10 * 8).reshape((6, 10, 8)).astype(np.float32);
+    /*var simple_rnn = keras.layers.SimpleRNN(4);
+    var output = simple_rnn.Apply(inputs);
+    Assert.AreEqual((32, 4), output.shape);*/
+    var simple_rnn = tf.keras.layers.SimpleRNN(4, return_sequences: true, return_state: true);
+    var (whole_sequence_output, final_state) = simple_rnn.Apply(inputs);
 *)
 end;
 
@@ -2218,6 +2220,48 @@ begin
     var expected : TArray<Single> := [ -0.99998, 0.99998 ];
 
     Assert.IsTrue(Equal( expected, output[0].ToArray<Single>),'Assert - LayerNormalization');
+end;
+
+procedure LayersTest.Normalization;
+begin
+    // Calculate a global mean and variance by analyzing the dataset in adapt().
+    var adapt_data := np.np_array<Single>([ 1, 2, 3, 4, 5 ]);
+    var input_data := np.np_array<Single>([ 1, 2, 3 ]);
+    var layer      := tf.keras.layers.Normalization(nil);
+    layer.adapt(adapt_data);
+    var x := layer.Apply( TFTensors.Create(input_data) );
+    Assert.IsTrue( TUtils.SequenceEqual<Single>(x.First.numpy.ToArray<Single>, [ -1.4142135, -0.70710677, 0 ]) );
+
+    // Calculate a mean and variance for each index on the last axis.
+    adapt_data := np.np_array<TArray<Single>>([ [ 0, 7, 4 ],
+                                                [ 2, 9, 6 ],
+                                                [ 0, 7, 4 ],
+                                                [ 2, 9, 6 ] ], tf.float32_t);
+    input_data := np.np_array<TArray<Single>>([ [ 0, 7, 4 ] ], tf.float32_t);
+    var axis : Integer := -1;
+    layer      := tf.keras.layers.Normalization(nil,@axis);
+    layer.adapt(adapt_data);
+    x := layer.Apply( TFTensors.Create(input_data) );
+    Assert.IsTrue( TUtils.SequenceEqual<Single>(x.First.numpy.ToArray<Single>, [ -1, -1, -1 ]) );
+
+    // Pass the mean and variance directly.
+    input_data := np.np_array<TArray<Single>>( [ [ 1 ], [ 2 ], [ 3 ] ], tf.float32_t);
+    var m : Single := 3;
+    var v : Single := 2;
+    layer      := tf.keras.layers.Normalization(nil, nil, @m, @v);
+    x := layer.Apply( TFTensors.Create(input_data) );
+    Assert.IsTrue( TUtils.SequenceEqual<Single>(x.First.numpy.ToArray<Single>, [ -1.4142135, -0.70710677, 0 ]) );
+
+    // Use the layer to de-normalize inputs (after adapting the layer).
+    adapt_data := np.np_array<TArray<Single>>([ [ 0, 7, 4 ],
+                                                [ 2, 9, 6 ],
+                                                [ 0, 7, 4 ],
+                                                [ 2, 9, 6 ] ], tf.float32_t);
+    input_data := np.np_array<TArray<Single>>([ [ 1, 2, 3 ] ], tf.float32_t);
+    layer      := tf.keras.layers.Normalization(nil,@axis, nil, nil, true);
+    layer.adapt(adapt_data);
+    x := layer.Apply( TFTensors.Create(input_data) );
+    Assert.IsTrue( Equal(x.First.numpy.ToArray<Single>, [ 2, 10, 8 ] ) );
 end;
 
 { PreprocessingTests }

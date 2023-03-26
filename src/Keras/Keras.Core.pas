@@ -125,6 +125,7 @@ type
     function count_params: Integer;
     function get_config: LayerArgs;
     procedure build(input_shape: TFShape);
+    procedure adapt(data: TFTensor; batch_size: PInteger = nil; steps: PInteger = nil);
 
     property Name                    : string              read GetName;
     property Trainable               : Boolean             read GetTrainable;
@@ -361,6 +362,8 @@ type
 
      function AveragePooling2D(pool_size: PTFShape = nil; strides: PTFShape = nil; padding: string = 'valid'; data_format: string = ''): ILayer; overload;
      function AveragePooling2D(pool_size: TFShape ; strides: TFShape ;             padding: string = 'valid'; data_format: string = ''): ILayer; overload;
+
+     function Normalization(input_shape: PTFShape= nil; axis: PInteger = nil; mean : PSingle = nil; variance: PSingle = nil; invert: Boolean = false): ILayer;
 
      function BatchNormalization(axis                       : Integer = -1;
                                 momentum                    : Single = 0.99;
@@ -1426,7 +1429,17 @@ type
    
    	Constructor Create;
    end;
-   
+
+   NormalizationArgs = class(PreprocessingLayerArgs)
+    public
+   	Axis          : Nullable<TAxis>;
+   	Mean          : Nullable<Single>;
+   	Variance      : Nullable<Single>;
+   	Invert        : Boolean;
+
+   	Constructor Create;
+   end;
+
    TextVectorizationArgs = class(PreprocessingLayerArgs)
    public
    	Standardize          : TFunc<TFTensor, TFTensor>;
@@ -1435,7 +1448,7 @@ type
    	OutputMode           : string;
    	OutputSequenceLength : Integer;
    	Vocabulary           : TArray<String>;
-   
+
    	Constructor Create;
    end;
    
@@ -2226,5 +2239,14 @@ begin
      inherited Create;
 end;
 {$ENDREGION}
+
+{ NormalizationArgs }
+
+constructor NormalizationArgs.Create;
+begin
+   inherited Create;
+
+   Invert := False;
+end;
 
 end.

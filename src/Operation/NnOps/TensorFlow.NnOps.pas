@@ -191,6 +191,7 @@ type
         procedure build(input_shape: TFShape);
         function count_params: Integer;
         function get_config: LayerArgs;
+        procedure adapt(data: TFTensor; batch_size: PInteger = nil; steps: PInteger = nil);
         {$ENDREGION}
 
         property Built       : Boolean read Fbuilt;
@@ -502,6 +503,11 @@ begin
     inherited Create;
 
     Fis_tf_rnn_cell := true;
+end;
+
+procedure RnnCell.adapt(data: TFTensor; batch_size, steps: PInteger);
+begin
+    raise TFException.Create('Not Implemented - adapt()');
 end;
 
 function RnnCell.Apply(inputs: TFTensors; state: TFTensor; is_training: Boolean): TFTensors;

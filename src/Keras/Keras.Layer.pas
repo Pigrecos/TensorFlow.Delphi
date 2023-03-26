@@ -51,6 +51,7 @@ interface
 threadvar  tls_CallContext : TCallContext;
 
 type
+
 {$REGION 'Layer'}
   /// <summary>
   /// Base layer class.
@@ -145,6 +146,7 @@ type
        procedure _init_set_name(_name: string; zero_based: Boolean = true); virtual;
        function  _gather_children_variables(include_trainable: Boolean = false; include_non_trainable: Boolean = false): TList<IVariableV1>;
        procedure Initialize(_args: LayerArgs); virtual;
+       procedure adapt(data: TFTensor; batch_size: PInteger = nil; steps: PInteger = nil); virtual;
     public
         constructor Create(_args: LayerArgs);
         destructor Destroy; override;
@@ -998,92 +1000,6 @@ type
   end;
   {$ENDREGION}
 
-  {$REGION 'Normalization'}
-  LayerNormalization = class(Layer)
-    private
-      function getbeta_initializer: IInitializer;
-      function getcenter: Boolean;
-      function getepsilon: Single;
-      function getgamma_initializer: IInitializer;
-      function getgamma_regularizer: IRegularizer;
-      function getscale: Boolean;
-
-    protected
-      procedure Build(input_shape: TFShape); override;
-      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
-      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
-    public
-      args           : LayerNormalizationArgs;
-      fused          : Boolean ;
-      axis           : TArray<Integer>;
-      _data_format   : string;
-      kernel_size    : TFShape;
-      gamma          : IVariableV1;
-      beta           : IVariableV1;
-      moving_mean    : IVariableV1;
-      moving_variance: IVariableV1;
-
-      constructor Create(_args: LayerNormalizationArgs) ;
-      function _fused_can_be_used(ndims: Integer) : Boolean;
-
-      property epsilon  : Single  read getepsilon;
-      property center   : Boolean read getcenter;
-      property scale    : Boolean read getscale;
-      property beta_initializer  : IInitializer read getbeta_initializer;
-      property gamma_initializer : IInitializer read getgamma_initializer;
-      property gamma_regularizer : IRegularizer read getgamma_regularizer;
-
-  end;
-
-  BatchNormalization = class(Layer)
-    private
-      function getbeta_initializer: IInitializer;
-      function getcenter: Boolean;
-      function getepsilon: Single;
-      function getgamma_initializer: IInitializer;
-      function getgamma_regularizer: IRegularizer;
-      function getMomentum: Single;
-      function getmoving_mean_initializer: IInitializer;
-      function getmoving_variance_initializer: IInitializer;
-      function getrenorm: Boolean;
-      function getscale: Boolean;
-      function _moments(inputs: TFTensors; reduction_axes: TArray<Integer>; keep_dims: Boolean): Tuple<TFTensor, TFTensor>;
-      function _calculate_mean_and_var(inputs: TFTensors; reduction_axes: TArray<Integer>; keep_dims: Boolean): Tuple<TFTensor, TFTensor>;
-      function _support_zero_size_input: Boolean;
-      function _fused_batch_norm(inputs, training: TFTensor): TFTensor;
-      procedure _assign_moving_average(variable: IVariableV1; value, momentum: TFTensor);
-      procedure _assign_new_value(variable: IVariableV1; value: TFTensor);
-
-    protected
-      procedure Build(input_shape: TFShape); override;
-      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
-      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
-    public
-       args : BatchNormalizationArgs;
-       fused          : Boolean ;
-       axis           : TArray<Integer>;
-       _data_format   : string;
-       kernel_size    : TFShape;
-       gamma          : IVariableV1;
-       beta           : IVariableV1;
-       moving_mean    : IVariableV1;
-       moving_variance: IVariableV1;
-
-       constructor Create(_args: BatchNormalizationArgs) ;
-
-       property momentum : Single  read getMomentum;
-       property epsilon  : Single  read getepsilon;
-       property center   : Boolean read getcenter;
-       property scale    : Boolean read getscale;
-       property renorm   : Boolean read getrenorm;
-       property beta_initializer            : IInitializer read getbeta_initializer;
-       property gamma_initializer           : IInitializer read getgamma_initializer;
-       property moving_mean_initializer     : IInitializer read getmoving_mean_initializer;
-       property moving_variance_initializer : IInitializer read getmoving_variance_initializer;
-       property gamma_regularizer           : IRegularizer read getgamma_regularizer;
-  end;
-  {$ENDREGION}
-
   {$REGION 'Pooling'}
   Pooling1D = class(Layer)
     protected
@@ -1188,8 +1104,21 @@ type
 
   {$REGION 'PreProcessing'}
   PreprocessingLayer = class(Layer)
+    private
+      FArgs                : PreprocessingLayerArgs;
+      FIs_compiled         : Boolean;
+      FIs_adapted          : Boolean;
+      Fsteps_per_execution : IVariableV1;
+
+      procedure run_step(iterator: OwnedIterator);
+      procedure _adapt_maybe_build(data: TFTensor);
     public
       constructor Create(_args: PreprocessingLayerArgs) ;
+      procedure adapt(data: TFTensor; batch_size: PInteger = nil; steps: PInteger = nil);override;
+      procedure reset_state; virtual;
+      procedure finalize_state; virtual;
+      procedure update_state(data: TFTensor); virtual;
+      procedure compile(run_eagerly: Boolean = false; steps_per_execution: Integer = 1);
   end;
 
   /// <summary>
@@ -1214,7 +1143,7 @@ type
     public
        args : PreprocessingLayerArgs;
 
-       procedure adapt(data: IDatasetV2; reset_state: Boolean = true); virtual;
+       procedure adapt(data: IDatasetV2; reset_state: Boolean = true); reintroduce; virtual;
        constructor Create(_args: PreprocessingLayerArgs) ;
   end;
 
@@ -1276,6 +1205,120 @@ type
        function _preprocess(inputs: TFTensors): TFTensors;
        procedure adapt(data: IDatasetV2; reset_state: Boolean = true); override;
 
+  end;
+  {$ENDREGION}
+
+  {$REGION 'Normalization'}
+  Normalization = class(PreprocessingLayer)
+    private
+
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+    public
+      args            : NormalizationArgs;
+      axis            : TArray<Integer>;
+      reduce_axis     : TArray<Integer>;
+      adapt_mean,
+      adapt_variance,
+      count           : IVariableV1;
+      mean,
+      variance        : TFTensor;
+      broadcast_shape : TFShape;
+      input_mean,
+      input_variance  : Nullable<Single> ;
+      compute_dtype   : TF_DataType ;
+
+      constructor Create(_args: NormalizationArgs) ;
+      procedure adapt(data: TFTensor; batch_size: PInteger = nil; steps: PInteger = nil);override;
+      procedure reset_state; override;
+      procedure finalize_state; override;
+      procedure update_state(data: TFTensor); override;
+  end;
+
+  LayerNormalization = class(Layer)
+    private
+      function getbeta_initializer: IInitializer;
+      function getcenter: Boolean;
+      function getepsilon: Single;
+      function getgamma_initializer: IInitializer;
+      function getgamma_regularizer: IRegularizer;
+      function getscale: Boolean;
+
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+    public
+      args           : LayerNormalizationArgs;
+      fused          : Boolean ;
+      axis           : TArray<Integer>;
+      _data_format   : string;
+      kernel_size    : TFShape;
+      gamma          : IVariableV1;
+      beta           : IVariableV1;
+      moving_mean    : IVariableV1;
+      moving_variance: IVariableV1;
+
+      constructor Create(_args: LayerNormalizationArgs) ;
+      function _fused_can_be_used(ndims: Integer) : Boolean;
+
+      property epsilon  : Single  read getepsilon;
+      property center   : Boolean read getcenter;
+      property scale    : Boolean read getscale;
+      property beta_initializer  : IInitializer read getbeta_initializer;
+      property gamma_initializer : IInitializer read getgamma_initializer;
+      property gamma_regularizer : IRegularizer read getgamma_regularizer;
+
+  end;
+
+  BatchNormalization = class(Layer)
+    private
+      function getbeta_initializer: IInitializer;
+      function getcenter: Boolean;
+      function getepsilon: Single;
+      function getgamma_initializer: IInitializer;
+      function getgamma_regularizer: IRegularizer;
+      function getMomentum: Single;
+      function getmoving_mean_initializer: IInitializer;
+      function getmoving_variance_initializer: IInitializer;
+      function getrenorm: Boolean;
+      function getscale: Boolean;
+      function _moments(inputs: TFTensors; reduction_axes: TArray<Integer>; keep_dims: Boolean): Tuple<TFTensor, TFTensor>;
+      function _calculate_mean_and_var(inputs: TFTensors; reduction_axes: TArray<Integer>; keep_dims: Boolean): Tuple<TFTensor, TFTensor>;
+      function _support_zero_size_input: Boolean;
+      function _fused_batch_norm(inputs, training: TFTensor): TFTensor;
+      procedure _assign_moving_average(variable: IVariableV1; value, momentum: TFTensor);
+      procedure _assign_new_value(variable: IVariableV1; value: TFTensor);
+
+    protected
+      procedure Build(input_shape: TFShape); override;
+      function  Call(inputs: TFTensors; state: TFTensor = nil; training : pBoolean= nil): TFTensors; overload ;override;
+      function  ComputeOutputShape(input_shape: TFShape): TFShape; override;
+    public
+       args : BatchNormalizationArgs;
+       fused          : Boolean ;
+       axis           : TArray<Integer>;
+       _data_format   : string;
+       kernel_size    : TFShape;
+       gamma          : IVariableV1;
+       beta           : IVariableV1;
+       moving_mean    : IVariableV1;
+       moving_variance: IVariableV1;
+
+       constructor Create(_args: BatchNormalizationArgs) ;
+
+       property momentum : Single  read getMomentum;
+       property epsilon  : Single  read getepsilon;
+       property center   : Boolean read getcenter;
+       property scale    : Boolean read getscale;
+       property renorm   : Boolean read getrenorm;
+       property beta_initializer            : IInitializer read getbeta_initializer;
+       property gamma_initializer           : IInitializer read getgamma_initializer;
+       property moving_mean_initializer     : IInitializer read getmoving_mean_initializer;
+       property moving_variance_initializer : IInitializer read getmoving_variance_initializer;
+       property gamma_regularizer           : IRegularizer read getgamma_regularizer;
   end;
   {$ENDREGION}
 
@@ -1452,8 +1495,11 @@ implementation
              Tensorflow.Utils,
              TensorFlow.Operations,
              TensorFlow.Slice,
+
+             Numpy,
              NumPy.NDArray,
 
+             keras.KerasApi,
              Keras.Utils;
 
 {$REGION 'Layer'}
@@ -1521,6 +1567,11 @@ begin
       Fself_tracked_trackables.Free;
 
     inherited Destroy;
+end;
+
+procedure Layer.adapt(data: TFTensor; batch_size, steps: PInteger);
+begin
+
 end;
 
 procedure Layer.add_loss(losses: TFunc<TFTensor>);
@@ -4993,6 +5044,79 @@ end;
 constructor PreprocessingLayer.Create(_args: PreprocessingLayerArgs);
 begin
    inherited Create(_args) ;
+
+   FArgs := _args;
+end;
+
+procedure PreprocessingLayer.adapt(data: TFTensor; batch_size, steps: PInteger);
+begin
+    if not Fis_compiled then
+       compile;
+
+    if Fbuilt then
+        reset_state;
+
+    var dh := DataHandlerArgs.Create;
+    dh.X         := TFTensors.Create(data);
+    dh.BatchSize := FArgs.BatchSize;
+    dh.Epochs    := 1;
+    dh.StepsPerExecution := Fsteps_per_execution;
+
+    var data_handler := DataHandler.Create(dh);
+
+    for var epoch_iterator in data_handler.enumerate_epochs do
+    begin
+        var epoch   := epoch_iterator.Value1;
+        var iterator:= epoch_iterator.Value2;
+        for var z in data_handler.steps do
+        begin
+            run_step(iterator);
+        end;
+    end;
+    finalize_state;
+    FIs_adapted := true;
+end;
+
+procedure PreprocessingLayer.run_step(iterator: OwnedIterator);
+begin
+    var data := iterator.next;
+    _adapt_maybe_build(data[0]);
+    update_state(data[0]);
+end;
+
+procedure PreprocessingLayer.reset_state;
+begin
+
+end;
+
+procedure PreprocessingLayer.finalize_state;
+begin
+
+end;
+
+procedure PreprocessingLayer.update_state(data: TFTensor);
+begin
+
+end;
+
+procedure PreprocessingLayer.compile(run_eagerly: Boolean; steps_per_execution: Integer);
+begin
+
+end;
+
+procedure PreprocessingLayer._adapt_maybe_build(data: TFTensor);
+begin
+    if not Fbuilt then
+    begin
+        var data_shape := data.shape;
+        var data_shape_nones : TArray<Integer> := [];
+        for var i := 0 to data.ndim - 1 do
+         data_shape_nones := data_shape_nones + [-1];
+        if not BatchInputShape.IsNil then Fargs.BatchInputShape := BatchInputShape
+        else                              Fargs.BatchInputShape := TFShape.Create(data_shape_nones);
+        build(data_shape);
+        Fbuilt := true;
+    end;
 end;
 
 { Resizing }
@@ -5630,6 +5754,176 @@ begin
     var s : TFShape := -1;
     var Res := tf.math.bincount(inputs, count_weights, depth_tensor, depth_tensor, dtype, '',  @s, binary_output);
     Result := TFTensors.Create(Res);
+end;
+
+{ Normalization }
+
+constructor Normalization.Create(_args: NormalizationArgs);
+begin
+    inherited Create(_args);
+    args := _args;
+    if args.Axis = nil then
+       axis := []
+    else
+       axis := args.Axis.Value.axis;
+
+    input_mean     := args.Mean;
+    input_variance := args.Variance;
+    compute_dtype  := tf.float32_t;
+end;
+
+procedure Normalization.Build(input_shape: TFShape);
+var
+  _keep_axis        : TArray<Integer>;
+  _reduce_axis_mask : TArray<Integer>;
+  mean_and_var_shape: TArray<Integer>;
+  I,idxOut          : Integer;
+  Found             : Boolean;
+  param_dtype       : TF_DataType;
+begin
+    inherited Build(input_shape);
+
+    var ndim := input_shape.ndim;
+    for var idx := 0 to Length(axis) -1 do
+    begin
+        var x := axis[idx];
+        if x < 0 then
+            axis[idx] := ndim + x;
+    end;
+
+    SetLength(_keep_axis, Length(axis));
+    for I := 0 to High(axis) do
+    begin
+        if   axis[I] >= 0 then _keep_axis[I] := axis[I]
+        else                   _keep_axis[I] := axis[I] + ndim;
+    end;
+
+    SetLength(reduce_axis, 0);
+    SetLength(_reduce_axis_mask, ndim);
+    for I := 0 to ndim - 1 do
+    begin
+        Found := TArray.BinarySearch<Integer>(_keep_axis, I, idxOut);
+        if not Found then
+           reduce_axis := reduce_axis + [ I ];
+
+        if Found then  _reduce_axis_mask[I] := 0
+        else           _reduce_axis_mask[I] := 1;
+    end;
+
+    // Broadcast any reduced axes.
+    var aDims : TArray<Integer> := [];
+    for I := 0 to ndim - 1 do
+    begin
+      if   TArray.BinarySearch<Integer>(_keep_axis, I, idxOut) then  aDims := aDims  + [ input_shape.dims[I] ]
+      else                                                           aDims := aDims  + [ 1 ];
+    end;
+    broadcast_shape := TFShape.Create(aDims);
+
+    SetLength(mean_and_var_shape, Length(_keep_axis));
+    for I := 0 to High(_keep_axis) do
+      mean_and_var_shape[I] := input_shape.Dims[_keep_axis[I]];
+
+    if   DType = DtInvalid then param_dtype := TF_FLOAT
+    else                        param_dtype := DType;
+
+    var param_shape := input_shape;
+          (*regularizer     : IRegularizer = nil;
+                            synchronization : TVariableSynchronization= VARIABLE_SYNCHRONIZATION_AUTO;
+                            aggregation     : TVariableAggregation    = VARIABLE_AGGREGATION_NONE;
+                            trainable       : Boolean= true;*)
+    if input_mean = nil then
+    begin
+        adapt_mean     := add_weight('mean',     mean_and_var_shape, tf.float32_t, tf.zeros_initializer,nil, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE, false);
+        adapt_variance := add_weight('variance', mean_and_var_shape, tf.float32_t, tf.ones_initializer, nil, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE, false);
+        count          := add_weight('count',   TFShape.Scalar,      tf.int64_t,   tf.zeros_initializer,nil, VARIABLE_SYNCHRONIZATION_AUTO, VARIABLE_AGGREGATION_NONE, false);
+
+        finalize_state;
+    end else
+    begin
+        mean     := input_mean * TTensor(np.ones(mean_and_var_shape));
+        variance := input_variance * TTensor(np.ones(mean_and_var_shape));
+        mean     := tf.reshape(mean, broadcast_shape);
+        variance := tf.reshape(variance, broadcast_shape);
+        mean     := tf.cast(mean, compute_dtype);
+        variance := tf.cast(variance, compute_dtype);
+    end;
+end;
+
+procedure Normalization.reset_state;
+begin
+    if (input_mean <> nil) and ( not Fbuilt) then
+       Exit;
+
+    if      adapt_mean is RefVariable          then (adapt_mean as RefVariable)         .assign(tf.zeros_like(adapt_mean.AsTensor))
+    else if adapt_mean is BaseResourceVariable then (adapt_mean as BaseResourceVariable).assign(tf.zeros_like(adapt_mean.AsTensor));
+    //
+    if      adapt_variance is RefVariable          then (adapt_variance as RefVariable)         .assign(tf.ones_like(adapt_variance.AsTensor))
+    else if adapt_variance is BaseResourceVariable then (adapt_variance as BaseResourceVariable).assign(tf.ones_like(adapt_variance.AsTensor));
+    //
+    if      count is RefVariable          then (count as RefVariable)         .assign(tf.zeros_like(count.AsTensor))
+    else if count is BaseResourceVariable then (count as BaseResourceVariable).assign(tf.zeros_like(count.AsTensor));
+end;
+
+procedure Normalization.finalize_state;
+begin
+    if (input_mean <> nil) and ( not Fbuilt) then Exit;
+
+    mean     := tf.reshape(adapt_mean.AsTensor,     broadcast_shape);
+    variance := tf.reshape(adapt_variance.AsTensor, broadcast_shape);
+end;
+
+procedure Normalization.update_state(data: TFTensor);
+begin
+    data := tf.cast(data, adapt_mean.dtype);
+    var b_variance := tf.nn.moments(data, reduce_axis);
+    var batch_mean     := b_variance.Value1;
+    var batch_variance := b_variance.Value2;
+    var batch_shape    := tf.shape(data, '', count.dtype);
+
+    var batch_count := constant_op.constant(Int64(1));
+    if reduce_axis <> nil then
+    begin
+        var batch_reduce_shape := tf.gather(batch_shape,  constant_op.constant(reduce_axis));
+        batch_count            := tf.reduce_prod(batch_reduce_shape);
+    end;
+    var total_count     := batch_count + TTensor(count.AsTensor);
+    var batch_weight    := tf.cast(batch_count, compute_dtype) / TTensor(tf.cast(total_count, compute_dtype));
+    var existing_weight := Double(1.0) - batch_weight;
+    var total_mean      := adapt_mean.AsTensor * existing_weight + batch_mean * batch_weight;
+
+    var total_variance := (
+            adapt_variance.AsTensor + TTensor(tf.square(adapt_mean.AsTensor - total_mean))
+        ) * existing_weight + (
+            batch_variance + TTensor(tf.square(batch_mean - total_mean))
+        ) * batch_weight;
+
+    if      adapt_mean is RefVariable          then (adapt_mean as RefVariable)         .assign(total_mean)
+    else if adapt_mean is BaseResourceVariable then (adapt_mean as BaseResourceVariable).assign(total_mean);
+    //
+    if      adapt_variance is RefVariable          then (adapt_variance as RefVariable)         .assign(total_variance)
+    else if adapt_variance is BaseResourceVariable then (adapt_variance as BaseResourceVariable).assign(total_variance);
+    //
+    if      count is RefVariable          then (count as RefVariable)         .assign(total_count)
+    else if count is BaseResourceVariable then (count as BaseResourceVariable).assign(total_count);
+end;
+
+function Normalization.ComputeOutputShape(input_shape: TFShape): TFShape;
+begin
+    Result := input_shape;
+end;
+
+procedure Normalization.adapt(data: TFTensor; batch_size, steps: PInteger);
+begin
+   inherited adapt(data, batch_size, steps);
+end;
+
+function Normalization.Call(inputs: TFTensors; state: TFTensor; training: pBoolean): TFTensors;
+begin
+    if args.Invert then
+       Result := mean + ( inputs.First * TTensor(tf.maximum(tf.sqrt(variance), KerasInterface(tf.keras).backend.epsilon)) )
+    else
+       Result := (inputs.first - TTensor(mean)) / tf.maximum(tf.sqrt(variance), KerasInterface(tf.keras).backend.epsilon);
+
 end;
 
 end.

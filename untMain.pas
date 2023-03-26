@@ -993,6 +993,9 @@ begin
     mmo1.Lines.Add('Keras Layer[LayerNormalization]');
     k_Layer.LayerNormalization;
 
+    mmo1.Lines.Add('Keras Layer[Normalization]');
+    k_Layer.Normalization;
+
     mmo1.Lines.Add('');
     mmo1.Lines.Add('End Test Layers Keras Copmlex...');
     mmo1.Lines.Add('========================================');

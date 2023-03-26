@@ -368,6 +368,7 @@ nn_internal = class
   private
 
   public
+    function moments(x: TFTensor; axes: TAxis; name: string = ''; keep_dims : Boolean= false): Tuple<TFTensor,TFTensor>;
     function relu: IActivation;overload;
     function swish: IActivation;
     function tanh: IActivation; overload;
@@ -2490,6 +2491,11 @@ end;
 function nn_internal.leaky_relu(features: TFTensor; alpha: Single; name: string): TFTensor;
 begin
    Result := nn_ops.leaky_relu(features, alpha, name);
+end;
+
+function nn_internal.moments(x: TFTensor; axes: TAxis; name: string; keep_dims: Boolean): Tuple<TFTensor, TFTensor>;
+begin
+   Result := nn_impl.moments(x, axes, name, keep_dims)
 end;
 
 function nn_internal.relu: IActivation;

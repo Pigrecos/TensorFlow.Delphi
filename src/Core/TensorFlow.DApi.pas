@@ -6824,6 +6824,8 @@ end;
 
 function TFShape.GetSize: Int64;
 begin
+    if IsNil then Exit(0);
+
     // scalar
     FSize := 1;
 

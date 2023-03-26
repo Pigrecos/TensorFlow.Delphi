@@ -55,6 +55,8 @@ type
        function AveragePooling2D(pool_size: PTFShape = nil; strides: PTFShape = nil; padding: string = 'valid'; data_format: string = ''): ILayer; overload;
        function AveragePooling2D(pool_size: TFShape ; strides: TFShape ;             padding: string = 'valid'; data_format: string = ''): ILayer; overload;
 
+       function Normalization(input_shape: PTFShape= nil; axis: PInteger = nil; mean : PSingle = nil; variance: PSingle = nil; invert: Boolean = false): ILayer;
+
        /// <summary>
        /// Layer that normalizes its inputs.
        /// Batch normalization applies a transformation that maintains the mean output close to 0 and the output standard deviation close to 1.
@@ -1482,7 +1484,27 @@ begin
    args.BiasConstraint      := bias_constraint;
 
    Result := Keras.Layer.MultiHeadAttention.Create(args);
+end;
 
+function LayersApi.Normalization(input_shape: PTFShape; axis: PInteger; mean, variance: PSingle; invert: Boolean): ILayer;
+begin
+    var Na := NormalizationArgs.Create;
+
+    if input_shape = nil then Na.InputShape := System.Default(TFShape)
+    else                      Na.InputShape := input_shape^;
+
+    if axis = nil then Na.axis := nil
+    else begin   var a : TAxis := axis^;  Na.axis := a; end;
+
+    if mean = nil then Na.Mean := nil
+    else               Na.Mean := mean^;
+
+    if variance = nil then Na.Variance := nil
+    else                   Na.Variance := variance^;
+
+    Na.Invert := invert;
+
+    Result := Keras.Layer.Normalization.Create(Na);
 end;
 
 function LayersApi.Permute(dims: TArray<Integer>): ILayer;
