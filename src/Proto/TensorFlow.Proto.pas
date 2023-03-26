@@ -189,8 +189,8 @@ type
     FName: string;
     FDevice: string;
     FId: Integer;
-    FInputInfos: TList<TInputInfo>;
-    FOutputInfos: TList<TOutputInfo>;
+    FInputInfos: TObjectList<TInputInfo>;
+    FOutputInfos: TObjectList<TOutputInfo>;
     FTemporaryMemorySize: Int64;
     FPersistentMemorySize: Int64;
     FHostTempMemorySize: Int64;
@@ -209,8 +209,8 @@ type
     property Name: string read FName write FName;
     property Device: string read FDevice write FDevice;
     property Id: Integer read FId write FId;
-    property InputInfos: TList<TInputInfo> read FInputInfos;
-    property OutputInfos: TList<TOutputInfo> read FOutputInfos;
+    property InputInfos: TObjectList<TInputInfo> read FInputInfos;
+    property OutputInfos: TObjectList<TOutputInfo> read FOutputInfos;
     property TemporaryMemorySize: Int64 read FTemporaryMemorySize write FTemporaryMemorySize;
     property PersistentMemorySize: Int64 read FPersistentMemorySize write FPersistentMemorySize;
     property HostTempMemorySize: Int64 read FHostTempMemorySize write FHostTempMemorySize;
@@ -244,14 +244,14 @@ type
     ftNodes = 1;
     ftCosts = 2;
   private
-    FNodes: TList<TNode>;
-    FCosts: TList<TAggregatedCost>;
+    FNodes: TObjectList<TNode>;
+    FCosts: TObjectList<TAggregatedCost>;
   public
     Constructor Create;
     destructor  Destroy; Override;
     // properties
-    property Nodes: TList<TNode> read FNodes;
-    property Costs: TList<TAggregatedCost> read FCosts;
+    property Nodes: TObjectList<TNode> read FNodes;
+    property Costs: TObjectList<TAggregatedCost> read FCosts;
   end;
   {$ENDREGION}
 
@@ -333,7 +333,7 @@ type
     FTotalBytes: Int64;
     FPeakBytes: Int64;
     FLiveBytes: Int64;
-    FAllocationRecordss: TList<TAllocationRecord>;
+    FAllocationRecordss: TObjectList<TAllocationRecord>;
     FAllocatorBytesInUse: Int64;
   public
     Constructor Create;
@@ -343,7 +343,7 @@ type
     property TotalBytes: Int64 read FTotalBytes write FTotalBytes;
     property PeakBytes: Int64 read FPeakBytes write FPeakBytes;
     property LiveBytes: Int64 read FLiveBytes write FLiveBytes;
-    property AllocationRecordss: TList<TAllocationRecord> read FAllocationRecordss;
+    property AllocationRecordss: TObjectList<TAllocationRecord> read FAllocationRecordss;
     property AllocatorBytesInUse: Int64 read FAllocatorBytesInUse write FAllocatorBytesInUse;
   end;
 
@@ -759,9 +759,9 @@ type
     FFs     : TList<Single>;
     FBs     : TList<Boolean>;
     FTypes  : TList<TDataType>;
-    FShapes : TList<TTensorShapeProto>;
-    FTensors: TList<TTensorProto>;
-    FFuncs  : TList<TNameAttrList>;
+    FShapes : TObjectList<TTensorShapeProto>;
+    FTensors: TObjectList<TTensorProto>;
+    FFuncs  : TObjectList<TNameAttrList>;
   public
     Constructor Create;
     destructor  Destroy; Override;
@@ -771,9 +771,9 @@ type
     property Fs: TList<Single> read FFs;
     property Bs: TList<Boolean> read FBs;
     property Types: TList<TDataType> read FTypes;
-    property Shapes: TList<TTensorShapeProto> read FShapes;
-    property Tensors: TList<TTensorProto> read FTensors;
-    property Funcs: TList<TNameAttrList> read FFuncs;
+    property Shapes: TObjectList<TTensorShapeProto> read FShapes;
+    property Tensors: TObjectList<TTensorProto> read FTensors;
+    property Funcs: TObjectList<TNameAttrList> read FFuncs;
   end;
 
   TAttrValue = Class
@@ -960,7 +960,7 @@ type
     FFailOnOptimizerErrors: Boolean;
     FScopedAllocatorOpts: TScopedAllocatorOptions;
     FOptimizerss: TList<string>;
-    FCustomOptimizerss: TList<TCustomGraphOptimizer>;
+    FCustomOptimizerss: TObjectList<TCustomGraphOptimizer>;
     FInterOptimizerVerifierConfig: TVerifierConfig;
     FPostOptimizationVerifierConfig: TVerifierConfig;
   public
@@ -998,7 +998,7 @@ type
     property FailOnOptimizerErrors: Boolean read FFailOnOptimizerErrors write FFailOnOptimizerErrors;
     property ScopedAllocatorOpts: TScopedAllocatorOptions read FScopedAllocatorOpts write FScopedAllocatorOpts;
     property Optimizerss: TList<string> read FOptimizerss;
-    property CustomOptimizerss: TList<TCustomGraphOptimizer> read FCustomOptimizerss;
+    property CustomOptimizerss: TObjectList<TCustomGraphOptimizer> read FCustomOptimizerss;
     property InterOptimizerVerifierConfig: TVerifierConfig read FInterOptimizerVerifierConfig write FInterOptimizerVerifierConfig;
     property PostOptimizationVerifierConfig: TVerifierConfig read FPostOptimizationVerifierConfig write FPostOptimizationVerifierConfig;
   end;
@@ -1255,16 +1255,16 @@ type
     ftGradients = 2;
     ftRegisteredGradientss = 3;
   private
-    FFunctions: TList<TFunctionDef>;
-    FGradients: TList<TGradientDef>;
-    FRegisteredGradientss: TList<TRegisteredGradient>;
+    FFunctions: TObjectList<TFunctionDef>;
+    FGradients: TObjectList<TGradientDef>;
+    FRegisteredGradientss: TObjectList<TRegisteredGradient>;
   public
     Constructor Create;
     destructor  Destroy; Override;
     // properties
-    property Functions: TList<TFunctionDef> read FFunctions;
-    property Gradients: TList<TGradientDef> read FGradients;
-    property RegisteredGradientss: TList<TRegisteredGradient> read FRegisteredGradientss;
+    property Functions: TObjectList<TFunctionDef> read FFunctions;
+    property Gradients: TObjectList<TGradientDef> read FGradients;
+    property RegisteredGradientss: TObjectList<TRegisteredGradient> read FRegisteredGradientss;
   end;
 
   TArgAttrs = Class
@@ -1295,7 +1295,7 @@ type
     FAttr: TStringAttrValue;
     FArgAttr: TUint32ArgAttrs;
     FResourceArgUniqueId: TUint32Uint32;
-    FNodeDefs: TList<TNodeDef>;
+    FNodeDefs: TObjectList<TNodeDef>;
     FRet: TStringString;
     FControlRet: TStringString;
   public
@@ -1306,7 +1306,7 @@ type
     property Attr: TStringAttrValue read FAttr write FAttr;
     property ArgAttr: TUint32ArgAttrs read FArgAttr write FArgAttr;
     property ResourceArgUniqueId: TUint32Uint32 read FResourceArgUniqueId write FResourceArgUniqueId;
-    property NodeDefs: TList<TNodeDef> read FNodeDefs;
+    property NodeDefs: TObjectList<TNodeDef> read FNodeDefs;
     property Ret: TStringString read FRet write FRet;
     property ControlRet: TStringString read FControlRet write FControlRet;
   end;
@@ -1370,7 +1370,7 @@ type
     ftVersion = 3;
     ftLibrary = 2;
   private
-    FNodes: TList<TNodeDef>;
+    FNodes: TObjectList<TNodeDef>;
     FVersions: TVersionDef;
     FVersion: Integer;
     FLibrary: TFunctionDefLibrary;
@@ -1378,7 +1378,7 @@ type
     Constructor Create;
     destructor  Destroy; Override;
     // properties
-    property Nodes: TList<TNodeDef> read FNodes;
+    property Nodes: TObjectList<TNodeDef> read FNodes;
     property Versions: TVersionDef read FVersions write FVersions;
     property Version: Integer read FVersion write FVersion;
     property &Library: TFunctionDefLibrary read FLibrary write FLibrary;
@@ -1428,7 +1428,7 @@ type
           ftInternalFragmentationFraction = 10;
           ftUseCudaMallocAsync = 11;
         private
-          FVirtualDevicess: TList<TVirtualDevices>;
+          FVirtualDevicess: TObjectList<TVirtualDevices>;
           FUseUnifiedMemory: Boolean;
           FNumDevToDevCopyStreams: Integer;
           FCollectiveRingOrder: string;
@@ -1442,7 +1442,7 @@ type
           Constructor Create;
           destructor  Destroy; Override;
           // properties
-          property VirtualDevicess: TList<TVirtualDevices> read FVirtualDevicess;
+          property VirtualDevicess: TObjectList<TVirtualDevices> read FVirtualDevicess;
           property UseUnifiedMemory: Boolean read FUseUnifiedMemory write FUseUnifiedMemory;
           property NumDevToDevCopyStreams: Integer read FNumDevToDevCopyStreams write FNumDevToDevCopyStreams;
           property CollectiveRingOrder: string read FCollectiveRingOrder write FCollectiveRingOrder;
@@ -1713,7 +1713,7 @@ type
     FIntraOpParallelismThreads: Integer;
     FInterOpParallelismThreads: Integer;
     FUsePerSessionThreads: Boolean;
-    FSessionInterOpThreadPools: TList<TThreadPoolOptionProto>;
+    FSessionInterOpThreadPools: TObjectList<TThreadPoolOptionProto>;
     FPlacementPeriod: Integer;
     FDeviceFilterss: TList<string>;
     FGpuOptions: TGPUOptions;
@@ -1734,7 +1734,7 @@ type
     property IntraOpParallelismThreads: Integer read FIntraOpParallelismThreads write FIntraOpParallelismThreads;
     property InterOpParallelismThreads: Integer read FInterOpParallelismThreads write FInterOpParallelismThreads;
     property UsePerSessionThreads: Boolean read FUsePerSessionThreads write FUsePerSessionThreads;
-    property SessionInterOpThreadPools: TList<TThreadPoolOptionProto> read FSessionInterOpThreadPools;
+    property SessionInterOpThreadPools: TObjectList<TThreadPoolOptionProto> read FSessionInterOpThreadPools;
     property PlacementPeriod: Integer read FPlacementPeriod write FPlacementPeriod;
     property DeviceFilterss: TList<string> read FDeviceFilterss;
     property GpuOptions: TGPUOptions read FGpuOptions write FGpuOptions;
@@ -1822,14 +1822,14 @@ type
     ftPreOptimizationGraph = 2;
     ftPostOptimizationGraph = 3;
   private
-    FPartitionGraphss: TList<TGraphDef>;
+    FPartitionGraphss: TObjectList<TGraphDef>;
     FPreOptimizationGraph: TGraphDef;
     FPostOptimizationGraph: TGraphDef;
   public
     Constructor Create;
     destructor  Destroy; Override;
     // properties
-    property PartitionGraphss: TList<TGraphDef> read FPartitionGraphss;
+    property PartitionGraphss: TObjectList<TGraphDef> read FPartitionGraphss;
     property PreOptimizationGraph: TGraphDef read FPreOptimizationGraph write FPreOptimizationGraph;
     property PostOptimizationGraph: TGraphDef read FPostOptimizationGraph write FPostOptimizationGraph;
   end;
@@ -1843,16 +1843,16 @@ type
   private
     FStepStats: TStepStats;
     FCostGraph: TCostGraphDef;
-    FPartitionGraphss: TList<TGraphDef>;
-    FFunctionGraphss: TList<TFunctionGraphs>;
+    FPartitionGraphss: TObjectList<TGraphDef>;
+    FFunctionGraphss: TObjectList<TFunctionGraphs>;
   public
     Constructor Create;
     destructor  Destroy; Override;
     // properties
     property StepStats: TStepStats read FStepStats write FStepStats;
     property CostGraph: TCostGraphDef read FCostGraph write FCostGraph;
-    property PartitionGraphss: TList<TGraphDef> read FPartitionGraphss;
-    property FunctionGraphss: TList<TFunctionGraphs> read FFunctionGraphss;
+    property PartitionGraphss: TObjectList<TGraphDef> read FPartitionGraphss;
+    property FunctionGraphss: TObjectList<TFunctionGraphs> read FFunctionGraphss;
   end;
 
   TTensorConnection = Class
@@ -1885,7 +1885,7 @@ type
     FFetchs: TList<string>;
     FTargets: TList<string>;
     FRunOptions: TRunOptions;
-    FTensorConnections: TList<TTensorConnection>;
+    FTensorConnections: TObjectList<TTensorConnection>;
     FFeedDevices: TStringString;
     FFetchDevices: TStringString;
     FFetchSkipSync: Boolean;
@@ -1897,7 +1897,7 @@ type
     property Fetchs: TList<string> read FFetchs;
     property Targets: TList<string> read FTargets;
     property RunOptions: TRunOptions read FRunOptions write FRunOptions;
-    property TensorConnections: TList<TTensorConnection> read FTensorConnections;
+    property TensorConnections: TObjectList<TTensorConnection> read FTensorConnections;
     property FeedDevices: TStringString read FFeedDevices write FFeedDevices;
     property FetchDevices: TStringString read FFetchDevices write FFetchDevices;
     property FetchSkipSync: Boolean read FFetchSkipSync write FFetchSkipSync;
@@ -2000,13 +2000,13 @@ type
     ftShapeAndTypes = 2;
   private
     FIsSet: Boolean;
-    FShapeAndTypes: TList<THandleShapeAndType>;
+    FShapeAndTypes: TObjectList<THandleShapeAndType>;
   public
     Constructor Create;
     destructor  Destroy; Override;
     // properties
     property IsSet: Boolean read FIsSet write FIsSet;
-    property ShapeAndTypes: TList<THandleShapeAndType> read FShapeAndTypes;
+    property ShapeAndTypes: TObjectList<THandleShapeAndType> read FShapeAndTypes;
   end;
 
   TCppShapeInferenceResult = Class
@@ -2083,7 +2083,7 @@ type
     FPivotName: string;
     FBranch: Integer;
     FValuesDef: TValuesDef;
-    FNestedContextss: TList<TControlFlowContextDef>;
+    FNestedContextss: TObjectList<TControlFlowContextDef>;
   public
     Constructor Create;
     destructor  Destroy; Override;
@@ -2093,7 +2093,7 @@ type
     property PivotName: string read FPivotName write FPivotName;
     property Branch: Integer read FBranch write FBranch;
     property ValuesDef: TValuesDef read FValuesDef write FValuesDef;
-    property NestedContextss: TList<TControlFlowContextDef> read FNestedContextss;
+    property NestedContextss: TObjectList<TControlFlowContextDef> read FNestedContextss;
   end;
 
   TWhileContextDef = Class
@@ -2122,7 +2122,7 @@ type
     FLoopEnterNamess: TList<string>;
     FValuesDef: TValuesDef;
     FMaximumIterationsName: string;
-    FNestedContextss: TList<TControlFlowContextDef>;
+    FNestedContextss: TObjectList<TControlFlowContextDef>;
   public
     Constructor Create;
     destructor  Destroy; Override;
@@ -2138,7 +2138,7 @@ type
     property LoopEnterNamess: TList<string> read FLoopEnterNamess;
     property ValuesDef: TValuesDef read FValuesDef write FValuesDef;
     property MaximumIterationsName: string read FMaximumIterationsName write FMaximumIterationsName;
-    property NestedContextss: TList<TControlFlowContextDef> read FNestedContextss;
+    property NestedContextss: TObjectList<TControlFlowContextDef> read FNestedContextss;
   end;
   {$ENDREGION}
 
@@ -2207,17 +2207,20 @@ Constructor TNode.Create;
 begin
   inherited Create;
 
-  FInputInfos := TList<TInputInfo>.Create;
-
-  FOutputInfos := TList<TOutputInfo>.Create;
+  FInputInfos  := TObjectList<TInputInfo>.Create;
+  FOutputInfos := TObjectList<TOutputInfo>.Create;
 
   FControlInputs := TList<Integer>.Create;
 end;
 
 destructor TNode.Destroy;
 begin
+  FInputInfos.Clear;
   FInputInfos.Free;
+
+  FOutputInfos.Clear;
   FOutputInfos.Free;
+
   FControlInputs.Free;
   inherited Destroy;
 end;
@@ -2240,14 +2243,16 @@ Constructor TCostGraphDef.Create;
 begin
   inherited Create;
 
-  FNodes := TList<TNode>.Create;
-
-  FCosts := TList<TAggregatedCost>.Create;
+  FNodes := TObjectList<TNode>.Create;
+  FCosts := TObjectList<TAggregatedCost>.Create;
 end;
 
 destructor TCostGraphDef.Destroy;
 begin
+  FNodes.Clear;
   FNodes.Free;
+
+  FCosts.Clear;
   FCosts.Free;
   inherited Destroy;
 end;
@@ -2300,11 +2305,12 @@ Constructor TAllocatorMemoryUsed.Create;
 begin
   inherited Create;
 
-  FAllocationRecordss := TList<TAllocationRecord>.Create;
+  FAllocationRecordss := TObjectList<TAllocationRecord>.Create;
 end;
 
 destructor TAllocatorMemoryUsed.Destroy;
 begin
+  FAllocationRecordss.Clear;
   FAllocationRecordss.Free;
   inherited Destroy;
 end;
@@ -2605,9 +2611,9 @@ begin
   FFs      := TList<Single>.Create;
   FBs      := TList<Boolean>.Create;
   FTypes   := TList<TDataType>.Create;
-  FShapes  := TList<TTensorShapeProto>.Create;
-  FTensors := TList<TTensorProto>.Create;
-  FFuncs   := TList<TNameAttrList>.Create;
+  FShapes  := TObjectList<TTensorShapeProto>.Create;
+  FTensors := TObjectList<TTensorProto>.Create;
+  FFuncs   := TObjectList<TNameAttrList>.Create;
 end;
 
 destructor TListValue.Destroy;
@@ -2617,8 +2623,14 @@ begin
   FFs.Free;
   FBs.Free;
   FTypes.Free;
+
+  FShapes.Clear;
   FShapes.Free;
+
+  FTensors.Clear;
   FTensors.Free;
+
+  FFuncs.Clear;
   FFuncs.Free;
   inherited Destroy;
 end;
@@ -2714,7 +2726,7 @@ begin
 
   FOptimizerss := TList<string>.Create;
 
-  FCustomOptimizerss := TList<TCustomGraphOptimizer>.Create;
+  FCustomOptimizerss := TObjectList<TCustomGraphOptimizer>.Create;
 end;
 
 destructor TRewriterConfig.Destroy;
@@ -2823,13 +2835,16 @@ end;
 destructor TOpDef.Destroy;
 begin
   FInputArgs.Clear;
-  FInputArgs.Free;
+  FreeAndNil(FInputArgs);
+
   FOutputArgs.Clear;
-  FOutputArgs.Free;
+  FreeAndNil(FOutputArgs);
+
   FControlOutputs.Clear;
-  FControlOutputs.Free;
+  FreeAndNil(FControlOutputs);
+
   FAttrs.Clear;
-  FAttrs.Free;
+  FreeAndNil(FAttrs);
   inherited Destroy;
 end;
 
@@ -2856,6 +2871,7 @@ end;
 
 destructor TOpList.Destroy;
 begin
+  FOps.Clear;
   FOps.Free;
   inherited Destroy;
 end;
@@ -2868,17 +2884,20 @@ Constructor TFunctionDefLibrary.Create;
 begin
   inherited Create;
 
-  FFunctions := TList<TFunctionDef>.Create;
-
-  FGradients := TList<TGradientDef>.Create;
-
-  FRegisteredGradientss := TList<TRegisteredGradient>.Create;
+  FFunctions := TObjectList<TFunctionDef>.Create;
+  FGradients := TObjectList<TGradientDef>.Create;
+  FRegisteredGradientss := TObjectList<TRegisteredGradient>.Create;
 end;
 
 destructor TFunctionDefLibrary.Destroy;
 begin
+  FFunctions.Clear;
   FFunctions.Free;
+
+  FGradients.Clear;
   FGradients.Free;
+
+  FRegisteredGradientss.Clear;
   FRegisteredGradientss.Free;
   inherited Destroy;
 end;
@@ -2906,7 +2925,7 @@ begin
   FArgAttr := TDictionary<UInt32, TArgAttrs>.Create;
   FResourceArgUniqueId := TDictionary<UInt32, UInt32>.Create;
 
-  FNodeDefs := TList<TNodeDef>.Create;
+  FNodeDefs := TObjectList<TNodeDef>.Create;
   FRet := TDictionary<string, string>.Create;
   FControlRet := TDictionary<string, string>.Create;
 end;
@@ -2916,6 +2935,7 @@ begin
   FAttr.Free;
   FArgAttr.Free;
   FResourceArgUniqueId.Free;
+  FNodeDefs.Clear;
   FNodeDefs.Free;
   FRet.Free;
   FControlRet.Free;
@@ -2972,11 +2992,12 @@ Constructor TGraphDef.Create;
 begin
   inherited Create;
 
-  FNodes := TList<TNodeDef>.Create;
+  FNodes := TObjectList<TNodeDef>.Create;
 end;
 
 destructor TGraphDef.Destroy;
 begin
+  FNodes.Clear;
   FNodes.Free;
   inherited Destroy;
 end;
@@ -3082,7 +3103,7 @@ Constructor TConfigProto.Create;
 begin
   inherited Create;
   FDeviceCount               := TDictionary<string, Integer>.Create;
-  FSessionInterOpThreadPools := TList<TThreadPoolOptionProto>.Create;
+  FSessionInterOpThreadPools := TObjectList<TThreadPoolOptionProto>.Create;
   FDeviceFilterss            := TList<string>.Create;
   FExperimental              := TExperimental.Create;
 end;
@@ -3090,6 +3111,7 @@ end;
 destructor TConfigProto.Destroy;
 begin
   FDeviceCount.Free;
+  FSessionInterOpThreadPools.Clear;
   FSessionInterOpThreadPools.Free;
   FDeviceFilterss.Free;
   FExperimental.Free;
@@ -3128,11 +3150,12 @@ Constructor TFunctionGraphs.Create;
 begin
   inherited Create;
 
-  FPartitionGraphss := TList<TGraphDef>.Create;
+  FPartitionGraphss := TObjectList<TGraphDef>.Create;
 end;
 
 destructor TFunctionGraphs.Destroy;
 begin
+  FPartitionGraphss.Clear;
   FPartitionGraphss.Free;
   inherited Destroy;
 end;
@@ -3143,14 +3166,16 @@ Constructor TRunMetadata.Create;
 begin
   inherited Create;
 
-  FPartitionGraphss := TList<TGraphDef>.Create;
-
-  FFunctionGraphss := TList<TFunctionGraphs>.Create;
+  FPartitionGraphss := TObjectList<TGraphDef>.Create;
+  FFunctionGraphss := TObjectList<TFunctionGraphs>.Create;
 end;
 
 destructor TRunMetadata.Destroy;
 begin
+  FPartitionGraphss.Clear;
   FPartitionGraphss.Free;
+
+  FFunctionGraphss.Clear;
   FFunctionGraphss.Free;
   inherited Destroy;
 end;
@@ -3174,12 +3199,10 @@ begin
   inherited Create;
 
   FFeeds := TList<string>.Create;
-
   FFetchs := TList<string>.Create;
-
   FTargets := TList<string>.Create;
 
-  FTensorConnections := TList<TTensorConnection>.Create;
+  FTensorConnections := TObjectList<TTensorConnection>.Create;
   FFeedDevices := TDictionary<string, string>.Create;
   FFetchDevices := TDictionary<string, string>.Create;
 end;
@@ -3189,6 +3212,8 @@ begin
   FFeeds.Free;
   FFetchs.Free;
   FTargets.Free;
+
+  FTensorConnections.Clear;
   FTensorConnections.Free;
   FFeedDevices.Free;
   FFetchDevices.Free;
@@ -3200,11 +3225,12 @@ end;
 constructor TGPUOptions.TExperimental.Create;
 begin
   inherited Create;
-  FVirtualDevicess := TList<TVirtualDevices>.Create;
+  FVirtualDevicess := TObjectList<TVirtualDevices>.Create;
 end;
 
 destructor TGPUOptions.TExperimental.Destroy;
 begin
+  FVirtualDevicess.Clear;
   FVirtualDevicess.Free;
   inherited Destroy;
 end;
@@ -3286,12 +3312,14 @@ Constructor THandleData.Create;
 begin
   inherited Create;
 
-  FShapeAndTypes := TList<THandleShapeAndType>.Create;
+  FShapeAndTypes := TObjectList<THandleShapeAndType>.Create;
 end;
 
 destructor THandleData.Destroy;
 begin
+  FShapeAndTypes.Clear;
   FShapeAndTypes.Free;
+
   inherited Destroy;
 end;
 
@@ -3362,11 +3390,12 @@ Constructor TCondContextDef.Create;
 begin
   inherited Create;
 
-  FNestedContextss := TList<TControlFlowContextDef>.Create;
+  FNestedContextss := TObjectList<TControlFlowContextDef>.Create;
 end;
 
 destructor TCondContextDef.Destroy;
 begin
+  FNestedContextss.Clear;
   FNestedContextss.Free;
   inherited Destroy;
 end;
@@ -3379,13 +3408,15 @@ begin
 
   FLoopExitNamess  := TList<string>.Create;
   FLoopEnterNamess := TList<string>.Create;
-  FNestedContextss := TList<TControlFlowContextDef>.Create;
+  FNestedContextss := TObjectList<TControlFlowContextDef>.Create;
 end;
 
 destructor TWhileContextDef.Destroy;
 begin
   FLoopExitNamess.Free;
   FLoopEnterNamess.Free;
+
+  FNestedContextss.Clear;
   FNestedContextss.Free;
   inherited Destroy;
 end;

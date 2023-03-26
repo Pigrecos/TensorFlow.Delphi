@@ -41,6 +41,8 @@ type
 
         property GradFunction  : TArray<TGradFunc> read FGradFunction;
     end;
+    function _ShapesFullySpecifiedAndEqual(x: TFTensor; y: TFTensor; grad: TFTensor): Boolean;
+    function SmartBroadcastGradientArgs(x: TFTensor; y: TFTensor; grad: TFTensor): TArray< Tuple<TFTensor, TFTensor, boolean>>;
 
 implementation
       uses Tensorflow,

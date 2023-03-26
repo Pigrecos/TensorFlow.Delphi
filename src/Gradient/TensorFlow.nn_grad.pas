@@ -48,8 +48,8 @@ implementation
              TensorFlow.Ops,
              TensorFlow.Tensor,
              TensorFlow.Operations,
-
-             TensorFlow.NnOps;
+             TensorFlow.NnOps,
+             TensorFlow.math_grad;
 
 function  IsZero(g: TFTensor): Boolean;
 var
@@ -177,10 +177,38 @@ var
 begin
     x := op.inputs[0];
     y := op.inputs[1];
+    var grad := grads[0];
 
     scale  := Tops.convert_to_tensor(Single(2.0), x.dtype);
     x_grad := math_ops.scalar_mul(scale, grads[0]) * (x - TTensor(y));
-    Result := [x_grad, -TTensor(x_grad)];
+    if _ShapesFullySpecifiedAndEqual(x, y, grad) then
+    begin
+        Result := [x_grad, -TTensor(x_grad)];
+        Exit;
+    end;
+
+    var broadcast_info := SmartBroadcastGradientArgs(x, y, grad);
+    Assert(Length(broadcast_info) = 2);
+
+    var b0 := broadcast_info[0];
+    var b1 := broadcast_info[1];
+
+    var sx := b0.Value1;
+    var rx := b0.Value2;
+    var must_reduce_x := b0.Value3;
+
+    var sy := b1.Value1;
+    var ry := b1.Value2;
+    var must_reduce_y := b1.Value3;
+
+    var gx, gy : TFTensor;
+    if must_reduce_x then  gx := array_ops.reshape(math_ops.reduce_sum(x_grad, rx), sx)
+    else                   gx := x_grad;
+
+    if must_reduce_y then  gy := -TTensor(array_ops.reshape(math_ops.reduce_sum(x_grad, ry), sy))
+    else                   gy := -TTEnsor(x_grad);
+
+    Result := [ gx, gy ];
 end;
 
 /// <summary>

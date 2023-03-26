@@ -2946,7 +2946,6 @@ end;
 class function op_def_registry.get_registered_ops: TDictionary<string, TOpDef>;
 var
   Loader: TpbLoader;
-
 begin
     if not Assigned(registered_ops)  then
        registered_ops := TDictionary<string, TOpDef>.Create;
@@ -3273,8 +3272,10 @@ end;
 
 procedure TFuncGraph.NativeDispose(hnd: Pointer);
 begin
-  TFE_ContextRemoveFunction(tf.Context.Handle_,PAnsiChar(AnsiString (Fgraph_key) ), tf.Status.Handle);
-  TF_DeleteFunction(F_func_graph_handle);
+  if Assigned(tf.Context.Handle_) then
+    TFE_ContextRemoveFunction(tf.Context.Handle_,PAnsiChar(AnsiString (Fgraph_key) ), tf.Status.Handle);
+  if Assigned(F_func_graph_handle) then
+    TF_DeleteFunction(F_func_graph_handle);
 
   inherited NativeDispose(hnd);
 end;

@@ -218,7 +218,7 @@ type
       // Key for control flow context.
       COND_CONTEXT_         :  string = 'cond_context';
       WHILE_CONTEXT_        :  string = 'while_context';
-    class var
+    var
       CONCATENATED_VARIABLES : String;
       /// <summary>
       /// the subset of `Variable` objects that will be trained by an optimizer.
@@ -268,6 +268,7 @@ type
       COND_CONTEXT : String;
       WHILE_CONTEXT : String;
       class function Create: TGraphKeys; static;
+
   end;
 {$ENDREGION}
 
@@ -2378,25 +2379,25 @@ end;
 
 class function TGraphKeys.Create: TGraphKeys;
 begin
-    CONCATENATED_VARIABLES       := CONCATENATED_VARIABLES_;
-    TRAINABLE_VARIABLES          := TRAINABLE_VARIABLES_;
-    TRAINABLE_RESOURCE_VARIABLES := TRAINABLE_RESOURCE_VARIABLES_;
-    _STREAMING_MODEL_PORTS       := _STREAMING_MODEL_PORTS_;
-    LOCAL_VARIABLES              := LOCAL_VARIABLES_;
-    LOSSES                       := LOSSES_;
-    METRIC_VARIABLES             := METRIC_VARIABLES_;
-    MOVING_AVERAGE_VARIABLES     := MOVING_AVERAGE_VARIABLES_;
-    GLOBAL_VARIABLES             := GLOBAL_VARIABLES_;
-    TRAIN_OP                     := TRAIN_OP_;
-    GLOBAL_STEP                  := GLOBAL_STEP_;
-    GLOBAL_STEP_READ_KEY         := 'global_step_read_op_cache';
-    _VARIABLE_COLLECTIONS := TArray.Copy<string>(_VARIABLE_COLLECTIONS_);
-    SAVEABLE_OBJECTS             := SAVEABLE_OBJECTS_;
-    UPDATE_OPS                   := UPDATE_OPS_;
-    SUMMARIES                    := SUMMARIES_;
-    _SUMMARY_COLLECTION          := _SUMMARY_COLLECTION_;
-    COND_CONTEXT                 := COND_CONTEXT_;
-    WHILE_CONTEXT                := WHILE_CONTEXT_;
+    Result.CONCATENATED_VARIABLES       := CONCATENATED_VARIABLES_;
+    Result.TRAINABLE_VARIABLES          := TRAINABLE_VARIABLES_;
+    Result.TRAINABLE_RESOURCE_VARIABLES := TRAINABLE_RESOURCE_VARIABLES_;
+    Result._STREAMING_MODEL_PORTS       := _STREAMING_MODEL_PORTS_;
+    Result.LOCAL_VARIABLES              := LOCAL_VARIABLES_;
+    Result.LOSSES                       := LOSSES_;
+    Result.METRIC_VARIABLES             := METRIC_VARIABLES_;
+    Result.MOVING_AVERAGE_VARIABLES     := MOVING_AVERAGE_VARIABLES_;
+    Result.GLOBAL_VARIABLES             := GLOBAL_VARIABLES_;
+    Result.TRAIN_OP                     := TRAIN_OP_;
+    Result.GLOBAL_STEP                  := GLOBAL_STEP_;
+    Result.GLOBAL_STEP_READ_KEY         := 'global_step_read_op_cache';
+    Result._VARIABLE_COLLECTIONS := TArray.Copy<string>(_VARIABLE_COLLECTIONS_);
+    Result.SAVEABLE_OBJECTS             := SAVEABLE_OBJECTS_;
+    Result.UPDATE_OPS                   := UPDATE_OPS_;
+    Result.SUMMARIES                    := SUMMARIES_;
+    Result._SUMMARY_COLLECTION          := _SUMMARY_COLLECTION_;
+    Result.COND_CONTEXT                 := COND_CONTEXT_;
+    Result.WHILE_CONTEXT                := WHILE_CONTEXT_;
 end;
 
 {$ENDREGION}
