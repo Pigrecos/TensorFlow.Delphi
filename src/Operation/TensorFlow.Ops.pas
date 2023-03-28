@@ -893,6 +893,7 @@ begin
 
        TF_SetAttrValueProto(op_desc.Handle, PTFChar( TF_TString(attr.Key)), @bytes[0], Len, status.Handle);
        status.CheckMaybeRaise(status,True);
+       S.Free;
    end;
 
    var c_op := TF_FinishOperation(op_desc.Handle, status.Handle);

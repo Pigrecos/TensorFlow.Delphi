@@ -355,7 +355,7 @@ begin
     GetTextExtentPoint32(DC, PChar(Text), Length(Text), Size);
     Result := Size.cx;
   finally
-    ReleaseDC(0, DC);
+    DeleteDC(DC);
   end;
 end;
 
