@@ -217,6 +217,7 @@ begin
     utils.Free;
     preprocessing.Free;
     datasets.free;
+    backend.Free;
 
     inherited Destroy;
 end;
