@@ -648,6 +648,12 @@ begin
     //tf.keras.utils.get_file('v0.70.2-NET6.zip','https://github.com/SciSharp/TensorFlow.NET/archive/refs/tags/v0.70.2-NET6.zip');
 
     mmo1.Clear;
+    mmo1.Lines.Add('Test EarlyStopping callback...');
+    mmo1.Lines.Add('========================================');
+    mmo1.Lines.Add('');
+    Earltstopping;
+
+    mmo1.Clear;
     mmo1.Lines.Add('Test Keras Activation Layers...');
     mmo1.Lines.Add('========================================');
     mmo1.Lines.Add('');
@@ -1050,12 +1056,14 @@ end;
 
 procedure TfrmMain.btnModelsClick(Sender: TObject);
 begin
+    mmo1.Clear;
+    mmo1.Lines.Add('Testing Multi Inputs with LeNetModel..');
     TKerasUnitsTest.LeNetModel ;
    // mnistGAN under development and Testing...
-    var mnistGAN := TMnistGAN.Create;
+   (* var mnistGAN := TMnistGAN.Create;
     mmo1.Clear;
     mmo1.Lines.Add('Model Name: '+ mnistGAN.Config.Name);
-    mnistGAN.Run;
+    mnistGAN.Run;*)
   //
     var Cnn := DigitRecognitionCnnKeras.Create;
     mmo1.Clear;

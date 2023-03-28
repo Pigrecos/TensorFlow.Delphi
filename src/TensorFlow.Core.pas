@@ -3199,6 +3199,7 @@ destructor DefaultGraphStack.Destroy;
 begin
   F_stack.Clear;
   F_stack.Free;
+
   inherited Destroy;
 end;
 
@@ -3231,7 +3232,7 @@ end;
 procedure DefaultGraphStack.reset;
 begin
     F_stack.Clear;
-    F_global_default_graph.Destroy;
+    F_global_default_graph.Free;
 end;
 
 { TFuncGraph }
@@ -3272,8 +3273,9 @@ end;
 
 procedure TFuncGraph.NativeDispose(hnd: Pointer);
 begin
-  if Assigned(tf.Context.Handle_) then
+  if  (Assigned(tf)) and (Assigned(tf.Context)) and (Assigned(tf.Context.Handle_) )then
     TFE_ContextRemoveFunction(tf.Context.Handle_,PAnsiChar(AnsiString (Fgraph_key) ), tf.Status.Handle);
+
   if Assigned(F_func_graph_handle) then
     TF_DeleteFunction(F_func_graph_handle);
 

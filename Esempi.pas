@@ -350,6 +350,8 @@ type
    procedure On_Train_Batch_Begin(msg: string);
    procedure On_End_Summary(msg: string);
 
+   procedure Earltstopping;
+
 implementation
         uses untMain,
 
@@ -358,6 +360,7 @@ implementation
              Keras.LossFunc,
              Keras.Utils,
              keras.Preprocessing,
+             keras.Callbacks,
 
              Tensorflow.Proto;
 
@@ -374,6 +377,64 @@ end;
 procedure On_End_Summary(msg: string);
 begin
     frmMain.mmo1.Lines.Add(msg)
+end;
+
+// Because loading the weight variable into the model has not yet been implemented,
+// so you'd better not set patience too large, because the weights will equal to the last epoch's weights.
+procedure Earltstopping;
+var
+  lst_Layers : TList<ILayer>;
+  layers     : ILayersApi;
+  input_shape: TFShape;
+  earlystop  : ICallback;
+begin
+    layers := tf.keras.layers;
+    lst_Layers := TList<ILayer>.Create;
+    try
+      input_shape := [32, 32, 3];
+      lst_Layers.Add( layers.Rescaling(1.0 / 255, 0 ,@input_shape ) );
+      lst_Layers.Add( layers.Conv2D(32, 3, 'relu', 'same' ) );
+      lst_Layers.Add( layers.MaxPooling2D );
+      lst_Layers.Add( layers.Flatten );
+      lst_Layers.Add( layers.Dense(128, tf.keras.activations.Relu) );
+      lst_Layers.Add( layers.Dense(10) );
+      var mModel := tf.keras.Sequential(lst_Layers);
+
+      mModel.OnEpochBegin      := On_Epoch_Begin;
+      mModel.OnTrainBatchBegin := On_Train_Batch_Begin;
+      mModel.OnEndSummary      := On_End_Summary;
+
+      mModel.summary;
+
+      mModel.compile(tf.keras.optimizers.RMSprop(1e-3), tf.keras.losses.SparseCategoricalCrossentropy('', '', true), [ 'acc' ]);
+
+      var num_epochs := 3;
+      var batch_size := 8;
+
+      var dp := KerasInterface(tf.keras).datasets.cifar10.load_data;
+      var x_train := dp.Train.Value1;
+      var y_train := dp.Train.Value2;
+
+      var x_test  := dp.Test.Value1;
+      var y_test  := dp.Test.Value2;
+
+      x_train := NDArray(x_train) / Single(255.0);
+
+      // define a CallbackParams first, the parameters you pass al least contain Model and Epochs.
+      var callback_parameters := CallbackParams.Create;
+      callback_parameters.mModel := mModel;
+      callback_parameters.Epochs := num_epochs;
+
+      // define your earlystop
+      earlystop := EarlyStopping.Create(callback_parameters, 'accuracy');
+      // define a callbcaklist, then add the earlystopping to it.
+      var callbacks := TList<ICallback>.Create;
+      callbacks.add(earlystop);
+
+      mModel.fit(x_train[[Slice.Create(0, 2000)]], y_train[[Slice.Create(0, 2000)]], batch_size, num_epochs,callbacks);
+    finally
+     lst_Layers.free;
+    end;
 end;
 
 { LinearRegression }

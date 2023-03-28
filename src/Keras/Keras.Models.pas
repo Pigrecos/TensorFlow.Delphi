@@ -63,7 +63,7 @@ type
         Ftrain_counter           : IVariableV1;
         Ftest_counter            : IVariableV1;
         Fpredict_counter         : IVariableV1;
-       // Fbase_model_initialized  : Boolean;
+        FStop_training           : Boolean;
         // Model.Compile
         compiled_loss            : LossesContainer;
         compiled_metrics         : MetricsContainer;
@@ -87,6 +87,9 @@ type
         //
         function  Get_OnEndSummary: TCB_On_End_Summary;
         procedure Set_OnEndSummary(Value: TCB_On_End_Summary);
+        //
+        function  Get_Stop_training: Boolean;
+        procedure Set_Stop_training(const Value: Boolean);
 
       protected
         Fis_graph_network : Boolean;
@@ -192,7 +195,12 @@ type
                       initial_epoch       : Integer= 0;
                       max_queue_size      : Integer= 10;
                       workers             : Integer= 1;
-                      use_multiprocessing : Boolean= false): ICallback; overload;
+                      use_multiprocessing : Boolean= false;
+                      callbacks           : TList<ICallback> = nil): ICallback; overload;
+        function fit(x: TNDArray; y       : TNDArray;
+                      batch_size          : Integer;
+                      epochs              : Integer;
+                      callbacks           : TList<ICallback> = nil): ICallback; overload;
         function fit( x: TArray<TNDArray>; y      : TNDArray;
                   batch_size          : Integer= -1;
                   epochs              : Integer= 1;
@@ -202,7 +210,8 @@ type
                   initial_epoch       : Integer= 0;
                   max_queue_size      : Integer= 10;
                   workers             : Integer= 1;
-                  use_multiprocessing : Boolean= false): ICallback; overload;
+                  use_multiprocessing : Boolean= false;
+                  callbacks           : TList<ICallback> = nil): ICallback; overload;
         function fit(dataset             : IDatasetV2;
                       validation_data     : IDatasetV2= nil;
                       batch_size          : Integer= -1;
@@ -213,8 +222,9 @@ type
                       initial_epoch       : Integer= 0;
                       max_queue_size      : Integer= 10;
                       workers             : Integer= 1;
-                      use_multiprocessing : Boolean= false): History; overload;
-        function FitInternal(data_handler : DataHandler; epochs: Integer; verbose: Integer; validation_data: IDatasetV2; train_step_func : TFunc< DataHandler, OwnedIterator, TDictionary<string, single>>): History;
+                      use_multiprocessing : Boolean= false;
+                      callbacks           : TList<ICallback> = nil): History; overload;
+        function FitInternal(data_handler : DataHandler; epochs: Integer; verbose: Integer; cbCallbackList : TList<ICallback>; validation_data: IDatasetV2; train_step_func : TFunc< DataHandler, OwnedIterator, TDictionary<string, single>>): History;
         // Model.Train
         //
         function train_step_function(data_handler : DataHandler; iterator: OwnedIterator): TDictionary<string, single>;
@@ -473,7 +483,7 @@ begin
 end;
 
 function Model.fit(x, y: TNDArray; batch_size, epochs, verbose: Integer; validation_split: Single; shuffle: Boolean; initial_epoch, max_queue_size, workers: Integer;
-  use_multiprocessing: Boolean): ICallback;
+  use_multiprocessing: Boolean; callbacks : TList<ICallback>): ICallback;
 var
    dataArgs        : DataHandlerArgs;
    train_count     : Integer;
@@ -499,11 +509,16 @@ begin
 
     var data_handler := DataHandler.Create(dataArgs);
 
-    Result := FitInternal(data_handler, epochs, verbose, nil, train_step_function);
+    Result := FitInternal(data_handler, epochs, verbose, callbacks, nil, train_step_function);
+end;
+
+function Model.fit(x, y: TNDArray; batch_size, epochs: Integer; callbacks: TList<ICallback>): ICallback;
+begin
+    Result := fit(x, y, batch_size, epochs, 1, 0.0, True, 0, 10, 1, False, callbacks);
 end;
 
 function Model.fit(dataset: IDatasetV2; validation_data : IDatasetV2; batch_size, epochs, verbose: Integer; validation_split: Single; shuffle: Boolean; initial_epoch, max_queue_size, workers: Integer;
-  use_multiprocessing: Boolean): History;
+  use_multiprocessing: Boolean; callbacks : TList<ICallback>): History;
 var
    dataArgs        : DataHandlerArgs;
 begin
@@ -522,12 +537,12 @@ begin
 
     var data_handler := DataHandler.Create(dataArgs);
 
-    Result := FitInternal(data_handler, epochs, verbose, validation_data, train_step_function);
+    Result := FitInternal(data_handler, epochs, verbose, callbacks, validation_data, train_step_function);
 
 end;
 
 function Model.fit(x: TArray<TNDArray>; y: TNDArray; batch_size, epochs, verbose: Integer; validation_split: Single; shuffle: Boolean; initial_epoch, max_queue_size,
-  workers: Integer; use_multiprocessing: Boolean): ICallback;
+  workers: Integer; use_multiprocessing: Boolean; callbacks : TList<ICallback>): ICallback;
 var
    dataArgs        : DataHandlerArgs;
    train_count     : Integer;
@@ -566,14 +581,14 @@ begin
 
     if (Length(data_handler.DataAdapter.GetDataset.structure) > 2) or (data_handler.DataAdapter.GetDataset.FirstInputTensorCount > 1) then
     begin
-        Result := FitInternal(data_handler, epochs, verbose, nil,train_step_multi_inputs_function);
+        Result := FitInternal(data_handler, epochs, verbose, callbacks, nil, train_step_multi_inputs_function);
     end else
     begin
-        Result := FitInternal(data_handler, epochs, verbose, nil,train_step_function);
+        Result := FitInternal(data_handler, epochs, verbose, callbacks, nil,train_step_function);
     end;
 end;
 
-function Model.FitInternal(data_handler : DataHandler; epochs: Integer; verbose: Integer; validation_data: IDatasetV2; train_step_func : TFunc< DataHandler, OwnedIterator, TDictionary<string, single>>): History;
+function Model.FitInternal(data_handler : DataHandler; epochs: Integer; verbose: Integer; cbCallbackList : TList<ICallback>; validation_data: IDatasetV2; train_step_func : TFunc< DataHandler, OwnedIterator, TDictionary<string, single>>): History;
 var
   iterator: OwnedIterator;
   epoch   : Integer;
@@ -594,8 +609,13 @@ begin
     cbParam.Steps   := data_handler.Inferredsteps;
 
     cCallbacks := CallbackList.Create(cbParam);
-    cCallbacks.on_train_begin;
+    if cbCallbackList <> nil then
+    begin
+        for var cb in cbCallbackList  do
+            cCallbacks.callbacks.add(cb);
+    end;
 
+    cCallbacks.on_train_begin;
     for var it in data_handler.enumerate_epochs do
     begin
         epoch   := it.Value1;
@@ -859,6 +879,17 @@ function Model.Get_OnTrainBatchEnd: TCB_On_Train_Batch_End;
 begin
     Result := FOnTrainBatchEnd
 end;
+
+function Model.Get_Stop_training: Boolean;
+begin
+    Result := FStop_training;
+end;
+
+procedure Model.Set_Stop_training(const Value: Boolean);
+begin
+    FStop_training := Value;
+end;
+
 
 procedure Model.Set_OnTrainBatchEnd(Value: TCB_On_Train_Batch_End);
 begin

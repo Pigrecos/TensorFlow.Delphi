@@ -152,11 +152,12 @@ type
 
   ICallback = interface
     ['{4FCFF764-DBF2-4F28-92E6-14C32F4E1C2D}']
-        function GetLog: string;
-        function Get_history: TDictionary<string, TList<Single>>;
+        function  GetLog: string;
+        function  Get_history: TDictionary<string, TList<Single>>;
         procedure Set_history(Value: TDictionary<string, TList<Single>>);
 
         procedure on_train_begin;
+        procedure on_train_end;
         procedure on_epoch_begin(epoch: Integer);
         procedure on_train_batch_begin(step: Int64);
         procedure on_train_batch_end(end_step: Int64; logs: TDictionary<string, Single>);
@@ -643,6 +644,9 @@ type
     //
     function  Get_OnEndSummary: TCB_On_End_Summary;
     procedure Set_OnEndSummary(Value: TCB_On_End_Summary);
+    //
+    function  Get_Stop_training: Boolean;
+    procedure Set_Stop_training(const Value: Boolean);
 
     procedure compile(_optimizer : IOptimizer= nil; _loss: ILossFunc = nil; metrics : TArray<string>= nil); overload;
     procedure compile(_optimizer : string;          _loss: string;          metrics: TArray<string>); overload;
@@ -656,7 +660,8 @@ type
                   initial_epoch       : Integer= 0;
                   max_queue_size      : Integer= 10;
                   workers             : Integer= 1;
-                  use_multiprocessing : Boolean= false): ICallback; overload;
+                  use_multiprocessing : Boolean= false;
+                  callbacks           : TList<ICallback> = nil): ICallback; overload;
     function fit( x: TArray<TNDArray>; y      : TNDArray;
                   batch_size          : Integer= -1;
                   epochs              : Integer= 1;
@@ -666,7 +671,8 @@ type
                   initial_epoch       : Integer= 0;
                   max_queue_size      : Integer= 10;
                   workers             : Integer= 1;
-                  use_multiprocessing : Boolean= false): ICallback; overload;
+                  use_multiprocessing : Boolean= false;
+                  callbacks           : TList<ICallback> = nil): ICallback; overload;
     procedure load_weights(filepath: string; by_name: Boolean = false; skip_mismatch : Boolean= false; options: TObject = nil);
     procedure save_weights(filepath: string; overwrite : Boolean= true; save_format: string = ''; options: TObject = nil);
     procedure save(filepath: string; overwrite : Boolean= true; include_optimizer: Boolean = true; save_format: string = 'tf'; {SaveOptions? options = null,} signatures : ConcreteFunction = nil; save_traces : Boolean= true);
@@ -693,6 +699,8 @@ type
     property OnTrainBatchBegin : TCB_On_Train_Batch_Begin read Get_OnTrainBatchBegin write Set_OnTrainBatchBegin;
     property OnTrainBatchEnd   : TCB_On_Train_Batch_End   read Get_OnTrainBatchEnd   write Set_OnTrainBatchEnd;
     property OnEndSummary      : TCB_On_End_Summary       read Get_OnEndSummary      write Set_OnEndSummary;
+    //
+    property Stop_training    : Boolean read Get_Stop_training write Set_Stop_training;
   end;
   {$ENDREGION}
 

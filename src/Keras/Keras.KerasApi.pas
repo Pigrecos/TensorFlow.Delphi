@@ -63,6 +63,7 @@ type
     /// <param name="output"></param>
     /// <returns></returns>
     function Model(inputs: TFTensors; outputs: TFTensors; name: string = ''): IModel;
+    function Sequential(layers: TList<ILayer> = nil; name : string= ''): Sequential;
     /// <summary>
     /// Instantiate a Keras tensor.
     /// </summary>
@@ -218,7 +219,6 @@ begin
     preprocessing.Free;
     datasets.free;
     backend.Free;
-
     inherited Destroy;
 end;
 

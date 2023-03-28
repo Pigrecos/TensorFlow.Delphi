@@ -18,6 +18,7 @@ interface
      uses System.SysUtils, Winapi.Windows, System.Classes,
           System.Generics.Collections,
           System.ZLib,
+          AbUnZper, AbUtils, AbArcTyp,
 
           IdHTTP, IdSSLOpenSSL,
 
@@ -175,9 +176,30 @@ type
       constructor Create;
   end;
 
+  TCifar10 = class
+    const
+     ORIGIN_FOLDER  = 'https://www.cs.toronto.edu/~kriz/';
+     FILE_NAME      = 'cifar-10-python.tar.gz';
+     DEST_FOLDER    = 'cifar-10-batches';
+
+     function load_batch(fpath: string; label_key: string = 'labels'): Tuple<TNDArray, TNDArray>;
+     function read_description(var start_pos: Integer; pickle: TArray<Byte>): Tuple<String, string>;
+     function read_labels     (var start_pos: Integer; pickle: TArray<Byte>): Tuple<String, TNDArray>;
+     function read_data       (var start_pos: Integer; pickle: TArray<Byte>): Tuple<String, TNDArray>;
+   public
+      function Download: string;
+      /// <summary>
+      /// Loads [CIFAR10 dataset](https://www.cs.toronto.edu/~kriz/cifar.html).
+      /// </summary>
+      /// <returns></returns>
+      function load_data: DatasetPass;
+      constructor Create;
+  end;
+
   KerasDataset = class
     public
-      Mnist : TMnist;
+      Mnist  : TMnist;
+      cifar10: TCifar10;
 
       constructor Create;
       destructor Destroy; override;
@@ -756,12 +778,15 @@ implementation
           uses  System.Math,
                 System.IOUtils,
 
+                ipztar,
+
                 Tensorflow,
                 TensorFlow.Ops,
                 Tensorflow.Utils,
                 Tensorflow.Slice,
 
                 Numpy,
+                Numpy.Axis,
                 NumPy.NDArray,
 
                 Keras.Utils;
@@ -2022,7 +2047,7 @@ begin
         Exit(fileSaveTo);
 
    IdHTTP1 := TIdHTTP.Create(nil);
-   IdSSL := TIdSSLIOHandlerSocketOpenSSL.Create(IdHTTP1);
+   IdSSL   := TIdSSLIOHandlerSocketOpenSSL.Create(IdHTTP1);
    IdSSL.SSLOptions.SSLVersions := [sslvTLSv1, sslvTLSv1_1, sslvTLSv1_2];
    IdHTTP1.IOHandler := IdSSL;
    Stream := TMemoryStream.Create;
@@ -2083,11 +2108,13 @@ end;
 constructor KerasDataset.Create;
 begin
    Mnist := TMnist.Create;
+   cifar10 := TCifar10.Create;
 end;
 
 destructor KerasDataset.Destroy;
 begin
    Mnist.free;
+   cifar10.Free;
    inherited Destroy;
 end;
 
@@ -2364,6 +2391,192 @@ class function ModelLoadSetting.Create: ModelLoadSetting;
 begin
     Result.DataType        := TF_FLOAT;
     Result.ValidationSize  := 5000;
+end;
+
+{ TCifar10 }
+
+constructor TCifar10.Create;
+begin
+
+end;
+
+function TCifar10.load_data: DatasetPass;
+begin
+    var dst := Download;
+
+    var data_list  := TList<TFTensor>.Create;
+    var label_list := TList<TFTensor>.Create;
+
+    for var i := 1 to 6 - 1 do
+    begin
+        var fpath := TPath.Combine(dst, 'data_batch_'+i.ToString);
+        var td_l := load_batch(fpath);
+        var data  := td_l.Value1;
+        var labels:= td_l.Value2;
+        data_list.Add(data);
+        label_list.Add(labels);
+    end;
+
+    var x_train_tensor := tf.concat(data_list, 0);
+    var y_train_tensor := tf.concat(label_list, 0);
+    var y_train := np.np_array(y_train_tensor.BufferToArray).reshape(y_train_tensor.shape);
+
+    // test data
+    var fpath_test := TPath.Combine(dst, 'test_batch');
+    var tx_y := load_batch(fpath_test);
+    var x_test := tx_y.Value1;
+    var y_test := tx_y.Value2;
+
+    // channels_last
+    var assi : TAxis := [ 0, 2, 3, 1 ];
+    x_train_tensor := tf.transpose(x_train_tensor, @assi);
+    var x_train    := np.np_array(x_train_tensor.BufferToArray).reshape(x_train_tensor.shape);
+
+    var x_test_tensor := tf.transpose(x_test, @assi);
+    x_test            := np.np_array(x_test_tensor.BufferToArray).reshape(x_test_tensor.shape);
+
+    Result := DatasetPass.Create;
+    Result.Train := Tuple.Create(x_train, y_train);
+    Result.Test  := Tuple.Create(x_test, y_test);
+end;
+
+
+function TCifar10.Download: string;
+var
+  IdHTTP1 : TIdHTTP;
+  IdSSL   : TIdSSLIOHandlerSocketOpenSSL;
+  Stream  : TMemoryStream;
+
+  UnZipper: TAbUnZipper;
+begin
+    var dst := TPath.Combine(TPath.GetTempPath, DEST_FOLDER);
+    if not TDirectory.Exists(dst) then
+       TDirectory.CreateDirectory(dst);
+
+    if not FileExists( TPath.Combine(dst, file_name) ) then
+    begin
+        IdHTTP1 := TIdHTTP.Create(nil);
+        IdSSL   := TIdSSLIOHandlerSocketOpenSSL.Create(IdHTTP1);
+        IdSSL.SSLOptions.SSLVersions := [sslvTLSv1, sslvTLSv1_1, sslvTLSv1_2];
+        IdHTTP1.IOHandler := IdSSL;
+        Stream := TMemoryStream.Create;
+        try
+          IdHTTP1.Get(ORIGIN_FOLDER + FILE_NAME, Stream);
+          Stream.SaveToFile(TPath.Combine(dst, file_name));
+        finally
+         Stream.Free;
+         IdHTTP1.Free;
+        end;
+    end;
+
+    var ATgzFile := TipzTar.Create(nil);
+    try
+       ATgzFile.ArchiveFile        := TPath.Combine(dst, file_name);
+       ATgzFile.UseGzipCompression := true;
+       ATgzFile.ExtractToPath      := dst;
+       ATgzFile.ExtractAll;
+    finally
+       ATgzFile.Free;
+    end;
+
+    (*UnZipper := TAbUnZipper.Create(nil);
+    try
+      UnZipper.ArchiveType:= atGzippedTar;
+      UnZipper.ForceType:= True;
+      UnZipper.BaseDirectory := dst;
+      UnZipper.ExtractOptions := [eoRestorePath];
+      UnZipper.FileName      := TPath.Combine(dst, file_name);
+      UnZipper.ExtractFiles('*.*');
+    finally
+      UnZipper.Free;
+    end;*)
+
+    Result := TPath.Combine(dst, 'cifar-10-batches-py');
+end;
+
+function TCifar10.load_batch(fpath, label_key: string): Tuple<TNDArray, TNDArray>;
+begin
+    var pickle := TFile.ReadAllBytes(fpath);
+    // read description
+    var start_pos := 7;
+    var desc   := read_description(start_pos, pickle);
+    var labels := read_labels(start_pos, pickle);
+    var data   := read_data(start_pos, pickle);
+
+    Result := Tuple.Create(data.Value2, labels.Value2);
+end;
+
+function TCifar10.read_data(var start_pos: Integer; pickle: TArray<Byte>): Tuple<String, TNDArray>;
+var
+  span, value : TBytes;
+begin
+    var key_length := pickle[start_pos];
+    Inc(start_pos);
+
+    SetLength(span,key_length);
+    TArray.Copy<Byte>(pickle, span,start_pos, 0, key_length);
+    var key := TEncoding.ASCII.GetString(span);
+
+    start_pos        := start_pos + (key_length + 133);
+
+    var value_length := 3072 * 10000;
+    SetLength(value,value_length);
+    TArray.Copy<Byte>(pickle, value,start_pos, 0, value_length);
+    start_pos := start_pos + value_length;
+
+    Result := Tuple.Create(key, np.np_array(value).reshape( TFShape.Create([10000, 3, 32, 32]) ));
+end;
+
+function TCifar10.read_description(var start_pos: Integer; pickle: TArray<Byte>): Tuple<String, string>;
+var
+  span, value : TBytes;
+begin
+    var key_length := pickle[start_pos];
+    Inc(start_pos);
+
+    SetLength(span,key_length);
+    TArray.Copy<Byte>(pickle, span,start_pos, 0, key_length);
+    var key := TEncoding.ASCII.GetString(span);
+
+    start_pos := start_pos +(key_length + 3);
+
+    var value_length := pickle[start_pos];
+    Inc(start_pos);
+    SetLength(value,value_length);
+    TArray.Copy<Byte>(pickle, value,start_pos, 0, value_length);
+    var sValue := TEncoding.ASCII.GetString(value);
+    start_pos := start_pos + value_length;
+    start_pos := start_pos + 3;
+
+    Result := Tuple.Create(key, sValue);
+end;
+
+function TCifar10.read_labels(var start_pos: Integer; pickle: TArray<Byte>): Tuple<String, TNDArray>;
+var
+  span, value : TBytes;
+begin
+    SetLength(value,10000);
+
+    var key_length := pickle[start_pos];
+    Inc(start_pos);
+
+    SetLength(span,key_length);
+    TArray.Copy<Byte>(pickle, span,start_pos, 0, key_length);
+    var key := TEncoding.ASCII.GetString(span);
+
+    start_pos := start_pos + (key_length + 6);
+
+    var value_length := 10000;
+    for var i := 0 to value_length - 1 do
+    begin
+        if (i > 0) and (i mod 1000 = 0) then
+            start_pos := start_pos + 2;
+        value[i] := pickle[start_pos + 1];
+        start_pos := start_pos + 2;
+    end;
+    start_pos := start_pos + 2;
+
+    Result := Tuple.Create(key, np.np_array(value));
 end;
 
 end.

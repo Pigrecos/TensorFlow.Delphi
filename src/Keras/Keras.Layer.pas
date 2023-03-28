@@ -4863,7 +4863,12 @@ begin
    args := _args;
 
    args.PoolSize   := conv_utils.normalize_tuple(args.PoolSize, 2, 'pool_size');
-   args.Strides    := conv_utils.normalize_tuple(args.Strides,  2, 'strides');
+
+   var normStrides : TFShape := args.Strides;
+   if args.Strides.IsNil then
+      normStrides := args.PoolSize;
+
+   args.Strides    := conv_utils.normalize_tuple(normStrides,  2, 'strides');
    args.Padding    := conv_utils.normalize_padding(args.Padding);
    args.DataFormat := conv_utils.normalize_data_format(args.DataFormat);
    input_spec      := TInputSpec.Create(DtInvalid, 4);

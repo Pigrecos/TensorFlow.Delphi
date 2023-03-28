@@ -74,6 +74,7 @@ np = record
         np_complex_   : TF_DataType = TF_DataType.TF_COMPLEX;
         np_complex64  : TF_DataType = TF_DataType.TF_COMPLEX64;
         np_complex128 : TF_DataType = TF_DataType.TF_COMPLEX128;
+
     public
         class var random : RandomizedImpl;
 

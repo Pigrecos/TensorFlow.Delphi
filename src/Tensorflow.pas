@@ -2793,7 +2793,7 @@ end;
 
 finalization
 begin
-    tf.Free;
+    FreeAndNil(tf);
 end;
 
 end.
