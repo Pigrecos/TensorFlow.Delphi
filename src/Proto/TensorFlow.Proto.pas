@@ -2805,6 +2805,9 @@ destructor TArgDef.Destroy;
 begin
   FHandleDatas.Clear;
   FHandleDatas.Free;
+  if assigned(FExperimentalFullType) then
+    FExperimentalFullType.Free;
+
   inherited Destroy;
 end;
 
@@ -2817,6 +2820,10 @@ end;
 
 destructor TAttrDef.Destroy;
 begin
+  if assigned(FDefaultValue) then
+    FDefaultValue.Free;
+  if assigned(FAllowedValues) then
+    FAllowedValues.Free;
   inherited Destroy;
 end;
 
@@ -2845,6 +2852,10 @@ begin
 
   FAttrs.Clear;
   FreeAndNil(FAttrs);
+
+  if assigned(FDeprecation) then
+    FDeprecation.Free;
+
   inherited Destroy;
 end;
 

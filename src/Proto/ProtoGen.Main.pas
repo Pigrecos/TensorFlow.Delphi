@@ -1409,6 +1409,7 @@ begin
               LoadListValue(v1);
               v.value := TValue.From<TListValue>(v1);
               Value.value := v;
+              v1.Free;
           finally
            Pb.Pop
           end;
