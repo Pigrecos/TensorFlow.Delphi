@@ -4624,6 +4624,9 @@ begin
                     op_stack.Enqueue(op_id);
             end;
         end;
+        unneeded_gradients.Free;
+        zero_indices.Free;
+        out_gradients.Free;
     end;
     if state.op_tape.Count > 0 then
        raise Exception.Create('Invalid tape state.');
