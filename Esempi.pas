@@ -2498,6 +2498,9 @@ begin
 
     Assert.IsTrue(TUtils.SequenceEqual<double>([ 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ], matrix[0].ToArray<double> ));
     Assert.IsTrue(TUtils.SequenceEqual<double>([ 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 ], matrix[1].ToArray<double> ));
+
+    matrix.Free;
+    tTokenizer.Free;
 end;
 
 procedure PreprocessingTests.TextToMatrixFrequency;
@@ -2523,6 +2526,9 @@ begin
 
     Assert.IsTrue(TUtils.SequenceEqual<double>([ 0, t12, t12, t12, t12, t12, 0, o12, 0, 0, 0, 0, o12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ], matrix[0].ToArray<double> ));
     Assert.IsTrue(TUtils.SequenceEqual<double>([ 0, o22, 0, 0, 0, 0, o22, 0, o22, t22, o22, o22, 0, o22, o22, o22, o22, o22, o22, o22, o22, o22, o22, o22, o22, o22, o22, o22 ], matrix[1].ToArray<double> ));
+
+    matrix.Free;
+    tTokenizer.Free;
 end;
 
 
