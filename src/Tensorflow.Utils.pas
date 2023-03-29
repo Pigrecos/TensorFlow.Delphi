@@ -234,6 +234,7 @@ type
       class function range(_end: Integer): Enumerable<integer> ;  overload; static;
       class procedure DownloadAsync(url: string; dirSaveTo: string; fileName: string; showProgressInConsole: Boolean = false);
       class procedure UnzipAsync(zipFile: string; saveTo: string; showProgressInConsole: Boolean = false);
+      class function  DecompressTGZ(tgzFile: string; baseDir: string; isTar: Boolean= false): Boolean;
  end;
 
  function GetArg(sNome: string; vVal : TValue):  TParameter;
@@ -243,6 +244,8 @@ type
 implementation
         uses system.Generics.Defaults, System.Classes, system.IOUtils, System.ZLib,
              Winapi.Windows,
+
+             AbUnZper, AbUtils, AbArcTyp,
 
              Tensorflow,
              TensorFlow.Core,
@@ -1691,6 +1694,49 @@ begin
       FileStreamIn.Free;
       FileStreamOut.Free;
     end;
+end;
+
+class function TUtils.DecompressTGZ(tgzFile: string; baseDir: string; isTar: Boolean): Boolean;
+begin
+    Result := False;
+    var UnZipper := TAbUnZipper.Create(nil);
+    try
+      try
+        UnZipper.ArchiveType   := atGzip;
+        UnZipper.ForceType     := True;
+        UnZipper.BaseDirectory := baseDir;
+        UnZipper.ExtractOptions:= [eoCreateDirs];
+        UnZipper.FileName      := tgzFile;
+        if isTar then
+        begin
+           UnZipper.ExtractFiles('*')
+        end
+        else begin
+            UnZipper.ExtractAt(0, TPath.Combine(baseDir, ChangeFileExt(tgzFile,'')) );
+            Exit;
+        end;
+
+        UnZipper.ArchiveType := atTar;
+        UnZipper.FileName    := TPath.Combine(baseDir, UnZipper.Items[0].FileName);
+
+        for var i := 0 to UnZipper.Count - 1 do
+        begin
+            if UnZipper.Items[i].IsDirectory then
+            begin
+              TDirectory.CreateDirectory( TPath.Combine( baseDir, UnZipper.Items[i].FileName) );
+              UnZipper.BaseDirectory := TPath.Combine( baseDir, UnZipper.Items[i].FileName);
+            end;
+            UnZipper.ExtractAt(i,TPath.Combine( baseDir, UnZipper.Items[i].FileName));
+        end;
+      except
+        Result := False
+      end;
+    finally
+      var f := UnZipper.FileName;
+      UnZipper.Free;
+      DeleteFile(PChar(f)) ;
+    end;
+    Result := True;
 end;
 
 { TValueHelper }

@@ -28,6 +28,8 @@ interface
             System.Classes,
             System.Rtti,
 
+            AbUnZper, AbUtils, AbArcTyp,
+
             Spring,
             Spring.Collections.Enumerable,
 
@@ -140,9 +142,7 @@ implementation
 
                Keras.LossFunc,
 
-               TensorFlow.Proto,
-
-               ipztar, ipzzip,ipzgzip;
+               TensorFlow.Proto;
 
 { base_layer_utils }
 
@@ -709,45 +709,32 @@ begin
     try
       MS := TMemoryStream.Create;
       try
-        Web.Get(origin, MS);
-        MS.SaveToFile(datadir+'\'+fname);
+        if not FileExists(datadir+'\'+fname) then
+        begin
+            Web.Get(origin, MS);
+            MS.SaveToFile(datadir+'\'+fname);
+        end;
 
         var archive := TPath.Combine(datadir, fname);
 
         if archive.EndsWith('.zip') then
         begin
-           var AZipFile := TipzZip.Create(nil);
-           try
-             AZipFile.ArchiveFile   := archive;
-             AZipFile.ExtractToPath := datadir;
-             AZipFile.ExtractAll;
-           finally
-              AZipFile.Free;
-           end;
-        end
-        else if archive.EndsWith('.tgz')then
-        begin
-           var ATgzFile := TipzTar.Create(nil);
-           try
-             ATgzFile.ArchiveFile        := archive;
-             ATgzFile.UseGzipCompression := true;
-             ATgzFile.ExtractToPath      := datadir;
-             ATgzFile.ExtractAll;
-           finally
-             ATgzFile.Free;
-           end;
+            var UnZipper := TAbUnZipper.Create(nil);
+
+            UnZipper.ArchiveType   := atZip;
+            UnZipper.BaseDirectory := datadir;
+            UnZipper.ExtractOptions:= [eoCreateDirs, eoRestorePath];
+            UnZipper.FileName      := archive;
+            UnZipper.ExtractFiles('*');
         end
         else if archive.EndsWith('.gz') then
         begin
-           var AGzFile := TipzGzip.Create(nil);
-           try
-             AGzFile.ArchiveFile     := archive;
-             AGzFile.ExtractToPath   := datadir;
-             AGzFile.ExtractAll;
-           finally
-             AGzFile.Free;
-           end;
-        end;
+            TUtils.DecompressTGZ(archive, datadir)
+        end
+        else if archive.EndsWith('.tgz') then
+        begin
+            TUtils.DecompressTGZ(archive, datadir, True)
+        end
       finally
         MS.Free;
       end;

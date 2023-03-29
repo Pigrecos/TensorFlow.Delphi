@@ -778,8 +778,6 @@ implementation
           uses  System.Math,
                 System.IOUtils,
 
-                ipztar,
-
                 Tensorflow,
                 TensorFlow.Ops,
                 Tensorflow.Utils,
@@ -2446,9 +2444,9 @@ var
   IdHTTP1 : TIdHTTP;
   IdSSL   : TIdSSLIOHandlerSocketOpenSSL;
   Stream  : TMemoryStream;
-
-  UnZipper: TAbUnZipper;
 begin
+    Result := '';
+
     var dst := TPath.Combine(TPath.GetTempPath, DEST_FOLDER);
     if not TDirectory.Exists(dst) then
        TDirectory.CreateDirectory(dst);
@@ -2469,29 +2467,8 @@ begin
         end;
     end;
 
-    var ATgzFile := TipzTar.Create(nil);
-    try
-       ATgzFile.ArchiveFile        := TPath.Combine(dst, file_name);
-       ATgzFile.UseGzipCompression := true;
-       ATgzFile.ExtractToPath      := dst;
-       ATgzFile.ExtractAll;
-    finally
-       ATgzFile.Free;
-    end;
-
-    (*UnZipper := TAbUnZipper.Create(nil);
-    try
-      UnZipper.ArchiveType:= atGzippedTar;
-      UnZipper.ForceType:= True;
-      UnZipper.BaseDirectory := dst;
-      UnZipper.ExtractOptions := [eoRestorePath];
-      UnZipper.FileName      := TPath.Combine(dst, file_name);
-      UnZipper.ExtractFiles('*.*');
-    finally
-      UnZipper.Free;
-    end;*)
-
-    Result := TPath.Combine(dst, 'cifar-10-batches-py');
+    if TUtils.DecompressTGZ(TPath.Combine(dst, file_name), dst, True) then
+      Result := TPath.Combine(dst, 'cifar-10-batches-py');
 end;
 
 function TCifar10.load_batch(fpath, label_key: string): Tuple<TNDArray, TNDArray>;

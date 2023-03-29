@@ -174,7 +174,8 @@ implementation
 
               Keras.Models,
               keras.Data,
-              Keras.Optimizer;
+              Keras.Optimizer,
+              Keras.KerasApi;
 {$R *.dfm}
 
 procedure SampleBuildModel;
@@ -643,9 +644,9 @@ var
   k_losses  : Keras_Losses_test;
   k_Layer   : LayersTest;
 begin
-    //tf.keras.utils.get_file('flower_photos.tgz','https://storage.googleapis.com/download.tensorflow.org/example_images/flower_photos.tgz');
-    //tf.keras.utils.get_file('aal012022.dat.gz','https://ftp.nhc.noaa.gov/atcf/aid_public/aal012022.dat.gz') ;
-    //tf.keras.utils.get_file('v0.70.2-NET6.zip','https://github.com/SciSharp/TensorFlow.NET/archive/refs/tags/v0.70.2-NET6.zip');
+    //KerasInterface(tf.keras).utils.get_file('flower_photos.tgz','https://storage.googleapis.com/download.tensorflow.org/example_images/flower_photos.tgz');
+    //KerasInterface(tf.keras).utils.get_file('aal012022.dat.gz','https://ftp.nhc.noaa.gov/atcf/aid_public/aal012022.dat.gz') ;
+    //KerasInterface(tf.keras).utils.get_file('v0.70.2-NET6.zip','https://github.com/SciSharp/TensorFlow.NET/archive/refs/tags/v0.70.2-NET6.zip');
 
     mmo1.Clear;
     mmo1.Lines.Add('Test EarlyStopping callback...');
