@@ -124,7 +124,7 @@ To compile you need some external libraries:
 
 -  [Spring4d](https://bitbucket.org/sglienke/spring4d/src/master/) 
 -  [Neon](https://github.com/paolo-rossi/delphi-neon) 
--  [IPWorks Zip](https://www.nsoftware.com/ipworks/zip/download.aspx) 
+-  [TurboPack Abbrevia](https://github.com/TurboPack/Abbrevia) 
 -  [Download libTensorflow](https://www.tensorflow.org/install/lang_c?hl=en) and rename to 'tensorflow-cpu-win64-2.11.0.dll'
 
 ### Contribute:
