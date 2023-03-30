@@ -487,7 +487,7 @@ begin
     var elapse := Fsw.ElapsedMilliseconds;
     var results : string := '';
     for var it in logs do
-     results := results + ' - ' + Format('%s: %.6f',[ it.Value1, it.Value2]);
+       results := results + ' - ' + Format('%s: %.6f',[ it.Value1, it.Value2]);
 
     FMSg := Format('%.4d/%.4d - %dms/step - %s',[end_step + 1,Fparameters.Steps,elapse, results]);
 end;
@@ -502,7 +502,7 @@ procedure ProgbarLogger.on_train_batch_end(end_step: Int64; logs: TDictionary<st
 begin
     Fsw.Stop;
 
-    var elapse := Fsw.ElapsedMilliseconds;
+    var elapse := Fsw.ElapsedMilliseconds/MSecsPerDay;
     var results : string := '';
     for var it in logs do
      results := results + ' - ' + Format('%s: %.6f',[ it.key, it.Value]);

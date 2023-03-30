@@ -361,6 +361,9 @@ end;
 procedure MetricsContainer._create_ordered_metrics;
 begin
     Fmetrics_in_order := TList<IMetricFunc>.Create;
+    for var m in Fmetrics do
+        Fmetrics_in_order.Add(m);
+
     for var m in Fuser_metrics do
         Fmetrics_in_order.Add(m);
 end;

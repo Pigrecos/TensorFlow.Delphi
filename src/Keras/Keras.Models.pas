@@ -806,7 +806,10 @@ begin
              _metrics.Add(compiled_loss.metrics[i]);
         end;
         if compiled_metrics <> nil then
-            _metrics.AddRange(compiled_metrics.metrics);
+        begin
+            for var i := 0 to compiled_metrics.metrics.Count -1 do
+              _metrics.AddRange(compiled_metrics.metrics[i]);
+        end;
     end;
 
     (*foreach (var layer in _flatten_layers())

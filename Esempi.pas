@@ -366,12 +366,13 @@ implementation
 
 procedure On_Epoch_Begin(msg: string);
 begin
-    frmMain.mmo1.Lines.Add(msg)
+    frmMain.mmo1.Lines.Add(msg);
+    frmMain.mmo1.Lines.Add('');
 end;
 
 procedure On_Train_Batch_Begin(msg: string);
 begin
-    frmMain.mmo1.Lines.Add(msg)
+    frmMain.mmo1.Lines[frmMain.mmo1.Lines.Count - 1] := msg;
 end;
 
 procedure On_End_Summary(msg: string);
@@ -2498,7 +2499,6 @@ begin
 
     Assert.IsTrue(TUtils.SequenceEqual<double>([ 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ], matrix[0].ToArray<double> ));
     Assert.IsTrue(TUtils.SequenceEqual<double>([ 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 ], matrix[1].ToArray<double> ));
-
     matrix.Free;
     tTokenizer.Free;
 end;
