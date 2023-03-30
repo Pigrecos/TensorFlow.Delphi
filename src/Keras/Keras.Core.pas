@@ -30,8 +30,8 @@ interface
           TensorFlow.DApi,
           Tensorflow.Initializer,
           TensorFlow.Core,
-
           TensorFlow.Proto,
+          Tensorflow.Utils,
 
           Numpy.Axis;
 
@@ -170,7 +170,7 @@ type
         //
         procedure on_test_begin;
         procedure on_test_batch_begin(step: Int64);
-        procedure on_test_batch_end(end_step: Int64; logs : TList<Tuple<string, TFTensor>>);
+        procedure on_test_batch_end(end_step: Int64; logs : TDictionary<string, Single>);
         //
         property sLog    : string read GetLog;
         property hHistory : TDictionary<string, TList<Single>> read Get_history write Set_history;
@@ -623,8 +623,13 @@ type
 
   TCB_On_Epoch_Begin       = reference to procedure(msg: string);
   TCB_On_Epoch_End         = reference to procedure(msg: string);
+  //
   TCB_On_Train_Batch_Begin = reference to procedure(msg: string);
   TCB_On_Train_Batch_End   = reference to procedure(msg: string);
+  //
+  TCB_On_Test_Batch_Begin = reference to procedure(msg: string);
+  TCB_On_Test_Batch_End   = reference to procedure(msg: string);
+  //
   TCB_On_End_Summary       = reference to procedure(msg: string);
 
   IModel = interface(ILayer)
@@ -632,24 +637,29 @@ type
 
     function  Get_OnEpochBegin: TCB_On_Epoch_Begin;
     procedure Set_OnEpochBegin(Value: TCB_On_Epoch_Begin);
-    //
     function  Get_OnEpochEnd: TCB_On_Epoch_End;
     procedure Set_OnEpochEnd(Value: TCB_On_Epoch_End);
     //
     function  Get_OnTrainBatchBegin: TCB_On_Train_Batch_Begin;
     procedure Set_OnTrainBatchBegin(Value: TCB_On_Train_Batch_Begin);
-    //
     function  Get_OnTrainBatchEnd: TCB_On_Train_Batch_End;
     procedure Set_OnTrainBatchEnd(Value: TCB_On_Train_Batch_End);
+    //
+    function  Get_OnTestBatchBegin: TCB_On_Test_Batch_Begin;
+    procedure Set_OnTestBatchBegin(Value: TCB_On_Test_Batch_Begin);
+    function  Get_OnTestBatchEnd: TCB_On_Test_Batch_End;
+    procedure Set_OnTestBatchEnd(Value: TCB_On_Test_Batch_End);
     //
     function  Get_OnEndSummary: TCB_On_End_Summary;
     procedure Set_OnEndSummary(Value: TCB_On_End_Summary);
     //
     function  Get_Stop_training: Boolean;
     procedure Set_Stop_training(const Value: Boolean);
-
-    procedure compile(_optimizer : IOptimizer= nil; _loss: ILossFunc = nil; metrics : TArray<string>= nil); overload;
-    procedure compile(_optimizer : string;          _loss: string;          metrics: TArray<string>); overload;
+    //
+    procedure compile(_optimizer : IOptimizer; _loss: ILossFunc); overload;
+    procedure compile(_optimizer : IOptimizer; _loss: ILossFunc; metrics : TArray<string>); overload;
+    procedure compile(_optimizer : string;     _loss: string;    metrics : TArray<string>); overload;
+    procedure compile(_optimizer : IOptimizer; _loss: ILossFunc; metrics : TArray<IMetricFunc>); overload;
 
     function fit( x: TNDArray; y      : TNDArray;
                   batch_size          : Integer= -1;
@@ -661,7 +671,8 @@ type
                   max_queue_size      : Integer= 10;
                   workers             : Integer= 1;
                   use_multiprocessing : Boolean= false;
-                  callbacks           : TList<ICallback> = nil): ICallback; overload;
+                  callbacks           : TList<ICallback> = nil;
+                  validation_data     : TTuple<TNDArray, TNDArray> = nil): ICallback; overload;
     function fit( x: TArray<TNDArray>; y      : TNDArray;
                   batch_size          : Integer= -1;
                   epochs              : Integer= 1;
@@ -672,18 +683,20 @@ type
                   max_queue_size      : Integer= 10;
                   workers             : Integer= 1;
                   use_multiprocessing : Boolean= false;
-                  callbacks           : TList<ICallback> = nil): ICallback; overload;
+                  callbacks           : TList<ICallback> = nil;
+                  validation_data     : TTuple<TArray<TNDArray>, TNDArray> = nil): ICallback; overload;
     procedure load_weights(filepath: string; by_name: Boolean = false; skip_mismatch : Boolean= false; options: TObject = nil);
     procedure save_weights(filepath: string; overwrite : Boolean= true; save_format: string = ''; options: TObject = nil);
     procedure save(filepath: string; overwrite : Boolean= true; include_optimizer: Boolean = true; save_format: string = 'tf'; {SaveOptions? options = null,} signatures : ConcreteFunction = nil; save_traces : Boolean= true);
-    procedure evaluate( x  : TNDArray; y : TNDArray;
+    function  evaluate( x  : TNDArray; y : TNDArray;
                         batch_size          : Integer= -1;
                         verbose             : Integer = 1;
                         steps               : Integer = -1;
                         max_queue_size      : Integer= 10;
                         workers             : Integer= 1;
                         use_multiprocessing : Boolean = false;
-                        return_dict         : Boolean= false);
+                        return_dict         : Boolean= false;
+                        is_val              : Boolean= false): TDictionary<string, Single>;
     function predict(x                   : TFTensors;
                      batch_size          : Integer= -1;
                      verbose             : Integer = 0;
@@ -696,8 +709,13 @@ type
     // callbacks
     property OnEpochBegin      : TCB_On_Epoch_Begin       read Get_OnEpochBegin      write Set_OnEpochBegin;
     property OnEpochEnd        : TCB_On_Epoch_End         read Get_OnEpochEnd        write Set_OnEpochEnd;
+    //
     property OnTrainBatchBegin : TCB_On_Train_Batch_Begin read Get_OnTrainBatchBegin write Set_OnTrainBatchBegin;
     property OnTrainBatchEnd   : TCB_On_Train_Batch_End   read Get_OnTrainBatchEnd   write Set_OnTrainBatchEnd;
+    //
+    property OnTestBatchBegin : TCB_On_Test_Batch_Begin read Get_OnTestBatchBegin write Set_OnTestBatchBegin;
+    property OnTestBatchEnd   : TCB_On_Test_Batch_End   read Get_OnTestBatchEnd   write Set_OnTestBatchEnd;
+    //
     property OnEndSummary      : TCB_On_End_Summary       read Get_OnEndSummary      write Set_OnEndSummary;
     //
     property Stop_training    : Boolean read Get_Stop_training write Set_Stop_training;
@@ -1300,17 +1318,17 @@ type
    	/// </summary>
    	cropping    : TNDarray;
    	data_format : DataFormat;
-   
+
    	Constructor Create;
    end;
-   
+
    LSTMArgs = class(RNNArgs)
    	public
    	UnitForgetBias  : Boolean;
    	Dropout         : Single;
    	RecurrentDropout: Single;
    	&Implementation : Integer;
-   
+
    	Constructor Create;
    end;
    
@@ -1318,7 +1336,7 @@ type
    	public
    	Constructor Create;
    end;
-   
+
    MergeArgs = class(LayerArgs)
    	public
    	Inputs : TFTensors;
@@ -1521,8 +1539,7 @@ type
    {$ENDREGION}
 
 implementation
-        uses Tensorflow.Utils,
-             Tensorflow.Tensor,
+        uses Tensorflow.Tensor,
              Tensorflow;
 
 { RegularizerArgs }

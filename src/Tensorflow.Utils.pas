@@ -38,6 +38,16 @@ interface
          TensorFlow.Proto;
 
 type
+  // Classe generica TTuple
+  TTuple<T1, T2> = class
+  private
+    FFirst: T1;
+    FSecond: T2;
+  public
+    constructor Create(const AFirst: T1; const ASecond: T2);
+    property First: T1 read FFirst write FFirst;
+    property Second: T2 read FSecond write FSecond;
+  end;
 
   TValueHelp = record Helper for TValue
 
@@ -2043,6 +2053,15 @@ begin
     Except
       Result := SequenceLike(structure, pPacked.toArray);
     end;
+end;
+
+{ TTuple<T1, T2> }
+
+constructor TTuple<T1, T2>.Create(const AFirst: T1; const ASecond: T2);
+begin
+  inherited Create;
+  FFirst := AFirst;
+  FSecond := ASecond;
 end;
 
 end.

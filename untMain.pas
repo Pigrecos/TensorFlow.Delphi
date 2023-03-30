@@ -226,6 +226,7 @@ begin
       mModel.OnEpochBegin      :=  On_Epoch_Begin;
       mModel.OnTrainBatchBegin :=  On_Train_Batch_Begin;
       mModel.OnEndSummary      :=  On_End_Summary;
+      mModel.OnTestBatchEnd    :=  On_Epoch_Begin;
 
       mModel.add(tf.keras.Input(2));
       mModel.add(tf.keras.layers.Dense(32, tf.keras.activations.Relu));
@@ -1067,12 +1068,10 @@ begin
     mnistGAN.Run;*)
   //
     var Cnn := DigitRecognitionCnnKeras.Create;
-    mmo1.Clear;
     mmo1.Lines.Add('Model Name: '+ Cnn.Config.Name);
     Cnn.Run;
   //
     var Fnn := MnistFnnKerasFunctional.Create;
-    mmo1.Clear;
     mmo1.Lines.Add('Model Name: '+ Fnn.Config.Name);
     Fnn.Run;
   //

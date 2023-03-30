@@ -64,7 +64,7 @@ type
        //
        procedure on_test_begin;
        procedure on_test_batch_begin(step: Int64);
-       procedure on_test_batch_end(end_step: Int64; logs : TList<Tuple<string, TFTensor>>);
+       procedure on_test_batch_end(end_step: Int64; logs : TDictionary<string, Single>);
       //
        //
        constructor Create(_parameters: CallbackParams);
@@ -94,7 +94,7 @@ type
        //
        procedure on_test_begin;
        procedure on_test_batch_begin(step: Int64);
-       procedure on_test_batch_end(end_step: Int64; logs : TList<Tuple<string, TFTensor>>);
+       procedure on_test_batch_end(end_step: Int64; logs : TDictionary<string, Single>);
        //
        property hHistory  : History read GetHistory;
        property callbacks : TList<ICallback>  read  Fcallbacks;
@@ -122,7 +122,7 @@ type
       procedure on_epoch_end(epoch: Integer; epoch_logs: TDictionary<string, Single>);
       procedure on_test_begin;
       procedure on_test_batch_begin(step: Int64);
-      procedure on_test_batch_end(end_step: Int64; logs : TList<Tuple<string, TFTensor>>);
+      procedure on_test_batch_end(end_step: Int64; logs : TDictionary<string, Single>);
       //
       procedure on_predict_begin;
       procedure on_predict_batch_begin(step: Int64);
@@ -178,7 +178,7 @@ type
         //
         procedure on_test_begin;
         procedure on_test_batch_begin(step: Int64);
-        procedure on_test_batch_end(end_step: Int64; logs : TList<Tuple<string, TFTensor>>);
+        procedure on_test_batch_end(end_step: Int64; logs : TDictionary<string, Single>);
         //
         // user need to pass a CallbackParams to EarlyStopping, CallbackParams at least need the model
         constructor Create(parameters: CallbackParams; monitor : string= 'val_loss'; min_delta : Integer= 0; patience: Integer = 0;  verbose: Integer = 1;
@@ -244,7 +244,7 @@ begin
 
 end;
 
-procedure History.on_test_batch_end(end_step: Int64; logs: TList<Tuple<string, TFTensor>>);
+procedure History.on_test_batch_end(end_step: Int64; logs: TDictionary<string, Single>);
 begin
 
 end;
@@ -337,7 +337,7 @@ begin
     end;
 end;
 
-procedure CallbackList.on_test_batch_end(end_step: Int64; logs: TList<Tuple<string, TFTensor>>);
+procedure CallbackList.on_test_batch_end(end_step: Int64; logs: TDictionary<string, Single>);
 begin
     FMSg := '';
     for var i := 0 to Fcallbacks.Count - 1 do
@@ -480,14 +480,14 @@ begin
     Fsw.Start
 end;
 
-procedure ProgbarLogger.on_test_batch_end(end_step: Int64; logs: TList<Tuple<string, TFTensor>>);
+procedure ProgbarLogger.on_test_batch_end(end_step: Int64; logs: TDictionary<string, Single>);
 begin
     Fsw.Stop;
 
     var elapse := Fsw.ElapsedMilliseconds;
     var results : string := '';
     for var it in logs do
-       results := results + ' - ' + Format('%s: %.6f',[ it.Value1, it.Value2]);
+       results := results + ' - ' + Format('%s: %.6f',[ it.Key, it.Value]);
 
     FMSg := Format('%.4d/%.4d - %dms/step - %s',[end_step + 1,Fparameters.Steps,elapse, results]);
 end;
@@ -713,7 +713,7 @@ begin
 
 end;
 
-procedure EarlyStopping.on_test_batch_end(end_step: Int64; logs: TList<Tuple<string, TFTensor>>);
+procedure EarlyStopping.on_test_batch_end(end_step: Int64; logs: TDictionary<string, Single>);
 begin
 
 end;

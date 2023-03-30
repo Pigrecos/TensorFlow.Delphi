@@ -657,6 +657,7 @@ begin
 
     mModel.OnEpochBegin      := On_Epoch_Begin;
     mModel.OnTrainBatchBegin := On_Train_Batch_Begin;
+    mModel.OnTestBatchEnd    := On_Epoch_Begin;
     mModel.OnEndSummary      := On_End_Summary;
 
     // show model summary

@@ -1373,7 +1373,9 @@ TFTensors = class (TObjectList<TFTensor>)
    destructor  Destroy; override;
    constructor Create; overload;
    constructor Create(const tensors: array of TFTensor); overload;
+   constructor Create(const tensors: array of TNDArray); overload;
    constructor Create(tensor: TFTensor); overload;
+   constructor Create(tensor: TNDArray); overload;
    constructor Create(t: Tuple<TFTensor,TFTensor>); overload;
    constructor Create(tensors : TList<TFTensor>); overload;
    function    Add(const tensor : TFTensor): Integer;
@@ -7559,11 +7561,36 @@ begin
 
 end;
 
+constructor TFTensors.Create(const tensors: array of TNDArray);
+var
+ t: TArray<TFTensor>;
+begin
+    t := [];
+    for var i := 0 to Length(tensors)-1 do
+      t := t + [ tensors[i] ];
+
+    Create(t);
+end;
+
 constructor TFTensors.Create(tensor: TFTensor);
 begin
     if tensor = nil then
     begin
          tensor := TFTensor.Create;
+
+         Create([tensor]);
+
+         FiLength := 0;
+         Exit;
+    end;
+    Create([tensor])
+end;
+
+constructor TFTensors.Create(tensor: TNDArray);
+begin
+    if tensor = nil then
+    begin
+         tensor := TNDArray.Create;
 
          Create([tensor]);
 

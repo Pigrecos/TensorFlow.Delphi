@@ -33,6 +33,7 @@ interface
 
           Keras.Core,
           Keras.KerasApi,
+          keras.LayersApi,
           keras.Models,
           Keras.Layer,
 
