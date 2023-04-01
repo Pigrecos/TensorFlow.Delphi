@@ -887,13 +887,16 @@ begin
    begin
        bytes := [] ;
        S.Init;
-       TpbSaver.SaveAttrValue(S,attr.Value);
-       bytes:= s.Pb.GetBytes;
-       var Len : NativeInt := Length(bytes);
+       try
+         TpbSaver.SaveAttrValue(S,attr.Value);
+         bytes:= s.Pb.GetBytes;
+         var Len : NativeInt := Length(bytes);
 
-       TF_SetAttrValueProto(op_desc.Handle, PTFChar( TF_TString(attr.Key)), @bytes[0], Len, status.Handle);
-       status.CheckMaybeRaise(status,True);
-       S.Free;
+         TF_SetAttrValueProto(op_desc.Handle, PTFChar( TF_TString(attr.Key)), @bytes[0], Len, status.Handle);
+         status.CheckMaybeRaise(status,True);
+       finally
+         S.Free;
+       end;
    end;
 
    var c_op := TF_FinishOperation(op_desc.Handle, status.Handle);

@@ -8837,11 +8837,16 @@ begin
     end else
     begin
         var protoByte := handle.BufferToArray;
-        var Loader: TpbLoader; Loader.Init;
-        Loader.Pb.Init(@protoByte[0],Length(protoByte),false);
-        var protoHandle : THandleData;
-        Loader.LoadHandleData(protoHandle);
-        Result := protoHandle;
+        var Loader: TpbLoader;
+        Loader.Init;
+        try
+          Loader.Pb.Init(@protoByte[0],Length(protoByte),false);
+          var protoHandle : THandleData;
+          Loader.LoadHandleData(protoHandle);
+          Result := protoHandle;
+        finally
+          Loader.Init;
+        end;
     end;
 end;
 {$ENDREGION}
