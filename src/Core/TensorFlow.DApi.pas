@@ -2239,11 +2239,15 @@ begin
     Status := TFStatus.Create;
    try
      Saver.Init;
-     TpbSaver.SaveConfigProto(Saver,protoData);
-     var config_str := Saver.Pb.GetBytes;
+     try
+       TpbSaver.SaveConfigProto(Saver,protoData);
+       var config_str := Saver.Pb.GetBytes;
 
-     TF_SetConfig(Handle ,@config_str[0],Length(config_str),Status.Handle);
-     Status.RaiseEx;
+       TF_SetConfig(Handle ,@config_str[0],Length(config_str),Status.Handle);
+       Status.RaiseEx;
+     finally
+       Saver.Free;
+     end;
    finally
       Status.Free;
    end;
@@ -6348,12 +6352,16 @@ begin
       tf.Status.RaiseEx;
       var aBuf := buf.toArray;
       Loader.Init;
-      Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
+      try
+        Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
 
-      var AttrValue : TAttrValue ;
-      loader.LoadAttrValue(AttrValue);
+        var AttrValue : TAttrValue ;
+        loader.LoadAttrValue(AttrValue);
 
-      Result := AttrValue.Value.value ;
+        Result := AttrValue.Value.value;
+      finally
+        Loader.Free;
+      end;
     finally
      buf.Free;
     end;
@@ -6384,31 +6392,35 @@ begin
 
       var Loader  : TpbLoader;
       Loader.Init;
-      Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
+      try
+        Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
 
-      var AttrValue : TAttrValue ;
-      loader.LoadAttrValue(AttrValue);
+        var AttrValue : TAttrValue ;
+        loader.LoadAttrValue(AttrValue);
 
-      if TypeInfo(T) = TypeInfo(Int32) then
-      begin
-          var lst :=   AttrValue.Value.value.AsType< TListValue > ;
-          Result := [];
-          for var i := 0 to lst.&Is.count-1 do
-          begin
-              var Lvalue := TValue.From<Int32>( Integer(lst.&Is[i]) );
-              Result := Result + [ Lvalue.AsType<T>  ];
-          end;
-      end
-      else if TypeInfo(T) = TypeInfo(Int64) then
-      begin
-          var lst :=   AttrValue.Value.value.AsType< TListValue > ;
-          Result := [];
-          for var i := 0 to lst.&Is.count-1 do
-          begin
-              var Lvalue := TValue.From<Int64>( lst.&Is[i] );
-              Result := Result + [ Lvalue.AsType<T>  ];
-          end;
-      end
+        if TypeInfo(T) = TypeInfo(Int32) then
+        begin
+            var lst :=   AttrValue.Value.value.AsType< TListValue > ;
+            Result := [];
+            for var i := 0 to lst.&Is.count-1 do
+            begin
+                var Lvalue := TValue.From<Int32>( Integer(lst.&Is[i]) );
+                Result := Result + [ Lvalue.AsType<T>  ];
+            end;
+        end
+        else if TypeInfo(T) = TypeInfo(Int64) then
+        begin
+            var lst :=   AttrValue.Value.value.AsType< TListValue > ;
+            Result := [];
+            for var i := 0 to lst.&Is.count-1 do
+            begin
+                var Lvalue := TValue.From<Int64>( lst.&Is[i] );
+                Result := Result + [ Lvalue.AsType<T>  ];
+            end;
+        end;
+      finally
+        Loader.Free;
+      end;
     finally
      buf.Free;
     end;
@@ -6426,13 +6438,17 @@ begin
 
       var aBuf := buf.toArray;
       Loader.Init;
-      Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
-      // Loader.Pb.SaveToFile('test.proto');   For testing
+      try
+        Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
+        // Loader.Pb.SaveToFile('test.proto');   For testing
 
-      var NodeDef : TNodeDef ;
-      loader.LoadNodeDef(NodeDef);
+        var NodeDef : TNodeDef ;
+        loader.LoadNodeDef(NodeDef);
 
-      Result := NodeDef ;
+        Result := NodeDef;
+      finally
+        Loader.Free;
+      end;
     finally
      buf.Free;
     end;

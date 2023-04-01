@@ -1879,8 +1879,12 @@ var
    Saver  : TpbSaver;
 begin
     Saver.Init;
-    TpbSaver.SaveConfigProto(Saver,Config);
-    Result := Saver.Pb.ToStringUtf8;
+    try
+      TpbSaver.SaveConfigProto(Saver,Config);
+      Result := Saver.Pb.ToStringUtf8;
+    finally
+      Saver.Free;
+    end;
 end;
 {$ENDREGION}
 
@@ -2967,17 +2971,21 @@ begin
 
     var aBuf := buffer.toArray;
     Loader.Init;
-    Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
+    try
+      Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
 
-    Loader.LoadOpList(op_list);
+      Loader.LoadOpList(op_list);
 
-    for var i := 0 to op_list.Ops.Count - 1 do
-    begin
-       var op_def : TOpDef := op_list.Ops[i];
-       registered_ops.AddOrSetValue(op_def.Name,op_def);
+      for var i := 0 to op_list.Ops.Count - 1 do
+      begin
+         var op_def : TOpDef := op_list.Ops[i];
+         registered_ops.AddOrSetValue(op_def.Name,op_def);
+      end;
+
+      Result := registered_ops;
+    finally
+      Loader.Free;
     end;
-
-    Result := registered_ops
 end;
 
 { common_shapes }
@@ -3460,13 +3468,17 @@ begin
         serialized.value := v;
 
         S.Init;
-        bytes := [];
-        TpbSaver.SaveAttrValue(S,serialized);
-        bytes:= s.Pb.GetBytes;
-        var Len : NativeInt := Length(bytes);
+        try
+          bytes := [];
+          TpbSaver.SaveAttrValue(S,serialized);
+          bytes:= s.Pb.GetBytes;
+          var Len : NativeInt := Length(bytes);
 
-        TF_FunctionSetAttrValueProto(F_func_graph_handle, PAnsiChar(AnsiString(_name)), @bytes[0], Len, tf.Status.Handle);
-        tf.Status.RaiseEx;
+          TF_FunctionSetAttrValueProto(F_func_graph_handle, PAnsiChar(AnsiString(_name)), @bytes[0], Len, tf.Status.Handle);
+          tf.Status.RaiseEx;
+        finally
+          S.Free;
+        end;
     end;
 end;
 
