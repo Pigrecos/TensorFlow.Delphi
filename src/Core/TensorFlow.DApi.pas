@@ -2260,7 +2260,6 @@ begin
    inherited Create(hnd);
    if Assigned(graph)  then FGraph := graph
    else                     FGraph := Tops.get_default_graph;
-
 end;
 
 constructor TFSession.Create(target: TF_TString; g : TFGraph; config : TConfigProto; status: TFStatus);
@@ -3001,19 +3000,12 @@ var
   pDims    : PTF_int64_t ;
   i        : Integer ;
 
-  //ts       : TArray<TF_TString> ;
 begin
-     dims     := shape.Dims;
-     pDims    :=  PTF_int64_t(Pointer(@dims)^);
+    dims     := shape.Dims;
+    pDims    :=  PTF_int64_t(Pointer(@dims)^);
 
-     var pTensor := TF_AllocateTensor(TF_DataType.TF_STRING, pDims, shape.ndim, shape.size * TF_TSRING_SIZE);
-     var tstr  : PTF_TString  := TF_TensorData(pTensor);
-
-    // Modified by Max 20/11/2022 20:36:00 Testing for byte string non UTF8 char
-    //SetLength(ts,Length(srcArray));
-    //for i := 0 to Length(srcArray)- 1 do
-      //ts[i] := TF_TString( TEncoding.UTF8.GetString(srcArray[i]) );
-
+    var pTensor := TF_AllocateTensor(TF_DataType.TF_STRING, pDims, shape.ndim, shape.size * TF_TSRING_SIZE);
+    var tstr  : PTF_TString  := TF_TensorData(pTensor);
 
     for i := 0 to Length(srcArray) - 1 do
     begin

@@ -75,6 +75,7 @@ uses
 begin
   Application.Initialize;
   Application.MainFormOnTaskbar := True;
+  Application.Title := 'TensorFlow-Keras for Delphi - Test Unit';
   Application.CreateForm(TfrmMain, frmMain);
   Application.Run;
 end.

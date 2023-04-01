@@ -162,7 +162,8 @@ type
                        batch_shape: PTFShape= nil): TFTensors; overload;
 
       function  Input(shape: TFShape; name : string): TFTensor; overload;
-      function  Sequential(layers: TList<ILayer> = nil; name : string= ''): Sequential;
+      function  Sequential(layers: TList<ILayer> = nil; name : string= ''): Sequential; overload;
+      function  Sequential(layers: TArray<ILayer>): Sequential; overload;
       /// <summary>
       /// `Model` groups layers into an object with training and inference features.
       /// </summary>
@@ -265,6 +266,16 @@ end;
 function KerasInterface.Model(inputs, outputs: TFTensors; name: string): IModel;
 begin
     Result := Functional.Create(inputs, outputs, name);
+end;
+
+function KerasInterface.Sequential(layers: TArray<ILayer>): Sequential;
+ var
+   _args : SequentialArgs;
+begin
+    _args := SequentialArgs.Create;
+    _args.Layers := TList<ILayer>.Create(layers);
+
+    Result := Keras.Models.Sequential.Create(_args);
 end;
 
 function KerasInterface.Sequential(layers: TList<ILayer>; name: string): Sequential;

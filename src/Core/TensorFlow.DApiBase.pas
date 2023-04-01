@@ -188,6 +188,7 @@ constructor TFException.Create(msg: String);
 begin
  inherited Create(msg);
 end;
+
 constructor TFException.Create(msg: TF_TString);
 begin
  inherited Create(String(msg));

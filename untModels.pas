@@ -195,6 +195,8 @@ type
   /// </summary>
   TMnistGAN = class(TInterfacedObject, IExample)
     private
+      fTrainCount : Integer;
+
       FConfig : ExampleConfig;
       // MNIST dataset parameters.
       LeakyReLU_alpha : Single;
@@ -769,6 +771,7 @@ function TMnistGAN.Run: Boolean;
 begin
     tf.enable_eager_execution;
 
+    fTrainCount := 0;
     PrepareData;
     Train;
     
@@ -801,6 +804,7 @@ begin
     mModel.OnEpochBegin      := On_Epoch_Begin;
     mModel.OnTrainBatchBegin := On_Train_Batch_Begin;
     mModel.OnEndSummary      := On_End_Summary;
+    mModel.OnTestBatchBegin  := On_Train_Batch_Begin;
 
     mModel.Add( layers.Input(TFShape.Create([noise_dim])).first );
     mModel.Add( layers.Dense(7*7*256, {activation}nil ,{kernel_initializer}nil, {use_bias}False) );
@@ -834,6 +838,7 @@ begin
     model.OnEpochBegin      := On_Epoch_Begin;
     model.OnTrainBatchBegin := On_Train_Batch_Begin;
     model.OnEndSummary      := On_End_Summary;
+    model.OnTestBatchBegin  := On_Train_Batch_Begin;
 
     model.Add( layers.Input(img_shape).first );
     model.add(layers.Conv2D(64, TFShape.Create([5, 5]), TFShape.Create([2, 2]), 'same'));
@@ -852,34 +857,54 @@ begin
 end;
 
 procedure TMnistGAN.Train_step(images: TFTensor);
+var
+   t,t1 : TArray<Single>;
+   s,s1 : TFShape;
 begin
-     var sSize : TFShape := [ BATCH_SIZE, noise_dim  ];
-     var noise    := np.random.normal(@sSize);
-     noise        := noise.astype(np.np_float32);
+     try
+       if fTrainCount = 12 then
+         fTrainCount := fTrainCount;
 
-     var gen_tape  := tf.GradientTape(true);
-     var disc_tape := tf.GradientTape(true);
+       var sSize : TFShape := [ BATCH_SIZE, noise_dim  ];
+       var noise    := np.random.normal(@sSize);
+       noise        := noise.astype(np.np_float32);
 
-     var generated_images  := generator.Apply(TFTensors.Create(noise));
+       var gen_tape  := tf.GradientTape(true);
+       var disc_tape := tf.GradientTape(true);
 
-     var real_output := discriminator.Apply(TFTensors.Create(images));
-     var fake_output := discriminator.Apply(TFTensors.Create(generated_images));
+       var generated_images  := generator.Apply(TFTensors.Create(noise));
 
-     var gen_loss  := generator_loss(fake_output.First);
-     var disc_loss := discriminator_loss(real_output.First, fake_output.First);
+       s := generated_images.First.Shape;
+       if generated_images.First.Dtype = TF_float then
+         t := generated_images.First.ToArray<Single>;
 
-     var gradients_of_generator     := gen_tape.gradient(gen_loss, generator.TrainableVariables.ToArray);
-     var gradients_of_discriminator := disc_tape.gradient(disc_loss, discriminator.TrainableVariables.ToArray);
+       var real_output := discriminator.Apply(TFTensors.Create(images),nil, true);
+       var fake_output := discriminator.Apply(TFTensors.Create(generated_images), nil, true);
 
-     var resVars : TArray<Tuple<TFTensor, ResourceVariable>> ;
-     for var j := 0 to generator.TrainableVariables.Count - 1 do
-         resVars := resVars + [ tuple.Create(gradients_of_generator[j], generator.TrainableVariables[j] as ResourceVariable) ];
-     generator_optimizer.apply_gradients(resVars);
+       s1 := fake_output.First.Shape;
+       if fake_output.First.Dtype = TF_float then
+         t1 := fake_output.First.ToArray<Single>;
 
-     resVars := [];
-     for var j := 0 to discriminator.TrainableVariables.Count - 1 do
-         resVars := resVars + [ tuple.Create(gradients_of_discriminator[j], discriminator.TrainableVariables[j] as ResourceVariable) ];
-     discriminator_optimizer.apply_gradients(resVars);
+       var gen_loss  := generator_loss(fake_output.First);
+       var disc_loss := discriminator_loss(real_output.First, fake_output.First);
+
+       var gradients_of_generator     := gen_tape.gradient(gen_loss, generator.TrainableVariables.ToArray);
+       var gradients_of_discriminator := disc_tape.gradient(disc_loss, discriminator.TrainableVariables.ToArray);
+
+       var resVars : TArray<Tuple<TFTensor, ResourceVariable>> ;
+       for var j := 0 to generator.TrainableVariables.Count - 1 do
+           resVars := resVars + [ tuple.Create(gradients_of_generator[j], generator.TrainableVariables[j] as ResourceVariable) ];
+       generator_optimizer.apply_gradients(resVars);
+
+       resVars := [];
+       for var j := 0 to discriminator.TrainableVariables.Count - 1 do
+           resVars := resVars + [ tuple.Create(gradients_of_discriminator[j], discriminator.TrainableVariables[j] as ResourceVariable) ];
+       discriminator_optimizer.apply_gradients(resVars);
+
+       Inc(fTrainCount);
+     except
+       ShowMessage('Raise on Error in TMnistGAN.Train_step in Train_step n#: '+ fTrainCount.ToString);
+     end;
 end;
 
 procedure TMnistGAN.Train;
@@ -894,29 +919,33 @@ begin
     var showstep : Integer := 10;
 
     var i : Integer := 0;
-    while i < EPOCHS do
-    begin
-        while (FileExists('dcgan\models\Model_' + IntToStr(i + 100) + '_g.weights')) and (FileExists('dcgan\models\Model_' + IntToStr(i + 100) + '_d.weights')) do
-            i := i + 100;
+    try
+      while i < EPOCHS do
+      begin
+          while (FileExists('dcgan\models\Model_' + IntToStr(i + 100) + '_g.weights')) and (FileExists('dcgan\models\Model_' + IntToStr(i + 100) + '_d.weights')) do
+              i := i + 100;
 
-        if (FileExists('dcgan\models\Model_' + i.ToString + '_g.weights')) and (FileExists('dcgan\models\Model_' + i.ToString + '_d.weights')) then
-        begin
-            logMsg.Add('Loading weights for epoch ' + i.ToString);
-            generator.load_weights('dcgan\models\Model_' + i.ToString + '_g.weights');
-            discriminator.save_weights('dcgan\models\Model_' + i.ToString + '_d.weights');
-            PredictImage(generator, i);
-        end else
-        begin
-            for var image_batch in train_dataset do
-                 train_step(image_batch.Value1.First) ;
+          if (FileExists('dcgan\models\Model_' + i.ToString + '_g.weights')) and (FileExists('dcgan\models\Model_' + i.ToString + '_d.weights')) then
+          begin
+              logMsg.Add('Loading weights for epoch ' + i.ToString);
+              generator.load_weights('dcgan\models\Model_' + i.ToString + '_g.weights');
+              discriminator.save_weights('dcgan\models\Model_' + i.ToString + '_d.weights');
+              PredictImage(generator, i);
+          end else
+          begin
+              for var image_batch in train_dataset do
+                   train_step(image_batch.Value1.First) ;
 
-            if i mod 100 = 0 then
-            begin
-                generator.save_weights('dcgan\models\Model_' + i.ToString + '_g.weights');
-                discriminator.save_weights('dcgan\models\Model_' + i.ToString + '_d.weights');
-            end;
-        end;
-        inc(i);
+              if i mod 100 = 0 then
+              begin
+                  generator.save_weights('dcgan\models\Model_' + i.ToString + '_g.weights');
+                  discriminator.save_weights('dcgan\models\Model_' + i.ToString + '_d.weights');
+              end;
+          end;
+          inc(i);
+      end;
+    except
+      ShowMessage('Errors at Epoch: '+ i.ToString)
     end;
 end;
 

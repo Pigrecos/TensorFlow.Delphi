@@ -1,4 +1,3 @@
-{$REGION 'Licence'}
 (*****************************************************************************
    Copyright 2018 The TensorFlow.NET Authors. All Rights Reserved.
    Licensed under the Apache License, Version 2.0 (the "License");
@@ -2701,6 +2700,7 @@ begin
     begin
         var input     := op_exec_info.args[i];
         var input_arg := op_def.InputArgs[i];
+
         if not string.IsNullOrEmpty(input_arg.NumberAttr) then
         begin
             var len : Int64 := input.GetArrayLength ;

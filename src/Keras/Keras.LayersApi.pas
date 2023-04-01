@@ -239,8 +239,8 @@ type
                                 dilation_rate        : PTFShape = nil;
                                 activation           : string = '';
                                 use_bias             : Boolean= true;
-                                kernel_initializer   : string = '';
-                                bias_initializer     : string = '';
+                                kernel_initializer   : string = 'glorot_uniform';
+                                bias_initializer     : string = 'zeros';
                                 kernel_regularizer   : string = '';
                                 bias_regularizer     : string = '';
                                 activity_regularizer : string = ''): ILayer; overload;
@@ -253,8 +253,8 @@ type
                                 dilation_rate        : PTFShape = nil;
                                 activation           : string = '';
                                 use_bias             : Boolean= true;
-                                kernel_initializer   : string = '';
-                                bias_initializer     : string = '';
+                                kernel_initializer   : string = 'glorot_uniform';
+                                bias_initializer     : string = 'zeros';
                                 kernel_regularizer   : string = '';
                                 bias_regularizer     : string = '';
                                 activity_regularizer : string = ''): ILayer; overload;
@@ -1047,6 +1047,7 @@ begin
    args.KernelInitializer := kIniz;
    args.BiasInitializer   := bIniz;
    args.InputShape        := iShape;
+   args.UseBias           := use_bias;
 
    Result := Keras.Layer.Dense.Create( args );
 end;

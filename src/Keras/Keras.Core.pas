@@ -444,8 +444,8 @@ type
                                 dilation_rate        : PTFShape = nil;
                                 activation           : string = '';
                                 use_bias             : Boolean= true;
-                                kernel_initializer   : string = '';
-                                bias_initializer     : string = '';
+                                kernel_initializer   : string = 'glorot_uniform';
+                                bias_initializer     : string = 'zeros';
                                 kernel_regularizer   : string = '';
                                 bias_regularizer     : string = '';
                                 activity_regularizer : string = ''): ILayer; overload;
@@ -458,8 +458,8 @@ type
                                 dilation_rate        : PTFShape = nil;
                                 activation           : string = '';
                                 use_bias             : Boolean= true;
-                                kernel_initializer   : string = '';
-                                bias_initializer     : string = '';
+                                kernel_initializer   : string = 'glorot_uniform';
+                                bias_initializer     : string = 'zeros';
                                 kernel_regularizer   : string = '';
                                 bias_regularizer     : string = '';
                                 activity_regularizer : string = ''): ILayer; overload;
@@ -932,7 +932,7 @@ type
        destructor  Destroy; override;
    end; 
 
-   {$REGION 'Keras.ArgsDefinitions'} 
+   {$REGION 'Keras.ArgsDefinitions'}
    // Keras.ArgsDefinitions
    //   
    ModelArgs = class(LayerArgs)
