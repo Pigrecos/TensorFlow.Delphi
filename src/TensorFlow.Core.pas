@@ -1542,22 +1542,30 @@ begin
 
     var opts   := TContextOptions.Create;
     var status := TFStatus.Create;
+    try
+      FConfig := MergeConfig;
+      FFunctionCallOptions.Config := FConfig;
 
-    FConfig := MergeConfig;
-    FFunctionCallOptions.Config := FConfig;
+      Saver.Init;
+      try
+        TpbSaver.SaveConfigProto(Saver,FConfig);
+        var config_str := Saver.Pb.GetBytes;
 
-    Saver.Init;
-    TpbSaver.SaveConfigProto(Saver,FConfig);
-    var config_str := Saver.Pb.GetBytes;
+        TFE_ContextOptionsSetConfig(opts.Handle ,@config_str[0],Length(config_str),status.Handle);
+        status.RaiseEx;
 
-    TFE_ContextOptionsSetConfig(opts.Handle ,@config_str[0],Length(config_str),status.Handle);
-    status.RaiseEx;
+        TFE_ContextOptionsSetDevicePlacementPolicy(opts.Handle, _device_policy);
+        inherited Create( TFE_NewContext(opts.Handle, status.Handle) ) ;
+        status.RaiseEx;
 
-    TFE_ContextOptionsSetDevicePlacementPolicy(opts.Handle, _device_policy);
-    inherited Create( TFE_NewContext(opts.Handle, status.Handle) ) ;
-    status.RaiseEx;
-
-    initialized := True;
+        initialized := True;
+      finally
+        Saver.Free;
+      end;
+    finally
+      opts.Free;
+      status.Free;
+    end;
 end;
 
 function TContext.ExecGraphAction(OpType, Name: string; args: ExecuteOpArgs): TFTensors;
