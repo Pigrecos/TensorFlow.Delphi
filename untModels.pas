@@ -195,7 +195,6 @@ type
   /// </summary>
   TMnistGAN = class(TInterfacedObject, IExample)
     private
-      fTrainCount : Integer;
 
       FConfig : ExampleConfig;
       // MNIST dataset parameters.
@@ -719,6 +718,10 @@ end;
 
 constructor TMnistGAN.Create;
 begin
+   if not tf.executing_eagerly then
+       tf.enable_eager_execution;
+   tf.Context.ensure_initialized;
+
     LeakyReLU_alpha := 0.2;
     imgpath    := 'dcgan\imgs';
     modelpath  := 'dcgan\\models';
@@ -727,8 +730,8 @@ begin
     img_cols   := 28;
     channels   := 1;
 
-    EPOCHS      := 50; //20;
-    BATCH_SIZE := 256;
+    EPOCHS     := 20; // 50;
+    BATCH_SIZE := 64;
     BUFFER_SIZE:= 60000;
 
     layers  := LayersApi.Create;
@@ -771,7 +774,6 @@ function TMnistGAN.Run: Boolean;
 begin
     tf.enable_eager_execution;
 
-    fTrainCount := 0;
     PrepareData;
     Train;
     
@@ -857,33 +859,19 @@ begin
 end;
 
 procedure TMnistGAN.Train_step(images: TFTensor);
-var
-   t,t1 : TArray<Single>;
-   s,s1 : TFShape;
 begin
      try
-       if fTrainCount = 12 then
-         fTrainCount := fTrainCount;
-
        var sSize : TFShape := [ BATCH_SIZE, noise_dim  ];
        var noise    := np.random.normal(@sSize);
        noise        := noise.astype(np.np_float32);
 
-       var gen_tape  := tf.GradientTape(true);
-       var disc_tape := tf.GradientTape(true);
+       var gen_tape  := tf.GradientTape;
+       var disc_tape := tf.GradientTape;
 
        var generated_images  := generator.Apply(TFTensors.Create(noise));
 
-       s := generated_images.First.Shape;
-       if generated_images.First.Dtype = TF_float then
-         t := generated_images.First.ToArray<Single>;
-
        var real_output := discriminator.Apply(TFTensors.Create(images),nil, true);
        var fake_output := discriminator.Apply(TFTensors.Create(generated_images), nil, true);
-
-       s1 := fake_output.First.Shape;
-       if fake_output.First.Dtype = TF_float then
-         t1 := fake_output.First.ToArray<Single>;
 
        var gen_loss  := generator_loss(fake_output.First);
        var disc_loss := discriminator_loss(real_output.First, fake_output.First);
@@ -891,19 +879,10 @@ begin
        var gradients_of_generator     := gen_tape.gradient(gen_loss, generator.TrainableVariables.ToArray);
        var gradients_of_discriminator := disc_tape.gradient(disc_loss, discriminator.TrainableVariables.ToArray);
 
-       var resVars : TArray<Tuple<TFTensor, ResourceVariable>> ;
-       for var j := 0 to generator.TrainableVariables.Count - 1 do
-           resVars := resVars + [ tuple.Create(gradients_of_generator[j], generator.TrainableVariables[j] as ResourceVariable) ];
-       generator_optimizer.apply_gradients(resVars);
-
-       resVars := [];
-       for var j := 0 to discriminator.TrainableVariables.Count - 1 do
-           resVars := resVars + [ tuple.Create(gradients_of_discriminator[j], discriminator.TrainableVariables[j] as ResourceVariable) ];
-       discriminator_optimizer.apply_gradients(resVars);
-
-       Inc(fTrainCount);
+       generator_optimizer.apply_gradients(gradients_of_generator, generator.TrainableVariables.ToArray);
+       discriminator_optimizer.apply_gradients(gradients_of_discriminator, discriminator.TrainableVariables.ToArray);
      except
-       ShowMessage('Raise on Error in TMnistGAN.Train_step in Train_step n#: '+ fTrainCount.ToString);
+       ShowMessage('Raise on Error in TMnistGAN.Train_step in Train_step');
      end;
 end;
 

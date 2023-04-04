@@ -2064,6 +2064,310 @@ type
       ///    greater than <c>clip_value_max</c> are set to <c>clip_value_max</c>.
       /// </remarks>
       class function clip_by_value(t: TFTensor; clip_value_min: TFTensor; clip_value_max: TFTensor; name: string = 'ClipByValue') : TFTensor; static;
+      /// <summary>
+      ///    Returns the argument of a complex number.
+      /// </summary>
+      /// <param name="input">
+      /// </param>
+      /// <param name="name">
+      /// If specified, the created operation in the graph will be this one, otherwise it will be named 'Angle'.
+      /// </param>
+      /// <param name="Tout">
+      /// </param>
+      /// <returns>
+      ///    The Operation can be fetched from the resulting Tensor, by fetching the Operation property from the result.
+      /// </returns>
+      /// <remarks>
+      ///    Given a tensor <c>input</c> of complex numbers, this operation returns a tensor of
+      ///    type <c>float</c> that is the argument of each element in <c>input</c>. All elements in
+      ///    <c>input</c> must be complex numbers of the form \\(a + bj\\), where *a*
+      ///    is the real part and *b* is the imaginary part.
+      ///
+      ///    The argument returned by this operation is of the form \\(atan2(b, a)\\).
+      ///
+      ///    For example:
+      ///
+      ///   <code>
+      ///    # tensor 'input' is [-2.25 + 4.75j, 3.25 + 5.75j]
+      ///    tf.angle(input) ==&amp;gt; [2.0132, 1.056]
+      ///   </code>
+      ///
+      ///    @compatibility(numpy)
+      ///    Equivalent to np.angle.
+      ///    @end_compatibility
+      /// </remarks>
+      class function angle(input: TFTensor; Tout : TF_DataType = DtInvalid; name: string = 'Angle'): TFTensor; static;
+      // <summary>
+      ///    Converts two real numbers to a complex number.
+      /// </summary>
+      /// <param name="real">
+      /// </param>
+      /// <param name="imag">
+      /// </param>
+      /// <param name="name">
+      /// If specified, the created operation in the graph will be this one, otherwise it will be named 'Complex'.
+      /// </param>
+      /// <param name="Tout">
+      /// </param>
+      /// <returns>
+      ///    The Operation can be fetched from the resulting Tensor, by fetching the Operation property from the result.
+      /// </returns>
+      /// <remarks>
+      ///    Given a tensor <c>real</c> representing the real part of a complex number, and a
+      ///    tensor <c>imag</c> representing the imaginary part of a complex number, this
+      ///    operation returns complex numbers elementwise of the form \\(a + bj\\), where
+      ///    *a* represents the <c>real</c> part and *b* represents the <c>imag</c> part.
+      ///
+      ///    The input tensors <c>real</c> and <c>imag</c> must have the same shape.
+      ///
+      ///    For example:
+      ///
+      ///   <code>
+      ///    # tensor 'real' is [2.25, 3.25]
+      ///    # tensor <c>imag</c> is [4.75, 5.75]
+      ///    tf.complex(real, imag) ==&amp;gt; [[2.25 + 4.75j], [3.25 + 5.75j]]
+      ///   </code>
+      /// </remarks>
+      class function complex(real: TFTensor; imag: TfTensor; a_Tout: TF_DataType = DtInvalid; name: string = 'Complex'): TFTensor; static;
+      /// <summary>
+      ///    Computes the complex absolute value of a tensor.
+      /// </summary>
+      /// <param name="x">
+      /// </param>
+      /// <param name="name">
+      /// If specified, the created operation in the graph will be this one, otherwise it will be named 'ComplexAbs'.
+      /// </param>
+      /// <param name="Tout">
+      /// </param>
+      /// <returns>
+      ///    The Operation can be fetched from the resulting Tensor, by fetching the Operation property from the result.
+      /// </returns>
+      /// <remarks>
+      ///    Given a tensor <c>x</c> of complex numbers, this operation returns a tensor of type
+      ///    <c>float</c> or <c>double</c> that is the absolute value of each element in <c>x</c>. All
+      ///    elements in <c>x</c> must be complex numbers of the form \\(a + bj\\). The absolute
+      ///    value is computed as \\( \sqrt{a^2 + b^2}\\).
+      /// </remarks>
+      class function complex_abs(x: TFTensor; Tout: TF_DataType = DtInvalid; name: string = 'ComplexAbs'): TFTensor; static;
+      /// <summary>
+      ///    Returns the complex conjugate of a complex number.
+      /// </summary>
+      /// <param name="input">
+      /// </param>
+      /// <param name="name">
+      /// If specified, the created operation in the graph will be this one, otherwise it will be named 'Conj'.
+      /// </param>
+      /// <returns>
+      ///    The Operation can be fetched from the resulting Tensor, by fetching the Operation property from the result.
+      /// </returns>
+      /// <remarks>
+      ///    Given a tensor <c>input</c> of complex numbers, this operation returns a tensor of
+      ///    complex numbers that are the complex conjugate of each element in <c>input</c>. The
+      ///    complex numbers in <c>input</c> must be of the form \\(a + bj\\), where *a* is the
+      ///    real part and *b* is the imaginary part.
+      ///
+      ///    The complex conjugate returned by this operation is of the form \\(a - bj\\).
+      ///
+      ///    For example:
+      ///
+      ///   <code>
+      ///    # tensor 'input' is [-2.25 + 4.75j, 3.25 + 5.75j]
+      ///    tf.conj(input) ==&amp;gt; [-2.25 - 4.75j, 3.25 - 5.75j]
+      ///   </code>
+      /// </remarks>
+      class function conj(input: TFTensor; name: string = 'Conj'): TFTensor; static;
+      /// <summary>
+      ///    Returns the imaginary part of a complex number.
+      /// </summary>
+      /// <param name="input">
+      /// </param>
+      /// <param name="name">
+      /// If specified, the created operation in the graph will be this one, otherwise it will be named 'Imag'.
+      /// </param>
+      /// <param name="Tout">
+      /// </param>
+      /// <returns>
+      ///    The Operation can be fetched from the resulting Tensor, by fetching the Operation property from the result.
+      /// </returns>
+      /// <remarks>
+      ///    Given a tensor <c>input</c> of complex numbers, this operation returns a tensor of
+      ///    type <c>float</c> that is the imaginary part of each element in <c>input</c>. All
+      ///    elements in <c>input</c> must be complex numbers of the form \\(a + bj\\), where *a*
+      ///    is the real part and *b* is the imaginary part returned by this operation.
+      ///
+      ///    For example:
+      ///
+      ///   <code>
+      ///    # tensor 'input' is [-2.25 + 4.75j, 3.25 + 5.75j]
+      ///    tf.imag(input) ==&amp;gt; [4.75, 5.75]
+      ///   </code>
+      /// </remarks>
+      class function imag(input: TFTensor; a_Tout: TF_DataType = DtInvalid; name : string= 'Imag'): TFTensor; static;
+      /// <summary>
+      ///    Returns the real part of a complex number.
+      /// </summary>
+      /// <param name="input">
+      /// </param>
+      /// <param name="name">
+      /// If specified, the created operation in the graph will be this one, otherwise it will be named 'Real'.
+      /// </param>
+      /// <param name="Tout">
+      /// </param>
+      /// <returns>
+      ///    The Operation can be fetched from the resulting Tensor, by fetching the Operation property from the result.
+      /// </returns>
+      /// <remarks>
+      ///    Given a tensor <c>input</c> of complex numbers, this operation returns a tensor of
+      ///    type <c>float</c> that is the real part of each element in <c>input</c>. All elements in
+      ///    <c>input</c> must be complex numbers of the form \\(a + bj\\), where *a* is the real
+      ///    part returned by this operation and *b* is the imaginary part.
+      ///
+      ///    For example:
+      ///
+      ///   <code>
+      ///    # tensor 'input' is [-2.25 + 4.75j, 3.25 + 5.75j]
+      ///    tf.real(input) ==&amp;gt; [-2.25, 3.25]
+      ///   </code>
+      /// </remarks>
+      class function real(input: TFTensor; a_Tout: TF_DataType = DtInvalid; name : string= 'Real'): TFTensor; static;
+      /// <summary>
+      ///    Fast Fourier transform.
+      /// </summary>
+      /// <param name="input">
+      ///    A complex64 tensor.
+      /// </param>
+      /// <param name="name">
+      /// If specified, the created operation in the graph will be this one, otherwise it will be named 'FFT'.
+      /// </param>
+      /// <returns>
+      ///    A complex64 tensor of the same shape as <c>input</c>. The inner-most
+      ///    dimension of <c>input</c> is replaced with its 1D Fourier transform.
+      ///
+      ///    @compatibility(numpy)
+      ///    Equivalent to np.fft.fft
+      ///    @end_compatibility
+      ///    The Operation can be fetched from the resulting Tensor, by fetching the Operation property from the result.
+      /// </returns>
+      /// <remarks>
+      ///    Computes the 1-dimensional discrete Fourier transform over the inner-most
+      ///    dimension of <c>input</c>.
+      /// </remarks>
+      class function f_f_t(input: TFTensor; name: string = 'FFT') : TFTensor; static;
+      /// <summary>
+      ///    2D fast Fourier transform.
+      /// </summary>
+      /// <param name="input">
+      ///    A complex64 tensor.
+      /// </param>
+      /// <param name="name">
+      /// If specified, the created operation in the graph will be this one, otherwise it will be named 'FFT2D'.
+      /// </param>
+      /// <returns>
+      ///    A complex64 tensor of the same shape as <c>input</c>. The inner-most 2
+      ///    dimensions of <c>input</c> are replaced with their 2D Fourier transform.
+      ///
+      ///    @compatibility(numpy)
+      ///    Equivalent to np.fft.fft2
+      ///    @end_compatibility
+      ///    The Operation can be fetched from the resulting Tensor, by fetching the Operation property from the result.
+      /// </returns>
+      /// <remarks>
+      ///    Computes the 2-dimensional discrete Fourier transform over the inner-most
+      ///    2 dimensions of <c>input</c>.
+      /// </remarks>
+      class function f_f_t2d(input: TFTensor; name: string = 'FFT2D') : TFTensor; static;
+      /// <summary>
+      ///    3D fast Fourier transform.
+      /// </summary>
+      /// <param name="input">
+      ///    A complex64 tensor.
+      /// </param>
+      /// <param name="name">
+      /// If specified, the created operation in the graph will be this one, otherwise it will be named 'FFT3D'.
+      /// </param>
+      /// <returns>
+      ///    A complex64 tensor of the same shape as <c>input</c>. The inner-most 3
+      ///    dimensions of <c>input</c> are replaced with their 3D Fourier transform.
+      ///
+      ///    @compatibility(numpy)
+      ///    Equivalent to np.fft.fftn with 3 dimensions.
+      ///    @end_compatibility
+      ///    The Operation can be fetched from the resulting Tensor, by fetching the Operation property from the result.
+      /// </returns>
+      /// <remarks>
+      ///    Computes the 3-dimensional discrete Fourier transform over the inner-most 3
+      ///    dimensions of <c>input</c>.
+      /// </remarks>
+      class function f_f_t3d(input: TFTensor; name: string = 'FFT3D'): TFTensor; static;
+      /// <summary>
+      ///    Inverse fast Fourier transform.
+      /// </summary>
+      /// <param name="input">
+      ///    A complex64 tensor.
+      /// </param>
+      /// <param name="name">
+      /// If specified, the created operation in the graph will be this one, otherwise it will be named 'IFFT'.
+      /// </param>
+      /// <returns>
+      ///    A complex64 tensor of the same shape as <c>input</c>. The inner-most
+      ///    dimension of <c>input</c> is replaced with its inverse 1D Fourier transform.
+      ///
+      ///    @compatibility(numpy)
+      ///    Equivalent to np.fft.ifft
+      ///    @end_compatibility
+      ///    The Operation can be fetched from the resulting Tensor, by fetching the Operation property from the result.
+      /// </returns>
+      /// <remarks>
+      ///    Computes the inverse 1-dimensional discrete Fourier transform over the
+      ///    inner-most dimension of <c>input</c>.
+      /// </remarks>
+      class function i_f_f_t(input: TFTensor; name: string = 'IFFT'): TFTensor; static;
+      /// <summary>
+      ///    Inverse 2D fast Fourier transform.
+      /// </summary>
+      /// <param name="input">
+      ///    A complex64 tensor.
+      /// </param>
+      /// <param name="name">
+      /// If specified, the created operation in the graph will be this one, otherwise it will be named 'IFFT2D'.
+      /// </param>
+      /// <returns>
+      ///    A complex64 tensor of the same shape as <c>input</c>. The inner-most 2
+      ///    dimensions of <c>input</c> are replaced with their inverse 2D Fourier transform.
+      ///
+      ///    @compatibility(numpy)
+      ///    Equivalent to np.fft.ifft2
+      ///    @end_compatibility
+      ///    The Operation can be fetched from the resulting Tensor, by fetching the Operation property from the result.
+      /// </returns>
+      /// <remarks>
+      ///    Computes the inverse 2-dimensional discrete Fourier transform over the
+      ///    inner-most 2 dimensions of <c>input</c>.
+      /// </remarks>
+      class function i_f_f_t2d(input: TFTensor; name: string = 'IFFT2D'): TFTensor; static;
+      /// <summary>
+      ///    Inverse 3D fast Fourier transform.
+      /// </summary>
+      /// <param name="input">
+      ///    A complex64 tensor.
+      /// </param>
+      /// <param name="name">
+      /// If specified, the created operation in the graph will be this one, otherwise it will be named 'IFFT3D'.
+      /// </param>
+      /// <returns>
+      ///    A complex64 tensor of the same shape as <c>input</c>. The inner-most 3
+      ///    dimensions of <c>input</c> are replaced with their inverse 3D Fourier transform.
+      ///
+      ///    @compatibility(numpy)
+      ///    Equivalent to np.fft.ifftn with 3 dimensions.
+      ///    @end_compatibility
+      ///    The Operation can be fetched from the resulting Tensor, by fetching the Operation property from the result.
+      /// </returns>
+      /// <remarks>
+      ///    Computes the inverse 3-dimensional discrete Fourier transform over the
+      ///    inner-most 3 dimensions of <c>input</c>.
+      /// </remarks>
+      class function i_f_f_t3d(input: TFTensor; name: string = 'IFFT3D'): TFTensor; static;
   end;
   {$ENDREGION}
 
@@ -5480,15 +5784,32 @@ begin
                         name := v1.ToString;
                         x := Tops.convert_to_tensor(x, DtInvalid, 'x');
                         if TDtypes.is_complex(x.dtype) then
-                           raise Exception.Create('math_ops.abs for dtype.is_complex');
-                        //return gen_math_ops.complex_abs(x, Tout: x.dtype.real_dtype, name: name);
+                        begin
+                            Result := gen_ops.complex_abs(x, tdtypes.real_dtype(x.dtype), name);
+                            Exit;
+                        end;
                         Result := gen_math_ops._abs(x, name);
                     end );
 end;
 
 class function math_ops.add<Tx, Ty>(x: Tx; y: Ty; name: string): TFTensor;
 begin
-    Result := gen_math_ops.add(x, y, name);
+    var vValues : TArray<TValue>;
+    vValues := vValues + [ TValue.From<Tx>(x) ];
+    var newVal : TValue := TValue.From<TArray<TValue>>(vValues);;
+
+    Result := TUtils.tf_with<TNameScope,TFTensor>( TOps.name_scope(name, 'Add', @newVal),
+                  function(v1: TNameScope): TFTensor
+                    begin
+                        name := v1.ToString;
+                        var x1 := Tops.convert_to_tensor(TValue.From<Tx>(x), DtInvalid, 'x');
+                        var y1 := Tops.convert_to_tensor(TValue.From<Ty>(y), DtInvalid, 'y');
+                        if x1.Dtype =TF_STRING then
+                           Result := gen_math_ops.add(x1, y1, name)
+                        else
+                           Result := gen_math_ops.add_v2(x, y, name);
+
+                    end );
 end;
 
 class function math_ops.add_n(inputs: TArray<TFTensor>; name: string): TFTensor;
@@ -7878,6 +8199,49 @@ end;
 {$REGION 'gen_ops'}
 { gen_ops }
 
+class function gen_ops.angle(input: TFTensor; Tout: TF_DataType; name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('Angle', name, ExecuteOpArgs.Create([input])
+                  .SetAttributes([ 'Tout', TValue.From<Integer>( Ord(Tout) ) ])).First;
+end;
+
+class function gen_ops.complex(real, imag: TFTensor; a_Tout: TF_DataType; name: string): TFTensor;
+begin
+    var Tin : TF_DataType := TUtils.GetDataType(real);
+    if a_Tout = DtInvalid then
+    begin
+        if Tin = TF_DataType.TF_DOUBLE then a_Tout := TF_DataType.TF_COMPLEX128
+        else                                a_Tout := TF_DataType.TF_COMPLEX64
+    end;
+    Result := tf.Context.ExecuteOp('Complex', name, ExecuteOpArgs.Create([real, imag])
+                  .SetAttributes([ 'T', TValue.From<Integer>( Ord(Tin) ), 'Tout', TValue.From<Integer>( Ord(a_Tout) ) ])).First;
+end;
+
+class function gen_ops.complex_abs(x: TFTensor; Tout: TF_DataType; name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('ComplexAbs', name, ExecuteOpArgs.Create([x])
+                  .SetAttributes([ 'Tout', TValue.From<Integer>( Ord(Tout) ) ])).First;
+end;
+
+class function gen_ops.conj(input: TFTensor; name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('Conj', name, ExecuteOpArgs.Create([input])).First;
+end;
+
+class function gen_ops.imag(input: TFTensor; a_Tout: TF_DataType; name: string): TFTensor;
+begin
+    var Tin : TF_DataType := TUtils.GetDataType(input);
+    Result := tf.Context.ExecuteOp('Imag', name, ExecuteOpArgs.Create([input])
+                  .SetAttributes([ 'T', TValue.From<Integer>( Ord(Tin) ), 'Tout', TValue.From<Integer>( Ord(a_Tout) ) ])).First;
+end;
+
+class function gen_ops.real(input: TFTensor; a_Tout: TF_DataType; name: string): TFTensor;
+begin
+    var Tin : TF_DataType := TUtils.GetDataType(input);
+    Result := tf.Context.ExecuteOp('Real', name, ExecuteOpArgs.Create([input])
+                  .SetAttributes([ 'T', TValue.From<Integer>( Ord(Tin) ), 'Tout', TValue.From<Integer>( Ord(a_Tout) ) ])).First;
+end;
+
 class function gen_ops.clip_by_value(t, clip_value_min, clip_value_max: TFTensor; name: string): TFTensor;
 begin
     var dict := TDictionary<string, TValue>.Create;
@@ -7902,6 +8266,36 @@ begin
     finally
       dict.free;
     end;
+end;
+
+class function gen_ops.f_f_t(input: TFTensor; name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('FFT', name, ExecuteOpArgs.Create([input])).First;
+end;
+
+class function gen_ops.f_f_t2d(input: TFTensor; name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('FFT2D', name, ExecuteOpArgs.Create([input])).First;
+end;
+
+class function gen_ops.f_f_t3d(input: TFTensor; name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('FFT3D', name, ExecuteOpArgs.Create([input])).First;
+end;
+
+class function gen_ops.i_f_f_t(input: TFTensor; name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('IFFT', name, ExecuteOpArgs.Create([input])).First;
+end;
+
+class function gen_ops.i_f_f_t2d(input: TFTensor; name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('IFFT2D', name, ExecuteOpArgs.Create([input])).First;
+end;
+
+class function gen_ops.i_f_f_t3d(input: TFTensor; name: string): TFTensor;
+begin
+    Result := tf.Context.ExecuteOp('IFFT3D', name, ExecuteOpArgs.Create([input])).First;
 end;
 
 class function gen_ops.relu(features: TFTensor; name: string): TFTensor;

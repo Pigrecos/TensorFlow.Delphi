@@ -148,6 +148,7 @@ type
       function  clip_gradients(grads: TArray<TFTensor>): TArray<TFTensor>;
       function  apply_gradients(grads_and_vars: Tuple<TFTensor, ResourceVariable>;           name : string= ''; experimental_aggregate_gradients : Boolean = True) : TFOperation; overload;
       function  apply_gradients(grads_and_vars: TArray< Tuple<TFTensor, ResourceVariable> >; name : string= ''; experimental_aggregate_gradients : Boolean = True) : TFOperation; overload;
+      function  apply_gradients(grads : TArray<TFTensor>; vars: TArray<IVariableV1>;         name : string= ''; experimental_aggregate_gradients : Boolean = True) : TFOperation; overload;
   end;
 
   ICallback = interface

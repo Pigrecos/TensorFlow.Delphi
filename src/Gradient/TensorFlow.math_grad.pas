@@ -967,6 +967,7 @@ begin
                        TGradFunc.Create('Maximum',     _MaximumGrad),
                        TGradFunc.Create('Minimum',     _MinimumGrad),
                        TGradFunc.Create('Neg',         _NegGrad),
+                       TGradFunc.Create('Select',      _SelectGrad),
                        TGradFunc.Create('Sub',         _SubGrad),
                        TGradFunc.Create('Sum',         _SumGrad),
                        TGradFunc.Create('RealDiv',     _RealDivGrad),

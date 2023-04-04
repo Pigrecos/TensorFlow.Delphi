@@ -2113,6 +2113,7 @@ begin
             if assigned(training) then isTarainig := training^;
 
             outputs := nNode.Layer.Apply(layer_inputs, nil, isTarainig);
+
             for var output in outputs do
             begin
                 if output <> nil  then
@@ -2366,5 +2367,3 @@ begin
 end;
 
 end.
-
-

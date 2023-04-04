@@ -345,6 +345,10 @@ MathApi = class
     /// <param name="binary_output"></param>
     /// <returns></returns>
     function bincount(arr: TFTensor; weights: TFTensor = nil; minlength: TFTensor = nil; maxlength: TFTensor = nil; dtype: TF_DataType = TF_INT32;  name: string = ''; axis: PTFShape = nil; binary_output: Boolean = false): TFTensor;
+    function real(x: TFTensor; name: string = ''): TFTensor;
+    function imag(x: TFTensor; name: string = ''): TFTensor;
+    function conj(x: TFTensor; name: string = ''): TFTensor;
+    function angle(x: TFTensor; name: string = ''): TFTensor;
     function in_top_k(predictions: TFTensor; targets: TFTensor; k: Integer; name: string = 'InTopK'): TFTensor;
     /// <summary>
     /// Finds values and indices of the `k` largest entries for the last dimension.
@@ -485,6 +489,19 @@ end;
   end;
 {$ENDREGION}
 
+{$REGION 'SignalApi'}
+  SignalApi = class
+     public
+       constructor Create;
+       function fft(input: TFTensor; name: string = ''): TFTensor;
+       function ifft(input: TFTensor; name: string = ''): TFTensor;
+       function fft2d(input: TFTensor; name: string = ''): TFTensor;
+       function ifft2d(input: TFTensor; name: string= ''): TFTensor;
+       function fft3d(input: TFTensor; name: string ='') : TFTensor;
+       function ifft3d(input: TFTensor; name: string= ''): TFTensor;
+end;
+{$ENDREGION}
+
 {$REGION 'TTensorflow'}
   TTensorflow = class
     private
@@ -515,6 +532,7 @@ end;
       strings  : StringsApi;
       GraphKeys: TGraphKeys;
       data     : DataOps;
+      signal   : SignalApi;
       //
       random   : TRandom;
       /// <summary>
@@ -1233,6 +1251,7 @@ end;
       function squared_difference(x : TFTensor; y: TFTensor; name: string = '') : TFTensor;
       function exp(x: TFTensor; name: string = ''): TFTensor;
       function divide_no_nan(a: TFTensor; b: TFTensor; name: string = '') : TFTensor;
+      function complex(real: TFTensor; imag: TFTensor; dtype : TF_DataType= DtInvalid; name: string = ''): TFTensor;
       {$ENDREGION}
 
       {$REGION 'tf.random'}
@@ -1304,6 +1323,7 @@ begin
     strings   := StringsApi.Create;
     GraphKeys := TGraphKeys.Create;
     data      := DataOps.Create;
+    signal    := SignalApi.Create;
     // Get gradient Function
     TOps.RegisterFromAssembly;
     //
@@ -1338,6 +1358,7 @@ begin
   strings.Free;
   GraphKeys := System.Default(TGraphKeys);
   data.Free;
+  signal.Free;
   op_def_registry.FreeDictionary;
   //
   random.Free;
@@ -1569,6 +1590,11 @@ end;
 function TTensorflow.clip_by_value<T1, T2>(t: TFTensor; clip_value_min: T1; clip_value_max: T2; name: string): TFTensor;
 begin
     Result := clip_ops.clip_by_value(t, clip_value_min, clip_value_max, name);
+end;
+
+function TTensorflow.complex(real, imag: TFTensor; dtype: TF_DataType; name: string): TFTensor;
+begin
+    Result := gen_ops.complex(real, imag, dtype, name)
 end;
 
 function TTensorflow.concat(values: TArray<TFTensor>; axis: Integer; name: string): TFTensor;
@@ -2592,6 +2618,26 @@ end;
 {$REGION 'MathApi'}
 { MathApi }
 
+function MathApi.real(x: TFTensor; name: string): TFTensor;
+begin
+   Result := gen_ops.real(x, TDTypes.real_dtype(x.dtype), name);
+end;
+
+function MathApi.imag(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_ops.imag(x, TDTypes.real_dtype(x.dtype), name);
+end;
+
+function MathApi.conj(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_ops.conj(x, name);
+end;
+
+function MathApi.angle(x: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_ops.angle(x, TDTypes.real_dtype(x.dtype), name);
+end;
+
 function MathApi.argmax(input: TFTensor; axis: TAxis; name: string; dimension: PInteger; output_type: TF_DataType): TFTensor;
 begin
     Result := gen_math_ops.arg_max(input, axis, output_type, name);
@@ -2745,6 +2791,45 @@ end;
 constructor DataOps.Create;
 begin
     FDataset := DatasetManager.Create;
+end;
+{$ENDREGION}
+
+{$REGION 'SignalApi'}
+{ SignalApi }
+
+constructor SignalApi.Create;
+begin
+
+end;
+
+function SignalApi.fft(input: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_ops.f_f_t(input, name);
+end;
+
+function SignalApi.fft2d(input: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_ops.f_f_t2d(input, name);
+end;
+
+function SignalApi.fft3d(input: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_ops.f_f_t3d(input, name);
+end;
+
+function SignalApi.ifft(input: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_ops.i_f_f_t(input,  name);
+end;
+
+function SignalApi.ifft2d(input: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_ops.i_f_f_t2d(input, name);
+end;
+
+function SignalApi.ifft3d(input: TFTensor; name: string): TFTensor;
+begin
+    Result := gen_ops.i_f_f_t3d(input, name);
 end;
 {$ENDREGION}
 

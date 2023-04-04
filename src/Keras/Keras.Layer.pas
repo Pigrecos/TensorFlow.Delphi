@@ -2712,10 +2712,11 @@ var
 begin
     rank    := inputs.rank;
     nda     := [ [ rank - 1 ], [ 0 ] ] ;
+
     if rank > 2 then
        outputs := tf.linalg.tensordot(inputs.First, kernel.AsTensor, TNDArray.Create(nda) )
     else
-       outputs := gen_math_ops.mat_mul(inputs.First, kernel.AsTensor);
+       outputs := tf.matmul(inputs.First, kernel.AsTensor);
 
     if args.UseBias then
         outputs := tf.nn.bias_add(outputs, bias);

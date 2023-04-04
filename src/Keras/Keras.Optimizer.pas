@@ -91,6 +91,7 @@ type
          /// <param name="experimental_aggregate_gradients"></param>
          function  apply_gradients(grads_and_vars: TArray< Tuple<TFTensor, ResourceVariable> >; name : string= ''; experimental_aggregate_gradients : Boolean = True) : TFOperation; overload;
          function  apply_gradients(grads_and_vars: Tuple<TFTensor, ResourceVariable>;           name : string= ''; experimental_aggregate_gradients : Boolean = True) : TFOperation; overload;
+         function  apply_gradients(grads : TArray<TFTensor>; vars: TArray<IVariableV1>;         name : string= ''; experimental_aggregate_gradients : Boolean = True) : TFOperation; overload;
          procedure apply_grad_to_update_var(_var: ResourceVariable; grad: TFTensor; apply_state : TDictionary<DeviceDType, TDictionary<string, TFTensor>> );
          procedure _distributed_apply(grads_and_vars : TArray< Tuple<TFTensor, ResourceVariable> >; name: string; _apply_state: TDictionary<DeviceDType, TDictionary<string, TFTensor>> );
          function  aggregate_gradients(grads_and_vars : TArray< Tuple<TFTensor, IVariableV1> > ) : TArray<TFTensor>;
@@ -299,6 +300,16 @@ begin
 
                       end );
 end;
+function OptimizerV2.apply_gradients(grads: TArray<TFTensor>; vars: TArray<IVariableV1>; name: string; experimental_aggregate_gradients: Boolean): TFOperation;
+ var
+   resVars : TArray<Tuple<TFTensor, ResourceVariable>>;
+begin
+    for var j := 0 to Length(vars) - 1 do
+       resVars := resVars + [ tuple.Create(grads[j], vars[j] as ResourceVariable) ];
+
+    Result := apply_gradients(resVars);
+end;
+
 procedure OptimizerV2.apply_grad_to_update_var(_var: ResourceVariable; grad: TFTensor; apply_state: TDictionary<DeviceDType, TDictionary<string, TFTensor>>);
 begin
     _resource_apply_dense(_var, grad, apply_state);

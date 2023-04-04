@@ -2316,6 +2316,9 @@ begin
                    if (not gradientFunctions.ContainsKey(op_name)) or (TArray.Contains<string>(nonRegGradFuncs, op_name)) then
                    begin
                        SetLength( Result,Length(op_inputs) );
+                       if not TArray.Contains<string>(nonRegGradFuncs, op_name) then
+                          raise Exception.Create('Gradient Function with name: '+ op_name+'not found');
+
                        Exit;
                    end;
                    var oper := EagerOperation.Create;
@@ -5955,6 +5958,5 @@ finalization
 begin
     random_seed.Fgraph_to_seed_dict.Free;
 end;
-
 
 end.

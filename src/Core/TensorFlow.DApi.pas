@@ -2236,7 +2236,7 @@ begin
    if not Assigned(Handle) then
      ObjectDisposedException();
 
-    Status := TFStatus.Create;
+   Status := TFStatus.Create;
    try
      Saver.Init;
      try
@@ -3056,6 +3056,7 @@ var
 begin
     if Tdtypes.as_tf_dtype( TypeInfo(T) ) <> Dtype then
       raise TFException.Create('Required dtype {dtype} mismatch with {typeof(T).as_tf_dtype()}.');
+
 
     l_pData := TF_TensorData(Handle);
 

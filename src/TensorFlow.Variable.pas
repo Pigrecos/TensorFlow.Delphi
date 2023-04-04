@@ -211,8 +211,6 @@ begin
     end;
 end;
 
-
-
 { state_ops }
 
 class function state_ops.assign(ref: IVariableV1; value: TValue; validate_shape, use_locking: Boolean; name: string): TFTensor;
