@@ -1,4 +1,4 @@
-**TensorFlow.Delphi** (TF.Delphi) provides a Delphi(Pascal)Standard binding for [TensorFlow](https://www.tensorflow.org/). It aims to implement the complete Tensorflow API in Delphi which allows Pascal developers to develop, train and deploy Machine Learning models with the Pascal Delphi(porting to free pascal in the future).
+**TensorFlow.Delphi** (TF.Delphi) provides a Delphi(Pascal)Standard binding for [TensorFlow](https://www.tensorflow.org/) and [Keras](https://github.com/keras-team/keras). It aims to implement the complete Tensorflow API in Delphi which allows Pascal developers to develop, train and deploy Machine Learning models with the Pascal Delphi(porting to free pascal in the future).
 
 *master branch is based on tensorflow v2.11.* ***No python engine or installation required*.**
 
@@ -13,6 +13,12 @@ The *intent* is to bring popular data science technology into the Delphi world a
 ![csharp vs pacal](https://github.com/Pigrecos/TensorFlow.Delphi/blob/main/src/lib/img/Gather.png)
 
 ![](https://github.com/Pigrecos/TensorFlow.Delphi/blob/main/src/lib/img/Slice.png)
+
+Keras examples:
+
+![](https://github.com/Pigrecos/TensorFlow.Delphi/blob/main/src/lib/img/keras1.png)
+
+![](https://github.com/Pigrecos/TensorFlow.Delphi/blob/main/src/lib/img/keras2.png)
 
 philosophy allows a large number of machine learning code written in Python to be quickly migrated to Delphi, enabling Delphi/Pascal developers to use cutting edge machine learning models and access a vast number of TensorFlow resources which would not be possible without this project.
 
@@ -141,10 +147,12 @@ You can:
 
 ### Todo List:
 
-- Add functionality
-- Testing
-- Memory Leak
-- and More..... 
+- [] Complete implementation of rnn networks and Lstm layers.
+- [] Add the ability to save and load the models.
+- [] Add functionality
+- [x] Testing....
+- [] Memory Leak
+- [] and More..... 
 
 ### Contact
 
