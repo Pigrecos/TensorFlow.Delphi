@@ -1703,7 +1703,9 @@ function TContext.MergeConfig: TConfigProto;
 begin
     FConfig.LogDevicePlacement := _log_device_placement;
     // var gpu_options = _compute_gpu_options();
-    // Config.GpuOptions.AllowGrowth = gpu_options.AllowGrowth;
+    var gpu_options := TGPUOptions.Create;
+    gpu_options.AllowGrowth := true;
+    FConfig.GpuOptions := gpu_options;
     Result := FConfig;
 end;
 
@@ -2317,7 +2319,7 @@ begin
                    begin
                        SetLength( Result,Length(op_inputs) );
                        if not TArray.Contains<string>(nonRegGradFuncs, op_name) then
-                          raise Exception.Create('Gradient Function with name: '+ op_name+'not found');
+                          raise Exception.Create('Gradient Function with name: '+ op_name+' not found');
 
                        Exit;
                    end;

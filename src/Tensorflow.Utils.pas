@@ -1576,6 +1576,9 @@ var
   i: Integer;
 begin
   comparer := TEqualityComparer<T>.Default;
+
+  if Length(v1) <> Length(v2)then Exit(false);
+
   for i := Low(v1) to High(v1) do
     if not comparer.Equals(v1[i], v2[i]) then
       Exit(false);

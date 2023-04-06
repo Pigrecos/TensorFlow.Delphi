@@ -368,6 +368,7 @@ begin
                        TGradFunc.Create('Split',           _SplitGrad),
                        TGradFunc.Create('Slice',           _SliceGrad),
                        TGradFunc.Create('Squeeze',         _SqueezeGrad),
+                       TGradFunc.Create('StopGradient',    _NoGradient),
                        TGradFunc.Create('StridedSlice',    _StridedSliceGrad),
                        TGradFunc.Create('StridedSliceGrad',_StridedSliceGradGrad),
                        TGradFunc.Create('Transpose',       _TransposeGrad)

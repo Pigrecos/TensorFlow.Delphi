@@ -195,6 +195,7 @@ type
   /// </summary>
   TMnistGAN = class(TInterfacedObject, IExample)
     private
+      fTrainCount : Integer;
 
       FConfig : ExampleConfig;
       // MNIST dataset parameters.
@@ -731,11 +732,13 @@ begin
     channels   := 1;
 
     EPOCHS     := 20; // 50;
-    BATCH_SIZE := 64;
+    BATCH_SIZE := 256;
     BUFFER_SIZE:= 60000;
 
     layers  := LayersApi.Create;
     logMsg  := TStringList.Create;
+
+    fTrainCount := 0;
 
     InitConfig;
 end;
@@ -859,8 +862,14 @@ begin
 end;
 
 procedure TMnistGAN.Train_step(images: TFTensor);
+var
+   t,t1 : TArray<Single>;
+   s,s1 : TFShape;
 begin
      try
+       if fTrainCount = 96 then
+         fTrainCount := fTrainCount;
+
        var sSize : TFShape := [ BATCH_SIZE, noise_dim  ];
        var noise    := np.random.normal(@sSize);
        noise        := noise.astype(np.np_float32);
@@ -868,10 +877,18 @@ begin
        var gen_tape  := tf.GradientTape;
        var disc_tape := tf.GradientTape;
 
-       var generated_images  := generator.Apply(TFTensors.Create(noise));
+       var generated_images  := generator.Apply(TFTensors.Create(noise),nil, True);
+
+       s := generated_images.First.Shape;
+       if generated_images.First.Dtype = TF_float then
+         t := generated_images.First.ToArray<Single>;
 
        var real_output := discriminator.Apply(TFTensors.Create(images),nil, true);
        var fake_output := discriminator.Apply(TFTensors.Create(generated_images), nil, true);
+
+       s1 := fake_output.First.Shape;
+       if fake_output.First.Dtype = TF_float then
+         t1 := fake_output.First.ToArray<Single>;
 
        var gen_loss  := generator_loss(fake_output.First);
        var disc_loss := discriminator_loss(real_output.First, fake_output.First);
@@ -881,8 +898,10 @@ begin
 
        generator_optimizer.apply_gradients(gradients_of_generator, generator.TrainableVariables.ToArray);
        discriminator_optimizer.apply_gradients(gradients_of_discriminator, discriminator.TrainableVariables.ToArray);
+
+       InC(fTrainCount);
      except
-       ShowMessage('Raise on Error in TMnistGAN.Train_step in Train_step');
+       ShowMessage('Raise on Error in TMnistGAN.Train_step in Train_step on epoch n#: '+fTrainCount.ToString);
      end;
 end;
 
