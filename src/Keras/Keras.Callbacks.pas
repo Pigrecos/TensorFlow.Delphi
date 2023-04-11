@@ -612,7 +612,7 @@ begin
         Exit;;
     // Restore the weights after first epoch if no progress is ever made.
     if (Frestore_best_weights) and (Fbest_weights = nil) then
-      Fbest_weights := Fparameters.mModel.TrainableWeights;
+      Fbest_weights := Fparameters.mModel.Weights;
 
     Fwait := Fwait+1;
 
@@ -634,12 +634,10 @@ begin
         if (Frestore_best_weights) and (Fbest_weights <> nil) then
         begin
             if (Fverbose > 0) and (IsConsole) then
-             WriteLn('Restoring model weights from the end of the best epoch: '+IntTostr(Fbest_epoch + 1));
+              WriteLn('Restoring model weights from the end of the best epoch: '+IntTostr(Fbest_epoch + 1));
 
+            Fparameters.mModel.Weights := Fbest_weights;
         end;
-        // Because loading the weight variable into the model has not yet been implemented, so Earlystopping can't load best_weight yet.
-        // TODO(Wanglongzhi2001): implement it.
-        // _parameters.Model.load_weights(best_weights);
     end;
 end;
 

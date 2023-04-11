@@ -184,6 +184,7 @@ type
         function GetTrainW    : TList<IVariableV1>;
         function GetNotTrainW : TList<IVariableV1>;
         function GetWeights   : TList<IVariableV1>;
+        procedure SetWeights(value: TList<IVariableV1>);
         function GetOutShape  : TFShape;
         function GetBatchShape: TFShape;
         function GetDtype     : TF_DataType;
@@ -604,6 +605,11 @@ end;
 function RnnCell.GetWeights: TList<IVariableV1>;
 begin
     raise TFException.Create('Not Implemented - GetWeights()');
+end;
+
+procedure RnnCell.SetWeights(value: TList<IVariableV1>);
+begin
+   raise TFException.Create('Not Implemented - SetWeights()');
 end;
 
 function RnnCell.get_initial_state(inputs, batch_size: TFTensor; dtype: TF_DataType): TValue;

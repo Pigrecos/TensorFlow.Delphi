@@ -1397,7 +1397,7 @@ type
     Constructor Create;
     destructor  Destroy; Override;
     // properties
-    property MemoryLimitMbs: TList<Single> read FMemoryLimitMbs;
+    property MemoryLimitMbs: TList<Single> read FMemoryLimitMbs write FMemoryLimitMbs;
     property Prioritys: TList<Integer> read FPrioritys;
   end;
 
@@ -1442,7 +1442,7 @@ type
           Constructor Create;
           destructor  Destroy; Override;
           // properties
-          property VirtualDevicess: TObjectList<TVirtualDevices> read FVirtualDevicess;
+          property VirtualDevicess: TObjectList<TVirtualDevices> read FVirtualDevicess write FVirtualDevicess;
           property UseUnifiedMemory: Boolean read FUseUnifiedMemory write FUseUnifiedMemory;
           property NumDevToDevCopyStreams: Integer read FNumDevToDevCopyStreams write FNumDevToDevCopyStreams;
           property CollectiveRingOrder: string read FCollectiveRingOrder write FCollectiveRingOrder;
@@ -3126,6 +3126,10 @@ begin
   FSessionInterOpThreadPools.Free;
   FDeviceFilterss.Free;
   FExperimental.Free;
+
+  if Assigned(FGpuOptions) then
+     FGpuOptions.Free;
+
   inherited Destroy;
 end;
 

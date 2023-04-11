@@ -1060,6 +1060,8 @@ begin
     mmo1.Clear;
     mmo1.Lines.Add('Model Name: '+ mnistGAN.Config.Name);
     mnistGAN.Run;
+    mnistGAN.Free;
+    Exit;
   //
     mmo1.Lines.Add('Testing Multi Inputs with LeNetModel..');
     TKerasUnitsTest.LeNetModel ;
@@ -1067,10 +1069,12 @@ begin
     var Cnn := DigitRecognitionCnnKeras.Create;
     mmo1.Lines.Add('Model Name: '+ Cnn.Config.Name);
     Cnn.Run;
+    Cnn.Free;
   //
     var Fnn := MnistFnnKerasFunctional.Create;
     mmo1.Lines.Add('Model Name: '+ Fnn.Config.Name);
     Fnn.Run;
+    Fnn.Free;
   //
     SampleBuildModel;
     TestXor;

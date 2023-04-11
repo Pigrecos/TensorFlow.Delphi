@@ -721,7 +721,6 @@ constructor TMnistGAN.Create;
 begin
    if not tf.executing_eagerly then
        tf.enable_eager_execution;
-   tf.Context.ensure_initialized;
 
     LeakyReLU_alpha := 0.2;
     imgpath    := 'dcgan\imgs';
@@ -732,7 +731,7 @@ begin
     channels   := 1;
 
     EPOCHS     := 20; // 50;
-    BATCH_SIZE := 256;
+    BATCH_SIZE := 128;
     BUFFER_SIZE:= 60000;
 
     layers  := LayersApi.Create;
@@ -747,6 +746,10 @@ destructor TMnistGAN.Destroy;
 begin
   layers.Free;
   logMsg.Free;
+
+  if Assigned(data) then
+    data.Free;
+
   inherited;
 end;
 
@@ -867,8 +870,8 @@ var
    s,s1 : TFShape;
 begin
      try
-       if fTrainCount = 96 then
-         fTrainCount := fTrainCount;
+       if fTrainCount = 38 then
+          fTrainCount := fTrainCount;
 
        var sSize : TFShape := [ BATCH_SIZE, noise_dim  ];
        var noise    := np.random.normal(@sSize);
@@ -910,10 +913,10 @@ begin
     discriminator := Make_Discriminator_model;
     generator     := Make_Generator_model;
 
-    var d_lr : single := 2e-4;
-    var g_lr : Single := 2e-4;
-    discriminator_optimizer := tf.keras.optimizers.Adam(d_lr, 0.5);
-    generator_optimizer     := tf.keras.optimizers.Adam(g_lr, 0.5);
+    var d_lr : single := 1e-4;
+    var g_lr : Single := 1e-4;
+    discriminator_optimizer := tf.keras.optimizers.Adam(d_lr);
+    generator_optimizer     := tf.keras.optimizers.Adam(g_lr);
     var showstep : Integer := 10;
 
     var i : Integer := 0;
@@ -932,7 +935,10 @@ begin
           end else
           begin
               for var image_batch in train_dataset do
+              begin
                    train_step(image_batch.Value1.First) ;
+                   if fTrainCount = 90 then  exit;
+              end;
 
               if i mod 100 = 0 then
               begin

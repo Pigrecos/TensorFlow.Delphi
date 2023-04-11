@@ -65,6 +65,11 @@ type
       function ToString: string;
   end;
 
+  TLogicalDevice = record
+    Name : string;
+    device_Type : string;
+  end;
+
   ExecuteOpArgs = class
     private
       FGetGradientAttrs : TFunc< TFOperation,TArray<TParameter> >;
@@ -133,12 +138,16 @@ type
   TContext = class(TFDisposable)
     private
 
-       function  GetHandle: Pointer;  protected
+       function  GetHandle: Pointer;
+       procedure _initialize_logical_devices;  protected
        procedure NativeDispose(hnd: Pointer); override;
      public
         _device_policy        : TFE_ContextDevicePlacementPolicy;
         _log_device_placement : Boolean;
         _memory_growth_map    : TDictionary<TPhysicalDevice,Boolean>;
+        Flogical_devices      : TArray<TLogicalDevice>;
+        Fcontext_devices      : TArray<string>;
+        Fnum_gpus             : Integer;
         defaultExecutionMode  : Integer;
         DeviceName            : string;
         ScopeName             : string;
@@ -179,6 +188,7 @@ type
         procedure Set_memory_growth(device: TPhysicalDevice; enable: Boolean);
         function  list_physical_devices(device_type: AnsiString = ''): TArray<TPhysicalDevice>;
         function  MergeConfig: TConfigProto;
+        function _compute_gpu_options: TGPUOptions;
         /// <summary>
         /// Environment in which eager operations execute.
         /// </summary>
@@ -1521,6 +1531,7 @@ begin
     context_switches := ContextSwitchStack.Create(defaultExecutionMode = C_EAGER_MODE, false);
     initialized      := false;
     FConfig          := TConfigProto.Create;
+    Fnum_gpus        := 0;
 
     FFunctionCallOptions  := TFunctionCallOptions.Create;
 end;
@@ -1557,6 +1568,8 @@ begin
         inherited Create( TFE_NewContext(opts.Handle, status.Handle) ) ;
         status.RaiseEx;
 
+        //_initialize_logical_devices;
+
         initialized := True;
       finally
         Saver.Free;
@@ -1588,12 +1601,16 @@ end;
 function TContext.ExecEagerAction(OpType, Name: string; args: ExecuteOpArgs): TFTensors;
 begin
     var opExecInfo := TFastPathOpExecInfo.Create(OpType, Name, args.OpInputArgs);
-    opExecInfo.attrs := args.OpAttrs;
+    try
+      opExecInfo.attrs := args.OpAttrs;
 
-    var ts := tf.Runner.TFE_FastPathExecute(opExecInfo);
-    if ts = nil then  Exit(TFTensors.Create(TFTensor(nil)));
+      var ts := tf.Runner.TFE_FastPathExecute(opExecInfo);
+      if ts = nil then  Exit(TFTensors.Create(TFTensor(nil)));
 
-    Result := TFTensors.Create(ts);
+      Result := TFTensors.Create(ts);
+    finally
+      opExecInfo.Free;
+    end;
 end;
 
 function TContext.ExecuteOp(OpType, Name: string; args: ExecuteOpArgs): TFTensors;
@@ -1702,11 +1719,20 @@ end;
 function TContext.MergeConfig: TConfigProto;
 begin
     FConfig.LogDevicePlacement := _log_device_placement;
-    // var gpu_options = _compute_gpu_options();
-    var gpu_options := TGPUOptions.Create;
-    gpu_options.AllowGrowth := true;
-    FConfig.GpuOptions := gpu_options;
+    //var gpu_options := _compute_gpu_options;
+    //var gpu_options := TGPUOptions.Create;
+    //gpu_options.AllowGrowth := True;
+    //FConfig.GpuOptions := gpu_options;
     Result := FConfig;
+end;
+
+function TContext._compute_gpu_options: TGPUOptions;
+begin
+    var gpu := TGPUOptions.Create;
+
+    var gpu_devices := list_physical_devices('GPU');
+
+    Result := gpu;
 end;
 
 function TContext.get_memory_growth(device_type: AnsiString): Boolean;
@@ -1724,15 +1750,49 @@ begin
     _memory_growth_map.AddOrSetValue(device,enable);
 end;
 
+procedure TContext._initialize_logical_devices;
+var
+  logical_devices : TArray<TLogicalDevice>;
+  context_devices : TArray<string>;
+  devices         : PTF_DeviceList;
+  ld              : TLogicalDevice;
+begin
+    devices := TFE_ContextListDevices(Handle, tf.Status.Handle);
+    tf.Status.RaiseEx;
+    try
+      Fnum_gpus       := 0;
+      context_devices := [];
+      logical_devices := [];
+      var num_devices := TF_DeviceListCount(devices);
+
+      for var i := 0 to  num_devices - 1 do
+      begin
+          var dev_name := String(AnsiString(TF_DeviceListName(devices, i, tf.Status.Handle)));
+          tf.Status.RaiseEx;
+          context_devices := context_devices + [dev_name];
+
+          var dev_type := AnsiString(TF_DeviceListType(devices, i, tf.Status.Handle));
+          tf.Status.RaiseEx;
+
+          ld.name := dev_name;
+          ld.device_Type := dev_type;
+          logical_devices := logical_devices + [ld];
+
+          if dev_type = 'GPU' then
+            Fnum_gpus := Fnum_gpus+ 1;
+      end;
+    finally
+      Flogical_devices := logical_devices;
+      Fcontext_devices := context_devices;
+      TF_DeleteDeviceList(devices);
+    end;
+end;
+
 function TContext.list_physical_devices(device_type: AnsiString): TArray<TPhysicalDevice>;
  var
-   //opts    : TContextOptions ;
-   //ctx     : TContext;
    devices : PTF_DeviceList;
    i       : Integer;
 begin
-    //opts := TContextOptions.Create;
-    //ctx  := TContext.Create();
     devices := TFE_ContextListDevices(Handle, tf.Status.Handle);
     tf.Status.RaiseEx;
 
@@ -1804,22 +1864,25 @@ var
 
 begin
     var flatten_args := nest.flatten<TValue>(  TValue.From<TArray<TValue>>(args) );
-
-    var  has_graph_arg := not tf.Context.executing_eagerly;
-    for var i := 0 to flatten_args.Count -1 do
-    begin
-        el := flatten_args[i];
-        if string.LowerCase(el.TypeInfo.Name) = 'tndarray' then
-            continue
-        else if string.LowerCase(el.TypeInfo.Name) = 'teagertensor' then
-            continue
-        else if string.LowerCase(el.TypeInfo.Name) = 'tftensor' then
-        begin
-            has_graph_arg := true;
-            break;
-        end;
+    try
+      var  has_graph_arg := not tf.Context.executing_eagerly;
+      for var i := 0 to flatten_args.Count -1 do
+      begin
+          el := flatten_args[i];
+          if string.LowerCase(el.TypeInfo.Name) = 'tndarray' then
+              continue
+          else if string.LowerCase(el.TypeInfo.Name) = 'teagertensor' then
+              continue
+          else if string.LowerCase(el.TypeInfo.Name) = 'tftensor' then
+          begin
+              has_graph_arg := true;
+              break;
+          end;
+      end;
+      Result := has_graph_arg;
+    finally
+      flatten_args.Free;
     end;
-    Result := has_graph_arg;
 
 end;
 
@@ -2649,6 +2712,14 @@ begin
 end;
 
 function TEagerRunner.TFE_FastPathExecute(op_exec_info: TFastPathOpExecInfo): TArray<TFTensor>;
+var
+  status          : TFStatus;
+  op              : PTFE_Op;
+  op_def          : TOpDef;
+  flattened_attrs : TList<TValue>;
+  flattened_inputs: TList<TFTensor>;
+  input_arg       : TArgDef;
+  input           : TValue;
 
    function FindAttr(a: TList<TAttrDef>; sName : AnsiString): TAttrDef;
    var
@@ -2671,132 +2742,134 @@ begin
         op_exec_info.device_name := tf.Context.DeviceName;
 
     var attr_list_sizes := TDictionary<string, Int64>.Create;
+    try
+      op_exec_info.run_gradient_callback   := HasAccumulatorOrTape;
+      op_exec_info.run_post_exec_callbacks := op_exec_info.callbacks <> nil;
+      op_exec_info.run_callbacks           := op_exec_info.run_gradient_callback or op_exec_info.run_post_exec_callbacks;
 
-    op_exec_info.run_gradient_callback   := HasAccumulatorOrTape;
-    op_exec_info.run_post_exec_callbacks := op_exec_info.callbacks <> nil;
-    op_exec_info.run_callbacks           := op_exec_info.run_gradient_callback or op_exec_info.run_post_exec_callbacks;
+      status := tf.Status;
+      op     := GetOp(op_exec_info.ctx, op_exec_info.op_name, status);
+      op_def := tf.get_default_graph.GetOpDef(op_exec_info.op_name);
 
-    var status := tf.Status;
-    var op     := GetOp(op_exec_info.ctx, op_exec_info.op_name, status);
-    var op_def := tf.get_default_graph.GetOpDef(op_exec_info.op_name);
+      flattened_attrs          := TList<TValue>.Create;
+      flattened_attrs.Capacity := op_def.Attrs.Count * 2;
 
-    var flattened_attrs      := TList<TValue>.Create;
-    flattened_attrs.Capacity := op_def.Attrs.Count * 2;
+      flattened_inputs          := TList<TFTensor>.Create;
+      flattened_inputs.Capacity := op_def.InputArgs.Count;
 
-    var flattened_inputs      := TList<TFTensor>.Create;
-    flattened_inputs.Capacity := op_def.InputArgs.Count;
+      // Set non-inferred attrs, including setting defaults if the attr is passed in
+      // as None.
+      if op_exec_info.attrs <> nil then
+      begin
+          for var attr1 in op_exec_info.attrs do
+          begin                     ;
+              var attr := FindAttr(op_def.Attrs, attr1.Key);
+              if attr <> nil then
+              begin
+                  flattened_attrs.Add(attr.Name);
+                  flattened_attrs.Add(attr1.Value);
+                  SetOpAttrWithDefaults(op_exec_info.ctx, op, attr, attr.Name, attr1.Value, attr_list_sizes, status);
+                  status.RaiseEx;
+              end
+          end;
+      end;
+      // c_api.TFE_OpSetDevice(op, op_exec_info.device_name, status.Handle);
+      // status.Check(true);
+      // Add inferred attrs and inputs.
+      for var i := 0 to op_def.InputArgs.Count - 1 do
+      begin
+          input     := op_exec_info.args[i];
+          input_arg := op_def.InputArgs[i];
 
-    // Set non-inferred attrs, including setting defaults if the attr is passed in
-    // as None.
-    if op_exec_info.attrs <> nil then
-    begin
-        for var attr1 in op_exec_info.attrs do
-        begin                     ;
-            var attr := FindAttr(op_def.Attrs, attr1.Key);
-            if attr <> nil then
-            begin
-                flattened_attrs.Add(attr.Name);
-                flattened_attrs.Add(attr1.Value);
-                SetOpAttrWithDefaults(op_exec_info.ctx, op, attr, attr.Name, attr1.Value, attr_list_sizes, status);
-                status.RaiseEx;
-            end
-        end;
+          if not string.IsNullOrEmpty(input_arg.NumberAttr) then
+          begin
+              var len : Int64 := input.GetArrayLength ;
+              TFE_OpSetAttrInt(op, PAnsiChar(AnsiString( input_arg.NumberAttr )), len);
+              if op_exec_info.run_callbacks then
+              begin
+                  flattened_attrs.Add(input_arg.NumberAttr);
+                  flattened_attrs.Add(len);
+              end;
+              attr_list_sizes.Add(input_arg.NumberAttr,len);
+              if len > 0 then
+              begin
+                  var fast_input_array := op_exec_info.args[i] ;
+                  // First item adds the type attr.
+                  if not AddInputToOp(fast_input_array.GetArrayElement(i), true, input_arg, flattened_attrs, flattened_inputs, op, status) then
+                      Exit;
+                  for var j := 1 to len-1 do
+                  begin
+                      // Since the list is homogeneous, we don't need to re-add the attr.
+                      if not AddInputToOp(fast_input_array.GetArrayElement(j), false, input_arg, flattened_attrs, flattened_inputs, op, status) then
+                          Exit;
+                  end;
+              end;
+          end
+          else if not string.IsNullOrEmpty(input_arg.TypeListAttr) then
+          begin
+              var attr_name        := input_arg.TypeListAttr;
+              var fast_input_array := input;
+              var len              := fast_input_array.GetArrayLength;
+              var attr_values : TArray<TF_DataType>; SetLength(attr_values,len);
+              for var j := 0 to len-1 do
+              begin
+                  var eager_tensor := TOps.convert_to_tensor(fast_input_array.GetArrayElement(j));
+                  attr_values[j] := eager_tensor.dtype;
+                  TFE_OpAddInput(op, eager_tensor.EagerTensorHandle, status.Handle);
+                  if op_exec_info.run_callbacks then
+                     flattened_inputs.Add(eager_tensor);
+              end;
+              if op_exec_info.run_callbacks then
+              begin
+                  flattened_attrs.Add(attr_name);
+                  flattened_attrs.Add( TValue.From< TArray<Integer> >( Tdtypes.ToIntArray(attr_values) ));
+              end;
+              var pDatatypes : PTF_DataType := nil;
+              if Length(attr_values) > 0  then  pDatatypes := @attr_values[0];
+
+              TFE_OpSetAttrTypeList(op, PAnsiChar(AnsiString(attr_name)), pDatatypes, Length(attr_values));
+              attr_list_sizes.Add(attr_name, len);
+          end else
+          begin
+              // The item is a single item.
+              AddInputToOp(op_exec_info.args[i], true, input_arg, flattened_attrs, flattened_inputs, op, status);
+          end;
+      end;
+      var num_retvals : Integer := 0;
+      for var i := 0 to op_def.OutputArgs.Count - 1 do
+      begin
+          var output_arg := op_def.OutputArgs[i];
+          var delta : Int64 := 1;
+          if not string.IsNullOrEmpty(output_arg.NumberAttr) then
+              delta := attr_list_sizes[output_arg.NumberAttr]
+          else if not string.IsNullOrEmpty(output_arg.TypeListAttr) then
+              delta := attr_list_sizes[output_arg.TypeListAttr];
+          if delta < 0  then
+            raise Exception.Create('Attributes suggest that the size of an output list is less than 0');
+          num_retvals := num_retvals + Integer(delta);
+      end;
+
+      var retVals : TArray<PTFE_Op> ;
+      SetLength(retVals,num_retvals);
+
+      var pRetVals : Pointer := nil;
+      if Length(retVals) > 0 then pRetVals := @retVals[0];
+
+      TF4D.Core.CApiEager.TFE_Execute(op, pRetVals, num_retvals, status.Handle);
+      status.RaiseEx;
+
+      var flat_result : TArray<TFTensor> ;
+      for var i := 0 to num_retvals - 1 do
+         flat_result := flat_result + [ TEagerTensor.Create( retVals[i] ) ];
+      if op_exec_info.run_callbacks then
+      begin
+          RunCallbacks(op_exec_info, op_def.InputArgs.Count,flattened_inputs.ToArray, flattened_attrs.ToArray, flat_result);
+      end;
+      Result := flat_result;
+
+    finally
+      attr_list_sizes.Free;
     end;
-    // c_api.TFE_OpSetDevice(op, op_exec_info.device_name, status.Handle);
-    // status.Check(true);
-    // Add inferred attrs and inputs.
-    for var i := 0 to op_def.InputArgs.Count - 1 do
-    begin
-        var input     := op_exec_info.args[i];
-        var input_arg := op_def.InputArgs[i];
-
-        if not string.IsNullOrEmpty(input_arg.NumberAttr) then
-        begin
-            var len : Int64 := input.GetArrayLength ;
-            TFE_OpSetAttrInt(op, PAnsiChar(AnsiString( input_arg.NumberAttr )), len);
-            if op_exec_info.run_callbacks then
-            begin
-                flattened_attrs.Add(input_arg.NumberAttr);
-                flattened_attrs.Add(len);
-            end;
-            attr_list_sizes.Add(input_arg.NumberAttr,len);
-            if len > 0 then
-            begin
-                var fast_input_array := op_exec_info.args[i] ;
-                var rr := fast_input_array.GetArrayLength;
-                //var x : TArray<TFTensor> := fast_input_array.AsType<TArray<TFTensor>>;
-                // First item adds the type attr.
-                if not AddInputToOp(fast_input_array.GetArrayElement(i), true, input_arg, flattened_attrs, flattened_inputs, op, status) then
-                    Exit;
-                for var j := 1 to len-1 do
-                begin
-                    // Since the list is homogeneous, we don't need to re-add the attr.
-                    if not AddInputToOp(fast_input_array.GetArrayElement(j), false, input_arg, flattened_attrs, flattened_inputs, op, status) then
-                        Exit;
-                end;
-            end;
-        end
-        else if not string.IsNullOrEmpty(input_arg.TypeListAttr) then
-        begin
-            var attr_name        := input_arg.TypeListAttr;
-            var fast_input_array := input;
-            var len              := fast_input_array.GetArrayLength;
-            var attr_values : TArray<TF_DataType>; SetLength(attr_values,len);
-            for var j := 0 to len-1 do
-            begin
-                var eager_tensor := TOps.convert_to_tensor(fast_input_array.GetArrayElement(j));
-                attr_values[j] := eager_tensor.dtype;
-                TFE_OpAddInput(op, eager_tensor.EagerTensorHandle, status.Handle);
-                if op_exec_info.run_callbacks then
-                   flattened_inputs.Add(eager_tensor);
-            end;
-            if op_exec_info.run_callbacks then
-            begin
-                flattened_attrs.Add(attr_name);
-                flattened_attrs.Add( TValue.From< TArray<Integer> >( Tdtypes.ToIntArray(attr_values) ));
-            end;
-            var pDatatypes : PTF_DataType := nil;
-            if Length(attr_values) > 0  then  pDatatypes := @attr_values[0];
-
-            TFE_OpSetAttrTypeList(op, PAnsiChar(AnsiString(attr_name)), pDatatypes, Length(attr_values));
-            attr_list_sizes.Add(attr_name, len);
-        end else
-        begin
-            // The item is a single item.
-            AddInputToOp(op_exec_info.args[i], true, input_arg, flattened_attrs, flattened_inputs, op, status);
-        end;
-    end;
-    var num_retvals : Integer := 0;
-    for var i := 0 to op_def.OutputArgs.Count - 1 do
-    begin
-        var output_arg := op_def.OutputArgs[i];
-        var delta : Int64 := 1;
-        if not string.IsNullOrEmpty(output_arg.NumberAttr) then
-            delta := attr_list_sizes[output_arg.NumberAttr]
-        else if not string.IsNullOrEmpty(output_arg.TypeListAttr) then
-            delta := attr_list_sizes[output_arg.TypeListAttr];
-        if delta < 0  then
-          raise Exception.Create('Attributes suggest that the size of an output list is less than 0');
-        num_retvals := num_retvals + Integer(delta);
-    end;
-
-    var retVals : TArray<PTFE_Op> ;
-    SetLength(retVals,num_retvals);
-
-    var pRetVals : Pointer := nil;
-    if Length(retVals) > 0 then pRetVals := @retVals[0];
-
-    TF4D.Core.CApiEager.TFE_Execute(op, pRetVals, num_retvals, status.Handle);
-    status.RaiseEx;
-
-    var flat_result : TArray<TFTensor> ;
-    for var i := 0 to num_retvals - 1 do
-       flat_result := flat_result + [ TEagerTensor.Create( retVals[i] ) ];
-    if op_exec_info.run_callbacks then
-    begin
-        RunCallbacks(op_exec_info, op_def.InputArgs.Count,flattened_inputs.ToArray, flattened_attrs.ToArray, flat_result);
-    end;
-    Result := flat_result;
 end;
 
 function TEagerRunner.ArgsToMatchingEager(ctx: TContext; default_dtype: TF_DataType; args: TArray<TValue>):  Tuple<TF_DataType, TArray<TFTensor>>;
@@ -2973,23 +3046,27 @@ begin
 
     var buffer := TFBuffer.Create( TF_GetAllOpList );
     var op_list : TOpList;
-
-    var aBuf := buffer.toArray;
-    Loader.Init;
     try
-      Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
 
-      Loader.LoadOpList(op_list);
+      var aBuf := buffer.toArray;
+      Loader.Init;
+      try
+        Loader.Pb.Init(@aBuf[0],Length(aBuf),false);
 
-      for var i := 0 to op_list.Ops.Count - 1 do
-      begin
-         var op_def : TOpDef := op_list.Ops[i];
-         registered_ops.AddOrSetValue(op_def.Name,op_def);
+        Loader.LoadOpList(op_list);
+
+        for var i := 0 to op_list.Ops.Count - 1 do
+        begin
+           var op_def : TOpDef := op_list.Ops[i];
+           registered_ops.AddOrSetValue(op_def.Name,op_def);
+        end;
+
+        Result := registered_ops;
+      finally
+        Loader.Free;
       end;
-
-      Result := registered_ops;
     finally
-      Loader.Free;
+      buffer.Free;
     end;
 end;
 

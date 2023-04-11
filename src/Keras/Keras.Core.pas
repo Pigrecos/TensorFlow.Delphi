@@ -117,6 +117,7 @@ type
     function GetTrainW    : TList<IVariableV1>;
     function GetNotTrainW : TList<IVariableV1>;
     function GetWeights   : TList<IVariableV1>;
+    procedure SetWeights(Value : TList<IVariableV1>);
     function GetOutShape  : TFShape;
     function GetBatchShape: TFShape;
     function GetDtype     : TF_DataType;
@@ -136,7 +137,7 @@ type
     property TrainableVariables      : TList<IVariableV1>  read GetTrainVars;
     property TrainableWeights        : TList<IVariableV1>  read GetTrainW;
     property NonTrainableWeights     : TList<IVariableV1>  read GetNotTrainW;
-    property Weights                 : TList<IVariableV1>  read GetWeights;
+    property Weights                 : TList<IVariableV1>  read GetWeights write SetWeights;
     property OutputShape             : TFShape             read GetOutShape;
     property BatchInputShape         : TFShape             read GetBatchShape;
     property DType                   : TF_DataType         read GetDtype;

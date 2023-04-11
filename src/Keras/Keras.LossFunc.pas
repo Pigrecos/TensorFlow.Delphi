@@ -320,6 +320,7 @@ type
 
    TSparseCategoricalCrossentropy = class(Loss, ILossFunc)
      private
+       Ffrom_logits : Boolean;
        {$IFNDEF AUTOREFCOUNT}
          private const
            objDestroyingFlag = Integer($80000000);
@@ -1190,13 +1191,14 @@ begin
     else               sName := _name;
 
     inherited Create(_reduction, sName);
+    Ffrom_logits := from_logits;
 end;
 
 function TSparseCategoricalCrossentropy.Apply(y_true, y_pred: TFTensor; from_logits: boolean; axis: Integer): TFTensor;
 begin
     y_true := tf.cast(y_true, TF_DataType.TF_INT64);
 
-    if not from_logits then
+    if not Ffrom_logits then
     begin
         var epsilon := tf.constant(TKerasApi.Keras.backend.epsilon, y_pred.dtype);
         y_pred      := tf.clip_by_value(y_pred, epsilon, 1 - TTEnsor(epsilon));

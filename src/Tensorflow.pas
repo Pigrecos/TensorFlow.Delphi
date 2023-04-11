@@ -267,6 +267,7 @@ type
       // Key for control flow context.
       COND_CONTEXT : String;
       WHILE_CONTEXT : String;
+
       class function Create: TGraphKeys; static;
 
   end;

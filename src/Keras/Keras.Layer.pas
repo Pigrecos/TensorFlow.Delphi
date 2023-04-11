@@ -194,7 +194,7 @@ type
         property Variables            : TList<IVariableV1>  read GetVars;
         property TrainableWeights     : TList<IVariableV1>  read GetTrainW;
         property NonTrainableWeights  : TList<IVariableV1>  read GetNotTrainW;
-        property weights              : TList<IVariableV1>  read GetWeights write SetWeights;
+        property Weights              : TList<IVariableV1>  read GetWeights write SetWeights;
         property Id                   : Integer             read FId;
         property Name                 : string              read GetName;
         property BatchInputShape      : TFShape             read GetBatchShape;
