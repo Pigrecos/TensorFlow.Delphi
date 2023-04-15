@@ -41,6 +41,7 @@ type
     public
 
        constructor Create;
+       destructor Destroy ; override;
 
        function Add: ILayer;
 
@@ -658,6 +659,11 @@ implementation
 constructor LayersApi.Create;
 begin
     FPreProcessing := TPreProcessing.Create
+end;
+
+destructor LayersApi.Destroy;
+begin
+  inherited Destroy;
 end;
 
 function LayersApi.ReadProc: IPreprocessing;

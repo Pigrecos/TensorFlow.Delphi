@@ -1056,12 +1056,13 @@ begin
     mmo1.Clear;
 
    // mnistGAN under development and Testing...
-    var mnistGAN := TMnistGAN.Create;
+   (* var mnistGAN := TMnistGAN.Create;
     mmo1.Clear;
     mmo1.Lines.Add('Model Name: '+ mnistGAN.Config.Name);
     mnistGAN.Run;
     mnistGAN.Free;
     Exit;
+    *)
   //
     mmo1.Lines.Add('Testing Multi Inputs with LeNetModel..');
     TKerasUnitsTest.LeNetModel ;

@@ -731,7 +731,7 @@ begin
     channels   := 1;
 
     EPOCHS     := 20; // 50;
-    BATCH_SIZE := 128;
+    BATCH_SIZE := 256;
     BUFFER_SIZE:= 60000;
 
     layers  := LayersApi.Create;
@@ -749,6 +749,8 @@ begin
 
   if Assigned(data) then
     data.Free;
+  if Assigned(train_images) then
+    train_images.Free;
 
   inherited;
 end;
@@ -866,45 +868,60 @@ end;
 
 procedure TMnistGAN.Train_step(images: TFTensor);
 var
+  gen_tape, disc_tape : TGradientTape;
+  real_output,
+  fake_output,
+  generated_images    : TFTensors;
+  gen_loss,
+  disc_loss                  : TFTensor;
+  gradients_of_generator     : TArray<TFTensor>;
+  gradients_of_discriminator : TArray<TFTensor>;
+
    t,t1 : TArray<Single>;
    s,s1 : TFShape;
 begin
      try
-       if fTrainCount = 38 then
-          fTrainCount := fTrainCount;
+       try
+         if fTrainCount = 40 then
+            fTrainCount := fTrainCount;
 
-       var sSize : TFShape := [ BATCH_SIZE, noise_dim  ];
-       var noise    := np.random.normal(@sSize);
-       noise        := noise.astype(np.np_float32);
+         var sSize : TFShape := [ BATCH_SIZE, noise_dim  ];
+         var noise    := np.random.normal(@sSize);
+         noise        := noise.astype(np.np_float32);
 
-       var gen_tape  := tf.GradientTape;
-       var disc_tape := tf.GradientTape;
+         gen_tape  := tf.GradientTape;
+         disc_tape := tf.GradientTape;
 
-       var generated_images  := generator.Apply(TFTensors.Create(noise),nil, True);
+         generated_images  := generator.Apply(TFTensors.Create(noise),nil, True);
 
-       s := generated_images.First.Shape;
-       if generated_images.First.Dtype = TF_float then
-         t := generated_images.First.ToArray<Single>;
+         s := generated_images.First.Shape;
+         if generated_images.First.Dtype = TF_float then
+           t := generated_images.First.ToArray<Single>;
 
-       var real_output := discriminator.Apply(TFTensors.Create(images),nil, true);
-       var fake_output := discriminator.Apply(TFTensors.Create(generated_images), nil, true);
+         real_output := discriminator.Apply(TFTensors.Create(images),nil, true);
+         fake_output := discriminator.Apply(TFTensors.Create(generated_images), nil, true);
 
-       s1 := fake_output.First.Shape;
-       if fake_output.First.Dtype = TF_float then
-         t1 := fake_output.First.ToArray<Single>;
+         s1 := fake_output.First.Shape;
+         if fake_output.First.Dtype = TF_float then
+           t1 := fake_output.First.ToArray<Single>;
 
-       var gen_loss  := generator_loss(fake_output.First);
-       var disc_loss := discriminator_loss(real_output.First, fake_output.First);
+         gen_loss  := generator_loss(fake_output.First);
+         disc_loss := discriminator_loss(real_output.First, fake_output.First);
 
-       var gradients_of_generator     := gen_tape.gradient(gen_loss, generator.TrainableVariables.ToArray);
-       var gradients_of_discriminator := disc_tape.gradient(disc_loss, discriminator.TrainableVariables.ToArray);
+         gradients_of_generator     := gen_tape.gradient(gen_loss, generator.TrainableVariables.ToArray);
+         gradients_of_discriminator := disc_tape.gradient(disc_loss, discriminator.TrainableVariables.ToArray);
 
-       generator_optimizer.apply_gradients(gradients_of_generator, generator.TrainableVariables.ToArray);
-       discriminator_optimizer.apply_gradients(gradients_of_discriminator, discriminator.TrainableVariables.ToArray);
+         generator_optimizer.apply_gradients(gradients_of_generator, generator.TrainableVariables.ToArray);
+         discriminator_optimizer.apply_gradients(gradients_of_discriminator, discriminator.TrainableVariables.ToArray);
 
-       InC(fTrainCount);
+         InC(fTrainCount);
+       finally
+         gradients_of_generator := [];
+         gradients_of_discriminator := [];
+       end;
      except
        ShowMessage('Raise on Error in TMnistGAN.Train_step in Train_step on epoch n#: '+fTrainCount.ToString);
+       fTrainCount := 8000;
      end;
 end;
 
@@ -937,7 +954,7 @@ begin
               for var image_batch in train_dataset do
               begin
                    train_step(image_batch.Value1.First) ;
-                   if fTrainCount = 90 then  exit;
+                   if fTrainCount > 7000 then  exit;
               end;
 
               if i mod 100 = 0 then
@@ -949,7 +966,7 @@ begin
           inc(i);
       end;
     except
-      ShowMessage('Errors at Epoch: '+ i.ToString)
+      ShowMessage('Errors at Epoch: '+ i.ToString);
     end;
 end;
 

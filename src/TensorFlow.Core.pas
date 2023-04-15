@@ -436,6 +436,7 @@ TFastPathOpExecInfo  = class
     callbacks               : TCallBack;
 
     constructor Create(opName:string; name: string; inputArgs: TArray<TValue>);
+    destructor Destroy; override;
 end;
 
 TExecute  = record
@@ -2719,7 +2720,17 @@ var
   flattened_attrs : TList<TValue>;
   flattened_inputs: TList<TFTensor>;
   input_arg       : TArgDef;
-  input           : TValue;
+  input,
+  fast_input_array: TValue;
+  len,num_retvals : Integer;
+  delta           : Int64;
+  attr_name       : string;
+  attr_values     : TArray<TF_DataType>;
+  pDatatypes      : PTF_DataType  ;
+  output_arg      : TArgDef;
+  retVals         : TArray<PTFE_Op> ;
+  pRetVals        : Pointer;
+  flat_result     : TArray<TFTensor>;
 
    function FindAttr(a: TList<TAttrDef>; sName : AnsiString): TAttrDef;
    var
@@ -2783,7 +2794,7 @@ begin
 
           if not string.IsNullOrEmpty(input_arg.NumberAttr) then
           begin
-              var len : Int64 := input.GetArrayLength ;
+              len := input.GetArrayLength ;
               TFE_OpSetAttrInt(op, PAnsiChar(AnsiString( input_arg.NumberAttr )), len);
               if op_exec_info.run_callbacks then
               begin
@@ -2793,7 +2804,7 @@ begin
               attr_list_sizes.Add(input_arg.NumberAttr,len);
               if len > 0 then
               begin
-                  var fast_input_array := op_exec_info.args[i] ;
+                  fast_input_array := op_exec_info.args[i] ;
                   // First item adds the type attr.
                   if not AddInputToOp(fast_input_array.GetArrayElement(i), true, input_arg, flattened_attrs, flattened_inputs, op, status) then
                       Exit;
@@ -2807,10 +2818,10 @@ begin
           end
           else if not string.IsNullOrEmpty(input_arg.TypeListAttr) then
           begin
-              var attr_name        := input_arg.TypeListAttr;
-              var fast_input_array := input;
-              var len              := fast_input_array.GetArrayLength;
-              var attr_values : TArray<TF_DataType>; SetLength(attr_values,len);
+              attr_name        := input_arg.TypeListAttr;
+              fast_input_array := input;
+              len              := fast_input_array.GetArrayLength;
+              SetLength(attr_values,len);
               for var j := 0 to len-1 do
               begin
                   var eager_tensor := TOps.convert_to_tensor(fast_input_array.GetArrayElement(j));
@@ -2824,7 +2835,7 @@ begin
                   flattened_attrs.Add(attr_name);
                   flattened_attrs.Add( TValue.From< TArray<Integer> >( Tdtypes.ToIntArray(attr_values) ));
               end;
-              var pDatatypes : PTF_DataType := nil;
+              pDatatypes := nil;
               if Length(attr_values) > 0  then  pDatatypes := @attr_values[0];
 
               TFE_OpSetAttrTypeList(op, PAnsiChar(AnsiString(attr_name)), pDatatypes, Length(attr_values));
@@ -2835,30 +2846,27 @@ begin
               AddInputToOp(op_exec_info.args[i], true, input_arg, flattened_attrs, flattened_inputs, op, status);
           end;
       end;
-      var num_retvals : Integer := 0;
+      num_retvals := 0;
       for var i := 0 to op_def.OutputArgs.Count - 1 do
       begin
-          var output_arg := op_def.OutputArgs[i];
-          var delta : Int64 := 1;
-          if not string.IsNullOrEmpty(output_arg.NumberAttr) then
-              delta := attr_list_sizes[output_arg.NumberAttr]
-          else if not string.IsNullOrEmpty(output_arg.TypeListAttr) then
-              delta := attr_list_sizes[output_arg.TypeListAttr];
+          output_arg := op_def.OutputArgs[i];
+          delta      := 1;
+          if not string.IsNullOrEmpty(output_arg.NumberAttr)        then   delta := attr_list_sizes[output_arg.NumberAttr]
+          else if not string.IsNullOrEmpty(output_arg.TypeListAttr) then   delta := attr_list_sizes[output_arg.TypeListAttr];
           if delta < 0  then
             raise Exception.Create('Attributes suggest that the size of an output list is less than 0');
           num_retvals := num_retvals + Integer(delta);
       end;
 
-      var retVals : TArray<PTFE_Op> ;
       SetLength(retVals,num_retvals);
+      pRetVals := nil;
 
-      var pRetVals : Pointer := nil;
       if Length(retVals) > 0 then pRetVals := @retVals[0];
 
       TF4D.Core.CApiEager.TFE_Execute(op, pRetVals, num_retvals, status.Handle);
       status.RaiseEx;
 
-      var flat_result : TArray<TFTensor> ;
+      flat_result := [];
       for var i := 0 to num_retvals - 1 do
          flat_result := flat_result + [ TEagerTensor.Create( retVals[i] ) ];
       if op_exec_info.run_callbacks then
@@ -2955,16 +2963,21 @@ begin
     var sources_set := sources_vec;
     var seq_array := target;
     var source_tensors_that_are_targets := TDictionary<TFTensor, TapeTensor>.Create;
-    for var i := 0 to Length(target) - 1 do
-    begin
-        source_tensors_that_are_targets.Add(target_vec[i], TapeTensor.Create( seq_array[i]) );
+    try
+      for var i := 0 to Length(target) - 1 do
+      begin
+          source_tensors_that_are_targets.Add(target_vec[i], TapeTensor.Create( seq_array[i]) );
+      end;
+      if output_gradients <> nil then
+          raise Exception.Create('Not Implemented')
+      else
+          output_gradients :=  [];
+      var outgrad_vec := MakeTensorList(output_gradients);
+      Result := tape.ComputeGradient(target_vec, sources_vec, source_tensors_that_are_targets, outgrad_vec);
+    finally
+      source_tensors_that_are_targets.Clear;
+      FreeAndNil(source_tensors_that_are_targets);
     end;
-    if output_gradients <> nil then
-        raise Exception.Create('Not Implemented')
-    else
-        output_gradients :=  [];
-    var outgrad_vec := MakeTensorList(output_gradients);
-    Result := tape.ComputeGradient(target_vec, sources_vec, source_tensors_that_are_targets, outgrad_vec);
 end;
 { TFastPathOpExecInfo }
 
@@ -2973,6 +2986,17 @@ begin
     op_name := opName;
     name    := name;
     args    := inputArgs;
+end;
+
+destructor TFastPathOpExecInfo.Destroy;
+begin
+  op_name := '';
+  name    := '';
+  args := [];
+  attrs.Free;
+  callbacks  := nil;
+
+  inherited Destroy;
 end;
 
 { TExecute }
@@ -4326,6 +4350,7 @@ destructor TGradientTape.Destroy;
 begin
   if Assigned(Ftape) then
       Ftape.Free;
+
   FtapeSet.Clear;
   FtapeSet.Free;
 
@@ -4597,154 +4622,166 @@ var
   in_gradients                    : TArray<TFTensor>;
 begin
     sources_set := TCollections.CreateSet<TFTensor>(source_tensor_ids);
-    // var gradients_size = new UnorderedMap<Tensor, long>();
+
     func_AcceptingNoneForIndicesMap := FunctionsAcceptingNoneForIndicesMap;
     state    := PrepareBackprop(target_tensor_ids, Ftensor_tape_, Fop_tape_, sources_set, F_persistent);
     op_stack := InitialStack(state.op_tape, state.op_missing_tensor);
     gradients:= InitialGradients(target_tensor_ids, sources_that_are_targets, output_gradients, Ftensor_tape_, state.op_tape);
-    while op_stack.Count > 0 do
-    begin
-        var op := op_stack.Dequeue;
-        if not state.op_tape.ContainsKey(op) then
-            continue;
-        trace := state.op_tape[op];
-        // Console.WriteLine($"ComputeGradient: {state.op_tape[op].op_type}");
-        state.op_tape.Remove(op);
-        out_gradients          := TList<TFTensor>.Create;
-        out_gradients.Capacity := Length(trace.output_tensor_info);
-        unneeded_gradients := TList<Int64>.Create;
-        for var i := 0 to Length(trace.input_tensor_id)- 1 do
-        begin
-            var in_tensor_id := trace.input_tensor_id[i];
-            if (not Ftensor_tape_.ContainsKey(in_tensor_id)) and (not sources_set.Contains(in_tensor_id)) then
-                unneeded_gradients.Add(i);
-        end;
-        var any_gradient_nonzero : boolean := false;
-        zero_indices := TList<Integer>.Create;
-        for var i := 0 to Length(trace.output_tensor_info)-1 do
-        begin
-            var id := trace.output_tensor_info[i].GetTensor;
-            if  not gradients.ContainsKey(id) then
+    try
+      while op_stack.Count > 0 do
+      begin
+          var op := op_stack.Dequeue;
+          if not state.op_tape.ContainsKey(op) then
+              continue;
+          trace := state.op_tape[op];
+          // Console.WriteLine($"ComputeGradient: {state.op_tape[op].op_type}");
+          state.op_tape.Remove(op);
+
+          out_gradients      := TList<TFTensor>.Create;
+          unneeded_gradients := TList<Int64>.Create;
+          zero_indices       := TList<Integer>.Create;
+          try
+            for var i := 0 to Length(trace.input_tensor_id)- 1 do
             begin
-                if (func_AcceptingNoneForIndicesMap.ContainsKey(trace.op_type)) and  (func_AcceptingNoneForIndicesMap[trace.op_type].Contains(i)) then
+                var in_tensor_id := trace.input_tensor_id[i];
+                if (not Ftensor_tape_.ContainsKey(in_tensor_id)) and (not sources_set.Contains(in_tensor_id)) then
+                    unneeded_gradients.Add(i);
+            end;
+            var any_gradient_nonzero : boolean := false;
+            for var i := 0 to Length(trace.output_tensor_info)-1 do
+            begin
+                var id := trace.output_tensor_info[i].GetTensor;
+                if  not gradients.ContainsKey(id) then
                 begin
-                    out_gradients.Add(nil);
+                    if (func_AcceptingNoneForIndicesMap.ContainsKey(trace.op_type)) and  (func_AcceptingNoneForIndicesMap[trace.op_type].Contains(i)) then
+                    begin
+                        out_gradients.Add(nil);
+                    end else
+                    begin
+                        out_gradients.Add(nil);
+                        zero_indices.Add(i);
+                    end;
                 end else
                 begin
-                    out_gradients.Add(nil);
-                    zero_indices.Add(i);
+                    any_gradient_nonzero := true;
+                    var grad_it := gradients[id];
+                    var new_gradients : TFTensor ;
+                    if grad_it.Count = 1 then new_gradients := grad_it[0]
+                    else                      new_gradients := gen_math_ops.add_n(grad_it.ToArray);  // vspace.AggregateGradients
+                    if not sources_set.Contains(id) then
+                        gradients.Remove(id)
+                    else begin
+                        // grad_it.Clear();
+                        // grad_it.Add(new_gradients);
+                        // vspace.MarkAsResult(new_gradients);
+                    end;
+                    out_gradients.Add(new_gradients);
+                end;
+            end;
+            in_gradients := [];
+            if any_gradient_nonzero then
+            begin
+                // foreach (var i in zero_indices)
+                //     out_gradients[i] = trace.output_tensor_info[i].ZerosLike();
+                in_gradients := trace.backward_function(out_gradients.ToArray, unneeded_gradients.ToArray);
+                if (Length(in_gradients) <> Length(trace.input_tensor_id)) and ((Length(in_gradients) + unneeded_gradients.Count) <> Length(trace.input_tensor_id))then
+                    raise TFException.Create( Format('Recorded operation "%s" returned too few gradients. Expected %d but received %d',[trace.op_type, Length(trace.input_tensor_id), Length(in_gradients)]) );
+                if not F_persistent then
+                begin
+                    // trace.backward_function_deleter(trace.backward_function);
+                    trace.backward_function := nil;
                 end;
             end else
             begin
-                any_gradient_nonzero := true;
-                var grad_it := gradients[id];
-                var new_gradients : TFTensor ;
-                if grad_it.Count = 1 then new_gradients := grad_it[0]
-                else                      new_gradients := gen_math_ops.add_n(grad_it.ToArray);  // vspace.AggregateGradients
-                if not sources_set.Contains(id) then
-                    gradients.Remove(id)
-                else begin
-                    // grad_it.Clear();
-                    // grad_it.Add(new_gradients);
-                    // vspace.MarkAsResult(new_gradients);
-                end;
-                out_gradients.Add(new_gradients);
+                SetLength(in_gradients, Length(trace.input_tensor_id));
             end;
-        end;
-        in_gradients := [];
-        if any_gradient_nonzero then
-        begin
-            // foreach (var i in zero_indices)
-            //     out_gradients[i] = trace.output_tensor_info[i].ZerosLike();
-            in_gradients := trace.backward_function(out_gradients.ToArray, unneeded_gradients.ToArray);
-            if (Length(in_gradients) <> Length(trace.input_tensor_id)) and ((Length(in_gradients) + unneeded_gradients.Count) <> Length(trace.input_tensor_id))then
-                raise TFException.Create( Format('Recorded operation "%s" returned too few gradients. Expected %d but received %d',[trace.op_type, Length(trace.input_tensor_id), Length(in_gradients)]) );
-            if not F_persistent then
+
+            var k : Integer := 0;
+            var skip_unneeded_id : Boolean := Length(trace.input_tensor_id) > Length(in_gradients);
+            for var i := 0 to Length(in_gradients) - 1 do
             begin
-                // trace.backward_function_deleter(trace.backward_function);
-                trace.backward_function := nil;
-            end;
-        end else
-        begin
-            SetLength(in_gradients, Length(trace.input_tensor_id));
-        end;
+                if k >= Length(trace.input_tensor_id) then Break;
 
-        var k : Integer := 0;
-        var skip_unneeded_id : Boolean := Length(trace.input_tensor_id) > Length(in_gradients);
-        for var i := 0 to Length(in_gradients) - 1 do
-        begin
-            if k >= Length(trace.input_tensor_id) then Break;
+                if (skip_unneeded_id) and (unneeded_gradients.Contains(k)) then Inc(k);
+                var id := trace.input_tensor_id[k];
 
-            if (skip_unneeded_id) and (unneeded_gradients.Contains(k)) then Inc(k);
-            var id := trace.input_tensor_id[k];
+                Inc(k);
 
-            Inc(k);
-
-            if in_gradients[i] <> nil then
-            begin
-                if not gradients.ContainsKey(id) then
-                      gradients.Add(id,TList<TFTensor>.Create );
-
-                var unaggregated_grads := gradients[id];
-                unaggregated_grads.Add(in_gradients[i]);
-                (*if (unaggregated_grads.Count > kMinAggregateCount)
-                {
-                    if (!gradients_size.find(id, out var size))
-                    {
-                        size = (long)unaggregated_grads[0].size;
-                        gradients_size.emplace(id, size);
-                    }
-                    if (unaggregated_grads.Count * size * 4 > kMinAggregateBytes)
-                    {
-                        throw new NotImplementedException("");
-                    }
-                }*)
-            end;
-            if not state.tensor_usage_counts.ContainsKey(id) then
-                continue;
-            state.tensor_usage_counts[id] := state.tensor_usage_counts[id] - 1;
-            if state.tensor_usage_counts[id] > 0 then
-                continue;
-            if not Ftensor_tape_.ContainsKey(id) then
-            begin
-                if gradients.ContainsKey(id) then
+                if in_gradients[i] <> nil then
                 begin
-                    // foreach (var g in grad_it)
-                    // DeleteGradient(g);
-                    gradients.Remove(id);
+                    if not gradients.ContainsKey(id) then
+                          gradients.Add(id,TList<TFTensor>.Create );
+
+                    var unaggregated_grads := gradients[id];
+                    unaggregated_grads.Add(in_gradients[i]);
+                    (*if (unaggregated_grads.Count > kMinAggregateCount)
+                    {
+                        if (!gradients_size.find(id, out var size))
+                        {
+                            size = (long)unaggregated_grads[0].size;
+                            gradients_size.emplace(id, size);
+                        }
+                        if (unaggregated_grads.Count * size * 4 > kMinAggregateBytes)
+                        {
+                            throw new NotImplementedException("");
+                        }
+                    }*)
                 end;
-                continue;
+                if not state.tensor_usage_counts.ContainsKey(id) then
+                    continue;
+                state.tensor_usage_counts[id] := state.tensor_usage_counts[id] - 1;
+                if state.tensor_usage_counts[id] > 0 then
+                    continue;
+                if not Ftensor_tape_.ContainsKey(id) then
+                begin
+                    if gradients.ContainsKey(id) then
+                    begin
+                        // foreach (var g in grad_it)
+                        // DeleteGradient(g);
+                        gradients.Remove(id);
+                    end;
+                    continue;
+                end;
+                var tape_it := Ftensor_tape_[id] ;
+                var op_id   := tape_it;
+                if op_id = -1 then
+                    continue;
+                if state.op_missing_tensor.ContainsKey(op_id) then
+                begin
+                    state.op_missing_tensor[op_id] := state.op_missing_tensor[op_id] - 1;
+                    if state.op_missing_tensor[op_id] = 0 then
+                        op_stack.Enqueue(op_id);
+                end;
             end;
-            var tape_it := Ftensor_tape_[id] ;
-            var op_id   := tape_it;
-            if op_id = -1 then
-                continue;
-            if state.op_missing_tensor.ContainsKey(op_id) then
-            begin
-                state.op_missing_tensor[op_id] := state.op_missing_tensor[op_id] - 1;
-                if state.op_missing_tensor[op_id] = 0 then
-                    op_stack.Enqueue(op_id);
-            end;
-        end;
-        unneeded_gradients.Free;
-        zero_indices.Free;
-        out_gradients.Free;
+          finally
+           unneeded_gradients.Clear;
+           FreeAndNil(unneeded_gradients);
+           zero_indices.Clear;
+           FreeAndNil(zero_indices);
+           out_gradients.Clear;
+           FreeAndNil(out_gradients);
+          end;
+      end;
+      if state.op_tape.Count > 0 then
+         raise Exception.Create('Invalid tape state.');
+      var res : TArray<TFTensor>; SetLength(res, Length(source_tensor_ids) );
+      var j : Integer := 0;
+      for var id in source_tensor_ids do
+      begin
+          if gradients.ContainsKey(id) then
+          begin
+              var grad_it := gradients[id];
+              if grad_it.Count > 1 then  res[j] := gen_math_ops.add_n(grad_it.ToArray)
+              else                       res[j] := grad_it[0];
+          end;
+          Inc(j);
+      end;
+      Result := res;
+    finally
+      state.Free;
+      gradients.Clear;
+      FreeAndNil(gradients);
     end;
-    if state.op_tape.Count > 0 then
-       raise Exception.Create('Invalid tape state.');
-    var res : TArray<TFTensor>; SetLength(res, Length(source_tensor_ids) );
-    var j : Integer := 0;
-    for var id in source_tensor_ids do
-    begin
-        if gradients.ContainsKey(id) then
-        begin
-            var grad_it := gradients[id];
-            if grad_it.Count > 1 then  res[j] := gen_math_ops.add_n(grad_it.ToArray)
-            else                       res[j] := grad_it[0];
-        end;
-        Inc(j);
-    end;
-    Result := res;
 end;
 
 procedure TTape.RecordOperation(op_type: string; input_tensors: TArray<TFTensor>; output_tensors: TArray<TapeTensor>; backward_function: BackwardFunction);
